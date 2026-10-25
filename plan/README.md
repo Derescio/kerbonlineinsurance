@@ -10,7 +10,7 @@
 5. the current phase's `phase.md` and slice files
 
 **Status (24 Oct 2026):**
-- Slices 1.1–1.2 are done (app scaffolded). Next: **slice 1.3** ([03-conventions.md](phases/01-setup/03-conventions.md)).
+- Slices 1.1–1.3 are done. Next: **slice 1.4** ([04-ci-pipeline.md](phases/01-setup/04-ci-pipeline.md)). The Vercel project `kerbonlineinsurance` is already linked, but production 404s until Nitro is added in 1.5.
 - Phase 1 slices are fully specced and waiting for Damion's go-ahead. Later phases have titles only, and get specced when they start.
 - Vite+ v1.3.0 is installed, and `vp env doctor` passes. Vite+ manages Node 24.22.1 and pnpm. The system `node`/`npm` in `C:\Program Files\nodejs` aren't Vite+ shims, which is harmless for `vp` commands.
 

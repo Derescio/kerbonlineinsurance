@@ -6,7 +6,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 - [x] 1.1 **Vite+ check**: `vp` on PATH, tour of the commands
 - [x] 1.2 **Scaffold TanStack Start**: `vp create`, strip the demo
-- [ ] 1.3 **Conventions**: folders, aliases, env handling, pre-commit hook, cache helper, `vp check` clean
+- [x] 1.3 **Conventions**: folders, aliases, env handling, pre-commit hook, cache helper, `vp check` clean
 - [ ] 1.4 **CI pipeline**: GitHub Actions (`setup-vp`, check/test/build, caching), Dependabot, `pnpm audit`, secret scanning
 - [ ] 1.5 **Deploy environments**: Vercel production (`main`), staging (`staging`), PR previews; London region; protection, spend limit, firewall (incl. server-function path); security headers; streaming test
 - [ ] 1.6 **Git workflow + first release**: `staging` branch, branch protection, PR template, release PR → tag `s1-setup`
@@ -77,7 +77,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 - [ ] 8.1 **Error, empty and loading states**
 - [ ] 8.2 **Accessibility pass**
-- [ ] 8.3 **Meta, OG image, favicon**
+- [ ] 8.3 **Meta, OG image, favicon** (favicon already added in 1.3; maybe an SVG version)
 - [ ] 8.4 **Final deploy + link in the UI/UX video description**
 - [ ] 8.5 **Website video script + shot list**
 - [ ] 8.6 **Launch readiness**: check current service limits, upgrade where needed, spend caps and alerts everywhere, load test (decides on Redis)
