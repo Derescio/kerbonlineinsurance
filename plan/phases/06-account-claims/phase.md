@@ -25,7 +25,7 @@ Specced in full when this phase starts.
 | 6.7 | Reviews, write: form and card designed in Figma first; `reviews` table (user, policy, product, rating 1–5, title, body, tags, status `pending/published/rejected`, moderation reason); one review per policy, editable; "Leave a review" card on the dashboard for any policyholder who hasn't reviewed; up to 3 photos per review (4.10 helper), shown in the admin queue until 7.7; review text stored and shown as plain text; Turnstile + rate limit on submit; idempotent submit | todo |
 | 6.8 | Admin area: `/admin/users` (assign claims handlers, audited) and `/admin/reviews` queue with approve/reject + reason. Until 7.7, every review waits here | todo |
 | 6.9 | Reviews, public: `/reviews` with average rating, count, filters by product/stars; latest reviews in the landing trust section; shown as "First name L." + "Verified Kerb demo customer". **Perf:** `/reviews` uses `publicCacheHeaders()` (5 min default, `PUBLIC_CACHE_SECONDS`); `/media/r/:fileId` streams published review photos from R2 with long immutable caching; review text rendered as plain text (no HTML) | todo |
-| 6.10 | Staff claims console (designed in Figma first): `/staff/claims` queue filtered by status; claim detail with photos, documents and internal notes; status change (received → assessing → approved / declined → settled) writes a `claim_events` row, which the customer's tracker (6.6) shows; requires `claims_handler` or `admin` via the 4.5 middleware; every change audited; status moves follow the rulebook in `src/features/claims/status.ts`; `version` check refuses stale edits; status change, event and audit in one transaction; a claim status email is queued as a job | todo |
+| 6.10 | Staff claims console (designed in Figma first): `/staff/claims` queue filtered by status; claim detail with photos, documents and internal notes; status change (received → assessing → approved / declined → settled) writes a `claim_events` row, which the customer's tracker (6.6) shows; requires `claims_handler` or `admin` via the 4.5 middleware; every change audited; status moves follow the rulebook in `src/features/claims/status.ts`; `version` check refuses stale edits; status change, event and audit in one transaction; a claim status email is queued as a job. **E2E:** Playwright journey in `e2e.yml`: customer submits a claim → handler moves it to approved → customer's tracker shows it | todo |
 
 ## Recording notes
 
@@ -38,4 +38,5 @@ Specced in full when this phase starts.
 
 - A user only ever sees their own policies and claims.
 - Claim flow completes on the deployed URL.
+- The claim → approval Playwright journey passes on a preview.
 - Deployed and tagged.

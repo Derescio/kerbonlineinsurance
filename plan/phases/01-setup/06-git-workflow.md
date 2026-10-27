@@ -23,6 +23,7 @@ Switch from bootstrap commits on `main` to the real flow: slice branches → PR 
 ## Out of scope
 
 - CODEOWNERS or required reviewers. Damion works alone, so requiring a review would block his own merges.
+- CodeRabbit (AI PR review): optional, revisit after this slice. Never a required check.
 
 ## Sources
 

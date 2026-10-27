@@ -11,8 +11,7 @@ Every push and PR runs `vp check`, `vp test` and `vp build` on GitHub Actions, w
 
 - `.github/workflows/ci.yml` at the repo root (`kerb-online-insurance/` is the repo, so no subfolder handling).
 - Triggers: `pull_request` to `staging` and `main`, `push` to `staging` and `main`. Ignore changes that only touch `plan/**`.
-- `voidzero-dev/setup-vp`, pinned to an exact release, with `node-version: '24'` and `cache: true`.
-- The Vite Task cache kept between runs with `actions/cache`.
+- `voidzero-dev/setup-vp`, pinned to an exact release (commit SHA + tag comment), with `node-version: '24'` and `cache: true`.
 - Job name `ci`. It becomes the required check in 1.6.
 - `concurrency` group per branch, so a new push cancels the older run.
 - `pnpm audit --prod` step (fails on high/critical).
@@ -23,6 +22,7 @@ Every push and PR runs `vp check`, `vp test` and `vp build` on GitHub Actions, w
 
 - Migration drift check (added in 4.1), e2e (3.4), Lighthouse (8.7), Kerbie eval (7.6).
 - Branch protection (1.6).
+- Vite Task cache across runs. It only caches `vp run` tasks (not direct `vp check`/`vp build`), is marked experimental, and our build takes under a second, so restore/save would cost more than it saves. Revisit if CI gets slow.
 
 ## Sources
 
@@ -36,9 +36,9 @@ Every push and PR runs `vp check`, `vp test` and `vp build` on GitHub Actions, w
 
 ## Steps
 
-- [ ] Look up the current setup-vp release and the documented Vite Task cache path, then pin both.
-- [ ] Write `ci.yml`: checkout → setup-vp → restore the task cache → `vp check` → `vp test` → `vp build`.
-- [ ] Write `dependabot.yml`.
+- [x] Look up the current setup-vp release (v1.22.0) and pin it.
+- [x] Write `ci.yml`: checkout → setup-vp → `vp check` → `vp test` → `vp build` → `pnpm audit`.
+- [x] Write `dependabot.yml`.
 - [ ] Push to `main` (bootstrap) and watch the run in the Actions tab.
 - [ ] Push again with no changes and confirm the second run is faster (cache hits).
 

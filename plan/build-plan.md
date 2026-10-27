@@ -28,7 +28,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 4. Data and auth · `s4-data-auth` · [phase](phases/04-data-auth/phase.md)
 
-- [ ] 4.1 **Neon + Drizzle setup**: London, `prod` + `dev` branches, migration scripts, migrate in the Vercel build (staging/prod), CI drift check
+- [ ] 4.1 **Neon + Drizzle setup**: London, `prod` + `dev` branches, migration scripts, migrate in the Vercel build (staging/prod), CI drift check; unit/integration test split with a Postgres test DB in CI
 - [ ] 4.2 **Schema + first migration**: multi-product (car, home, business), bundles, auth tables; integrity constraints, money in pence, `version` columns
 - [ ] 4.3 **Auth screens designed in Figma**: incl. Google button and 2FA screens
 - [ ] 4.4 **Better Auth**: sign up (with a demo notice, Turnstile), email + password (breached-password check), Google sign-in, soft email verification (banner, not a blocker), sessions, rate limits
@@ -47,7 +47,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 5.3 **Driving habits + driver steps**
 - [ ] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
 - [ ] 5.5 **Cover options + summary**: cover comparison table, price breakdown
-- [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes
+- [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
 
@@ -60,7 +60,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 6.7 **Reviews: write**: review UI designed in Figma; `reviews` table; up to 3 photos; "Leave a review" card on the dashboard for policyholders
 - [ ] 6.8 **Admin area**: review moderation queue (approve / reject) + `/admin/users` role assignment (audited)
 - [ ] 6.9 **Reviews: public**: `/reviews` page (average, filters) + latest reviews in the landing trust section; `/media/r/:fileId` photo route
-- [ ] 6.10 **Staff claims console**: designed in Figma first; `/staff/claims` queue + claim detail (photos, documents, notes); status changes write `claim_events`
+- [ ] 6.10 **Staff claims console**: designed in Figma first; `/staff/claims` queue + claim detail (photos, documents, notes); status changes write `claim_events`; claim → approval Playwright journey
 
 ## 7. Kerbie · `s7-kerbie` · [phase](phases/07-kerbie/phase.md)
 

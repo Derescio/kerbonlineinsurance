@@ -65,7 +65,9 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 |---|---|---|---|
 | `ci.yml` | PR to `staging`/`main`, push to both | `voidzero-dev/setup-vp` (pinned release, Node 24, `cache: true`) → `vp check` → `vp test` → `vp build`, with the Vite Task cache via `actions/cache` | 1.4 |
 | `ci.yml` (+ step) | same | Migration drift check | 4.1 |
+| `ci.yml` (+ service) | same | Postgres service container (same major version as Neon) → apply migrations → run the `integration` test project | 4.1 |
 | `e2e.yml` | Vercel `deployment_status` success on a preview | Playwright smoke test against the preview URL, using Vercel's protection-bypass secret | 3.4 |
+| `e2e.yml` (+ journeys) | same | Quote → policy (5.6), submit claim → handler approves (6.10) | 5.6, 6.10 |
 | `lighthouse.yml` | same | Lighthouse CI with performance budgets | 8.7 |
 | `kerbie-eval.yml` | manual `workflow_dispatch` only | Runs the Kerbie eval set. It costs money, so it never runs automatically | 7.6 |
 
@@ -73,6 +75,21 @@ Also:
 - **Local hooks:** pre-commit runs `vp staged` (format + lint staged files), set up with `vp config`.
 - **Dependabot:** weekly grouped dependency PRs into `staging`.
 - **PR template:** slice link, "Done when" checklist, preview link or screenshots.
+- **AI PR review (CodeRabbit):** optional, not planned. Revisit after 1.6 if a second reviewer would help. Never a required check.
+
+### Testing
+
+Three layers. Each one has an owner slice and runs in CI.
+
+| Layer | Files | What it covers | Runs | From slice |
+|---|---|---|---|---|
+| **Unit** | `*.test.ts` | Pure logic with no I/O: `priceQuote()`, the claim status rulebook, Zod schemas, helpers like `cache.ts` | `vp test` locally and in `ci.yml` | 1.2 |
+| **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
+| **E2E** | `e2e/*.spec.ts` | The deployed app in a browser: smoke test, then the quote and claim journeys | `e2e.yml` on every preview | 3.4 |
+
+- **Two Vitest projects**, `unit` and `integration`, in `vite.config.ts`, so local `vp test` stays fast and CI runs both. Check how Vite+ exposes the Vitest `test` config when setting this up in 4.1.
+- **Test database:** each run applies the migrations to an empty database, and tests truncate tables between cases. Tests connect with the node-postgres driver, chosen by env, because the Neon serverless driver can't talk to a plain Postgres. Not a Neon branch per run: it's slower, costs money, and needs secrets that Dependabot PRs don't get.
+- **Coverage:** reported, not gated, except for thresholds on the code where a bug costs most: `src/features/rating`, `src/server/auth`, `src/features/claims/status.ts`.
 
 ## 5. Caching and efficiency
 
@@ -209,7 +226,7 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 ### Tests
 
-Permission tests (Vitest) call every protected server function as guest, customer A, customer B, claims handler and admin, and check each result against the table. They include cross-user access attempts: customer B asks for customer A's policy, claim or file by id and must be refused.
+Permission tests (Vitest integration tests, `*.int.test.ts`, against the test database from §4) call every protected server function as guest, customer A, customer B, claims handler and admin, and check each result against the table. They include cross-user access attempts: customer B asks for customer A's policy, claim or file by id and must be refused.
 
 ## 8. Data integrity and idempotency
 

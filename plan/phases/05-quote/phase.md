@@ -21,7 +21,7 @@ Specced in full when this phase starts.
 | 5.3 | Driving habits + driver steps with Zod validation | todo |
 | 5.4 | Rating engine `priceQuote()`: base rate × rating factors + fees + IPT, bundle discount; reads versioned rating tables; stores breakdown + version on the quote; Vitest tests for all three products. **Perf:** rating tables read from the in-memory cache by version | todo |
 | 5.5 | Cover options + quote summary: cover comparison table next to the CoverageOption cards (Admiral-style), and a price breakdown from `priceQuote()` | todo |
-| 5.6 | Pay → policy saved; guests sign up or sign in first, quote kept; "Retrieve my quote" lists a signed-in user's saved quotes. **Integrity:** pay runs in one transaction (policy + bundle + audit) with an idempotency key, so a double-click can't create two policies; quote saves are rate-limited | todo |
+| 5.6 | Pay → policy saved; guests sign up or sign in first, quote kept; "Retrieve my quote" lists a signed-in user's saved quotes. **Integrity:** pay runs in one transaction (policy + bundle + audit) with an idempotency key, so a double-click can't create two policies; quote saves are rate-limited. **E2E:** Playwright journey in `e2e.yml`: car quote → sign in → pay → policy shows on the dashboard | todo |
 
 ## Recording notes
 
@@ -32,4 +32,5 @@ Specced in full when this phase starts.
 
 - Quote completes end to end on the deployed URL.
 - Pricing tests pass.
+- The quote → policy Playwright journey passes on a preview.
 - Deployed and tagged.

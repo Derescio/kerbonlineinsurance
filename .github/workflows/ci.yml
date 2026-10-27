@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+    paths-ignore: ["plan/**"]
+  push:
+    branches: [staging, main]
+    paths-ignore: ["plan/**"]
+
+permissions:
+  contents: read
+
+# A new push to the same branch or PR cancels the older run
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Installs Vite+, Node 24 and pnpm, runs `vp install`, and caches the pnpm store
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+
+      - run: vp check
+      - run: vp test
+      - run: vp build
+
+      # Fails on high or critical advisories in production dependencies
+      - run: pnpm audit --prod --audit-level high
