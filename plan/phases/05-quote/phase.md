@@ -28,9 +28,26 @@ Specced in full when this phase starts.
 - Sources: Figma `Quote & Policy – Web/Mobile/Tablet` frames, `../ui_kits/web/QuoteSteps.jsx`, `../components/insurance/CoverageOption.jsx`.
 - Show `vp test` running the pricing tests in watch mode: good Vitest-in-Vite+ moment.
 
+## Testing
+
+Layers and tooling: [engineering.md §4](../../engineering.md#testing). `src/features/rating` and `src/features/quote/schemas` have coverage thresholds.
+
+| Layer | What | Slice | Gate? |
+|---|---|---|---|
+| Component | Stepper: back and next, can't move past an invalid step, answers kept when going back, progress announced to screen readers | 5.1 | yes |
+| Component | Vehicle picker: make → model → year → variant cascade clears the children when a parent changes; demo plate fills the picker, an unknown plate shows the manual route | 5.2 | yes |
+| Integration | Catalogue API sends a long public `Cache-Control`; a postcode is looked up once (postcodes.io mocked) and then read from `postcode_areas`; an invalid postcode gets a friendly error | 5.2 | yes |
+| Unit | Step Zod schemas: driver age limits, licence date not before 17th birthday, claims history shape, UK postcode format | 5.3 | yes |
+| Unit | `priceQuote()`, table-driven for car, home and business: base rate × factors, fees, IPT rounded to whole pence, bundle discount, breakdown lines sum to the total, unknown `rating_version` throws | 5.4 | yes |
+| Integration | A saved quote stores its breakdown and `rating_version`; reading it after a new version still shows the old price | 5.4 | yes |
+| Component | Cover cards and comparison table select the same option; price breakdown shows each line from `priceQuote()` | 5.5 | yes |
+| Integration | Pay: a double submit with one idempotency key makes one policy; a failure part-way leaves no policy, bundle or audit row; quote saves hit the rate limit; a guest quote survives sign-in; "Retrieve my quote" lists only the user's own quotes | 5.6 | yes |
+| E2E | Car quote → sign in → pay → policy on the dashboard, at phone width; axe on each quote step | 5.6 | yes |
+
 ## Exit criteria
 
 - Quote completes end to end on the deployed URL.
 - Pricing tests pass.
-- The quote → policy Playwright journey passes on a preview.
+- Pay idempotency and rollback integration tests pass.
+- The quote → policy Playwright journey and the axe scans of each step pass on a preview.
 - Deployed and tagged.

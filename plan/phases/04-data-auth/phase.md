@@ -36,8 +36,31 @@ Specced in full when this phase starts.
 - Point at the schema diagram: this is the data the data video will pick up.
 - Secrets go into Vercel env vars on camera (blur the values).
 
+## Testing
+
+Layers and tooling: [engineering.md §4](../../engineering.md#testing). This phase adds the `integration` Vitest project and the Postgres service in `ci.yml` (4.1). This table collects the tests named in the slice rows above and fills the gaps.
+
+| Layer | What | Slice | Gate? |
+|---|---|---|---|
+| Integration | Migrations apply cleanly to an empty DB; a sample failing `*.int.test.ts` fails `ci`; drift check catches a schema change with no migration | 4.1 | yes |
+| Integration | DB constraints refuse bad rows: rating 6, a negative amount, a second policy for one quote, an unknown status, a missing `NOT NULL` field | 4.2 | yes |
+| Unit | Auth input schemas; password rule (min 10 chars); breached-password check with the HIBP call mocked | 4.4 | yes |
+| Component | Sign up, sign in, reset and 2FA forms: validation messages, Google button, 6-digit code input | 4.3–4.6 | yes |
+| Integration | Permission suite: every protected function × guest, customer A, customer B, handler, admin, including cross-user ids ([§7](../../engineering.md#tests)) | 4.5 | yes |
+| Integration | `withTx` rolls back every write on a thrown error; `withIdempotency` returns the first result on a repeat and refuses the same key with a different payload; `limit()` sliding window allows N then returns 429 | 4.5 | yes |
+| Integration | Staff functions refused without 2FA set up or with a stale session; password change revokes other sessions; "sign out everywhere" ends them all | 4.6 | yes |
+| Integration | Delete account removes the user's rows and R2 objects (S3 client mocked) and writes an `audit_log` row | 4.7 | yes |
+| Integration | Reference-data upsert is idempotent and keyed by `rating_version`; the module-scope cache returns the same tables for the same version | 4.8 | yes |
+| Integration | Seed script run twice gives the same row counts | 4.9 | yes |
+| Integration | `createUpload` enforces kind, count, MIME and size limits and parent ownership; `confirmUpload` rejects a renamed `.exe` by magic bytes; `getFileUrl` refuses another user's file; staff can read claim files | 4.10 | yes |
+| Component | Upload client in real Chromium: a large JPEG comes out as WebP ≤ 2048 px with no EXIF; thumbnail is 400 px | 4.10 | yes |
+| Unit + Integration | Backoff calculation (unit); a failing job retries with backoff and lands in `dead` after 5 attempts; a rolled-back transaction leaves no job; a handler run twice has one effect | 4.11 | yes |
+| E2E | Sign up → sign out → sign in; a seeded staff account is sent to 2FA setup before any staff page; axe on the auth pages. Turnstile uses Cloudflare's test keys | 4.4–4.6 | yes |
+| Manual | Google sign-in on staging and production; the verification email arrives; the 12 MB phone photo check with `exiftool` | 4.4, 4.10 | yes |
+
 ## Exit criteria
 
+- `integration` project passes in `ci`; auth E2E and axe pass on the preview.
 - Full auth round-trip works on the deployed URL.
 - Permission test suite passes (every protected function × 5 actors); customer B is refused customer A's policy, claim and file ids.
 - A new staff account can't open staff pages until 2FA is set up; Google sign-in works on staging and production; each staff action writes an `audit_log` row.
