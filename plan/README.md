@@ -28,7 +28,7 @@ This folder is how the Kerb website gets built: one **phase** per recording sess
 
 - [project-plan.md](project-plan.md): what we're building and why.
 - [build-plan.md](build-plan.md): the ordered checklist of every phase and slice.
-- `phases/NN-name/phase.md`: the goal, payoff shot and recording notes for one session.
+- `phases/NN-name/phase.md`: the goal, payoff shot, testing plan and recording notes for one session.
 - `phases/NN-name/NN-slice.md`: the spec for one slice.
 - [engineering.md](engineering.md): git workflow, environments, migrations, CI, caching.
 - [research/competitors.md](research/competitors.md): competitor UX review, with takeaways mapped to slices.
@@ -36,7 +36,7 @@ This folder is how the Kerb website gets built: one **phase** per recording sess
 
 ## The loop (per slice)
 
-1. **Spec.** Fill in the slice file. Damion reads it and approves it.
+1. **Spec.** Fill in the slice file, including its `## Tests` (taken from the phase's Testing section). Damion reads it and approves it. Tests are written with the code, test-first where the logic is pure.
 2. **Branch.** `slice/N.N-name` from `staging`.
 3. **Build.** Implement that slice only. Anything else that comes up goes into a later slice's notes.
 4. **Check.** `vp check` and `vp test` locally, then the slice's own "Done when" list.
@@ -78,6 +78,9 @@ Created or changed.
 
 ## Steps
 - [ ] ...
+
+## Tests
+Per layer (unit / component / integration / E2E / manual): what's tested and the file names. Write "none" for a layer, with the reason.
 
 ## Done when
 - [ ] Concrete, checkable results (commands, URLs, screens).

@@ -64,9 +64,11 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | Workflow | Trigger | What it does | From slice |
 |---|---|---|---|
 | `ci.yml` | PR to `staging`/`main`, push to both | `voidzero-dev/setup-vp` (pinned release, Node 24, `cache: true`) → `vp check` → `vp test` → `vp build`, with the Vite Task cache via `actions/cache` | 1.4 |
+| `ci.yml` (+ browser) | same | Installs Chromium (`playwright install --with-deps chromium`, browser cache keyed on the Playwright version) for the `component` test project | 2.2 |
 | `ci.yml` (+ step) | same | Migration drift check | 4.1 |
 | `ci.yml` (+ service) | same | Postgres service container (same major version as Neon) → apply migrations → run the `integration` test project | 4.1 |
 | `e2e.yml` | Vercel `deployment_status` success on a preview | Playwright smoke test against the preview URL, using Vercel's protection-bypass secret | 3.4 |
+| `e2e.yml` (+ axe) | same | `@axe-core/playwright` scan of each key page; fails on `serious`/`critical` violations | 3.4 |
 | `e2e.yml` (+ journeys) | same | Quote → policy (5.6), submit claim → handler approves (6.10) | 5.6, 6.10 |
 | `lighthouse.yml` | same | Lighthouse CI with performance budgets | 8.7 |
 | `kerbie-eval.yml` | manual `workflow_dispatch` only | Runs the Kerbie eval set. It costs money, so it never runs automatically | 7.6 |
@@ -79,17 +81,22 @@ Also:
 
 ### Testing
 
-Three layers. Each one has an owner slice and runs in CI.
+Four layers. Each one has an owner slice and runs in CI. Each phase's `phase.md` has a **Testing** section saying what that phase tests at each layer, and each slice spec lists its tests under `## Tests`.
 
 | Layer | Files | What it covers | Runs | From slice |
 |---|---|---|---|---|
 | **Unit** | `*.test.ts` | Pure logic with no I/O: `priceQuote()`, the claim status rulebook, Zod schemas, helpers like `cache.ts` | `vp test` locally and in `ci.yml` | 1.2 |
+| **Component** | `*.browser.test.tsx` | Rendered React components in real Chromium (Vitest browser mode, Playwright provider): states, props, keyboard and focus, form validation messages | `vp test` locally and in `ci.yml` | 2.2 |
 | **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
 | **E2E** | `e2e/*.spec.ts` | The deployed app in a browser: smoke test, then the quote and claim journeys | `e2e.yml` on every preview | 3.4 |
 
-- **Two Vitest projects**, `unit` and `integration`, in `vite.config.ts`, so local `vp test` stays fast and CI runs both. Check how Vite+ exposes the Vitest `test` config when setting this up in 4.1.
+- **Three Vitest projects** in `vite.config.ts`: `unit` (node), `component` (browser mode, Chromium) and `integration` (node + Postgres). `component` is added in 2.2 and `integration` in 4.1. Check how Vite+ exposes the Vitest `test` config when setting up the first split in 2.2.
 - **Test database:** each run applies the migrations to an empty database, and tests truncate tables between cases. Tests connect with the node-postgres driver, chosen by env, because the Neon serverless driver can't talk to a plain Postgres. Not a Neon branch per run: it's slower, costs money, and needs secrets that Dependabot PRs don't get.
-- **Coverage:** reported, not gated, except for thresholds on the code where a bug costs most: `src/features/rating`, `src/server/auth`, `src/features/claims/status.ts`.
+- **Accessibility:** an axe scan (`@axe-core/playwright`) on each key page in `e2e.yml`, failing on `serious`/`critical` violations. Added in 3.4; pages join the list as they ship. Lighthouse ≥ 95 stays as the budget in 8.7.
+- **Test data:** E2E uses the seeded accounts from 4.9 (customer A, customer B, claims handler, admin with a TOTP secret known to the tests) on `dev`, and creates its own records with unique ids, so runs don't collide. Turnstile uses Cloudflare's test keys outside production.
+- **External services in tests:** postcodes.io, R2 (at the S3 client boundary) and the AI model (the AI SDK's mock provider) are mocked in unit and integration tests. CI never makes paid AI calls.
+- **Not tested automatically:** visual match with Figma (manual side by side, recorded on camera) and Kerbie answer quality (the 7.6 eval, manual dispatch only).
+- **Coverage:** reported, not gated, except for thresholds on the code where a bug costs most: `src/features/rating`, `src/features/quote/schemas`, `src/server/auth`, `src/server/data`, `src/features/claims/status.ts`.
 
 ## 5. Caching and efficiency
 

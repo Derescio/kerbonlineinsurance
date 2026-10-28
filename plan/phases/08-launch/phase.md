@@ -31,9 +31,27 @@ Specced in full when this phase starts.
 - Script uses the tags `s1-setup` … `s8-launch` as chapter cut points.
 - End screen teases the data video.
 
+## Testing
+
+Layers and tooling: [engineering.md §4](../../engineering.md#testing). This phase is mostly checks across the whole site rather than new features.
+
+| Layer | What | Slice | Gate? |
+|---|---|---|---|
+| E2E | Each error, empty and loading state renders: forced 404 and 500, empty dashboard, no claims, no reviews, slow-network skeletons | 8.1 | yes |
+| E2E (axe) | Every key page, including the open Kerbie panel: zero serious or critical violations | 8.2 | yes |
+| Manual | Screen reader pass (NVDA) through the quote and claim flows; keyboard-only pass of the whole site | 8.2 | yes |
+| E2E | Meta tags, OG image URL and favicon return 200 with the right content type | 8.3 | yes |
+| Performance | Lighthouse CI budgets on previews (mobile LCP < 2.5 s, CLS < 0.1, landing JS < 150 KB gzip) | 8.7 | yes |
+| Load | Landing, quote and Kerbie (mock model) under the expected spike: no errors or pauses | 8.6 | yes |
+| Recovery | Restore drill: last night's export into a new Neon branch, a preview pointed at it, sign-in and data checked | 8.8 | yes |
+| Security | Permission suite green; headers scan; no CSP violations during a full E2E run (listen for `securitypolicyviolation`); `pnpm audit` clean | 8.9 | yes |
+| E2E | Full suite (smoke, quote, claim, review, Kerbie guest) plus axe against production after the final deploy | 8.4 | yes |
+| Manual | The live link opened on a real phone | 8.4 | yes |
+
 ## Exit criteria
 
 - Lighthouse ≥ 95 accessibility on key pages.
+- Full E2E and axe suite passes against production after the final deploy.
 - Link live in the video description.
 - Script delivered.
 - Load test passes without errors or pauses; every paid service has a spend cap and alert.

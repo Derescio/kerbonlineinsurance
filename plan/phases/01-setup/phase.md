@@ -40,6 +40,16 @@ The browser shows "Kerb" at a `*.vercel.app` URL. A test endpoint streams words 
 - Workflow segment: slice PR → preview URL → staging → release PR → production. Explain why (safe releases, one release per episode).
 - **Close on:** the live Vercel URL, the streaming test and the `s1-setup` tag. Mention why Vercel Pro: the site is built for a traffic spike.
 
+## Testing
+
+Layers and tooling: [engineering.md §4](../../engineering.md#testing). Phase 1 only sets up the unit layer.
+
+| Layer | What | Slice | Gate? |
+|---|---|---|---|
+| Unit | `parseEnv()` rejects bad or missing vars and lists each one; `publicCacheHeaders()` defaults to 300 and honours `PUBLIC_CACHE_SECONDS` | 1.3 | yes (`ci`) |
+| CI | A deliberately broken format fails `ci` on a throwaway branch | 1.4 | yes |
+| Manual | `/api/stream-test` streams word by word on production; staging and preview URLs ask for a login; security headers present (`curl -I`) | 1.5 | yes |
+
 ## Exit criteria
 
 - `vp check`, `vp test` and `vp build` pass.
