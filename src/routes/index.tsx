@@ -5,7 +5,9 @@ export const Route = createFileRoute("/")({ component: Home });
 function Home() {
   return (
     <main>
-      <h1>Kerb</h1>
+      <h1>
+        Kerb
+      </h1>
     </main>
   );
 }
