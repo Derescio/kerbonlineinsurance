@@ -34,7 +34,7 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | Vercel env | Git trigger | URL | DB (Neon) | Who can see it |
 |---|---|---|---|---|
 | Production | `main` | `<project>.vercel.app` | `prod` | Public |
-| Staging (Pro custom environment) | `staging` | stable branch alias `<project>-git-staging-<team>.vercel.app` (or a free `*.vercel.app` alias if the name is available) | `dev` | Vercel Authentication: Damion only |
+| Staging (Pro custom environment) | `staging` | `kerbonlineinsurance-staging.vercel.app` (a `*.vercel.app` domain assigned to the Staging environment) | `dev` | Vercel Authentication: Damion only |
 | Preview | every PR | per-deploy URL, posted on the PR | `dev` | Vercel Authentication |
 | Development | `vp dev` | localhost | `dev` | — |
 

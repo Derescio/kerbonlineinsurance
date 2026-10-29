@@ -1,6 +1,6 @@
 # 1.4 CI pipeline
 
-**Status:** spec
+**Status:** done
 **Phase:** 01-setup
 
 ## Goal
@@ -39,14 +39,14 @@ Every push and PR runs `vp check`, `vp test` and `vp build` on GitHub Actions, w
 - [x] Look up the current setup-vp release (v1.22.0) and pin it.
 - [x] Write `ci.yml`: checkout → setup-vp → `vp check` → `vp test` → `vp build` → `pnpm audit`.
 - [x] Write `dependabot.yml`.
-- [ ] Push to `main` (bootstrap) and watch the run in the Actions tab.
-- [ ] Push again with no changes and confirm the second run is faster (cache hits).
+- [x] Push to `main` (bootstrap) and watch the run in the Actions tab.
+- [x] Push again with no changes and confirm the second run is faster (cache hits).
 
 ## Done when
 
-- [ ] The `ci` job passes on GitHub for the latest `main` commit.
-- [ ] The second run shows the dependency cache restored and a shorter duration.
-- [ ] A deliberately broken format (in a throwaway branch) makes `ci` fail.
+- [x] The `ci` job passes on GitHub for the latest `main` commit.
+- [x] The second run shows the dependency cache restored and a shorter duration.
+- [x] A deliberately broken format (in a throwaway branch) makes `ci` fail.
 
 ## Commit message
 

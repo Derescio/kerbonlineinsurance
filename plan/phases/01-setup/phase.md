@@ -17,9 +17,9 @@ The browser shows "Kerb" at a `*.vercel.app` URL. A test endpoint streams words 
 | 1.1 | [Vite+ check](01-vite-plus-check.md) | done |
 | 1.2 | [Scaffold TanStack Start](02-scaffold-tanstack-start.md) | done |
 | 1.3 | [Conventions](03-conventions.md) | done |
-| 1.4 | [CI pipeline](04-ci-pipeline.md) | spec |
-| 1.5 | [Deploy environments](05-deploy-environments.md) | spec |
-| 1.6 | [Git workflow and first release](06-git-workflow.md) | spec |
+| 1.4 | [CI pipeline](04-ci-pipeline.md) | done |
+| 1.5 | [Deploy environments](05-deploy-environments.md) | done |
+| 1.6 | [Git workflow and first release](06-git-workflow.md) | in progress |
 
 ## Recording notes
 
