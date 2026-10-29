@@ -16,6 +16,8 @@ This page covers the git workflow, environments, database migrations, CI, and th
 
 ## 1. Branches and flow
 
+The full rules and step-by-step: [git-workflow.md](git-workflow.md).
+
 ```text
 slice/N.N-name ──PR──▶ staging ──release PR (end of phase)──▶ main ──▶ tag sN-*
                  CI + preview URL      staging deploy              production deploy
