@@ -2,7 +2,11 @@ import { defineConfig, lazyPlugins } from "vite-plus";
 
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
+import { nitro } from "nitro/vite";
+
 import viteReact from "@vitejs/plugin-react";
+
+import { staticSecurityHeaders } from "./src/server/security-headers";
 
 const config = defineConfig({
   fmt: {
@@ -18,7 +22,23 @@ const config = defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   resolve: { tsconfigPaths: true },
-  plugins: lazyPlugins(() => [tanstackStart(), viteReact()]),
+  plugins: lazyPlugins(() => [
+    tanstackStart(),
+    // The Vercel preset is picked automatically when building on Vercel
+    nitro({
+      vercel: {
+        // London, next to Neon aws-eu-west-2 (plan/engineering.md section 2)
+        functions: { regions: ["lhr1"] },
+        // Security headers on every response, static files included. `continue` lets the
+        // asset cache route still match. The per-request CSP is set in src/start.ts.
+        config: {
+          version: 3,
+          routes: [{ src: "/(.*)", headers: staticSecurityHeaders, continue: true }],
+        },
+      },
+    }),
+    viteReact(),
+  ]),
 });
 
 export default config;

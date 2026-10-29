@@ -1,6 +1,6 @@
 # 1.5 Deploy environments
 
-**Status:** spec
+**Status:** in progress
 **Phase:** 01-setup
 
 ## Goal
@@ -35,15 +35,17 @@ The app is live on Vercel in three environments: production from `main`, staging
 
 ## Files
 
-- `vite.config.ts` (Nitro plugin)
+- `vite.config.ts` (Nitro plugin, region, static security headers)
 - `src/routes/api/stream-test.ts`
-- `vercel.json` (region, and anything the defaults don't cover)
+- `src/server/security-headers.ts` (+ test), `src/start.ts` (per-request CSP nonce), `src/router.tsx` (passes the nonce to the router)
+- No `vercel.json`: Nitro writes the Vercel Build Output API files, and Vercel can ignore `vercel.json` routing for those. The region and headers live in Nitro's `vercel` config instead, so they land in `.vc-config.json` and `config.json`.
 
 ## Steps
 
-- [ ] Add Nitro per the TanStack guide (check the current package and config first). `vp build` locally and check the output.
-- [ ] Add the streaming route. Check it locally with `curl -N`: the words should arrive one by one.
-- [ ] Set the region to `lhr1` in `vercel.json`.
+- [x] Add Nitro per the TanStack guide (check the current package and config first). `vp build` locally and check the output.
+- [x] Add the streaming route. Check it locally with `curl -N`: the words should arrive one by one.
+- [x] Set the region to `lhr1` (in Nitro's `vercel.functions.regions`, not `vercel.json`).
+- [x] Security headers: static set on every response via a Vercel route with `continue: true`; CSP with a per-request nonce from request middleware.
 - [ ] **Damion, in the Vercel dashboard:**
   - [ ] Import the repo (leave Root Directory as the default).
   - [ ] Create the Staging custom environment tracking `staging`.
@@ -52,6 +54,15 @@ The app is live on Vercel in three environments: production from `main`, staging
   - [ ] Turn on the Firewall rule.
 - [ ] Check production: the home page, `curl -N â€¦/api/stream-test`, and the asset cache headers (`curl -I`).
 - [ ] Write the production and staging URLs into `project-plan.md` under Deployment.
+
+## Notes from the build
+
+- **Nitro** `nitro@3.0.260903-beta`, pinned exactly. v3 only ships as a beta, and `latest` points at it.
+- **Vercel output** (`NITRO_PRESET=vercel vp build`): one function `__server.func` with `supportsResponseStreaming: true`, `regions: ["lhr1"]`, `nodejs24.x`. `/assets/*` gets `public, max-age=31536000, immutable`.
+- **Server-function prefix:** `/_serverFn/` (`SERVER_FN_BASE` in the SSR bundle). The firewall rate-limit rule covers `/api/*` and `/_serverFn/*`.
+- **Local stream check:** 10 words, about 300 ms apart.
+- **CSP:** `script-src 'self' 'nonce-…'`, no `unsafe-inline`. Every script and link TanStack renders carries the nonce. The CSP header is off under `vp dev` because Vite injects its own inline scripts.
+- **Follow-up for 3.4:** once landing is CDN-cached (`s-maxage`), cached HTML reuses one nonce until it expires. That's acceptable for a page with no user content, but see Vercel's "CSP nonces with CDN cache" guide when 3.4 lands.
 
 ## Done when
 
