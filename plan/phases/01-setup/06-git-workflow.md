@@ -1,6 +1,6 @@
 # 1.6 Git workflow and first release
 
-**Status:** spec
+**Status:** in progress
 **Phase:** 01-setup
 
 ## Goal
@@ -33,6 +33,7 @@ Switch from bootstrap commits on `main` to the real flow: slice branches → PR 
 ## Files
 
 - `.github/pull_request_template.md`
+- `.github/workflows/ci.yml`: drop `paths-ignore`, so the required `ci` check also runs on plan-only PRs.
 - (`plan/README.md` already describes the flow.)
 
 ## Steps

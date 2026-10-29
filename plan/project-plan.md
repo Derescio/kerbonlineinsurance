@@ -97,11 +97,11 @@ A table-driven, versioned **rating engine**, a simplified version of what real i
 
 See [engineering.md](engineering.md) for the full git workflow, environments, migrations, CI and caching.
 
-| Environment | Branch | DB | Access |
-|---|---|---|---|
-| Production | `main` | Neon `prod` | public |
-| Staging | `staging` | Neon `dev` | Damion only (Vercel Authentication) |
-| Preview | every PR | Neon `dev` | Damion only |
+| Environment | Branch | URL | DB | Access |
+|---|---|---|---|---|
+| Production | `main` | https://kerbonlineinsurance.vercel.app | Neon `prod` | public |
+| Staging | `staging` | https://kerbonlineinsurance-staging.vercel.app (goes live once `staging` is pushed in 1.6) | Neon `dev` | Damion only (Vercel Authentication) |
+| Preview | every PR | per PR, posted by Vercel on the PR | Neon `dev` | Damion only |
 | Local | — | Neon `dev` | — |
 
 Vercel Pro, repo `Derescio/kerbonlineinsurance` (this folder is the repo root), functions in London. Secrets live in Vercel env vars per environment (separate production keys) and an untracked `.env.local`.

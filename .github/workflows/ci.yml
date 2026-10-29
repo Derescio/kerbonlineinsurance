@@ -1,12 +1,11 @@
 name: CI
 
+# No paths-ignore: `ci` is a required check, and a skipped workflow leaves plan-only PRs stuck on "Expected"
 on:
   pull_request:
     branches: [staging, main]
-    paths-ignore: ["plan/**"]
   push:
     branches: [staging, main]
-    paths-ignore: ["plan/**"]
 
 permissions:
   contents: read
