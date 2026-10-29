@@ -21,6 +21,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # main only takes release PRs (from staging) and hotfixes; everything else goes into staging
+      - name: Check PR source for main
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            staging|hotfix/*) echo "OK: $HEAD_REF -> main" ;;
+            *) echo "::error::PRs into main must come from staging (release) or hotfix/*, not '$HEAD_REF'. Open this PR into staging instead."; exit 1 ;;
+          esac
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Installs Vite+, Node 24 and pnpm, runs `vp install`, and caches the pnpm store

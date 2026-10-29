@@ -1,6 +1,6 @@
 # Phase 1: Setup
 
-**Tag:** `s1-setup` · **Status:** spec
+**Tag:** `s1-setup` · **Status:** done
 
 ## Goal
 
@@ -19,7 +19,7 @@ The browser shows "Kerb" at a `*.vercel.app` URL. A test endpoint streams words 
 | 1.3 | [Conventions](03-conventions.md) | done |
 | 1.4 | [CI pipeline](04-ci-pipeline.md) | done |
 | 1.5 | [Deploy environments](05-deploy-environments.md) | done |
-| 1.6 | [Git workflow and first release](06-git-workflow.md) | in progress |
+| 1.6 | [Git workflow and first release](06-git-workflow.md) | done |
 
 ## Recording notes
 
