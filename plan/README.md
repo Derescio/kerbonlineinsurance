@@ -9,9 +9,10 @@
 4. [build-plan.md](build-plan.md): the checklist
 5. the current phase's `phase.md` and slice files
 
-**Status (24 Oct 2026):**
-- Slices 1.1–1.3 are done. Next: **slice 1.4** ([04-ci-pipeline.md](phases/01-setup/04-ci-pipeline.md)). The Vercel project `kerbonlineinsurance` is already linked, but production 404s until Nitro is added in 1.5.
-- Phase 1 slices are fully specced and waiting for Damion's go-ahead. Later phases have titles only, and get specced when they start.
+**Status (29 Oct 2026):**
+- **Phase 1 is done and tagged `s1-setup`.** Production: https://kerbonlineinsurance.vercel.app. Staging: https://kerbonlineinsurance-staging.vercel.app (Vercel login). `main` and `staging` are protected by rulesets, and all work now goes slice branch → PR → `staging` → release PR → `main` ([engineering.md §1](engineering.md#1-branches-and-flow)).
+- Next: **Phase 2, design system**. Its slices need specs and Damion's go-ahead first.
+- Later phases have titles only, and get specced when they start.
 - Vite+ v1.3.0 is installed, and `vp env doctor` passes. Vite+ manages Node 24.22.1 and pnpm. The system `node`/`npm` in `C:\Program Files\nodejs` aren't Vite+ shims, which is harmless for `vp` commands.
 
 **Repo:** this folder (`kerb-online-insurance/`) is its own git repo, `Derescio/kerbonlineinsurance` (default branch `main`). All website work, CI and Vercel run from here. The parent `Kerb/` folder (a separate repo) holds the design system and video assets: read from it, and copy what the app needs into this repo.
