@@ -29,6 +29,7 @@ This folder is how the Kerb website gets built: one **phase** per recording sess
 
 - [project-plan.md](project-plan.md): what we're building and why.
 - [build-plan.md](build-plan.md): the ordered checklist of every phase and slice.
+- [git-workflow.md](git-workflow.md): the rules and steps for getting a change from a branch to production.
 - `phases/NN-name/phase.md`: the goal, payoff shot, testing plan and recording notes for one session.
 - `phases/NN-name/NN-slice.md`: the spec for one slice.
 - [engineering.md](engineering.md): git workflow, environments, migrations, CI, caching.
@@ -41,7 +42,7 @@ This folder is how the Kerb website gets built: one **phase** per recording sess
 2. **Branch.** `slice/N.N-name` from `staging`.
 3. **Build.** Implement that slice only. Anything else that comes up goes into a later slice's notes.
 4. **Check.** `vp check` and `vp test` locally, then the slice's own "Done when" list.
-5. **PR.** Open a PR into `staging`: CI runs and Vercel posts a preview URL.
+5. **PR.** Open a PR into `staging`: CI runs and Vercel posts a preview URL. Step by step: [git-workflow.md](git-workflow.md).
 6. **Land.** Damion squash-merges with the slice's commit message. Tick the slice in `build-plan.md` and its `phase.md`.
 
 When every slice in a phase is done, open a release PR `staging → main`, merge it, and tag `main` (for example `s1-setup`). Tags are the cut points for the website video. Slices 1.2–1.3 are the exception: they commit straight to `main` before CI exists.
