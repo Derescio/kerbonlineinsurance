@@ -25,8 +25,9 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 - **Slice branch:** `slice/1.4-ci-pipeline`, branched from `staging`.
 - **Slice PR → `staging`:** squash merge, using the slice's commit message (Conventional Commits).
 - **Release PR `staging` → `main`:** one per phase, a merge commit. Then tag `sN-*` on `main`. One release per recording session.
-- **Protected `main` and `staging`:** no direct pushes, the `ci` check must pass, and branches must be up to date. Damion merges.
-- **Hotfix:** branch from `main`, PR into `main`, then merge `main` back into `staging`.
+- **Protected `main` and `staging`** (GitHub rulesets, no bypass): no direct pushes, force pushes or deletions; the `ci` check must pass. `staging` also requires the branch to be up to date. `main` does not, because each release adds a merge commit that never comes back to `staging`, so `staging` would always look out of date. Damion merges.
+- **Only `staging` and `hotfix/*` may open PRs into `main`.** Rulesets can't restrict a PR's source branch, so the first step of `ci` fails any PR into `main` from another branch, and the required check blocks the merge. (PR #11 went from a work branch straight into `main` before this existed and needed a `main` → `staging` sync, PR #12.)
+- **Hotfix:** branch `hotfix/<name>` from `main`, PR into `main`, then a PR `main` → `staging` (squash, the only method `staging` allows) to bring the fix back.
 - **Bootstrap exception:** slices 1.2 and 1.3 commit straight to `main`. CI and protection only exist after 1.4–1.6.
 
 ## 2. Vercel environments (no custom domain)
