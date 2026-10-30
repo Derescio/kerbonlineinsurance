@@ -1,6 +1,6 @@
 # Phase 2: Design system
 
-**Tag:** `s2-design-system` · **Status:** todo
+**Tag:** `s2-design-system` · **Status:** in progress
 
 ## Goal
 
@@ -16,7 +16,7 @@ Specced in full when this phase starts.
 
 | # | Slice | Status |
 |---|---|---|
-| 2.1 | Tokens and fonts. **Perf:** self-hosted woff2 fonts, subset, preloaded, `font-display: swap` | todo |
+| 2.1 | [Tokens and fonts](01-tokens-fonts.md). **Perf:** self-hosted woff2 fonts, subset, preloaded, `font-display: swap` | spec |
 | 2.2 | Display and action components → TSX | todo |
 | 2.3 | Form components → TSX | todo |
 | 2.4 | Feedback, navigation and insurance components → TSX | todo |

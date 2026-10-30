@@ -1,6 +1,17 @@
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 
 import appCss from "#/styles.css?url";
+// The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
+import bricolageFont from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url";
+import instrumentSansFont from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2?url";
+
+const fontPreloads = [bricolageFont, instrumentSansFont].map((href) => ({
+  rel: "preload",
+  href,
+  as: "font",
+  type: "font/woff2",
+  crossOrigin: "anonymous" as const,
+}));
 
 export const Route = createRootRoute({
   head: () => ({
@@ -17,6 +28,7 @@ export const Route = createRootRoute({
       },
     ],
     links: [
+      ...fontPreloads,
       {
         rel: "stylesheet",
         href: appCss,
