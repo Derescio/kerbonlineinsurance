@@ -16,8 +16,8 @@ Specced in full when this phase starts.
 
 | # | Slice | Status |
 |---|---|---|
-| 2.1 | [Tokens and fonts](01-tokens-fonts.md). **Perf:** self-hosted woff2 fonts, subset, preloaded, `font-display: swap` | spec |
-| 2.2 | Display and action components → TSX | todo |
+| 2.1 | [Tokens and fonts](01-tokens-fonts.md). **Perf:** self-hosted woff2 fonts, subset, preloaded, `font-display: swap` | done |
+| 2.2 | [Display and action components](02-display-actions.md) → TSX | spec |
 | 2.3 | Form components → TSX | todo |
 | 2.4 | Feedback, navigation and insurance components → TSX | todo |
 | 2.5 | `/system` page | todo |
