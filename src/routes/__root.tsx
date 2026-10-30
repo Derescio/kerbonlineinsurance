@@ -1,5 +1,6 @@
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 
+import { Toaster } from "#/components/feedback/Toaster";
 import appCss from "#/styles.css?url";
 // The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
 import bricolageFont from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url";
@@ -48,7 +49,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <Toaster>{children}</Toaster>
 
         <Scripts />
       </body>

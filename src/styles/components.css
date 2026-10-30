@@ -1239,3 +1239,79 @@
 .kb-control--plate.kb-control--disabled input {
   color: var(--fg-3);
 }
+
+/* App additions (2.4a) */
+/* Visually hidden, still read by screen readers */
+.kb-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+/* Dialog: the native <dialog> is the full-screen scrim; the panel (.kb-dialog) sits inside it */
+dialog.kb-dialog-scrim {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  overflow: auto;
+}
+dialog.kb-dialog-scrim:not([open]) {
+  display: none;
+}
+dialog.kb-dialog-scrim::backdrop {
+  background: transparent;
+}
+html:has(dialog.kb-dialog-scrim:modal) {
+  overflow: hidden;
+}
+/* Toaster: fixed stack at the bottom; the live regions are always on the page */
+.kb-toaster {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(400px, calc(100% - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.kb-toaster__region {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kb-toaster .kb-toast {
+  pointer-events: auto;
+}
+/* Tooltip trigger: the term itself, as a button */
+.kb-tip__trigger {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.kb-tip__trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Escape hides the bubble until the next hover or focus (WCAG 1.4.13) */
+.kb-tip.kb-tip--dismissed .kb-tip__bubble {
+  opacity: 0;
+  transform: translate(-50%, 4px);
+}
