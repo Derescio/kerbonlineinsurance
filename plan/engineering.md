@@ -11,6 +11,7 @@ This page covers the git workflow, environments, database migrations, CI, and th
 - uploads stored in private Cloudflare R2 buckets (§6)
 - background jobs in a Postgres `jobs` table run by Vercel `waitUntil` + a per-minute Cron (§11); bot protection with Cloudflare Turnstile (§9); nightly database export to R2 (§12)
 - sign-in with email + password and Google; roles customer, claims handler and admin; 2FA required for staff, optional for customers (§7)
+- PostHog for product analytics and A/B tests, installed with the wizard and fixed up for the CSP, cached landing page and consent (§13)
 
 ---
 
@@ -281,7 +282,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - separate secrets per environment and login-protected previews (§2)
   - Kerbie scoped to the session user
 - **Security headers** (set in slice 1.5, tightened as features land):
-  - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile
+  - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile. PostHog goes through the same-origin `/ingest` proxy (§13), so it adds nothing to the CSP
   - `Strict-Transport-Security`
   - `frame-ancestors 'none'`
   - `Referrer-Policy: strict-origin-when-cross-origin`
@@ -323,7 +324,7 @@ No Redis unless the load test shows a need (§5).
   - claim status emails
   - review AI check (7.7)
   - Kerbie thread summaries
-  - analytics events
+  - analytics events (server-side funnel milestones only; product analytics is PostHog, §13)
   - the upload cleanup (moves from its own cron onto this runner)
 
 ## 12. Backups and recovery
@@ -343,3 +344,15 @@ No Redis unless the load test shows a need (§5).
   - leaked key → rotate in Vercel/Cloudflare/Google, then redeploy
   - AI spend spike → lower the cap / switch Kerbie to fallback
   - abuse wave → tighten firewall rules
+
+## 13. Analytics and experiments
+
+PostHog does product analytics and A/B tests. It lands in 3.5. The `events` table keeps only server-side funnel milestones (quote started, quote priced, policy bought, claim opened) for the data video.
+
+- **Install:** the PostHog wizard (EU region) on a branch, then review its diff and apply the rules below by hand. The wizard doesn't know about the nonce CSP, so its defaults work in `vp dev` and fail in production builds.
+- **Same-origin proxy:** a Vercel/Nitro rewrite `/ingest/*` → the PostHog EU ingest and assets hosts, in `vite.config.ts` route rules; `api_host: '/ingest'`. The CSP stays `'self'`, and ad-blockers don't drop events. No inline snippet: posthog-js is a bundled module, so it needs no nonce.
+- **One wrapper:** `src/lib/analytics.ts` (`track`, `getFlag`, `onConsent`). Components never import posthog-js directly. It loads with a dynamic `import()` after hydration/idle, so it stays out of the landing JS budget (§5).
+- **Consent (PECR/UK GDPR):** start with `persistence: 'memory'` (cookieless). A consent banner switches to `localStorage+cookie` on accept. The choice is stored in the visitor's browser. The privacy notice (4.7) names PostHog and links to the banner.
+- **Experiments without flicker:** the landing page stays prerendered and CDN-cached, so variants are picked in the browser. Render the control by default. Test only below-the-fold or interaction-revealed elements, or reserve fixed space for the variant region and swap it when flags load, with a short timeout that falls back to the control. Server-side flags (`posthog-node`) only on SSR routes, from Phase 5.
+- **Tests and CI:** PostHog is off in Vitest and Playwright unless a test turns it on (env flag), so CI sends no events.
+- **Env vars:** `VITE_POSTHOG_KEY` (public project key) and `VITE_POSTHOG_HOST`. `.env.example` holds placeholders only.

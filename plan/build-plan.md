@@ -25,6 +25,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 3.2 **Split hero**, with a "Retrieve my quote" link
 - [ ] 3.3 **Landing parts**: steps, trust stats (clearly illustrative, no fake review or FCA numbers), excess callout, quick actions
 - [ ] 3.4 **Responsive pass** against Figma
+- [ ] 3.5 **PostHog + first experiment**: wizard install, then `/ingest` proxy, EU host, lazy load, cookieless until consent; hero-CTA A/B test
 
 ## 4. Data and auth · `s4-data-auth` · [phase](phases/04-data-auth/phase.md)
 
