@@ -1,6 +1,6 @@
 # 2.5 `/system` page
 
-**Status:** in review
+**Status:** done
 **Phase:** 02-design-system
 
 ## Goal

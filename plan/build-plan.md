@@ -18,7 +18,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 2.3 **Form components** → TSX
 - [x] 2.4a **Feedback components** → TSX (Alert, Dialog on native `<dialog>`, Toast + Toaster, Tooltip)
 - [x] 2.4b **Navigation and insurance components** → TSX (Tabs, Stepper, CoverageOption + CoverageGroup, Timeline)
-- [ ] 2.5 **`/system` page**
+- [x] 2.5 **`/system` page**
 
 ## 3. Landing · `s3-landing` · [phase](phases/03-landing/phase.md)
 

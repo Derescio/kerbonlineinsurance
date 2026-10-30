@@ -9,9 +9,10 @@
 4. [build-plan.md](build-plan.md): the checklist
 5. the current phase's `phase.md` and slice files
 
-**Status (29 Oct 2026):**
+**Status (30 Oct 2026):**
+- **Phase 2 is done and tagged `s2-design-system`.** All 20 Kerb components are typed TSX in `src/components/` (plus RadioGroup, CoverageGroup, TabPanel and the Toaster), with 108 tests, 89 of them in Chromium. `/system` shows every token and component. Follow-ups noted in the slice specs: long tab strips on phones (Phase 6), and `pnpm generate-routes` drops the Start `Register` block (use `vp dev`/`vp build`).
 - **Phase 1 is done and tagged `s1-setup`.** Production: https://kerbonlineinsurance.vercel.app. Staging: https://kerbonlineinsurance-staging.vercel.app (Vercel login). `main` and `staging` are protected by rulesets, and all work now goes slice branch → PR → `staging` → release PR → `main` ([engineering.md §1](engineering.md#1-branches-and-flow)).
-- Next: **Phase 2, design system**. Its slices need specs and Damion's go-ahead first.
+- Next: **Phase 3, landing**. Its slices need specs and Damion's go-ahead first. PostHog is slice 3.5.
 - Later phases have titles only, and get specced when they start.
 - Vite+ v1.3.0 is installed, and `vp env doctor` passes. Vite+ manages Node 24.22.1 and pnpm. The system `node`/`npm` in `C:\Program Files\nodejs` aren't Vite+ shims, which is harmless for `vp` commands.
 
