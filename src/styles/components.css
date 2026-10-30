@@ -1198,3 +1198,44 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* App additions (2.3) */
+/* Grey placeholder without making the select required (the original used select:invalid) */
+.kb-control select:has(option[value=""]:checked) {
+  color: var(--fg-4);
+}
+.kb-control select:invalid {
+  color: var(--fg-1);
+}
+/* RadioGroup: a reset fieldset with the field label as its legend */
+.kb-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kb-fieldset > legend {
+  padding: 0;
+  margin-bottom: 12px;
+}
+.kb-fieldset__options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kb-fieldset > .kb-field__hint,
+.kb-fieldset > .kb-field__error {
+  margin-top: 8px;
+}
+/* The plate rules come after the state rules in the original, so restate error and disabled for it (Figma 7:71, 7:86) */
+.kb-control--plate.kb-control--error,
+.kb-control--plate.kb-control--error:hover {
+  border-color: var(--danger);
+}
+.kb-control--plate.kb-control--disabled {
+  background: var(--bg-sunken);
+  border-color: var(--border-1);
+}
+.kb-control--plate.kb-control--disabled input {
+  color: var(--fg-3);
+}
