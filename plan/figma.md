@@ -82,7 +82,7 @@ All 20 local components (`../components/**`) have a matching Figma component set
 ## Gaps found in the audit
 
 - **Missing local sources** that Figma names as its origin: `ui_kits/account/{login,settings,policy,admin}.html` and `guidelines/kerbie-*.html`. Neither is in the parent folder. Figma is the source until they turn up.
-- **Text styles with no local class:** `Heading/Price`, `Heading/Plan`, `Heading/Dialog`, `Mono/Reference`, `Mono/Plate`. Add them to `typography.css` in 2.1.
+- **Text styles with no reusable class:** `Heading/Price`, `Heading/Plan`, `Heading/Dialog`, `Mono/Reference`, `Mono/Plate`. Their values are hard-coded inside `kerb-components.css` (price, dialog title, plan name, plate input). 2.1 adds them as tokens and classes.
 - **Icons:** 16 extra Lucide icons on the Account page (mail, pencil, landmark, user-plus, shield, refresh-cw, x-circle, trash-2, layout-dashboard, users, file-warning, file-search, search, undo-2, external-link, circle) and the custom `tenant`/`pet`/`condo`. `Icon.jsx` loads Lucide from unpkg, which the CSP blocks; self-host or use `lucide-react` in 2.2.
 - **Fonts:** `../tokens/fonts.css` imports Google Fonts; 2.1 self-hosts woff2 instead.
 - **No Menu component**, though the 2.4 test row mentions menus.
