@@ -25,6 +25,9 @@ export function contentSecurityPolicy(nonce: string) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'`,
     `style-src 'self' 'nonce-${nonce}'`,
+    // React renders `style` props as attributes in server HTML. Attributes can't run script, and
+    // img-src/font-src stop them loading anything off-site. <style> and stylesheets stay strict.
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self'",

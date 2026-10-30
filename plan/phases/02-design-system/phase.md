@@ -20,8 +20,8 @@ Specced in full when this phase starts.
 | 2.2 | [Display and action components](02-display-actions.md) → TSX | done |
 | 2.3 | [Form components](03-forms.md) → TSX | done |
 | 2.4a | [Feedback components](04a-feedback.md) → TSX | done |
-| 2.4b | [Navigation and insurance components](04b-nav-insurance.md) → TSX | in progress |
-| 2.5 | `/system` page | todo |
+| 2.4b | [Navigation and insurance components](04b-nav-insurance.md) → TSX | done |
+| 2.5 | [`/system` page](05-system-page.md) | in review |
 
 ## Recording notes
 
