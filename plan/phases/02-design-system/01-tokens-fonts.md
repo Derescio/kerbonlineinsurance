@@ -1,6 +1,6 @@
 # 2.1 Tokens and fonts
 
-**Status:** in review
+**Status:** done
 **Phase:** 02-design-system
 
 ## Goal
