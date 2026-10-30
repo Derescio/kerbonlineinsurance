@@ -41,7 +41,7 @@ hotfix/name ──PR──▶ main, then PR main ──▶ staging (squash)
 ```
 git switch staging
 git pull --ff-only
-git switch -c slice/N.N-name
+git switch -c slice/05-systempage
 ```
 
 The slice spec must be approved before building starts. Build that slice only, and run `vp check` and `vp test` locally. The pre-commit hook formats and lints the files you changed.
@@ -49,8 +49,8 @@ The slice spec must be approved before building starts. Build that slice only, a
 ### 2. Open the PR into `staging`
 
 ```
-git push -u origin slice/N.N-name
-gh pr create --base staging --title "feat: <slice commit message>"
+git push -u origin slice/05-systempage
+gh pr create --base staging --title "feat: /system page showing every Kerb token and component"
 ```
 
 - At "Choose a template", pick `pull_request_template.md`. At "Body", press `e` to fill it in Notepad, then save, close and Submit.
