@@ -74,8 +74,8 @@ One page that shows the whole Kerb design system as built: every token and every
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` exit with 0; `ci` green.
-- [ ] Manual checks pass; Phase 2 exit criteria in [phase.md](phase.md) met.
+- [x] `vp check`, `vp test` and `vp build` exit with 0; `ci` green.
+- [x] Manual checks pass; Phase 2 exit criteria in [phase.md](phase.md) met.
 
 ## Results (30 Oct 2026)
 
