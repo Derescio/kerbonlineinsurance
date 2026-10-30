@@ -1315,3 +1315,16 @@ html:has(dialog.kb-dialog-scrim:modal) {
   opacity: 0;
   transform: translate(-50%, 4px);
 }
+
+/* App additions (2.4b) */
+/* Compact stepper: other labels are hidden visually only (the original display:none hid them from screen readers too) */
+.kb-stepper--compact .kb-step:not(.kb-step--current) .kb-step__label.kb-sr-only {
+  display: block;
+}
+/* CoverageGroup: cards side by side, wrapping; top padding leaves room for the flag badge */
+.kb-cover-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  padding-top: 12px;
+}

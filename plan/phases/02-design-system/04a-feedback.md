@@ -1,6 +1,6 @@
 # 2.4a Feedback components
 
-**Status:** in review (split from 2.4 on 30 Oct 2026)
+**Status:** done (split from 2.4 on 30 Oct 2026)
 **Phase:** 02-design-system
 
 ## Goal
