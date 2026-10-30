@@ -1,6 +1,6 @@
 # 2.2 Display and action components
 
-**Status:** in review
+**Status:** done
 **Phase:** 02-design-system
 
 ## Goal

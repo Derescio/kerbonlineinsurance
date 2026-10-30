@@ -14,7 +14,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 ## 2. Design system · `s2-design-system` · [phase](phases/02-design-system/phase.md)
 
 - [x] 2.1 **Tokens and fonts**
-- [ ] 2.2 **Display and action components** → TSX
+- [x] 2.2 **Display and action components** → TSX
 - [ ] 2.3 **Form components** → TSX
 - [ ] 2.4 **Feedback, navigation and insurance components** → TSX
 - [ ] 2.5 **`/system` page**
