@@ -1,6 +1,6 @@
 # 2.4b Navigation and insurance components
 
-**Status:** approved (split from 2.4 on 30 Oct 2026)
+**Status:** in review (split from 2.4 on 30 Oct 2026)
 **Phase:** 02-design-system
 
 ## Goal
@@ -43,10 +43,10 @@ Sources are `../components/{navigation,insurance}/*`; the CSS is already in `src
 
 ## Steps
 
-- [ ] `Timeline`, `CoverageOption`, `CoverageGroup` + tests.
-- [ ] `Stepper`, `Tabs` + `TabPanel` + tests.
-- [ ] Temporary page with every component and state next to Figma `4:8` and `4:10`; no console errors. Put `/` back.
-- [ ] `vp check --fix`, `vp check`, `vp test`, `vp build`.
+- [x] `Timeline`, `CoverageOption`, `CoverageGroup` + tests.
+- [x] `Stepper`, `Tabs` + `TabPanel` + tests.
+- [x] Temporary page with every component and state next to Figma `4:8` and `4:10`; no console errors. Put `/` back.
+- [x] `vp check --fix`, `vp check`, `vp test`, `vp build`.
 
 ## Tests
 
@@ -62,6 +62,19 @@ Sources are `../components/{navigation,insurance}/*`; the CSS is already in `src
 
 - [ ] `vp check`, `vp test` and `vp build` exit with 0; `ci` green.
 - [ ] Manual checks pass.
+
+## Results (30 Oct 2026)
+
+Changes from the spec:
+- **CoverageOption is named by the plan name only** (`aria-labelledby`), and the flag, price, description and features are its description. A button's contents aren't read as a list, so without this the whole card became one long name.
+- **Compact stepper:** the original CSS hides the other labels with `display: none`, which hides them from screen readers too. Those labels now get `.kb-sr-only` plus an override in "App additions (2.4b)".
+- **CoverageGroup layout:** a wrapping grid (`.kb-cover-group`, min 240 px per card), with top padding so the flag badge isn't clipped.
+- **Tabs** need `id` and `label` (both required), so every tab list is named and linked to its panels.
+
+What was built:
+- `src/components/insurance/{Timeline,CoverageOption,CoverageGroup}.tsx`, `src/components/navigation/{Stepper,Tabs}.tsx` (`Tabs` + `TabPanel`).
+- `insurance.browser.test.tsx` (5 tests) and `navigation.browser.test.tsx` (6 tests): 103 in total.
+- Checked locally: all tests pass first time; `vp check` and `vp build` clean. A temporary page with both tab variants, every stepper variant and state, two plan cards (one flagged and selected, one with an excluded feature) and a four-step timeline: no console errors, and it matches Figma Navigation `4:8` and Insurance `4:10`. `/` was put back.
 
 ## Commit message
 
