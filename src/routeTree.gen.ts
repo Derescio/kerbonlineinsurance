@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SystemRouteImport } from './routes/system'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemRoute = SystemRouteImport.update({
+  id: '/system',
+  path: '/system',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
@@ -25,27 +31,31 @@ const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/system': typeof SystemRoute
   '/api/stream-test': typeof ApiStreamTestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/system': typeof SystemRoute
   '/api/stream-test': typeof ApiStreamTestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/system': typeof SystemRoute
   '/api/stream-test': typeof ApiStreamTestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/stream-test'
+  fullPaths: '/' | '/system' | '/api/stream-test'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/stream-test'
-  id: '__root__' | '/' | '/api/stream-test'
+  to: '/' | '/system' | '/api/stream-test'
+  id: '__root__' | '/' | '/system' | '/api/stream-test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SystemRoute: typeof SystemRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system': {
+      id: '/system'
+      path: '/system'
+      fullPath: '/system'
+      preLoaderRoute: typeof SystemRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SystemRoute: SystemRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
 }
 export const routeTree = rootRouteImport

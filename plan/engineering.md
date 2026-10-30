@@ -283,6 +283,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - Kerbie scoped to the session user
 - **Security headers** (set in slice 1.5, tightened as features land):
   - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile. PostHog goes through the same-origin `/ingest` proxy (§13), so it adds nothing to the CSP
+  - one deliberate exception, `style-src-attr 'unsafe-inline'` (2.5): React writes `style` props as attributes in server HTML, which a nonce can't cover. Style attributes can't run script and can't load off-site resources (`img-src`/`font-src 'self'`); scripts, `<style>` and stylesheets stay nonce/self-only
   - `Strict-Transport-Security`
   - `frame-ancestors 'none'`
   - `Referrer-Policy: strict-origin-when-cross-origin`

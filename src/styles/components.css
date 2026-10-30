@@ -1316,7 +1316,18 @@ html:has(dialog.kb-dialog-scrim:modal) {
   transform: translate(-50%, 4px);
 }
 
+/* App additions (2.5) */
+/* One track as wide as the scrim, so the panel (width:100%, max-width 480) can't grow past a narrow screen */
+.kb-dialog-scrim {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
 /* App additions (2.4b) */
+/* Keeps the step's visually hidden text (.kb-sr-only, position:absolute) inside the stepper, so it can't widen a scroller or the page */
+.kb-stepper {
+  position: relative;
+}
 /* Compact stepper: other labels are hidden visually only (the original display:none hid them from screen readers too) */
 .kb-stepper--compact .kb-step:not(.kb-step--current) .kb-step__label.kb-sr-only {
   display: block;

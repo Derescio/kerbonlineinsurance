@@ -1,0 +1,183 @@
+/* /system page layout. Loaded by src/routes/system.tsx only. */
+
+.sys {
+  width: min(var(--container-max), calc(100% - 2 * var(--space-4)));
+  margin: 0 auto;
+  padding: var(--space-12) 0 var(--space-20);
+}
+
+.sys__header {
+  margin-bottom: var(--space-8);
+}
+
+.sys__nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-10);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-1);
+  background: var(--bg-page);
+  list-style: none;
+}
+
+.sys__section {
+  scroll-margin-top: var(--space-16);
+  margin-bottom: var(--space-16);
+}
+
+.sys__intro {
+  max-width: 720px;
+  margin: var(--space-2) 0 var(--space-6);
+  color: var(--fg-2);
+}
+
+.sys__block {
+  margin-bottom: var(--space-6);
+}
+
+.sys__block-title {
+  margin: 0 0 var(--space-4);
+}
+
+/* Wide rows scroll inside their block, never the page */
+.sys__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.sys__scroll {
+  /* relative: .kb-sr-only text is position:absolute, and would escape the scroller and widen the page */
+  position: relative;
+  overflow-x: auto;
+}
+
+.sys__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+/* Wider cells for toasts (max 400px) and dialog previews (modal up to 480px) */
+.sys__grid--wide {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+}
+
+.sys__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--fg-3);
+}
+
+.sys__inverse {
+  display: inline-flex;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-inverse);
+}
+
+/* Foundations */
+.sys__swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-3);
+}
+
+.sys__swatch-chip {
+  height: 56px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(11, 42, 34, 0.08);
+}
+
+.sys__swatch code,
+.sys__token code {
+  display: block;
+  margin-top: var(--space-1);
+  font: 500 12px/16px var(--font-mono);
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.sys__type {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: var(--space-4);
+  align-items: baseline;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.sys__type > :last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sys__space-bar {
+  height: 16px;
+  border-radius: 2px;
+  background: var(--green-400);
+}
+
+.sys__radius {
+  width: 96px;
+  height: 72px;
+  border: 1.5px solid var(--green-600);
+  background: var(--bg-brand-subtle);
+}
+
+.sys__shadow {
+  height: 88px;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+/* Icons */
+.sys__icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--space-2);
+}
+
+.sys__icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--fg-1);
+}
+
+.sys__icon code {
+  font: 500 12px/16px var(--font-mono);
+  color: var(--fg-3);
+}
+
+/* Static focus look for the "Focus" column (Figma shows it), styled like :focus-within */
+.sys [data-demo-focus] .kb-control {
+  border-color: var(--action-primary);
+  box-shadow: 0 0 0 3px var(--focus-halo);
+}
+
+/* Contained dialog previews need a positioned, sized parent */
+.sys__dialog-stage {
+  position: relative;
+  min-height: 340px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+@media (max-width: 640px) {
+  .sys__type {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
