@@ -1,0 +1,94 @@
+/* Kerb tokens: copied from ../tokens/colors.css (design-system folder). Matches Figma Foundation Design (4:2), audited 29 Oct 2026. */
+:root {
+  /* Evergreen — primary brand ramp */
+  --green-950: #07201a;
+  --green-900: #0b2a22;
+  --green-800: #103b2f;
+  --green-700: #145240;
+  --green-600: #17694f;
+  --green-500: #1f8563;
+  --green-400: #4fa886;
+  --green-300: #8cc7ae;
+  --green-200: #b9decf;
+  --green-100: #ddefe7;
+  --green-50: #eff7f3;
+  /* Marker — hi-vis road-line accent. Use sparingly: one hero CTA, highlights on dark. Never for text on light. */
+  --marker-500: #d2e83a;
+  --marker-400: #e4f55a;
+  --marker-300: #eef98f;
+  --marker-100: #f8fdd6;
+  /* Stone — warm neutrals */
+  --stone-0: #ffffff;
+  --stone-25: #fbfaf7;
+  --stone-50: #f5f4ef;
+  --stone-100: #eceae3;
+  --stone-200: #dedbd2;
+  --stone-300: #c7c3b8;
+  --stone-400: #a09c90;
+  --stone-500: #7a766b;
+  --stone-600: #5c5950;
+  --stone-700: #413f38;
+  --stone-800: #2a2925;
+  --stone-900: #1a1916;
+  /* Status ramps */
+  --red-700: #a12a21;
+  --red-600: #c2352b;
+  --red-200: #f6c9c4;
+  --red-100: #fdecea;
+  --amber-600: #a86200;
+  --amber-400: #f2a93b;
+  --amber-200: #f7dda8;
+  --amber-100: #fff3dc;
+  --blue-600: #2159c4;
+  --blue-200: #c6d6f6;
+  --blue-100: #e9f0fd;
+
+  /* Semantic — surfaces */
+  --bg-page: var(--stone-50);
+  --bg-surface: var(--stone-0);
+  --bg-surface-hover: var(--stone-25);
+  --bg-sunken: var(--stone-100);
+  --bg-inverse: var(--green-900);
+  --bg-brand-subtle: var(--green-50);
+  --bg-accent: var(--marker-400);
+  /* Semantic — text */
+  --fg-1: var(--stone-900);
+  --fg-2: var(--stone-700);
+  --fg-3: var(--stone-600);
+  --fg-4: var(--stone-400);
+  --fg-brand: var(--green-700);
+  --fg-inverse: #ffffff;
+  --fg-inverse-2: rgba(255, 255, 255, 0.72);
+  --fg-on-primary: #ffffff;
+  --fg-on-accent: var(--green-900);
+  /* Semantic — borders */
+  --border-1: var(--stone-200);
+  --border-2: var(--stone-300);
+  --border-strong: var(--stone-500);
+  --border-inverse: rgba(255, 255, 255, 0.16);
+  /* Semantic — actions */
+  --action-primary: var(--green-600);
+  --action-primary-hover: var(--green-700);
+  --action-primary-press: var(--green-800);
+  --accent: var(--marker-400);
+  --accent-hover: var(--marker-500);
+  /* Semantic — status */
+  --success: var(--green-600);
+  --success-bg: var(--green-50);
+  --success-border: var(--green-200);
+  --warning: var(--amber-600);
+  --warning-bg: var(--amber-100);
+  --warning-border: var(--amber-200);
+  --danger: var(--red-600);
+  --danger-hover: var(--red-700);
+  --danger-bg: var(--red-100);
+  --danger-border: var(--red-200);
+  --info: var(--blue-600);
+  --info-bg: var(--blue-100);
+  --info-border: var(--blue-200);
+  /* Focus */
+  --focus-halo: rgba(23, 105, 79, 0.22);
+  --danger-halo: rgba(194, 53, 43, 0.2);
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--green-600);
+  --scrim: rgba(11, 42, 34, 0.44);
+}

@@ -6,6 +6,8 @@ import { nitro } from "nitro/vite";
 
 import viteReact from "@vitejs/plugin-react";
 
+import { playwright } from "vite-plus/test/browser-playwright";
+
 import { staticSecurityHeaders } from "./src/server/security-headers";
 
 const config = defineConfig({
@@ -22,7 +24,49 @@ const config = defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   resolve: { tsconfigPaths: true },
-  plugins: lazyPlugins(() => [
+  // TanStack Start and Nitro are app plugins; loaded in the test runner they throw "module is not
+  // defined" from React's CJS entry. So the projects don't extend this config (`extends: false`),
+  // and the root plugin list is empty under Vitest (below).
+  test: {
+    projects: [
+      {
+        extends: false,
+        resolve: { tsconfigPaths: true },
+        test: { name: "unit", environment: "node", include: ["src/**/*.test.ts"] },
+      },
+      {
+        extends: false,
+        resolve: { tsconfigPaths: true },
+        plugins: [viteReact()],
+        // Pre-bundle together up front: found late, lucide-react gets its own copy of React (hooks fail)
+        optimizeDeps: {
+          include: [
+            "react",
+            "react-dom",
+            "react-dom/client",
+            "lucide-react",
+            "vitest-browser-react",
+          ],
+        },
+        test: {
+          name: "component",
+          include: ["src/**/*.browser.test.tsx"],
+          setupFiles: ["src/test/setup.browser.ts"],
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: "chromium" }],
+          },
+        },
+      },
+    ],
+  },
+  plugins: lazyPlugins(() => (process.env.VITEST ? [] : appPlugins())),
+});
+
+function appPlugins() {
+  return [
     tanstackStart(),
     // The Vercel preset is picked automatically when building on Vercel
     nitro({
@@ -38,7 +82,7 @@ const config = defineConfig({
       },
     }),
     viteReact(),
-  ]),
-});
+  ];
+}
 
 export default config;

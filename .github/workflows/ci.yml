@@ -41,6 +41,24 @@ jobs:
           cache: true
 
       - run: vp check
+
+      # Chromium for the `component` test project (Vitest browser mode). Cached by Playwright version.
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: vp exec playwright install --with-deps chromium
+      # The browser is cached but its system libraries aren't
+      - name: Install Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: vp exec playwright install-deps chromium
+
       - run: vp test
       - run: vp build
 

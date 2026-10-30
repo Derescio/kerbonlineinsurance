@@ -11,10 +11,13 @@ This page covers the git workflow, environments, database migrations, CI, and th
 - uploads stored in private Cloudflare R2 buckets (§6)
 - background jobs in a Postgres `jobs` table run by Vercel `waitUntil` + a per-minute Cron (§11); bot protection with Cloudflare Turnstile (§9); nightly database export to R2 (§12)
 - sign-in with email + password and Google; roles customer, claims handler and admin; 2FA required for staff, optional for customers (§7)
+- PostHog for product analytics and A/B tests, installed with the wizard and fixed up for the CSP, cached landing page and consent (§13)
 
 ---
 
 ## 1. Branches and flow
+
+The full rules and step-by-step: [git-workflow.md](git-workflow.md).
 
 ```text
 slice/N.N-name ──PR──▶ staging ──release PR (end of phase)──▶ main ──▶ tag sN-*
@@ -91,7 +94,7 @@ Four layers. Each one has an owner slice and runs in CI. Each phase's `phase.md`
 | **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
 | **E2E** | `e2e/*.spec.ts` | The deployed app in a browser: smoke test, then the quote and claim journeys | `e2e.yml` on every preview | 3.4 |
 
-- **Three Vitest projects** in `vite.config.ts`: `unit` (node), `component` (browser mode, Chromium) and `integration` (node + Postgres). `component` is added in 2.2 and `integration` in 4.1. Check how Vite+ exposes the Vitest `test` config when setting up the first split in 2.2.
+- **Three Vitest projects** in `vite.config.ts` (`test.projects`): `unit` (node), `component` (browser mode, Chromium) and `integration` (node + Postgres). `component` is added in 2.2 and `integration` in 4.1. Each project sets `extends: false`, and the app plugins (TanStack Start, Nitro) are skipped under `VITEST`, because they break the test runner (2.2 results). The `component` project lists its React deps in `optimizeDeps.include` so there's one copy of React.
 - **Test database:** each run applies the migrations to an empty database, and tests truncate tables between cases. Tests connect with the node-postgres driver, chosen by env, because the Neon serverless driver can't talk to a plain Postgres. Not a Neon branch per run: it's slower, costs money, and needs secrets that Dependabot PRs don't get.
 - **Accessibility:** an axe scan (`@axe-core/playwright`) on each key page in `e2e.yml`, failing on `serious`/`critical` violations. Added in 3.4; pages join the list as they ship. Lighthouse ≥ 95 stays as the budget in 8.7.
 - **Test data:** E2E uses the seeded accounts from 4.9 (customer A, customer B, claims handler, admin with a TOTP secret known to the tests) on `dev`, and creates its own records with unique ids, so runs don't collide. Turnstile uses Cloudflare's test keys outside production.
@@ -279,7 +282,8 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - separate secrets per environment and login-protected previews (§2)
   - Kerbie scoped to the session user
 - **Security headers** (set in slice 1.5, tightened as features land):
-  - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile
+  - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile. PostHog goes through the same-origin `/ingest` proxy (§13), so it adds nothing to the CSP
+  - one deliberate exception, `style-src-attr 'unsafe-inline'` (2.5): React writes `style` props as attributes in server HTML, which a nonce can't cover. Style attributes can't run script and can't load off-site resources (`img-src`/`font-src 'self'`); scripts, `<style>` and stylesheets stay nonce/self-only
   - `Strict-Transport-Security`
   - `frame-ancestors 'none'`
   - `Referrer-Policy: strict-origin-when-cross-origin`
@@ -321,7 +325,7 @@ No Redis unless the load test shows a need (§5).
   - claim status emails
   - review AI check (7.7)
   - Kerbie thread summaries
-  - analytics events
+  - analytics events (server-side funnel milestones only; product analytics is PostHog, §13)
   - the upload cleanup (moves from its own cron onto this runner)
 
 ## 12. Backups and recovery
@@ -341,3 +345,15 @@ No Redis unless the load test shows a need (§5).
   - leaked key → rotate in Vercel/Cloudflare/Google, then redeploy
   - AI spend spike → lower the cap / switch Kerbie to fallback
   - abuse wave → tighten firewall rules
+
+## 13. Analytics and experiments
+
+PostHog does product analytics and A/B tests. It lands in 3.5. The `events` table keeps only server-side funnel milestones (quote started, quote priced, policy bought, claim opened) for the data video.
+
+- **Install:** the PostHog wizard (EU region) on a branch, then review its diff and apply the rules below by hand. The wizard doesn't know about the nonce CSP, so its defaults work in `vp dev` and fail in production builds.
+- **Same-origin proxy:** a Vercel/Nitro rewrite `/ingest/*` → the PostHog EU ingest and assets hosts, in `vite.config.ts` route rules; `api_host: '/ingest'`. The CSP stays `'self'`, and ad-blockers don't drop events. No inline snippet: posthog-js is a bundled module, so it needs no nonce.
+- **One wrapper:** `src/lib/analytics.ts` (`track`, `getFlag`, `onConsent`). Components never import posthog-js directly. It loads with a dynamic `import()` after hydration/idle, so it stays out of the landing JS budget (§5).
+- **Consent (PECR/UK GDPR):** start with `persistence: 'memory'` (cookieless). A consent banner switches to `localStorage+cookie` on accept. The choice is stored in the visitor's browser. The privacy notice (4.7) names PostHog and links to the banner.
+- **Experiments without flicker:** the landing page stays prerendered and CDN-cached, so variants are picked in the browser. Render the control by default. Test only below-the-fold or interaction-revealed elements, or reserve fixed space for the variant region and swap it when flags load, with a short timeout that falls back to the control. Server-side flags (`posthog-node`) only on SSR routes, from Phase 5.
+- **Tests and CI:** PostHog is off in Vitest and Playwright unless a test turns it on (env flag), so CI sends no events.
+- **Env vars:** `VITE_POSTHOG_KEY` (public project key) and `VITE_POSTHOG_HOST`. `.env.example` holds placeholders only.

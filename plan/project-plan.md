@@ -50,7 +50,7 @@ Neon Postgres with Drizzle. **Multi-product from the start:** car, home and busi
 - **Access:** user `role`, 2FA tables, `audit_log`.
 - **Platform:** `idempotency_keys`, `rate_limits`, `jobs`.
 - **Files:** `files` (upload metadata only; the files themselves live in R2).
-- **Kerbie and analytics:** chat_threads, chat_messages, ai_usage, kerbie_actions, events (funnel analytics).
+- **Kerbie and analytics:** chat_threads, chat_messages, ai_usage, kerbie_actions, events (server-side funnel milestones for the data video; product analytics and A/B tests are in PostHog).
 - A seed script adds about 12 months of synthetic history, flagged `is_synthetic`, for the data video.
 
 ## Pricing
@@ -80,6 +80,7 @@ A table-driven, versioned **rating engine**, a simplified version of what real i
 | Auth | Better Auth (email + password) |
 | Email | Resend (free tier) |
 | Bot protection | Cloudflare Turnstile (free) |
+| Analytics and A/B tests | PostHog (EU cloud, free tier), through a same-origin `/ingest` proxy; cookieless until consent ([engineering.md §13](engineering.md#13-analytics-and-experiments)) |
 | Background jobs | Postgres `jobs` table + Vercel `waitUntil` + per-minute Vercel Cron |
 | Backups | Neon point-in-time restore + nightly `pg_dump` to an R2 `kerb-backups` bucket (14 days) |
 | File storage | Cloudflare R2: private buckets `kerb-dev` / `kerb-prod`, direct browser uploads with signed URLs |
@@ -117,6 +118,7 @@ Plan for a launch spike from day one. A broken or paused demo while the video is
 | **Resend** | The free plan's monthly email cap (Damion's figure: 200/month) can run out during a spike. | Damion's call: hitting the cap means the promotion worked, so upgrade then. To keep the demo working meanwhile, **verification is soft**: new users can sign in and use the site straight away, with a "verify your email" banner. Only password reset needs the email. If sending fails, the user sees a friendly message instead of an error. |
 | **AI (Anthropic/OpenAI)** | Every Kerbie message costs money, and a spike multiplies it. | Per-guest and per-user daily limits, a global daily spend cap with a canned fallback (phase 7), and provider-side spend limits in each console. |
 | **Cloudflare R2** | Storage and operation counts grow with uploads. Egress is free. | Images are resized to at most 2048 px WebP before upload, with per-kind count limits; a cleanup cron removes abandoned and old Kerbie images. Check the current free-tier limits in 8.6, and set a Cloudflare billing alert. |
+| **PostHog** | Event volume beyond the free tier during a spike. | Billing limit set in the PostHog dashboard; events sampled or autocapture trimmed if needed. Checked in 8.6. |
 | **Abuse** | Bots hitting sign-up, the quote API or Kerbie. | Rate limits on sign-up, quote save and chat. Vercel Firewall/bot protection on, from the Pro dashboard. |
 
 Check the limits in this table against each service's current pricing page in slice 8.6. Free and paid tiers change.
@@ -125,7 +127,7 @@ Check the limits in this table against each service's current pricing page in sl
 
 - **Hosting on Vercel Pro (already paid). Everything else starts on free tiers** (Neon, Resend), with a planned upgrade check before launch.
 - **AI spend capped:** per-guest and per-user daily message limits, a global daily spend cap, and a canned fallback when the cap is hit.
-- **Privacy:** real emails are collected, so the site has a privacy notice and "delete my account". No real payment.
+- **Privacy:** real emails are collected, so the site has a privacy notice and "delete my account". No real payment. Analytics stays cookieless until the visitor consents, and the privacy notice names PostHog.
 - **Permissions are enforced on the server:** every protected server function checks the role, and customer data is always looked up by the session's user id. Signing in as another user (impersonation) is switched off.
 - **Writes are safe to repeat:** important actions use idempotency keys and transactions, so double-clicks and retries can't create duplicates. See [engineering.md §8–§12](engineering.md#8-data-integrity-and-idempotency) for integrity, security, rate limiting, background jobs and backups.
 - **Uploads are private by default:** photos have EXIF/GPS stripped before upload, claim and Kerbie files are only reachable through short-lived signed links after an ownership check, and deleting an account deletes the user's files.

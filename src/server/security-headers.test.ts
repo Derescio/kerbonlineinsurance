@@ -19,10 +19,17 @@ describe("createNonce", () => {
 describe("contentSecurityPolicy", () => {
   const csp = contentSecurityPolicy("abc123");
 
+  const directive = (name: string) => csp.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
+
   it("allows only same-origin and nonce'd scripts", () => {
-    expect(csp).toContain("script-src 'self' 'nonce-abc123'");
-    expect(csp).not.toContain("unsafe-inline");
+    expect(directive("script-src")).toBe("script-src 'self' 'nonce-abc123'");
     expect(csp).not.toContain("unsafe-eval");
+  });
+
+  it("allows inline style attributes only, not inline <style> or scripts", () => {
+    expect(directive("style-src-attr")).toBe("style-src-attr 'unsafe-inline'");
+    expect(directive("style-src")).toBe("style-src 'self' 'nonce-abc123'");
+    expect(csp.match(/unsafe-inline/g)).toHaveLength(1);
   });
 
   it("blocks framing, plugins and base-tag hijacks", () => {

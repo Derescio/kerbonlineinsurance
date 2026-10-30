@@ -1,0 +1,113 @@
+/* Kerb tokens: copied from ../tokens/typography.css (design-system folder). Matches Figma Foundation Design (4:2), audited 29 Oct 2026. */
+:root {
+  /* Self-hosted faces and metric-matched fallbacks: src/styles/fonts.css */
+  --font-display: "Bricolage Grotesque", "Bricolage Grotesque Fallback", system-ui, sans-serif;
+  --font-body:
+    "Instrument Sans", "Instrument Sans Fallback", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, Menlo, monospace;
+  /* size / line-height pairs */
+  --text-display-xl: 56px;
+  --lh-display-xl: 60px;
+  --text-display-l: 44px;
+  --lh-display-l: 48px;
+  --text-h1: 34px;
+  --lh-h1: 40px;
+  --text-h2: 26px;
+  --lh-h2: 32px;
+  --text-h3: 20px;
+  --lh-h3: 28px;
+  --text-body-l: 18px;
+  --lh-body-l: 28px;
+  --text-body: 16px;
+  --lh-body: 24px;
+  --text-body-s: 14px;
+  --lh-body-s: 20px;
+  --text-caption: 12px;
+  --lh-caption: 16px;
+  /* Added in 2.1 from Figma text styles (Heading/Price, Heading/Dialog, Heading/Plan, Mono/Reference, Mono/Plate) */
+  --text-price: 30px;
+  --lh-price: 34px;
+  --text-h-dialog: 22px;
+  --lh-h-dialog: 28px;
+  --text-h-plan: 18px;
+  --lh-h-plan: 24px;
+  --text-reference: 14px;
+  --lh-reference: 20px;
+  --text-plate: 22px;
+  --tracking-price: -0.025em;
+  --tracking-plate: 0.12em;
+  --tracking-display: -0.035em;
+  --tracking-heading: -0.02em;
+  --tracking-overline: 0.08em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+}
+.kb-display-xl {
+  font: 800 var(--text-display-xl)/var(--lh-display-xl) var(--font-display);
+  letter-spacing: var(--tracking-display);
+}
+.kb-display-l {
+  font: 700 var(--text-display-l)/var(--lh-display-l) var(--font-display);
+  letter-spacing: var(--tracking-display);
+}
+.kb-h1 {
+  font: 700 var(--text-h1)/var(--lh-h1) var(--font-display);
+  letter-spacing: var(--tracking-heading);
+}
+.kb-h2 {
+  font: 700 var(--text-h2)/var(--lh-h2) var(--font-display);
+  letter-spacing: var(--tracking-heading);
+}
+.kb-h3 {
+  font: 600 var(--text-h3)/var(--lh-h3) var(--font-display);
+  letter-spacing: -0.01em;
+}
+.kb-body-l {
+  font: 400 var(--text-body-l)/var(--lh-body-l) var(--font-body);
+}
+.kb-body {
+  font: 400 var(--text-body)/var(--lh-body) var(--font-body);
+}
+.kb-body-s {
+  font: 400 var(--text-body-s)/var(--lh-body-s) var(--font-body);
+}
+.kb-caption {
+  font: 500 var(--text-caption)/var(--lh-caption) var(--font-body);
+}
+.kb-overline {
+  font: 500 var(--text-caption)/var(--lh-caption) var(--font-mono);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+.kb-price {
+  font: 700 var(--text-price)/var(--lh-price) var(--font-display);
+  letter-spacing: var(--tracking-price);
+  font-variant-numeric: tabular-nums;
+}
+.kb-h-dialog {
+  font: 700 var(--text-h-dialog)/var(--lh-h-dialog) var(--font-display);
+  letter-spacing: var(--tracking-heading);
+}
+.kb-h-plan {
+  font: 700 var(--text-h-plan)/var(--lh-h-plan) var(--font-display);
+  letter-spacing: -0.01em;
+}
+.kb-reference {
+  font: 500 var(--text-reference)/var(--lh-reference) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kb-plate {
+  font: 600 var(--text-plate)/1 var(--font-mono);
+  letter-spacing: var(--tracking-plate);
+  text-transform: uppercase;
+}
+.kb-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kb-num {
+  font-variant-numeric: tabular-nums;
+}

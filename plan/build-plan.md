@@ -13,10 +13,11 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 2. Design system · `s2-design-system` · [phase](phases/02-design-system/phase.md)
 
-- [ ] 2.1 **Tokens and fonts**
-- [ ] 2.2 **Display and action components** → TSX
-- [ ] 2.3 **Form components** → TSX
-- [ ] 2.4 **Feedback, navigation and insurance components** → TSX
+- [x] 2.1 **Tokens and fonts**
+- [x] 2.2 **Display and action components** → TSX
+- [x] 2.3 **Form components** → TSX
+- [x] 2.4a **Feedback components** → TSX (Alert, Dialog on native `<dialog>`, Toast + Toaster, Tooltip)
+- [x] 2.4b **Navigation and insurance components** → TSX (Tabs, Stepper, CoverageOption + CoverageGroup, Timeline)
 - [ ] 2.5 **`/system` page**
 
 ## 3. Landing · `s3-landing` · [phase](phases/03-landing/phase.md)
@@ -25,6 +26,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 3.2 **Split hero**, with a "Retrieve my quote" link
 - [ ] 3.3 **Landing parts**: steps, trust stats (clearly illustrative, no fake review or FCA numbers), excess callout, quick actions
 - [ ] 3.4 **Responsive pass** against Figma
+- [ ] 3.5 **PostHog + first experiment**: wizard install, then `/ingest` proxy, EU host, lazy load, cookieless until consent; hero-CTA A/B test
 
 ## 4. Data and auth · `s4-data-auth` · [phase](phases/04-data-auth/phase.md)
 

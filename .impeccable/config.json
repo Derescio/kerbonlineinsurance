@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "instrument sans",
+        "createdAt": "2026-10-30T02:40:36.791Z",
+        "reason": "Kerb brand body font, defined by the design system (../tokens/typography.css) and Figma Foundation Design Body/* text styles (4:2); not a stylistic default"
+      }
+    ]
+  }
+}

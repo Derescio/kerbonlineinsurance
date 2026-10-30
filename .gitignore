@@ -25,3 +25,9 @@ scope/
 Thumbs.db
 __unconfig*
 todos.json
+
+# impeccable design hook: keep the shared config, not the local cache
+.impeccable/hook.cache.json
+
+# Vitest browser-mode failure screenshots
+.vitest/

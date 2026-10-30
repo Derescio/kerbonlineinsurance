@@ -1,10 +1,17 @@
+/* Global CSS entry: fonts, Kerb tokens, component styles, then a small app reset. */
+@import "./styles/fonts.css";
+@import "./styles/tokens/colors.css";
+@import "./styles/tokens/spacing.css";
+@import "./styles/tokens/typography.css";
+@import "./styles/tokens/base.css";
+@import "./styles/components.css";
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
 }
 
 main {
