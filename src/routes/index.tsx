@@ -5,7 +5,7 @@ export const Route = createFileRoute("/")({ component: Home });
 function Home() {
   return (
     <main>
-      <h1>Kerb Online Insurance + Lottery</h1>
+      <h1>Kerb Online Insurance</h1>
       <p>
         Welcome to Kerb Online Insurance! We provide comprehensive insurance solutions for your
         vehicles, ensuring peace of mind on the road.
