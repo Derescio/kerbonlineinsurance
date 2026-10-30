@@ -77,7 +77,18 @@ Only once every slice in the phase is merged into `staging` and checked on the s
 ```
 git switch staging
 git pull --ff-only
-gh pr create --base main --head staging --title "release: Phase N name (sN-name)"
+gh pr create --base main --head staging --title "release: Phase 2 Design System (s2-Design Ssystem)"--body "## Summary
+
+Completes Phase 2: Design System.
+
+## Implementation Plan
+See: plan/phases/02-design-system/phase.md
+
+## Verification
+- [x] CI checks pass
+- [x] Staging deployment verified
+- [x] Design system reviewed
+"
 ```
 
 - Link `plan/phases/NN-name/phase.md` in the body.
