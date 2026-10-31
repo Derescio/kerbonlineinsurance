@@ -1,6 +1,8 @@
 allowBuilds:
   esbuild: true
   lightningcss: true
+  # posthog-js dependency; its postinstall only prints a funding banner
+  core-js: false
 onlyBuiltDependencies:
   - esbuild
   - lightningcss
