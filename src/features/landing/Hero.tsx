@@ -5,11 +5,12 @@ import { Input } from "#/components/forms/Input";
 import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
 import { normalisePostcode, postcodeError } from "#/features/quote/postcode";
 
+import { ExcessCallout } from "./ExcessCallout";
 import { HeroImage } from "./HeroImage";
 
 /**
  * Split hero (Figma 54:1952 web, 88:2274 tablet, 88:2542 mobile): copy and the postcode quote
- * form, then the home-and-car photo. The form is a plain GET to /quote, so it works before
+ * form, then the home-and-car photo with the excess callout over it (3.3). The form is a plain GET to /quote, so it works before
  * hydration; with JS it checks the postcode first and sends it normalised.
  */
 export function Hero() {
@@ -74,7 +75,10 @@ export function Hero() {
           </form>
         </div>
 
-        <HeroImage className="hero__photo" />
+        <div className="hero__media">
+          <HeroImage className="hero__photo" />
+          <ExcessCallout className="hero__excess" />
+        </div>
       </div>
     </section>
   );

@@ -132,3 +132,473 @@
     height: 220px;
   }
 }
+
+/* ---- 3.3: landing parts ---- */
+
+/* Excess callout over the hero photo (part 53:1945); web and tablet only */
+.hero__media {
+  position: relative;
+  min-width: 0;
+}
+.hero__excess {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+}
+.excess {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 220px;
+  padding: var(--space-4) 18px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-2);
+  color: var(--fg-1);
+}
+.excess p {
+  margin: 0;
+}
+.excess__label {
+  color: var(--stone-600);
+  font: 500 12px/16px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.excess__amount {
+  font: 700 28px/32px var(--font-display);
+  letter-spacing: var(--tracking-heading);
+}
+.excess__text {
+  color: var(--stone-600);
+  font: 400 13px/18px var(--font-body);
+}
+
+/* Shared: white band with hairlines, and the overline + heading pair */
+.band {
+  padding-block: var(--space-16);
+  border-block: 1px solid var(--stone-200);
+  background: var(--bg-surface);
+}
+.landing-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.landing-heading__overline,
+.landing-heading__title {
+  margin: 0;
+}
+.landing-heading__overline {
+  color: var(--green-700);
+  font: 500 13px/16px var(--font-mono);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+
+/* Trust strip (54:1994). No review score or regulator number may appear here (see TrustStrip.tsx). */
+.trust {
+  padding-block: 56px;
+}
+.trust__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-block: 0;
+  padding: 0;
+  list-style: none;
+}
+.trust__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 28px var(--space-6);
+  border-left: 1px solid var(--stone-200);
+}
+.trust__stat:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.trust__value,
+.trust__caption {
+  margin: 0;
+}
+.trust__value {
+  color: var(--fg-1);
+  font: 700 36px/40px var(--font-display);
+  letter-spacing: -0.03em;
+}
+.trust__caption {
+  color: var(--stone-600);
+  font: 400 15px/22px var(--font-body);
+}
+
+/* Insurance types (62:2137) */
+.kinds .site-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+.kinds__title {
+  font: 700 clamp(36px, 5vw, 44px) / 1.09 var(--font-display);
+  letter-spacing: var(--tracking-display);
+}
+.kinds__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+.kinds__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.kinds__item {
+  overflow: hidden;
+  border: 1px solid var(--stone-200);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+.kinds__item[open] {
+  border-color: var(--green-900);
+  background: var(--green-900);
+  box-shadow: var(--shadow-1);
+}
+/* The ring goes on the item, because its overflow would clip a ring on the summary (Figma shows it on Tenant) */
+.kinds__item:has(> .kinds__summary:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.kinds__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 20px var(--space-6);
+  color: var(--fg-1);
+  font: 600 16px/22px var(--font-body);
+  list-style: none;
+  cursor: pointer;
+}
+.kinds__summary::-webkit-details-marker {
+  display: none;
+}
+.kinds__summary:focus-visible {
+  outline: none;
+}
+.kinds__summary .kb-icon {
+  flex: none;
+  color: var(--stone-700);
+}
+.kinds__label {
+  flex: 1;
+}
+.kinds__chevron {
+  transition: transform 160ms ease;
+}
+.kinds__item[open] .kinds__summary,
+.kinds__item[open] .kinds__summary .kb-icon {
+  color: var(--fg-inverse);
+}
+.kinds__item[open] .kinds__chevron {
+  transform: rotate(180deg);
+}
+.kinds__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: 0 var(--space-6) var(--space-6);
+  color: rgba(255, 255, 255, 0.72);
+  font: 400 15px/24px var(--font-body);
+}
+.kinds__body p {
+  margin: 0;
+}
+
+/* How it works (54:2008) */
+.how {
+  padding-block: var(--space-10) 88px;
+}
+.how__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 520px);
+  align-items: center;
+  gap: var(--space-8);
+}
+.how__photo {
+  position: relative;
+  display: block;
+  height: 520px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--stone-200);
+}
+.how__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.how__photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 42, 34, 0.1);
+}
+.how__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+.how__title {
+  font: 700 var(--text-h1) / var(--lh-h1) var(--font-display);
+  letter-spacing: var(--tracking-heading);
+}
+.how__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.how__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.how__check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--green-50);
+  color: var(--green-700);
+}
+.how__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.how__step-title {
+  color: var(--fg-1);
+  font: 700 22px/28px var(--font-display);
+  letter-spacing: var(--tracking-heading);
+}
+.how__step-body {
+  color: var(--stone-600);
+  font: 400 var(--text-body-s) / var(--lh-body-s) var(--font-body);
+}
+.how__cta {
+  margin-top: var(--space-4);
+}
+
+/* Quick actions (54:2028) */
+.quick .site-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+.quick__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.quick__title,
+.quick__sub {
+  margin: 0;
+}
+.quick__title {
+  font: 700 clamp(28px, 3.4vw, 36px) / 1.15 var(--font-display);
+  letter-spacing: -0.03em;
+}
+.quick__sub {
+  margin-top: var(--space-2);
+  color: var(--stone-600);
+  font: 400 var(--text-body) / var(--lh-body) var(--font-body);
+}
+.quick__account {
+  border-radius: var(--radius-xs);
+  color: var(--green-700);
+  font: 600 15px/20px var(--font-body);
+}
+.quick__list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.quick__list li {
+  display: flex;
+}
+.quick__tile {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--stone-200);
+  border-radius: var(--radius-lg);
+  color: var(--fg-1);
+  text-decoration: none;
+  transition: border-color 120ms ease;
+}
+.quick__tile:hover {
+  border-color: var(--stone-400);
+  color: var(--fg-1);
+}
+.quick__chip {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--green-100);
+  color: var(--green-700);
+}
+.quick__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.quick__tile-title {
+  font: 600 16px/22px var(--font-body);
+}
+.quick__tile-sub {
+  color: var(--stone-600);
+  font: 400 var(--text-body-s) / var(--lh-body-s) var(--font-body);
+}
+
+/* Closing CTA card (54:2089) */
+.closing {
+  padding-block: var(--space-16) var(--space-6);
+}
+.closing__card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: var(--space-8);
+  padding: clamp(32px, 5vw, 72px);
+  border-radius: var(--radius-xl);
+  background: var(--green-900);
+  box-shadow: var(--shadow-3);
+  color: var(--fg-inverse);
+}
+.closing__title,
+.closing__body {
+  margin: 0;
+}
+.closing__title {
+  font: 800 clamp(36px, 3.6vw, 52px) / 1.05 var(--font-display);
+  letter-spacing: var(--tracking-display);
+}
+.closing__body {
+  margin-top: var(--space-4);
+  color: rgba(255, 255, 255, 0.78);
+  font: 400 var(--text-body-l) / var(--lh-body-l) var(--font-body);
+}
+.closing__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+.closing__saved,
+.closing__saved:hover {
+  color: var(--fg-inverse);
+}
+.closing__saved {
+  border-radius: var(--radius-xs);
+  font: 600 15px/20px var(--font-body);
+}
+
+/* Focus rings for the plain links and tiles above */
+.quick__account:focus-visible,
+.quick__tile:focus-visible,
+.closing__saved:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Tablet (88:2254) */
+@media (max-width: 1199.98px) {
+  .trust {
+    padding-block: var(--space-10);
+  }
+  .how {
+    padding-block: var(--space-10) var(--space-16);
+  }
+  .how__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .how__photo {
+    height: 360px;
+  }
+}
+
+/* Four quick actions fit at 1024 (88:2401), not much below it */
+@media (max-width: 1023.98px) {
+  .quick__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Mobile (88:2528) */
+@media (max-width: 767.98px) {
+  .hero__excess {
+    display: none;
+  }
+  .trust {
+    padding-block: var(--space-4);
+  }
+  .trust__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .trust__stat {
+    padding: var(--space-4) 0;
+    border-left: 0;
+  }
+  .band {
+    padding-block: var(--space-10);
+  }
+  .kinds__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+  .how {
+    padding-block: var(--space-10);
+  }
+  .how__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+  .how__photo {
+    height: 260px;
+  }
+  .quick__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+  .quick__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .closing__card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+  .closing__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .closing__saved {
+    align-self: flex-start;
+  }
+}

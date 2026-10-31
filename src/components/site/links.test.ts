@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { footerGroups, isCurrent, mainNav } from "./links";
+import {
+  accountLink,
+  documentsLink,
+  footerGroups,
+  isCurrent,
+  mainNav,
+  makeClaimLink,
+  paymentsLink,
+  trackClaimLink,
+} from "./links";
 
 describe("isCurrent", () => {
   it("matches the page itself and pages under it", () => {
@@ -19,5 +28,14 @@ describe("links", () => {
   it("are all site-relative paths", () => {
     const all = [...mainNav, ...footerGroups.flatMap((g) => g.links)];
     for (const link of all) expect(link.href).toMatch(/^\/[a-z]/);
+  });
+});
+
+describe("shared links", () => {
+  it("the landing quick actions use are the footer's own", () => {
+    const footer = footerGroups.flatMap((g) => g.links);
+    for (const link of [makeClaimLink, trackClaimLink, documentsLink, paymentsLink, accountLink]) {
+      expect(footer).toContain(link);
+    }
   });
 });

@@ -1,6 +1,6 @@
 # 3.2 Split hero
 
-**Status:** in-progress (approved 31 Oct 2026; built, waiting for PR)
+**Status:** done (#32, 31 Oct 2026)
 **Phase:** 03-landing
 
 ## Goal

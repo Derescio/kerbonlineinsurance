@@ -17,8 +17,8 @@ Specced in full when this phase starts.
 | # | Slice | Status |
 |---|---|---|
 | 3.1 | [Site chrome](01-site-chrome.md): header and footer, plus a "Kerb is a fictional insurer made for a portfolio project. No real cover is sold." banner and footer line | done |
-| 3.2 | [Split hero](02-split-hero.md), with a "Retrieve my quote" link. **Perf:** hero image as AVIF/WebP responsive sizes generated at build, high priority, width/height set | in-progress |
-| 3.3 | Landing parts: insurance types accordion, steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | todo |
+| 3.2 | [Split hero](02-split-hero.md), with a "Retrieve my quote" link. **Perf:** hero image as AVIF/WebP responsive sizes generated at build, high priority, width/height set | done |
+| 3.3 | [Landing parts](03-landing-parts.md): insurance types accordion, steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | in-progress |
 | 3.4 | Responsive pass against Figma. **Perf:** landing prerendered; `publicCacheHeaders()` on public pages; first `e2e.yml` Playwright smoke test on previews | todo |
 | 3.5 | PostHog + first experiment ([engineering.md §13](../../engineering.md#13-analytics-and-experiments)): installed with the PostHog wizard, then fixed up by hand (same-origin `/ingest` proxy, EU host, lazy-loaded, cookieless until consent, consent banner). Pageviews and key landing events. A flag-driven hero-CTA copy experiment | todo |
 
@@ -45,7 +45,7 @@ Layers and tooling: [engineering.md §4](../../engineering.md#testing). This pha
 |---|---|---|---|
 | Component | Header: mobile menu opens and closes, traps focus, closes on Escape; demo banner and footer line always render | 3.1 | yes |
 | Component | Hero: CTA and "Continue a saved quote" (the plan's "Retrieve my quote"; Figma wording, 3.2) point at the right routes; hero image has width, height and high priority set | 3.2 | yes |
-| Component | Trust stats render the "illustrative" wording; no review score or FCA number in the markup | 3.3 | yes |
+| Component | Trust stats: "Reviews coming soon" in the rating slot; no review score, review count, stars or FCA number in the markup (no "illustrative" note: Damion, 31 Oct 2026) | 3.3 | yes |
 | E2E | Smoke: landing returns 200, hero CTA reaches the quote start, "Continue a saved quote" resolves, `Cache-Control` has `s-maxage` + `stale-while-revalidate` | 3.4 | yes |
 | E2E (axe) | Landing at mobile and desktop widths: no serious or critical violations | 3.4 | yes |
 | Manual | Figma side by side at web, tablet and mobile widths; Lighthouse accessibility ≥ 95 | 3.4 | yes |
