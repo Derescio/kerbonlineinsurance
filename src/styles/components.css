@@ -1339,3 +1339,22 @@ html:has(dialog.kb-dialog-scrim:modal) {
   gap: 16px;
   padding-top: 12px;
 }
+
+/* App additions (3.1) */
+/* Links styled as buttons: keep the button's colour on hover, over the global a:hover */
+a.kb-btn--secondary:hover {
+  color: var(--fg-1);
+}
+a.kb-btn--ghost:hover {
+  color: var(--fg-brand);
+}
+a.kb-btn--primary:hover {
+  color: var(--fg-on-primary);
+}
+a.kb-iconbtn--inverse:hover,
+a.kb-iconbtn--primary:hover {
+  color: #fff;
+}
+a.kb-btn--accent:hover {
+  color: var(--fg-on-accent);
+}
