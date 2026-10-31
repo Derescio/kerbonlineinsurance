@@ -71,8 +71,8 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 7.3 **Storage, usage logging, limits and spend cap**
 - [ ] 7.4 **Read tools** for signed-in users (including `getMyDocuments`), plus `getReviewSummary` for everyone
 - [ ] 7.5 **Action tools + confirm cards + audit**
-- [ ] 7.6 **Model comparison** → default chosen
-- [ ] 7.7 **Review auto-check**: AI screens new reviews and their photos; clean ones publish, flagged ones go to the queue
+- [ ] 7.6 **Model comparison per task** → defaults chosen
+- [ ] 7.7 **Review auto-check**: AI screens new reviews and their photos; clean ones publish, flagged or uncertain ones go to the queue
 - [ ] 7.8 **Photos to Kerbie**: attach button, AI vision, "start a claim with this photo" action, eval cases
 
 ## 8. Launch · `s8-launch` · [phase](phases/08-launch/phase.md)
