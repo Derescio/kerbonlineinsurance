@@ -18,8 +18,8 @@ Specced in full when this phase starts.
 |---|---|---|
 | 3.1 | [Site chrome](01-site-chrome.md): header and footer, plus a "Kerb is a fictional insurer made for a portfolio project. No real cover is sold." banner and footer line | done |
 | 3.2 | [Split hero](02-split-hero.md), with a "Retrieve my quote" link. **Perf:** hero image as AVIF/WebP responsive sizes generated at build, high priority, width/height set | done |
-| 3.3 | [Landing parts](03-landing-parts.md): insurance types accordion, steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | in-progress |
-| 3.4 | Responsive pass against Figma. **Perf:** landing prerendered; `publicCacheHeaders()` on public pages; first `e2e.yml` Playwright smoke test on previews | todo |
+| 3.3 | [Landing parts](03-landing-parts.md): insurance types accordion, steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | done |
+| 3.4 | [Responsive pass](04-responsive-pass.md) against Figma. **Perf:** landing CDN-cached (SSR + `s-maxage`, not prerendered: 3.4 decision 1); `publicCacheHeaders()` on public pages; first `e2e.yml` Playwright smoke test on previews | in-progress |
 | 3.5 | PostHog + first experiment ([engineering.md §13](../../engineering.md#13-analytics-and-experiments)): installed with the PostHog wizard, then fixed up by hand (same-origin `/ingest` proxy, EU host, lazy-loaded, cookieless until consent, consent banner). Pageviews and key landing events. A flag-driven hero-CTA copy experiment | todo |
 
 ## Decisions (30 Oct 2026)
@@ -58,6 +58,6 @@ Layers and tooling: [engineering.md §4](../../engineering.md#testing). This pha
 
 - Landing matches Figma at web, tablet and mobile widths.
 - Lighthouse accessibility ≥ 95 on the landing page.
-- Smoke test and axe scan pass on the preview in `e2e.yml`.
+- Smoke test and axe scan pass on the preview (run locally with the bypass header until the release puts `e2e.yml` on `main`; then on every deploy).
 - PostHog runs on the preview with no CSP violations, no storage before consent, and the first experiment live.
 - Deployed and tagged.

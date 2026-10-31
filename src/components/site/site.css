@@ -208,7 +208,8 @@
 }
 .site-footer__legal {
   margin: var(--space-6) 0 0;
-  color: var(--stone-500);
+  /* stone-500 was 4.1:1 on the page background; 600 passes AA at 13 px (axe, 3.4) */
+  color: var(--stone-600);
   font: 400 13px/20px var(--font-body);
 }
 

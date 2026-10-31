@@ -1,0 +1,80 @@
+name: E2E
+
+# Runs Playwright (smoke + axe) against each successful Vercel deploy except production
+# (plan/engineering.md section 4). Vercel sends `repository_dispatch` on each deploy; GitHub only
+# runs it from the default branch's copy of this file, so it starts with the Phase 3 release.
+# `workflow_dispatch` (also main-only) runs it by hand against any URL. Before the release, run it
+# locally: BASE_URL=<preview> VERCEL_AUTOMATION_BYPASS_SECRET=... vp exec playwright test.
+# Not a required check (3.4, decision 2).
+on:
+  repository_dispatch:
+    types: [vercel.deployment.success]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Deployment URL to test (preview or staging)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.event.client_payload.url || inputs.url }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e
+    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.environment != 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The deployed commit, so the specs match the code under test (the run itself is from main)
+          ref: ${{ github.event.client_payload.git.sha || github.sha }}
+
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+
+      # Same Chromium cache as ci.yml
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: vp exec playwright install --with-deps chromium
+      - name: Install Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: vp exec playwright install-deps chromium
+
+      - name: Run Playwright against the deploy
+        env:
+          BASE_URL: ${{ github.event.client_payload.url || inputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          CI: "true"
+        run: |
+          if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "::error::VERCEL_AUTOMATION_BYPASS_SECRET is not set in the repo's Actions secrets, so the deploy answers with its login page."
+            exit 1
+          fi
+          echo "Testing $BASE_URL"
+          vp exec playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

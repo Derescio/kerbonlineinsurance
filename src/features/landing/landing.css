@@ -133,6 +133,22 @@
   }
 }
 
+/* A narrow form card (small phones, and the two-column hero near 768) squeezed the postcode field
+   to a few pixels, so the field and button stack. The card's content box is 318 px at 390 (side by
+   side in Figma 88:2542) and about 300 px in the two-column hero at 768, so the line sits between. */
+.hero__form {
+  container-type: inline-size;
+}
+@container (max-width: 309.98px) {
+  .hero__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero__row > .kb-btn {
+    width: 100%;
+    margin-top: 0;
+  }
+}
+
 /* ---- 3.3: landing parts ---- */
 
 /* Excess callout over the hero photo (part 53:1945); web and tablet only */
@@ -207,10 +223,13 @@
   padding: 0;
   list-style: none;
 }
+/* Subgrid rows, so the captions stay level when one value wraps (tablet widths) */
 .trust__stat {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  align-content: start;
+  row-gap: 6px;
   padding: 28px var(--space-6);
   border-left: 1px solid var(--stone-200);
 }
@@ -223,6 +242,7 @@
   margin: 0;
 }
 .trust__value {
+  align-self: end;
   color: var(--fg-1);
   font: 700 36px/40px var(--font-display);
   letter-spacing: -0.03em;
@@ -529,8 +549,17 @@
 
 /* Tablet (88:2254) */
 @media (max-width: 1199.98px) {
+  /* Figma tablet pads its bands 32 px, half the web frame's 64 (3.4) */
+  .band {
+    padding-block: var(--space-8);
+  }
   .trust {
     padding-block: var(--space-10);
+  }
+  /* "Reviews coming soon" fits one line at 1024 (Figma's "4.8 / 5" was shorter) */
+  .trust__value {
+    font-size: clamp(26px, 2.9vw, 36px);
+    line-height: 1.1;
   }
   .how {
     padding-block: var(--space-10) var(--space-16);
@@ -564,6 +593,11 @@
   .trust__stat {
     padding: var(--space-4) 0;
     border-left: 0;
+  }
+  /* One stat per row again, so back to the full size (88:2528) */
+  .trust__value {
+    font-size: 36px;
+    line-height: 40px;
   }
   .band {
     padding-block: var(--space-10);

@@ -1,6 +1,6 @@
 # 3.3 Landing parts
 
-**Status:** in-progress (approved 31 Oct 2026, without the illustrative note under the trust strip; built, waiting for PR)
+**Status:** done (approved 31 Oct 2026, without the illustrative note under the trust strip; landed as #33, scope follow-up #34)
 **Phase:** 03-landing
 
 ## Goal
