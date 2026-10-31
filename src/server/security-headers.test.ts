@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   contentSecurityPolicy,
   createNonce,
+  posthogOrigins,
   staticSecurityHeaders,
 } from "#/server/security-headers";
 
@@ -36,6 +37,30 @@ describe("contentSecurityPolicy", () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
+  });
+
+  it("allows PostHog's scripts and ingestion only when a host is configured", () => {
+    const withPosthog = contentSecurityPolicy("abc123", "https://us.i.posthog.com");
+    const posthog = "https://us.i.posthog.com https://us-assets.i.posthog.com";
+
+    expect(withPosthog).toContain(`script-src 'self' 'nonce-abc123' ${posthog};`);
+    expect(withPosthog).toContain(`connect-src 'self' ${posthog};`);
+    expect(directive("connect-src")).toBe("connect-src 'self'");
+  });
+});
+
+describe("posthogOrigins", () => {
+  it("adds the assets host for PostHog Cloud regions", () => {
+    expect(posthogOrigins("https://eu.i.posthog.com/")).toEqual([
+      "https://eu.i.posthog.com",
+      "https://eu-assets.i.posthog.com",
+    ]);
+  });
+
+  it("uses a reverse proxy host as is, and nothing for same-origin or unset", () => {
+    expect(posthogOrigins("https://e.example.com/ingest")).toEqual(["https://e.example.com"]);
+    expect(posthogOrigins("/ingest")).toEqual([]);
+    expect(posthogOrigins(undefined)).toEqual([]);
   });
 });
 

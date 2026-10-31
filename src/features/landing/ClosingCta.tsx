@@ -1,9 +1,13 @@
+import { usePostHog } from "@posthog/react";
+
 import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
 
 import { ButtonLink } from "./ButtonLink";
 
 /** Closing CTA card (Figma 54:2089 web; mobile in 88:2725). */
 export function ClosingCta() {
+  const posthog = usePostHog();
+
   return (
     <section className="closing" aria-labelledby="closing-title">
       <div className="site-container">
@@ -15,7 +19,13 @@ export function ClosingCta() {
             <p className="closing__body">No account needed. We'll save your quote for 30 days.</p>
           </div>
           <div className="closing__actions">
-            <ButtonLink href={quoteHref} variant="accent" size="lg" className="closing__cta">
+            <ButtonLink
+              href={quoteHref}
+              variant="accent"
+              size="lg"
+              className="closing__cta"
+              onClick={() => posthog.capture("quote_cta_clicked", { entry_point: "closing_cta" })}
+            >
               Get a quote
             </ButtonLink>
             <a href={retrieveQuoteLink.href} className="closing__saved">

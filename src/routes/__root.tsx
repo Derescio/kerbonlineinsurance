@@ -1,3 +1,4 @@
+import { PostHogErrorBoundary, PostHogProvider } from "@posthog/react";
 import { HeadContent, Scripts, createRootRoute, useLocation } from "@tanstack/react-router";
 
 import { Toaster } from "#/components/feedback/Toaster";
@@ -56,10 +57,53 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Toaster>{children}</Toaster>
+        <PostHogContent>
+          <Toaster>{children}</Toaster>
+        </PostHogContent>
 
         <Scripts />
       </body>
     </html>
   );
+}
+
+const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
+const posthogHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST;
+
+// Analytics is optional: without the two variables the site runs as normal, just untracked.
+if (import.meta.env.DEV && (!posthogProjectToken || !posthogHost)) {
+  console.warn(
+    "PostHog is off: set VITE_PUBLIC_POSTHOG_PROJECT_TOKEN and VITE_PUBLIC_POSTHOG_HOST in .env.local to send events.",
+  );
+}
+
+const posthogOptions = {
+  api_host: posthogHost,
+  defaults: "2025-05-24",
+  capture_exceptions: true,
+  debug: import.meta.env.DEV,
+  // Replay records layout and clicks only: inputs and all page text are masked, because quote and
+  // policy pages show names, addresses and vehicle details. Wins over the dashboard's masking.
+  session_recording: {
+    maskAllInputs: true,
+    maskTextSelector: "*",
+  },
+  logs: {
+    serviceName: "kerb-online-insurance-web",
+    environment: import.meta.env.MODE,
+  },
+} as const;
+
+function PostHogContent({ children }: { children: React.ReactNode }) {
+  if (!posthogProjectToken || !posthogHost) return children;
+
+  return (
+    <PostHogProvider apiKey={posthogProjectToken} options={posthogOptions}>
+      <PostHogErrorBoundary fallback={<GlobalErrorFallback />}>{children}</PostHogErrorBoundary>
+    </PostHogProvider>
+  );
+}
+
+function GlobalErrorFallback() {
+  return <div role="alert">Something went wrong. Please refresh the page and try again.</div>;
 }

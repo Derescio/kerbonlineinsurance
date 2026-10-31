@@ -20,17 +20,34 @@ export function createNonce() {
   return btoa(String.fromCharCode(...bytes));
 }
 
-export function contentSecurityPolicy(nonce: string) {
+/**
+ * Origins posthog-js loads scripts from and sends data to. On PostHog Cloud that's the region's
+ * ingestion host plus its `-assets` twin (see posthog-js RequestRouter); a reverse proxy serves
+ * both from the one host. A same-origin proxy path (`/ingest`) is already covered by 'self'.
+ */
+export function posthogOrigins(host: string | undefined): string[] {
+  if (!host || !URL.canParse(host)) return [];
+  const { origin, hostname } = new URL(host);
+  const region = /^(us|eu)\.i\.posthog\.com$/.exec(hostname)?.[1];
+  return region ? [origin, `https://${region}-assets.i.posthog.com`] : [origin];
+}
+
+export function contentSecurityPolicy(nonce: string, posthogHost?: string) {
+  const posthogSource = posthogOrigins(posthogHost)
+    .map((origin) => ` ${origin}`)
+    .join("");
+
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}'${posthogSource}`,
     `style-src 'self' 'nonce-${nonce}'`,
     // React renders `style` props as attributes in server HTML. Attributes can't run script, and
     // img-src/font-src stop them loading anything off-site. <style> and stylesheets stay strict.
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self'${posthogSource}`,
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

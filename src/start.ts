@@ -9,7 +9,10 @@ const cspMiddleware = createMiddleware().server(async ({ next }) => {
   const result = await next({ context: { nonce } });
   // Vite's dev server injects its own inline scripts, so the CSP only applies to builds
   if (!import.meta.env.DEV) {
-    result.response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+    result.response.headers.set(
+      "Content-Security-Policy",
+      contentSecurityPolicy(nonce, import.meta.env.VITE_PUBLIC_POSTHOG_HOST),
+    );
   }
   return result;
 });
