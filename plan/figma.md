@@ -94,3 +94,5 @@ All 20 local components (`../components/**`) have a matching Figma component set
 - Review UI (6.7)
 - Staff claims console (6.10)
 - Kerbie confirm cards (7.1); the panel and mark are designed
+- Quote start: type picker + postcode, and the "coming soon" panel (5.1)
+- Home quote steps (5.7), unless the `Quote & Policy` frames already have them (check first)

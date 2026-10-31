@@ -1,18 +1,19 @@
 import { Icon } from "#/components/display/Icon";
 import type { IconName } from "#/components/display/icons";
-import { quoteHref } from "#/components/site/links";
+import { quoteHrefFor, type ProductId } from "#/features/quote/products";
 
 import { ButtonLink } from "./ButtonLink";
 
 interface InsuranceType {
-  id: string;
+  id: ProductId;
   label: string;
   icon: IconName;
   description: string;
 }
 
-// Figma order: left column car, home, condo; right column tenant, landlord, pet. Only car is sold,
-// so only car has a quote link (plan/phases/03-landing/phase.md, Decisions).
+// Figma order: left column car, home, condo; right column tenant, landlord, pet. Business isn't in
+// Figma; it closes the right column. Every type links to the quote start with its type set, and
+// /quote says which ones are coming soon (plan/phases/03-landing/phase.md, Decisions).
 const left: InsuranceType[] = [
   {
     id: "car",
@@ -54,6 +55,12 @@ const right: InsuranceType[] = [
     icon: "pet",
     description: "Vet fees for accidents and illness, for cats and dogs.",
   },
+  {
+    id: "business",
+    label: "Business insurance",
+    icon: "briefcase",
+    description: "Public liability, stock and equipment cover for sole traders and small firms.",
+  },
 ];
 
 /**
@@ -85,9 +92,8 @@ export function InsuranceTypes() {
 }
 
 function InsuranceItem({ type }: { type: InsuranceType }) {
-  const isCar = type.id === "car";
   return (
-    <details className="kinds__item" open={isCar || undefined}>
+    <details className="kinds__item" open={type.id === "car" || undefined}>
       <summary className="kinds__summary">
         <Icon name={type.icon} size={24} />
         <span className="kinds__label">{type.label}</span>
@@ -95,13 +101,9 @@ function InsuranceItem({ type }: { type: InsuranceType }) {
       </summary>
       <div className="kinds__body">
         <p>{type.description}</p>
-        {isCar ? (
-          <ButtonLink href={quoteHref} variant="accent" size="sm">
-            Get a car insurance quote
-          </ButtonLink>
-        ) : (
-          <p>Kerb only sells car insurance for now.</p>
-        )}
+        <ButtonLink href={quoteHrefFor(type.id)} variant="accent" size="sm">
+          Get a {type.label.toLowerCase()} quote
+        </ButtonLink>
       </div>
     </details>
   );

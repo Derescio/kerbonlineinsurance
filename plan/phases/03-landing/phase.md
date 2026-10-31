@@ -27,7 +27,7 @@ Specced in full when this phase starts.
 Where Figma (`53:1920`) and the plan disagree:
 
 - **Rating stat:** Figma's "4.8 / 5 · From 12,400 customer reviews" breaks the no-invented-scores rule. 3.3 shows a placeholder in that slot ("Reviews coming soon"), and 6.9 wires it to the real average of approved reviews.
-- **Insurance types accordion** ("Insurance for every situation": car, home, condo, tenant, land, pet) is in every Figma variant but wasn't in the slice list. It's built in 3.3. Only car has a live CTA.
+- **Insurance types accordion** ("Insurance for every situation": car, home, condo, tenant, land, pet) is in every Figma variant but wasn't in the slice list. It's built in 3.3. **Changed 31 Oct 2026:** every type links to `/quote?type=<id>` (ids in `src/features/quote/products.ts`), and `/quote` (Phase 5) asks for whichever of postcode and type is missing. Car and home are buyable; the rest show "coming soon" there. Business insurance is added as a seventh item at the end of the right column, so the grid is 3 + 4 where Figma has 3 + 3.
 - **Links to unbuilt pages** use their final paths and reach a site 404 ("This page isn't built yet", in the chrome) until each phase builds them. Paths live in one file, `src/components/site/links.ts`. The quote CTA works the same way until Phase 5, so the 3.4 smoke test checks that the CTA and "Retrieve my quote" point at the right paths rather than that those pages return 200.
 - **Footer line** uses the plan's wording; Figma's "Figures on this page are illustrative" moves to the trust stats.
 
