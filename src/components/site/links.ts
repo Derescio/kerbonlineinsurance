@@ -29,6 +29,9 @@ export const trackClaimLink: SiteLink = { label: "Track a claim", href: "/claims
 export const documentsLink: SiteLink = { label: "Documents", href: "/account/documents" };
 export const paymentsLink: SiteLink = { label: "Payments", href: "/account/payments" };
 
+// In the footer and the consent banner (3.6). The page lands in 4.7.
+export const cookiesLink: SiteLink = { label: "Cookies", href: "/cookies" };
+
 /** Header nav, and the mobile menu. */
 export const mainNav: SiteLink[] = [
   { label: "Policy", href: "/account/policy" },
@@ -68,7 +71,7 @@ export const footerGroups: { title: string; links: SiteLink[] }[] = [
       { label: "Accessibility", href: "/accessibility" },
       { label: "Complaints", href: "/complaints" },
       { label: "Privacy", href: "/privacy" },
-      { label: "Cookies", href: "/cookies" },
+      cookiesLink,
     ],
   },
   {

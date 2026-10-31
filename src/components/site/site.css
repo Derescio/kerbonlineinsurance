@@ -245,3 +245,68 @@
   margin-bottom: var(--space-4);
   color: var(--fg-2);
 }
+
+/* Cookie choice bar (3.6) */
+.consent {
+  position: fixed;
+  inset: auto 0 var(--space-4);
+  z-index: var(--z-sticky);
+}
+.consent__card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--stone-200);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-3);
+}
+.consent__text {
+  flex: 1;
+  margin: 0;
+  color: var(--fg-2);
+  font: 400 var(--text-body-s) / var(--lh-body-s) var(--font-body);
+}
+.consent__text a {
+  border-radius: var(--radius-xs);
+  color: var(--fg-1);
+}
+.consent__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+/* Footer "Cookie settings": a button that reads as one of the footer links */
+.site-footer__settings {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--stone-600);
+  font: 400 var(--text-body-s) / var(--lh-body-s) var(--font-body);
+  cursor: pointer;
+}
+.site-footer__settings:hover {
+  color: var(--fg-1);
+  text-decoration: underline;
+}
+
+@media (max-width: 767.98px) {
+  .consent {
+    inset: auto 0 0;
+  }
+  .consent .site-container {
+    width: 100%;
+  }
+  .consent__card {
+    flex-direction: column;
+    align-items: stretch;
+    border-width: 1px 0 0;
+    border-radius: 0;
+  }
+  .consent__actions .kb-btn {
+    flex: 1;
+  }
+}
