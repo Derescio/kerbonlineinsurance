@@ -1,6 +1,6 @@
 # Phase 3: Landing
 
-**Tag:** `s3-landing` · **Status:** todo
+**Tag:** `s3-landing` · **Status:** in progress
 
 ## Goal
 
@@ -16,11 +16,20 @@ Specced in full when this phase starts.
 
 | # | Slice | Status |
 |---|---|---|
-| 3.1 | Site chrome: header and footer, plus a "Kerb is a fictional insurer made for a portfolio project. No real cover is sold." banner and footer line | todo |
+| 3.1 | [Site chrome](01-site-chrome.md): header and footer, plus a "Kerb is a fictional insurer made for a portfolio project. No real cover is sold." banner and footer line | in-progress |
 | 3.2 | Split hero, with a "Retrieve my quote" link. **Perf:** hero image as AVIF/WebP responsive sizes generated at build, high priority, width/height set | todo |
-| 3.3 | Landing parts: steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | todo |
+| 3.3 | Landing parts: insurance types accordion, steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | todo |
 | 3.4 | Responsive pass against Figma. **Perf:** landing prerendered; `publicCacheHeaders()` on public pages; first `e2e.yml` Playwright smoke test on previews | todo |
 | 3.5 | PostHog + first experiment ([engineering.md §13](../../engineering.md#13-analytics-and-experiments)): installed with the PostHog wizard, then fixed up by hand (same-origin `/ingest` proxy, EU host, lazy-loaded, cookieless until consent, consent banner). Pageviews and key landing events. A flag-driven hero-CTA copy experiment | todo |
+
+## Decisions (30 Oct 2026)
+
+Where Figma (`53:1920`) and the plan disagree:
+
+- **Rating stat:** Figma's "4.8 / 5 · From 12,400 customer reviews" breaks the no-invented-scores rule. 3.3 shows a placeholder in that slot ("Reviews coming soon"), and 6.9 wires it to the real average of approved reviews.
+- **Insurance types accordion** ("Insurance for every situation": car, home, condo, tenant, land, pet) is in every Figma variant but wasn't in the slice list. It's built in 3.3. Only car has a live CTA.
+- **Links to unbuilt pages** use their final paths and reach a site 404 ("This page isn't built yet", in the chrome) until each phase builds them. Paths live in one file, `src/components/site/links.ts`. The quote CTA works the same way until Phase 5, so the 3.4 smoke test checks that the CTA and "Retrieve my quote" point at the right paths rather than that those pages return 200.
+- **Footer line** uses the plan's wording; Figma's "Figures on this page are illustrative" moves to the trust stats.
 
 ## Recording notes
 

@@ -1,6 +1,7 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import { HeadContent, Scripts, createRootRoute, useLocation } from "@tanstack/react-router";
 
 import { Toaster } from "#/components/feedback/Toaster";
+import { NotFound } from "#/components/site/NotFound";
 import appCss from "#/styles.css?url";
 // The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
 import bricolageFont from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url";
@@ -40,7 +41,13 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: SiteNotFound,
 });
+
+function SiteNotFound() {
+  const { pathname } = useLocation();
+  return <NotFound pathname={pathname} />;
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
