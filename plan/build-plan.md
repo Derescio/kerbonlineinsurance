@@ -22,7 +22,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 3. Landing · `s3-landing` · [phase](phases/03-landing/phase.md)
 
-- [ ] 3.1 **Site chrome**: header and footer, plus a "Kerb is a demo" banner and footer line
+- [x] 3.1 **Site chrome**: header and footer, plus a "Kerb is a demo" banner and footer line
 - [ ] 3.2 **Split hero**, with a "Retrieve my quote" link
 - [ ] 3.3 **Landing parts**: insurance types accordion, steps, trust stats (clearly illustrative, no fake review or FCA numbers), excess callout, quick actions
 - [ ] 3.4 **Responsive pass** against Figma

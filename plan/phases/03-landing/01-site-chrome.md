@@ -1,6 +1,6 @@
 # 3.1 Site chrome
 
-**Status:** in-progress (approved 30 Oct 2026; built, waiting for PR)
+**Status:** done (#31, 31 Oct 2026)
 **Phase:** 03-landing
 
 ## Goal
@@ -98,8 +98,8 @@ Phases 4–6 may rename these; when they do, the change is one line in `links.ts
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` exit with 0; `ci` green on the PR.
-- [ ] Manual checks pass.
+- [x] `vp check`, `vp test` and `vp build` exit with 0; `ci` green on the PR.
+- [x] Manual checks pass.
 
 ## Results (30 Oct 2026)
 

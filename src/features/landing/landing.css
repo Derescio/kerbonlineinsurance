@@ -1,0 +1,134 @@
+/* Landing page (3.2+). Figma Landing page — Web (53:1920). */
+
+/* Split hero (54:1952 web, 88:2274 tablet, 88:2542 mobile) */
+.hero {
+  background: var(--green-900);
+  color: var(--fg-inverse);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+.hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-12);
+  padding-block: 72px;
+}
+.hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+.hero__overline,
+.hero__title,
+.hero__intro {
+  margin: 0;
+}
+.hero__overline {
+  color: var(--marker-400);
+  font: 500 13px/16px var(--font-mono);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+.hero__title {
+  font: 800 clamp(44px, 4.7vw, 68px) / 1.02 var(--font-display);
+  letter-spacing: var(--tracking-display);
+  text-wrap: balance;
+}
+.hero__intro {
+  max-width: 520px;
+  color: rgba(255, 255, 255, 0.78);
+  font: 400 19px/30px var(--font-body);
+  text-wrap: pretty;
+}
+
+/* Quote form card */
+.hero__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 520px;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-3);
+  color: var(--fg-1);
+}
+.hero__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+/* Bottom-aligned with the input (label 20 + gap 6 + input 48 − button 52), and it stays put when an error shows */
+.hero__row > .kb-btn {
+  margin-top: 22px;
+}
+.hero__note {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  color: var(--stone-600);
+  font: 400 var(--text-body-s) / var(--lh-body-s) var(--font-body);
+}
+.hero__note a {
+  border-radius: var(--radius-xs);
+  color: var(--green-700);
+  font-weight: 600;
+}
+.hero__note a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Photo: the <picture> is the box; the image fills and crops it */
+.hero__photo {
+  display: block;
+  height: 440px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--green-800);
+}
+.hero__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Tablet (88:2274) */
+@media (max-width: 1199.98px) {
+  .hero__grid {
+    gap: var(--space-6);
+    padding-block: var(--space-12);
+  }
+  .hero__photo {
+    height: 360px;
+  }
+  .hero__note {
+    flex-direction: column;
+  }
+}
+
+/* Mobile (88:2542): one column, photo under the form */
+@media (max-width: 767.98px) {
+  .hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+    padding-block: var(--space-6) var(--space-4);
+  }
+  .hero__title {
+    font-size: 44px;
+  }
+  .hero__intro {
+    font-size: 17px;
+    line-height: 26px;
+  }
+  .hero__photo {
+    height: 220px;
+  }
+}

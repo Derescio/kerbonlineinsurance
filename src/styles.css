@@ -6,6 +6,7 @@
 @import "./styles/tokens/base.css";
 @import "./styles/components.css";
 @import "./components/site/site.css";
+@import "./features/landing/landing.css";
 
 * {
   box-sizing: border-box;
