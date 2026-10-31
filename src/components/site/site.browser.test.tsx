@@ -108,6 +108,13 @@ describe("SiteFooter", () => {
           .getByRole("link", { name: "Pet insurance" }),
       )
       .toHaveAttribute("href", "/insurance/pet");
+    await expect
+      .element(
+        page
+          .getByRole("navigation", { name: "Insurance" })
+          .getByRole("link", { name: "Business insurance" }),
+      )
+      .toHaveAttribute("href", "/insurance/business");
     await expect.element(page.getByRole("contentinfo").getByText(demoNotice)).toBeVisible();
   });
 });

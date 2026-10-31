@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
+import { productIds } from "#/features/quote/products";
+
 import { ClosingCta } from "./ClosingCta";
 import { Hero } from "./Hero";
 import { HowItWorks } from "./HowItWorks";
@@ -39,25 +41,31 @@ describe("InsuranceTypes", () => {
       "Tenant insurance",
       "Landlord insurance",
       "Pet insurance",
+      "Business insurance",
     ]);
     const open = [...container.querySelectorAll("details[open] summary")].map((s) => s.textContent);
     expect(open).toEqual(["Car insurance"]);
     await expect
       .element(page.getByRole("link", { name: "Get a car insurance quote" }))
-      .toHaveAttribute("href", "/quote");
+      .toHaveAttribute("href", "/quote?type=car");
   });
 
-  it("opens another type on click, without a quote link", async () => {
-    const { container } = await render(<InsuranceTypes />);
+  it("opens another type on click, with a quote link for that type", async () => {
+    await render(<InsuranceTypes />);
     const home = page.getByText("Home insurance");
     await home.click();
     const details = home.element().closest("details")!;
     expect(details.open).toBe(true);
     await expect
-      .element(page.getByText("Kerb only sells car insurance for now.").first())
-      .toBeVisible();
-    // Only car sells, so only car links to a quote
-    expect(container.querySelectorAll('a[href="/quote"]')).toHaveLength(1);
+      .element(page.getByRole("link", { name: "Get a home insurance quote" }))
+      .toHaveAttribute("href", "/quote?type=home");
+  });
+
+  it("gives every type one quote link with its own type", async () => {
+    const { container } = await render(<InsuranceTypes />);
+    const hrefs = [...container.querySelectorAll("details a")].map((a) => a.getAttribute("href"));
+    // Columns read car, home, condo, then tenant, landlord, pet, business: the productIds order
+    expect(hrefs).toEqual(productIds.map((id) => `/quote?type=${id}`));
   });
 });
 

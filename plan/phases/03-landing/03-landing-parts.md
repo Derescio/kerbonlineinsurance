@@ -21,6 +21,7 @@ The final Figma page (`53:1936`) is: Hero → **Trust strip** `54:1994` → **In
 2. **Trust strip copy.** Slot 1 shows "Reviews coming soon" with the caption "Ratings from real Kerb customers will show here.", as already agreed (6.9 wires the real average; no stars until then). Slots 2 and 3 keep Figma's "Fast Claims" / "Average time to a claim decision" and "24/7 Support" / "UK team, 7 days a week".
    **Approved without an illustrative note under the strip** (Damion, 31 Oct 2026): the demo banner and footer line already say Kerb is fictional, and none of the three stats is a number. The test checks instead that no review score, review count, star or FCA number is in the markup. Two problems with Figma's copy: "24/7" and "7 days a week" don't say the same thing, so I'd make it **"7-day support"**. And "Fast Claims" is title case, which I'd change to **"Fast claims"** for sentence case. Say if you want Figma's exact wording instead.
 3. **Accordion copy.** Figma's car text is North American ("auto coverage", "accident benefits", "ticket forgiveness"). I'd rewrite it in UK terms: *"Comprehensive, third party, fire and theft, or third party only. Add breakdown cover, a courtesy car or legal cover, and see your excess before you pay."* The other five have no body text in Figma. Each one gets one plain line on what it covers, then *"Kerb only sells car insurance for now."* There's no CTA, because only car has a live one (phase decision).
+   **Superseded 31 Oct 2026:** every type gets a "Get a {type} quote" link to `/quote?type=<id>`, and Business insurance is added as a seventh item (see the phase Decisions).
 4. **"Land insurance" becomes "Landlord insurance"**, to match the footer and `/insurance/landlord`. The icon stays as Figma's.
 
 Approved on 31 Oct 2026 as recommended, except where decision 2 says otherwise.
@@ -116,7 +117,7 @@ All the sections go in `src/features/landing/`, use the 1152 px `site-container`
 | Layer | Test | Gate |
 |---|---|---|
 | Component | Trust strip: three stats, "Reviews coming soon" in the first slot; the markup has no rating pattern (`/\d(\.\d)?\s*\/\s*5/`), no "reviews" count, no star icons, and no FCA or "firm reference" text | yes |
-| Component | Accordion: six `<summary>` items in order; car open by default with a "Get a car insurance quote" link to `/quote`; clicking Home opens it and shows "Kerb only sells car insurance for now"; only car has a quote link | yes |
+| Component | Accordion: seven `<summary>` items in order (Business last); car open by default with a "Get a car insurance quote" link to `/quote?type=car`; clicking Home opens it and shows a link to `/quote?type=home`; every type has one quote link with its own `type` | yes |
 | Component | How it works: `<h2>` plus an `<ol>` with three items; the "Get a quote" link points at `/quote`; the photo is lazy, with width, height and `alt=""` | yes |
 | Component | Quick actions: four links with the names and paths in the table; "Go to your account" goes to `/account` | yes |
 | Component | CTA card: "Get a quote" goes to `/quote`, "Continue a saved quote" goes to `/quote/retrieve` | yes |

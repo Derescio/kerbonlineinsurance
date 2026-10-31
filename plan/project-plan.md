@@ -20,8 +20,8 @@ It also has to show Opsed Solutions clients that Damion can take a product from 
 
 ## Features
 
-1. Landing page (split hero, responsive). Car is sold online at launch; home, business and bundles are priced in the engine and modelled in the DB, with their flows coming later.
-2. Quote journey: vehicle → driving habits → driver → cover → summary → pay (fake) → policy.
+1. Landing page (split hero, responsive). Car and home are sold online at launch. The landing lists seven types (car, home, condo, tenant, landlord, pet, business), and each one links to the quote start with its type set; the others show "coming soon" there.
+2. Quote journey: a quote start that takes a postcode and an insurance type (either can arrive from the landing, both stay editable), then the product's steps. Car: vehicle → driving habits → driver → cover → summary → pay (fake) → policy. Home: property → contents and security → past claims → cover → summary → pay (fake) → policy.
 3. Real sign-up and sign-in: email + password or Google; soft email verification, password reset, optional 2FA, delete account. Roles: customer, claims handler, admin (see [engineering.md §7](engineering.md#7-authentication-and-authorization)).
 4. Account: dashboard, policy detail, settings (address, drivers).
 5. Claims: overview → incident → damage → review → submitted, with a tracker. Staff move claims through their statuses in a staff claims console.
@@ -41,7 +41,7 @@ It also has to show Opsed Solutions clients that Damion can take a product from 
 
 ## Data
 
-Neon Postgres with Drizzle. **Multi-product from the start:** car, home and business, plus bundles. Only car can be bought online at launch. Home and business have tables, rating factors and seed data, and their quote flows come in a later phase.
+Neon Postgres with Drizzle. **Multi-product from the start:** car, home and business, plus bundles. Car and home can be bought online at launch. Business has tables, rating factors and seed data, and its quote flow comes in a later phase. Condo, tenant, landlord and pet are listed on the landing and the quote start only; each needs a detail table, rating factors and seed data when its phase comes (decided 31 Oct 2026).
 
 **Schema shape:** shared core tables + one detail table per product. Adding a product means adding one detail table.
 

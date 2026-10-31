@@ -44,12 +44,13 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 5. Quote · `s5-quote` · [phase](phases/05-quote/phase.md)
 
-- [ ] 5.1 **Flow shell + Stepper**
+- [ ] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
 - [ ] 5.2 **Vehicle step**: make → model → year → variant picker, faked plate lookup
 - [ ] 5.3 **Driving habits + driver steps**
 - [ ] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
 - [ ] 5.5 **Cover options + summary**: cover comparison table, price breakdown
 - [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
+- [ ] 5.7 **Home steps**: property → contents and security → past claims, then the shared cover, summary and pay; home quote → policy Playwright journey
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
 
@@ -86,3 +87,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 8.7 **Performance budgets in CI**: Lighthouse CI on previews, Speed Insights on production
 - [ ] 8.8 **Backups, restore drill and runbook**: nightly `pg_dump` to the `kerb-backups` R2 bucket (14 days), restore drill into a Neon branch, `plan/runbook.md`
 - [ ] 8.9 **Security review**: OWASP-style checklist, headers scan, dependency audit, secret-rotation dry run, permission tests green
+
+## Later (not scheduled)
+
+- [ ] **More quote journeys**: business (tables, rating and seed data already exist from 4.2, 4.8 and 4.9), then condo, tenant, landlord and pet (each needs a detail table, rating factors and seed data). Until then, `/quote` shows them as "coming soon" (decided 31 Oct 2026).

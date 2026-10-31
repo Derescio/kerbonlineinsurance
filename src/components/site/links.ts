@@ -9,7 +9,8 @@ export interface SiteLink {
 }
 
 export const homeHref = "/";
-/** Quote journey start (Phase 5); the hero form sends `?postcode=` here. */
+/** Quote journey start (Phase 5). The hero form sends `?postcode=` and the insurance types
+ * accordion sends `?type=` (src/features/quote/products.ts); /quote asks for whichever is missing. */
 export const quoteHref = "/quote";
 export const retrieveQuoteLink: SiteLink = {
   label: "Continue a saved quote",
@@ -47,6 +48,7 @@ export const footerGroups: { title: string; links: SiteLink[] }[] = [
       { label: "Tenant insurance", href: "/insurance/tenant" },
       { label: "Landlord insurance", href: "/insurance/landlord" },
       { label: "Pet insurance", href: "/insurance/pet" },
+      { label: "Business insurance", href: "/insurance/business" },
     ],
   },
   {
