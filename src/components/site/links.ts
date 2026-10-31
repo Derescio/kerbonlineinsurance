@@ -21,6 +21,13 @@ export const notificationsLink: SiteLink = {
   href: "/account/notifications",
 };
 
+// In the footer and the landing's quick actions (3.3), so the two can't drift apart
+export const accountLink: SiteLink = { label: "Go to your account", href: "/account" };
+export const makeClaimLink: SiteLink = { label: "Make a claim", href: "/claims/new" };
+export const trackClaimLink: SiteLink = { label: "Track a claim", href: "/claims/track" };
+export const documentsLink: SiteLink = { label: "Documents", href: "/account/documents" };
+export const paymentsLink: SiteLink = { label: "Payments", href: "/account/payments" };
+
 /** Header nav, and the mobile menu. */
 export const mainNav: SiteLink[] = [
   { label: "Policy", href: "/account/policy" },
@@ -45,8 +52,8 @@ export const footerGroups: { title: string; links: SiteLink[] }[] = [
   {
     title: "Claims",
     links: [
-      { label: "Make a claim", href: "/claims/new" },
-      { label: "Track a claim", href: "/claims/track" },
+      makeClaimLink,
+      trackClaimLink,
       { label: "Claims help", href: "/help/claims" },
       { label: "Claims FAQs", href: "/help/claims#faqs" },
     ],
@@ -64,12 +71,7 @@ export const footerGroups: { title: string; links: SiteLink[] }[] = [
   },
   {
     title: "Account",
-    links: [
-      loginLink,
-      { label: "Go to your account", href: "/account" },
-      { label: "Documents", href: "/account/documents" },
-      { label: "Payments", href: "/account/payments" },
-    ],
+    links: [loginLink, accountLink, documentsLink, paymentsLink],
   },
 ];
 
