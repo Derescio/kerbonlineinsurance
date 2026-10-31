@@ -9,6 +9,12 @@ export interface SiteLink {
 }
 
 export const homeHref = "/";
+/** Quote journey start (Phase 5); the hero form sends `?postcode=` here. */
+export const quoteHref = "/quote";
+export const retrieveQuoteLink: SiteLink = {
+  label: "Continue a saved quote",
+  href: "/quote/retrieve",
+};
 export const loginLink: SiteLink = { label: "Log in", href: "/login" };
 export const notificationsLink: SiteLink = {
   label: "Notifications",

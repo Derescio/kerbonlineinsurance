@@ -6,6 +6,8 @@ import { nitro } from "nitro/vite";
 
 import viteReact from "@vitejs/plugin-react";
 
+import { imagetools } from "vite-imagetools";
+
 import { playwright } from "vite-plus/test/browser-playwright";
 
 import { staticSecurityHeaders } from "./src/server/security-headers";
@@ -37,7 +39,8 @@ const config = defineConfig({
       {
         extends: false,
         resolve: { tsconfigPaths: true },
-        plugins: [viteReact()],
+        // imagetools: components import responsive images (e.g. the landing hero)
+        plugins: [viteReact(), imagetools()],
         // Pre-bundle together up front: found late, lucide-react gets its own copy of React (hooks fail)
         optimizeDeps: {
           include: [
@@ -82,6 +85,8 @@ function appPlugins() {
       },
     }),
     viteReact(),
+    // Responsive AVIF/WebP/JPEG sizes from `?w=…&format=…&as=picture` imports, built into /assets
+    imagetools(),
   ];
 }
 
