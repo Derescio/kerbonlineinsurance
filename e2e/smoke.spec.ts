@@ -36,7 +36,7 @@ test("landing loads and is CDN-cached, with no errors", async ({ page, request }
     expect(cacheControl).toContain("stale-while-revalidate=");
   }
 
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Kerb Online Insurance.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Insurance made simpler.");
   await page.waitForLoadState("networkidle");
   expect(problems).toEqual([]);
 });

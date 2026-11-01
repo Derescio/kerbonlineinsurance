@@ -28,6 +28,10 @@ Specced in full when this phase starts.
 | 4.10 | Upload foundation (see [engineering.md §6](../../engineering.md#6-file-storage-cloudflare-r2)): Damion creates R2 buckets `kerb-dev`/`kerb-prod`, CORS and scoped tokens in Cloudflare; `files` table + migration; `createUpload` / `confirmUpload` / `getFileUrl`; client helper (resize to WebP, EXIF strip, thumbnail, progress); daily cleanup cron; delete-account hook; Vitest tests for limits, ownership and the magic-byte check; ownership checks reuse the 4.5 data layer; staff can read claim files; `createUpload` goes through the shared rate limiter | todo |
 | 4.11 | **Background jobs** ([engineering.md §11](../../engineering.md#11-background-processing)): `jobs` table used as an outbox (enqueued in the same transaction), run straight away with `waitUntil`, per-minute Vercel Cron retries with exponential backoff, `dead` after 5 attempts and shown in the admin area; idempotent handlers; verification/reset emails and the upload cleanup move onto it; integration test: a failing job retries with backoff and lands in `dead` after 5 attempts | todo |
 
+## Extras (carried from Phase 3)
+
+Shipped with the first Phase 4 commit to staging: a landing hero refresh. H1 is now "Insurance made simpler." with "simpler." in marker yellow; the postcode card opens with "Let's get you covered."; the 3.3 excess callout is removed (it made the hero too busy); the hero photo stretches to the copy column's height so the two sides balance, with a light border and a deeper drop shadow.
+
 ## Recording notes
 
 - 11 slices: record in two parts. Part 1: 4.1–4.6 (data, auth, authorization, 2FA). Part 2: 4.7–4.11 (privacy, data, uploads, jobs).
