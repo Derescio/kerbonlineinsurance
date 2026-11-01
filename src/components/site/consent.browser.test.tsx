@@ -1,11 +1,10 @@
-import { PostHogProvider } from "@posthog/react";
-import type { PostHog } from "posthog-js";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
+import { attachPosthog, type ConsentStatus } from "#/lib/analytics";
+
 import { ConsentBanner } from "./ConsentBanner";
-import { onPosthogLoaded, type ConsentStatus } from "./consent";
 import { SiteLayout } from "./SiteLayout";
 
 /** Just enough of a PostHog client for the consent calls, keeping the choice in memory. */
@@ -24,19 +23,25 @@ function fakePosthog(initial: ConsentStatus) {
     }),
     startSessionRecording: vi.fn(),
     stopSessionRecording: vi.fn(),
+    capture: vi.fn(),
+    captureException: vi.fn(),
   };
-  return client as typeof client & PostHog;
+  return client;
 }
 
-function renderSite(client: PostHog, { load = true } = {}) {
-  if (load) onPosthogLoaded(client);
+type FakePosthog = ReturnType<typeof fakePosthog>;
+
+afterEach(() => attachPosthog(undefined));
+
+function renderSite(client: FakePosthog, { load = true } = {}) {
+  if (load) attachPosthog(client);
   return render(
-    <PostHogProvider client={client}>
+    <>
       <SiteLayout>
         <p>Page</p>
       </SiteLayout>
       <ConsentBanner />
-    </PostHogProvider>,
+    </>,
   );
 }
 
@@ -70,7 +75,7 @@ describe("ConsentBanner", () => {
       .element(page.getByRole("button", { name: "Cookie settings" }))
       .not.toBeInTheDocument();
 
-    onPosthogLoaded(client);
+    attachPosthog(client);
     await expect.element(bar).toBeVisible();
   });
 
@@ -96,7 +101,7 @@ describe("ConsentBanner", () => {
 
   it("resumes replay on load for a visitor who accepted before", () => {
     const client = fakePosthog("granted");
-    onPosthogLoaded(client);
+    attachPosthog(client);
     expect(client.startSessionRecording).toHaveBeenCalledOnce();
   });
 });
