@@ -1,10 +1,10 @@
-import { usePostHog } from "@posthog/react";
 import { useRef, useState, type FormEvent } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Input } from "#/components/forms/Input";
 import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
 import { normalisePostcode, postcodeError } from "#/features/quote/postcode";
+import { track } from "#/lib/analytics";
 
 import { ExcessCallout } from "./ExcessCallout";
 import { HeroImage } from "./HeroImage";
@@ -15,8 +15,6 @@ import { HeroImage } from "./HeroImage";
  * hydration; with JS it checks the postcode first and sends it normalised.
  */
 export function Hero() {
-  const posthog = usePostHog();
-  const posthogLogger = posthog.logger;
   const [error, setError] = useState<string>();
   const input = useRef<HTMLInputElement>(null);
 
@@ -25,9 +23,7 @@ export function Hero() {
     if (!field) return;
     const postcode = normalisePostcode(field.value);
     if (postcode === null) {
-      posthogLogger.warn("quote start blocked by postcode validation", {
-        entry_point: "hero_postcode_form",
-      });
+      track("quote_start_blocked", { entry_point: "hero_postcode_form" });
       e.preventDefault();
       setError(postcodeError);
       field.focus();
@@ -35,10 +31,7 @@ export function Hero() {
     }
     // Let the browser submit, with the tidy value. Phase 5 swaps this for a router navigation.
     field.value = postcode;
-    posthog.capture("quote_started", { entry_point: "hero_postcode_form" });
-    posthogLogger.info("quote started from landing page", {
-      entry_point: "hero_postcode_form",
-    });
+    track("quote_started", { entry_point: "hero_postcode_form" });
   }
 
   return (

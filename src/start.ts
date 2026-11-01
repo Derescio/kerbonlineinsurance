@@ -1,5 +1,6 @@
 import { createMiddleware, createStart } from "@tanstack/react-start";
 
+import { posthogApiHost } from "#/lib/analytics";
 import { contentSecurityPolicy, createNonce } from "#/server/security-headers";
 
 // Gives each request a CSP nonce. getRouter() reads it from the global context, and the
@@ -11,7 +12,7 @@ const cspMiddleware = createMiddleware().server(async ({ next }) => {
   if (!import.meta.env.DEV) {
     result.response.headers.set(
       "Content-Security-Policy",
-      contentSecurityPolicy(nonce, import.meta.env.VITE_PUBLIC_POSTHOG_HOST),
+      contentSecurityPolicy(nonce, posthogApiHost),
     );
   }
   return result;

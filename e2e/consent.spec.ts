@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Cookie consent (3.6): PostHog stores nothing until the visitor accepts. PostHog's own requests
-// are answered here, so test runs send no events. A deploy without the PostHog variables has no
-// bar, and these tests skip.
+// Cookie consent (3.6): PostHog stores nothing until the visitor accepts. PostHog's requests (all
+// through the /ingest proxy) are answered here, so test runs send no events. A deploy without the
+// PostHog variables has no bar, and these tests skip.
 
 /** PostHog's identity cookie and localStorage key are `ph_<token>_posthog`. */
 async function posthogStorage(page: Page) {
@@ -12,7 +12,7 @@ async function posthogStorage(page: Page) {
 }
 
 async function openFresh(page: Page) {
-  await page.route(/\.posthog\.com\//, (route) => route.fulfill({ status: 200, body: "{}" }));
+  await page.route(/\/ingest\//, (route) => route.fulfill({ status: 200, body: "{}" }));
   await page.goto("/");
   const bar = page.getByRole("region", { name: "Cookie choices" });
   const shown = await bar

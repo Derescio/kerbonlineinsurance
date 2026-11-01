@@ -1,12 +1,11 @@
-import { PostHogErrorBoundary, PostHogProvider } from "@posthog/react";
-import type { PostHogConfig } from "posthog-js";
 import { HeadContent, Scripts, createRootRoute, useLocation } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { Toaster } from "#/components/feedback/Toaster";
 import { ConsentBanner } from "#/components/site/ConsentBanner";
-import { onPosthogLoaded } from "#/components/site/consent";
-import { maskPostcode } from "#/lib/mask-postcode";
 import { NotFound } from "#/components/site/NotFound";
+import { AppErrorBoundary } from "#/components/site/AppErrorBoundary";
+import { startAnalytics } from "#/lib/analytics";
 import appCss from "#/styles.css?url";
 // The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
 import bricolageFont from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url";
@@ -55,74 +54,22 @@ function SiteNotFound() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // PostHog loads once the page is idle after hydration, outside the landing JS budget (3.5)
+  useEffect(startAnalytics, []);
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
-        <PostHogContent>
+        <AppErrorBoundary>
           <Toaster>{children}</Toaster>
-        </PostHogContent>
+        </AppErrorBoundary>
+        <ConsentBanner />
 
         <Scripts />
       </body>
     </html>
   );
-}
-
-const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
-const posthogHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST;
-
-// Analytics is optional: without the two variables the site runs as normal, just untracked.
-if (import.meta.env.DEV && (!posthogProjectToken || !posthogHost)) {
-  console.warn(
-    "PostHog is off: set VITE_PUBLIC_POSTHOG_PROJECT_TOKEN and VITE_PUBLIC_POSTHOG_HOST in .env.local to send events.",
-  );
-}
-
-const posthogOptions: Partial<PostHogConfig> = {
-  api_host: posthogHost,
-  defaults: "2025-05-24",
-  capture_exceptions: true,
-  debug: import.meta.env.DEV,
-  // No cookies or storage until the visitor accepts (3.6): pending and rejected visitors are
-  // counted cookieless. Needs "Cookieless server hash mode" on in the PostHog project.
-  cookieless_mode: "on_reject",
-  // Without this, on_reject captures nothing while the choice is pending, so visitors who ignore
-  // the bar wouldn't be counted. It treats "no choice yet" as rejected: cookieless, still counted.
-  opt_out_capturing_by_default: true,
-  // Replay only after consent: the banner's Accept starts it, and onPosthogLoaded resumes it.
-  disable_session_recording: true,
-  loaded: onPosthogLoaded,
-  // The hero form puts the postcode in the URL. PostHog masks it in URLs it records (pages,
-  // replay, heatmaps); maskPostcode catches the rest, like the next page's $referrer.
-  mask_personal_data_properties: true,
-  custom_personal_data_properties: ["postcode"],
-  before_send: maskPostcode,
-  // Replay records layout and clicks only: inputs and all page text are masked, because quote and
-  // policy pages show names, addresses and vehicle details. Wins over the dashboard's masking.
-  session_recording: {
-    maskAllInputs: true,
-    maskTextSelector: "*",
-  },
-  logs: {
-    serviceName: "kerb-online-insurance-web",
-    environment: import.meta.env.MODE,
-  },
-};
-
-function PostHogContent({ children }: { children: React.ReactNode }) {
-  if (!posthogProjectToken || !posthogHost) return children;
-
-  return (
-    <PostHogProvider apiKey={posthogProjectToken} options={posthogOptions}>
-      <PostHogErrorBoundary fallback={<GlobalErrorFallback />}>{children}</PostHogErrorBoundary>
-      <ConsentBanner />
-    </PostHogProvider>
-  );
-}
-
-function GlobalErrorFallback() {
-  return <div role="alert">Something went wrong. Please refresh the page and try again.</div>;
 }
