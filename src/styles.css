@@ -5,6 +5,8 @@
 @import "./styles/tokens/typography.css";
 @import "./styles/tokens/base.css";
 @import "./styles/components.css";
+@import "./components/site/site.css";
+@import "./features/landing/landing.css";
 
 * {
   box-sizing: border-box;
@@ -12,9 +14,4 @@
 
 body {
   margin: 0;
-}
-
-main {
-  width: min(42rem, calc(100% - 2rem));
-  margin: 4rem auto;
 }

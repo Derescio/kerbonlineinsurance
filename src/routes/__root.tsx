@@ -1,6 +1,10 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import { PostHogErrorBoundary, PostHogProvider } from "@posthog/react";
+import { HeadContent, Scripts, createRootRoute, useLocation } from "@tanstack/react-router";
 
 import { Toaster } from "#/components/feedback/Toaster";
+import { ConsentBanner } from "#/components/site/ConsentBanner";
+import { onPosthogLoaded } from "#/components/site/consent";
+import { NotFound } from "#/components/site/NotFound";
 import appCss from "#/styles.css?url";
 // The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
 import bricolageFont from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url";
@@ -40,7 +44,13 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: SiteNotFound,
 });
+
+function SiteNotFound() {
+  const { pathname } = useLocation();
+  return <NotFound pathname={pathname} />;
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
@@ -49,10 +59,60 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Toaster>{children}</Toaster>
+        <PostHogContent>
+          <Toaster>{children}</Toaster>
+        </PostHogContent>
 
         <Scripts />
       </body>
     </html>
   );
+}
+
+const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
+const posthogHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST;
+
+// Analytics is optional: without the two variables the site runs as normal, just untracked.
+if (import.meta.env.DEV && (!posthogProjectToken || !posthogHost)) {
+  console.warn(
+    "PostHog is off: set VITE_PUBLIC_POSTHOG_PROJECT_TOKEN and VITE_PUBLIC_POSTHOG_HOST in .env.local to send events.",
+  );
+}
+
+const posthogOptions = {
+  api_host: posthogHost,
+  defaults: "2025-05-24",
+  capture_exceptions: true,
+  debug: import.meta.env.DEV,
+  // No cookies or storage until the visitor accepts (3.6): pending and rejected visitors are
+  // counted cookieless. Needs "Cookieless server hash mode" on in the PostHog project.
+  cookieless_mode: "on_reject",
+  // Replay only after consent: the banner's Accept starts it, and onPosthogLoaded resumes it.
+  disable_session_recording: true,
+  loaded: onPosthogLoaded,
+  // Replay records layout and clicks only: inputs and all page text are masked, because quote and
+  // policy pages show names, addresses and vehicle details. Wins over the dashboard's masking.
+  session_recording: {
+    maskAllInputs: true,
+    maskTextSelector: "*",
+  },
+  logs: {
+    serviceName: "kerb-online-insurance-web",
+    environment: import.meta.env.MODE,
+  },
+} as const;
+
+function PostHogContent({ children }: { children: React.ReactNode }) {
+  if (!posthogProjectToken || !posthogHost) return children;
+
+  return (
+    <PostHogProvider apiKey={posthogProjectToken} options={posthogOptions}>
+      <PostHogErrorBoundary fallback={<GlobalErrorFallback />}>{children}</PostHogErrorBoundary>
+      <ConsentBanner />
+    </PostHogProvider>
+  );
+}
+
+function GlobalErrorFallback() {
+  return <div role="alert">Something went wrong. Please refresh the page and try again.</div>;
 }

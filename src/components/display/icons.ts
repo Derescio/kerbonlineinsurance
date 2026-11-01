@@ -1,9 +1,11 @@
 // The Lucide icons Kerb uses, by kebab-case id. Only these end up in the bundle; add one here
 // when a screen needs it. Sources: Figma Icons / Grid (4:11), plus the UI kits and templates.
+// condo, tenant, land and pet are Kerb's own glyphs (custom-icons.tsx).
 import {
   ArrowLeft,
   ArrowRight,
   Bell,
+  Briefcase,
   Calendar,
   Camera,
   Car,
@@ -37,10 +39,13 @@ import {
   X,
 } from "lucide-react";
 
+import { Condo, Land, Pet, Tenant } from "./custom-icons";
+
 export const icons = {
   "arrow-left": ArrowLeft,
   "arrow-right": ArrowRight,
   bell: Bell,
+  briefcase: Briefcase,
   calendar: Calendar,
   camera: Camera,
   car: Car,
@@ -51,6 +56,7 @@ export const icons = {
   "circle-check": CircleCheck,
   "circle-plus": CirclePlus,
   clock: Clock,
+  condo: Condo,
   "credit-card": CreditCard,
   download: Download,
   "file-plus": FilePlus,
@@ -58,15 +64,18 @@ export const icons = {
   house: House,
   image: Image,
   info: Info,
+  land: Land,
   lock: Lock,
   "log-out": LogOut,
   "map-pin": MapPin,
   menu: Menu,
   "message-circle": MessageCircle,
   minus: Minus,
+  pet: Pet,
   phone: Phone,
   plus: Plus,
   "shield-check": ShieldCheck,
+  tenant: Tenant,
   "triangle-alert": TriangleAlert,
   user: User,
   "user-plus": UserPlus,

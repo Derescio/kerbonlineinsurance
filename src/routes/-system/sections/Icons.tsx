@@ -8,7 +8,7 @@ export function Icons() {
   return (
     <Section
       id="icons"
-      intro={`The ${names.length} Lucide icons Kerb uses, at 24px in currentColor. Add one to icons.ts when a screen needs it; the id is the Lucide name.`}
+      intro={`The ${names.length} icons Kerb uses (Lucide, plus its own condo, tenant, land and pet), at 24px in currentColor. Add one to icons.ts when a screen needs it; the id is the Lucide name.`}
     >
       <div className="sys__icons">
         {names.map((name) => (

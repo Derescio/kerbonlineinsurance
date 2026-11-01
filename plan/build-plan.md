@@ -22,11 +22,12 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 3. Landing · `s3-landing` · [phase](phases/03-landing/phase.md)
 
-- [ ] 3.1 **Site chrome**: header and footer, plus a "Kerb is a demo" banner and footer line
-- [ ] 3.2 **Split hero**, with a "Retrieve my quote" link
-- [ ] 3.3 **Landing parts**: steps, trust stats (clearly illustrative, no fake review or FCA numbers), excess callout, quick actions
-- [ ] 3.4 **Responsive pass** against Figma
-- [ ] 3.5 **PostHog + first experiment**: wizard install, then `/ingest` proxy, EU host, lazy load, cookieless until consent; hero-CTA A/B test
+- [x] 3.1 **Site chrome**: header and footer, plus a "Kerb is a demo" banner and footer line
+- [x] 3.2 **Split hero**, with a "Retrieve my quote" link
+- [x] 3.3 **Landing parts**: insurance types accordion, steps, trust stats (clearly illustrative, no fake review or FCA numbers), excess callout, quick actions
+- [x] 3.4 **Responsive pass** against Figma
+- [ ] 3.5 **PostHog + first experiment**: wizard install, then `/ingest` proxy, EU host, lazy load; hero-CTA A/B test
+- [x] 3.6 **Consent banner**: PostHog cookieless until accepted, cookie choice bar, footer "Cookie settings"
 
 ## 4. Data and auth · `s4-data-auth` · [phase](phases/04-data-auth/phase.md)
 
@@ -44,12 +45,13 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 5. Quote · `s5-quote` · [phase](phases/05-quote/phase.md)
 
-- [ ] 5.1 **Flow shell + Stepper**
+- [ ] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
 - [ ] 5.2 **Vehicle step**: make → model → year → variant picker, faked plate lookup
 - [ ] 5.3 **Driving habits + driver steps**
 - [ ] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
 - [ ] 5.5 **Cover options + summary**: cover comparison table, price breakdown
 - [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
+- [ ] 5.7 **Home steps**: property → contents and security → past claims, then the shared cover, summary and pay; home quote → policy Playwright journey
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
 
@@ -71,8 +73,8 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 7.3 **Storage, usage logging, limits and spend cap**
 - [ ] 7.4 **Read tools** for signed-in users (including `getMyDocuments`), plus `getReviewSummary` for everyone
 - [ ] 7.5 **Action tools + confirm cards + audit**
-- [ ] 7.6 **Model comparison** → default chosen
-- [ ] 7.7 **Review auto-check**: AI screens new reviews and their photos; clean ones publish, flagged ones go to the queue
+- [ ] 7.6 **Model comparison per task** → defaults chosen
+- [ ] 7.7 **Review auto-check**: AI screens new reviews and their photos; clean ones publish, flagged or uncertain ones go to the queue
 - [ ] 7.8 **Photos to Kerbie**: attach button, AI vision, "start a claim with this photo" action, eval cases
 
 ## 8. Launch · `s8-launch` · [phase](phases/08-launch/phase.md)
@@ -86,3 +88,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 8.7 **Performance budgets in CI**: Lighthouse CI on previews, Speed Insights on production
 - [ ] 8.8 **Backups, restore drill and runbook**: nightly `pg_dump` to the `kerb-backups` R2 bucket (14 days), restore drill into a Neon branch, `plan/runbook.md`
 - [ ] 8.9 **Security review**: OWASP-style checklist, headers scan, dependency audit, secret-rotation dry run, permission tests green
+
+## Later (not scheduled)
+
+- [ ] **More quote journeys**: business (tables, rating and seed data already exist from 4.2, 4.8 and 4.9), then condo, tenant, landlord and pet (each needs a detail table, rating factors and seed data). Until then, `/quote` shows them as "coming soon" (decided 31 Oct 2026).

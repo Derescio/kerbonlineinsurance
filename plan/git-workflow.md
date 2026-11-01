@@ -99,8 +99,8 @@ See: plan/phases/02-design-system/phase.md
   ```
   git switch main
   git pull --ff-only
-  git tag -a sN-name -m "Phase N: name"
-  git push origin sN-name
+  git tag -a s2-Design-System 33891fe -m "Phase 2: Design System Completion"
+  git push origin s2-Design-System
   ```
 - Update the README status, the build-plan deck (`plan/scope/`) and write that phase's summary script.
 

@@ -71,7 +71,7 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | `ci.yml` (+ browser) | same | Installs Chromium (`playwright install --with-deps chromium`, browser cache keyed on the Playwright version) for the `component` test project | 2.2 |
 | `ci.yml` (+ step) | same | Migration drift check | 4.1 |
 | `ci.yml` (+ service) | same | Postgres service container (same major version as Neon) → apply migrations → run the `integration` test project | 4.1 |
-| `e2e.yml` | Vercel `deployment_status` success on a preview | Playwright smoke test against the preview URL, using Vercel's protection-bypass secret | 3.4 |
+| `e2e.yml` | Vercel's `repository_dispatch` `vercel.deployment.success` (not production), plus a manual `workflow_dispatch` with a URL. Both only run from `main`'s copy of the file, so it starts with the Phase 3 release; this project doesn't send `deployment_status` (3.4) | Playwright smoke test against the deploy URL, using Vercel's protection-bypass secret (`VERCEL_AUTOMATION_BYPASS_SECRET` in Actions secrets) | 3.4 |
 | `e2e.yml` (+ axe) | same | `@axe-core/playwright` scan of each key page; fails on `serious`/`critical` violations | 3.4 |
 | `e2e.yml` (+ journeys) | same | Quote → policy (5.6), submit claim → handler approves (6.10) | 5.6, 6.10 |
 | `lighthouse.yml` | same | Lighthouse CI with performance budgets | 8.7 |
@@ -112,7 +112,7 @@ The aim: fast for every visitor, and cheap and stable under a spike from the vid
 | **Static assets** | Hashed filenames, `Cache-Control: public, max-age=31536000, immutable` | 1.5 (verify) |
 | **Fonts** | Self-hosted woff2, subset, preloaded, `font-display: swap`; no Google Fonts request | 2.1 |
 | **Images** | AVIF/WebP in responsive sizes generated at build time; hero marked high priority with width/height set (no layout shift). Avoids paid on-demand image optimisation at spike volume. | 3.2 |
-| **Rendering** | Prerender static routes (landing, privacy) with TanStack Start; SSR for the rest. Automatic route-level code splitting; intent preloading on links. | 3.x, 5.1 |
+| **Rendering** | SSR everywhere. Public pages with no user content (landing, privacy) are CDN-cached instead of prerendered: a prerendered file bakes in one CSP nonce and is served without the CSP header (3.4). Automatic route-level code splitting; intent preloading on links. | 3.x, 5.1 |
 | **CDN caching** | Public pages (landing, `/reviews`): `s-maxage` + `stale-while-revalidate`. The cache time comes from **one setting**, `PUBLIC_CACHE_SECONDS` (default `300` = 5 min); set it to `1800` in Vercel for 30 min and redeploy, with no code change. It's read only by `publicCacheHeaders()` in `src/server/cache.ts`. Vehicle catalogue and postcode APIs: long public cache. Account, quote and Kerbie: `private, no-store`. | 3.4, 5.2, 6.9 |
 | **Client data** | TanStack Query with `staleTime` per data type (reference data: never stale; account: short); optimistic updates in settings | 5.1, 6.3 |
 | **Server memory** | Vehicle catalogue and rating tables cached in module scope per function instance, keyed by `rating_version`. They're immutable, so never stale. | 4.8, 5.4 |
@@ -289,6 +289,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - `Referrer-Policy: strict-origin-when-cross-origin`
   - `Permissions-Policy` (camera only where uploads need it)
   - `X-Content-Type-Options: nosniff`
+- **CDN cache and the CSP nonce** (3.4): a CDN-cached page (`publicCacheHeaders()`) shares one nonce across visitors for the cache window, with the HTML and header cached together. That's only allowed on pages with **no user content** (landing, privacy, `/reviews` only if reviews stay plain text). Anything per-user or with user input stays `private, no-store`.
 - **Safe rendering:**
   - Reviews and claim notes are rendered as **plain text**.
   - Kerbie's replies are rendered as limited Markdown with raw HTML stripped and links restricted to Kerb pages.
@@ -353,7 +354,7 @@ PostHog does product analytics and A/B tests. It lands in 3.5. The `events` tabl
 - **Install:** the PostHog wizard (EU region) on a branch, then review its diff and apply the rules below by hand. The wizard doesn't know about the nonce CSP, so its defaults work in `vp dev` and fail in production builds.
 - **Same-origin proxy:** a Vercel/Nitro rewrite `/ingest/*` → the PostHog EU ingest and assets hosts, in `vite.config.ts` route rules; `api_host: '/ingest'`. The CSP stays `'self'`, and ad-blockers don't drop events. No inline snippet: posthog-js is a bundled module, so it needs no nonce.
 - **One wrapper:** `src/lib/analytics.ts` (`track`, `getFlag`, `onConsent`). Components never import posthog-js directly. It loads with a dynamic `import()` after hydration/idle, so it stays out of the landing JS budget (§5).
-- **Consent (PECR/UK GDPR):** start with `persistence: 'memory'` (cookieless). A consent banner switches to `localStorage+cookie` on accept. The choice is stored in the visitor's browser. The privacy notice (4.7) names PostHog and links to the banner.
-- **Experiments without flicker:** the landing page stays prerendered and CDN-cached, so variants are picked in the browser. Render the control by default. Test only below-the-fold or interaction-revealed elements, or reserve fixed space for the variant region and swap it when flags load, with a short timeout that falls back to the control. Server-side flags (`posthog-node`) only on SSR routes, from Phase 5.
+- **Consent (PECR/UK GDPR):** `cookieless_mode: 'on_reject'` (3.6). Until the visitor accepts, and after they reject, PostHog sets no cookies or storage and counts them with a server-side daily hash (needs Cookieless server hash mode on in the project; those events get no GeoIP or bot filtering). A consent bar opts in on accept, and footer "Cookie settings" asks again. PostHog stores the choice in the visitor's browser. Replay starts only after accept. The privacy notice (4.7) names PostHog and links to the banner.
+- **Experiments without flicker:** the landing page stays CDN-cached (one HTML per cache window for everyone), so variants are picked in the browser. Render the control by default. Test only below-the-fold or interaction-revealed elements, or reserve fixed space for the variant region and swap it when flags load, with a short timeout that falls back to the control. Server-side flags (`posthog-node`) only on SSR routes, from Phase 5.
 - **Tests and CI:** PostHog is off in Vitest and Playwright unless a test turns it on (env flag), so CI sends no events.
 - **Env vars:** `VITE_POSTHOG_KEY` (public project key) and `VITE_POSTHOG_HOST`. `.env.example` holds placeholders only.

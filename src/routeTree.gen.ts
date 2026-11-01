@@ -9,19 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as SiteRouteImport } from './routes/_site'
 import { Route as SystemRouteImport } from './routes/system'
+import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const SiteRoute = SiteRouteImport.update({
+  id: '/_site',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SystemRoute = SystemRouteImport.update({
   id: '/system',
   path: '/system',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SiteIndexRoute = SiteIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SiteRoute,
 } as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
@@ -30,42 +35,43 @@ const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof SiteIndexRoute
   '/system': typeof SystemRoute
   '/api/stream-test': typeof ApiStreamTestRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/system': typeof SystemRoute
   '/api/stream-test': typeof ApiStreamTestRoute
+  '/': typeof SiteIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_site': typeof SiteRouteWithChildren
   '/system': typeof SystemRoute
   '/api/stream-test': typeof ApiStreamTestRoute
+  '/_site/': typeof SiteIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/system' | '/api/stream-test'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/system' | '/api/stream-test'
-  id: '__root__' | '/' | '/system' | '/api/stream-test'
+  to: '/system' | '/api/stream-test' | '/'
+  id: '__root__' | '/_site' | '/system' | '/api/stream-test' | '/_site/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  SiteRoute: typeof SiteRouteWithChildren
   SystemRoute: typeof SystemRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_site': {
+      id: '/_site'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof SiteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/system': {
@@ -74,6 +80,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/system'
       preLoaderRoute: typeof SystemRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_site/': {
+      id: '/_site/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof SiteIndexRouteImport
+      parentRoute: typeof SiteRoute
     }
     '/api/stream-test': {
       id: '/api/stream-test'
@@ -85,8 +98,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SiteRouteChildren {
+  SiteIndexRoute: typeof SiteIndexRoute
+}
+
+const SiteRouteChildren: SiteRouteChildren = {
+  SiteIndexRoute: SiteIndexRoute,
+}
+
+const SiteRouteWithChildren = SiteRoute._addFileChildren(SiteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  SiteRoute: SiteRouteWithChildren,
   SystemRoute: SystemRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
 }
