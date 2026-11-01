@@ -1,6 +1,6 @@
 # Phase 3: Landing
 
-**Tag:** `s3-landing` · **Status:** in progress
+**Tag:** `s3-landing` · **Status:** all slices done; release and tag next
 
 ## Goal
 
@@ -20,7 +20,7 @@ Specced in full when this phase starts.
 | 3.2 | [Split hero](02-split-hero.md), with a "Retrieve my quote" link. **Perf:** hero image as AVIF/WebP responsive sizes generated at build, high priority, width/height set | done |
 | 3.3 | [Landing parts](03-landing-parts.md): insurance types accordion, steps, trust stats (illustrative only: no invented review scores or FCA numbers), excess callout, quick actions | done |
 | 3.4 | [Responsive pass](04-responsive-pass.md) against Figma. **Perf:** landing CDN-cached (SSR + `s-maxage`, not prerendered: 3.4 decision 1); `publicCacheHeaders()` on public pages; first `e2e.yml` Playwright smoke test on previews | done |
-| 3.5 | [PostHog + first experiment](05-posthog.md) ([engineering.md §13](../../engineering.md#13-analytics-and-experiments)): installed with the PostHog wizard, then fixed up by hand (same-origin `/ingest` proxy, lazy-loaded; US region kept). Pageviews and key landing events. A flag-driven hero-CTA copy experiment. **31 Oct 2026:** wizard install, CSP and replay masking landed early in #36; consent split out to 3.6. Part 1 (proxy, wrapper, lazy loading) in #41; Part 2 (experiment, accepted visitors only) next | in-progress |
+| 3.5 | [PostHog + first experiment](05-posthog.md) ([engineering.md §13](../../engineering.md#13-analytics-and-experiments)): installed with the PostHog wizard, then fixed up by hand (same-origin `/ingest` proxy, lazy-loaded; US region kept). Pageviews and key landing events. A flag-driven hero-CTA copy experiment. **31 Oct 2026:** wizard install, CSP and replay masking landed early in #36; consent split out to 3.6. Part 1 (proxy, wrapper, lazy loading) in #41; Part 2 (experiment, accepted visitors only) in #42 | done |
 | 3.6 | [Consent banner](06-consent-banner.md): PostHog cookieless until the visitor accepts, a cookie choice bar, footer "Cookie settings". Replay only after accept | done |
 
 ## Decisions (30 Oct 2026)

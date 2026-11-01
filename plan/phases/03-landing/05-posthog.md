@@ -1,6 +1,6 @@
 # 3.5 PostHog + first experiment
 
-**Status:** in progress. Approved 31 Oct 2026 with decision 3 option A. Part 1 done (#41); Part 2 next.
+**Status:** done (approved 31 Oct 2026 with decision 3 option A; landed as #41 and #42)
 **Phase:** 03-landing
 
 ## Goal
@@ -60,7 +60,7 @@ Finish the PostHog setup that #36 (wizard install, CSP, replay masking), #37 (co
 
 ## Manual steps (Damion)
 
-- Part 2: create the `hero-cta-copy` experiment in PostHog with the variants above.
+- Part 2: create the `hero-cta-copy` experiment in PostHog with the variants above. **Done 31 Oct 2026:** "Hero CTA copy test", 50/50, launched, primary metric a one-step funnel on `quote_started`. If its overview shows no exposures, set the exposure event to `$feature_flag_called` with `$feature_flag` = `hero-cta-copy` (posthog-js records each flag read as that event).
 
 ## Done when
 
