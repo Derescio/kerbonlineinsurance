@@ -2,7 +2,8 @@ import { useId } from "react";
 
 import { Wordmark } from "#/components/display/Wordmark";
 
-import { demoNotice, footerGroups, homeHref, type SiteLink } from "./links";
+import { useConsent } from "./consent";
+import { cookiesLink, demoNotice, footerGroups, homeHref, type SiteLink } from "./links";
 
 /** Site footer: wordmark, four link columns and the demo line (Figma 54:2105, 88:2483, 88:2751). */
 export function SiteFooter() {
@@ -38,7 +39,21 @@ function FooterGroup({ title, links }: { title: string; links: SiteLink[] }) {
             <a href={link.href}>{link.label}</a>
           </li>
         ))}
+        {links.includes(cookiesLink) && <CookieSettings />}
       </ul>
     </nav>
+  );
+}
+
+/** Reopens the cookie choice bar (3.6). Only there while PostHog is running. */
+function CookieSettings() {
+  const consent = useConsent();
+  if (!consent) return null;
+  return (
+    <li>
+      <button type="button" className="site-footer__settings" onClick={consent.reopen}>
+        Cookie settings
+      </button>
+    </li>
   );
 }

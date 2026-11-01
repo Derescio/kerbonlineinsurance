@@ -2,6 +2,8 @@ import { PostHogErrorBoundary, PostHogProvider } from "@posthog/react";
 import { HeadContent, Scripts, createRootRoute, useLocation } from "@tanstack/react-router";
 
 import { Toaster } from "#/components/feedback/Toaster";
+import { ConsentBanner } from "#/components/site/ConsentBanner";
+import { onPosthogLoaded } from "#/components/site/consent";
 import { NotFound } from "#/components/site/NotFound";
 import appCss from "#/styles.css?url";
 // The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
@@ -82,6 +84,12 @@ const posthogOptions = {
   defaults: "2025-05-24",
   capture_exceptions: true,
   debug: import.meta.env.DEV,
+  // No cookies or storage until the visitor accepts (3.6): pending and rejected visitors are
+  // counted cookieless. Needs "Cookieless server hash mode" on in the PostHog project.
+  cookieless_mode: "on_reject",
+  // Replay only after consent: the banner's Accept starts it, and onPosthogLoaded resumes it.
+  disable_session_recording: true,
+  loaded: onPosthogLoaded,
   // Replay records layout and clicks only: inputs and all page text are masked, because quote and
   // policy pages show names, addresses and vehicle details. Wins over the dashboard's masking.
   session_recording: {
@@ -100,6 +108,7 @@ function PostHogContent({ children }: { children: React.ReactNode }) {
   return (
     <PostHogProvider apiKey={posthogProjectToken} options={posthogOptions}>
       <PostHogErrorBoundary fallback={<GlobalErrorFallback />}>{children}</PostHogErrorBoundary>
+      <ConsentBanner />
     </PostHogProvider>
   );
 }
