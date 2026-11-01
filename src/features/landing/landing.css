@@ -66,6 +66,16 @@
 .hero__row > .kb-btn {
   margin-top: 22px;
 }
+/* 3.5 experiment: both CTA labels in one cell, the spare one invisible but still taking up width */
+.hero__cta {
+  display: inline-grid;
+}
+.hero__cta > span {
+  grid-area: 1 / 1;
+}
+.hero__cta-spare {
+  visibility: hidden;
+}
 .hero__note {
   display: flex;
   justify-content: space-between;

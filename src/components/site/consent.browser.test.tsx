@@ -23,6 +23,8 @@ function fakePosthog(initial: ConsentStatus) {
     }),
     startSessionRecording: vi.fn(),
     stopSessionRecording: vi.fn(),
+    getFeatureFlag: vi.fn(),
+    onFeatureFlags: vi.fn(() => () => {}),
     capture: vi.fn(),
     captureException: vi.fn(),
   };
