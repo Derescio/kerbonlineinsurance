@@ -1,9 +1,11 @@
 import { PostHogErrorBoundary, PostHogProvider } from "@posthog/react";
+import type { PostHogConfig } from "posthog-js";
 import { HeadContent, Scripts, createRootRoute, useLocation } from "@tanstack/react-router";
 
 import { Toaster } from "#/components/feedback/Toaster";
 import { ConsentBanner } from "#/components/site/ConsentBanner";
 import { onPosthogLoaded } from "#/components/site/consent";
+import { maskPostcode } from "#/lib/mask-postcode";
 import { NotFound } from "#/components/site/NotFound";
 import appCss from "#/styles.css?url";
 // The two above-the-fold fonts. Same files as src/styles/fonts.css, so Vite emits one hashed asset each.
@@ -79,7 +81,7 @@ if (import.meta.env.DEV && (!posthogProjectToken || !posthogHost)) {
   );
 }
 
-const posthogOptions = {
+const posthogOptions: Partial<PostHogConfig> = {
   api_host: posthogHost,
   defaults: "2025-05-24",
   capture_exceptions: true,
@@ -87,9 +89,17 @@ const posthogOptions = {
   // No cookies or storage until the visitor accepts (3.6): pending and rejected visitors are
   // counted cookieless. Needs "Cookieless server hash mode" on in the PostHog project.
   cookieless_mode: "on_reject",
+  // Without this, on_reject captures nothing while the choice is pending, so visitors who ignore
+  // the bar wouldn't be counted. It treats "no choice yet" as rejected: cookieless, still counted.
+  opt_out_capturing_by_default: true,
   // Replay only after consent: the banner's Accept starts it, and onPosthogLoaded resumes it.
   disable_session_recording: true,
   loaded: onPosthogLoaded,
+  // The hero form puts the postcode in the URL. PostHog masks it in URLs it records (pages,
+  // replay, heatmaps); maskPostcode catches the rest, like the next page's $referrer.
+  mask_personal_data_properties: true,
+  custom_personal_data_properties: ["postcode"],
+  before_send: maskPostcode,
   // Replay records layout and clicks only: inputs and all page text are masked, because quote and
   // policy pages show names, addresses and vehicle details. Wins over the dashboard's masking.
   session_recording: {
@@ -100,7 +110,7 @@ const posthogOptions = {
     serviceName: "kerb-online-insurance-web",
     environment: import.meta.env.MODE,
   },
-} as const;
+};
 
 function PostHogContent({ children }: { children: React.ReactNode }) {
   if (!posthogProjectToken || !posthogHost) return children;

@@ -37,6 +37,7 @@ This was part of 3.5. It's split out so production stops setting analytics cooki
 ### PostHog config (`src/routes/__root.tsx`)
 
 - Add `cookieless_mode: "on_reject"`.
+- **Fixed 31 Oct 2026 (after release):** add `opt_out_capturing_by_default: true`. On its own, `on_reject` captures nothing while the choice is pending, so visitors who ignored the bar weren't counted at all. This treats "no choice yet" as rejected: cookieless and counted. The bar still shows, because the explicit choice is still pending.
 - Session replay doesn't start until consent: `disable_session_recording: true` in the init options, and the Accept handler starts it. On a return visit with consent already given, the provider starts it after init.
 
 ### Footer (`SiteFooter.tsx`, `links.ts`)

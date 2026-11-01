@@ -15,9 +15,12 @@ export default defineConfig({
     baseURL,
     // Vercel Deployment Protection sends anonymous requests to its login page. The bypass header
     // gets through, and the cookie keeps it for navigations the header doesn't cover.
-    extraHTTPHeaders: bypass
-      ? { "x-vercel-protection-bypass": bypass, "x-vercel-set-bypass-cookie": "true" }
-      : undefined,
+    // Previews also get the Vercel Toolbar script from vercel.live, which the CSP rightly blocks;
+    // skipping it keeps the smoke test's "no CSP violations" check about our own code.
+    extraHTTPHeaders: {
+      "x-vercel-skip-toolbar": "1",
+      ...(bypass && { "x-vercel-protection-bypass": bypass, "x-vercel-set-bypass-cookie": "true" }),
+    },
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
