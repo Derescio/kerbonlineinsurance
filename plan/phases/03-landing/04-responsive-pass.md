@@ -144,11 +144,11 @@ After the fixes, the tablet page is 2856 px tall against Figma's 2743 + 34 (bann
 
 ## Done when
 
-- [ ] No differences left on the Figma list, or each remaining one is noted as a decision.
-- [ ] The preview's landing sends `s-maxage` + `stale-while-revalidate`, and a second request is a CDN `HIT`.
-- [ ] The E2E suite (smoke + axe) passes against this PR's preview; `e2e.yml` itself runs from the release on (decision 4).
-- [ ] Lighthouse accessibility ≥ 95 on the preview.
-- [ ] `vp check`, `vp test` and `vp build` pass locally and in `ci`.
+- [x] No differences left on the Figma list, or each remaining one is noted as a decision.
+- [x] The preview's landing sends `s-maxage` + `stale-while-revalidate`, and a second request is a CDN `HIT`.
+- [x] The E2E suite (smoke + axe) passes against this PR's preview; `e2e.yml` itself runs from the release on (decision 4).
+- [x] Lighthouse accessibility ≥ 95 on the preview.
+- [x] `vp check`, `vp test` and `vp build` pass locally and in `ci`.
 
 ## Commit message
 

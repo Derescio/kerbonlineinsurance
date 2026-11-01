@@ -120,23 +120,14 @@ describe("ClosingCta", () => {
   });
 });
 
-describe("ExcessCallout", () => {
-  // Found by selector, not role: Playwright maps an <aside> inside a <section> to generic even when
-  // it's named, though browsers expose a named one as complementary (HTML-AAM)
-  const callout = 'aside[aria-label="Example excess"]';
-
-  it("sits over the hero photo, showing the example excess", async () => {
-    await page.viewport(1280, 800);
+describe("Hero photo", () => {
+  it.each([1280, 1024, 768])("is as tall as the copy column at %i px", async (width) => {
+    await page.viewport(width, 800);
     const { container } = await render(<Hero />);
-    const aside = container.querySelector<HTMLElement>(`.hero__media ${callout}`)!;
-    await expect.element(aside).toBeVisible();
-    expect(aside.textContent).toContain("£250");
-  });
-
-  it("is hidden on mobile, where it would cover the photo", async () => {
-    await page.viewport(390, 800);
-    const { container } = await render(<Hero />);
-    await expect.element(container.querySelector<HTMLElement>(callout)!).not.toBeVisible();
+    const photo = container.querySelector(".hero__photo")!.getBoundingClientRect();
+    const copy = container.querySelector(".hero__copy")!.getBoundingClientRect();
+    expect(photo.top).toBe(copy.top);
+    expect(photo.height).toBe(copy.height);
   });
 });
 
@@ -147,7 +138,8 @@ describe("LandingPage", () => {
       (h) => `${h.tagName} ${h.textContent}`,
     );
     expect(headings).toEqual([
-      "H1 Kerb Online Insurance.",
+      "H1 Insurance made simpler.",
+      "H2 Let's get you covered.",
       "H2 Insurance for every situation",
       "H2 From quote to covered in minutes",
       "H2 Already with Kerb?",
