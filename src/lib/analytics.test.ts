@@ -21,6 +21,8 @@ function fakeClient(consent: "granted" | "denied" | "pending" = "pending") {
     clear_opt_in_out_capturing: vi.fn(),
     startSessionRecording: vi.fn(),
     stopSessionRecording: vi.fn(),
+    getFeatureFlag: vi.fn(),
+    onFeatureFlags: vi.fn((_callback: () => void) => () => {}),
   };
 }
 
@@ -72,6 +74,53 @@ describe("analytics", () => {
   it("sends requests through the same-origin proxy", async () => {
     const analytics = await loadAnalytics(true);
     expect(analytics.posthogApiHost).toBe("/ingest");
+  });
+});
+
+describe("getFlag", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("gives undefined when PostHog isn't configured", async () => {
+    const analytics = await loadAnalytics(false);
+    await expect(analytics.getFlag("hero-cta-copy")).resolves.toBeUndefined();
+  });
+
+  it("gives undefined without reading the flag when the visitor hasn't accepted", async () => {
+    const analytics = await loadAnalytics(true);
+    const client = fakeClient("pending");
+    analytics.attachPosthog(client);
+    await expect(analytics.getFlag("hero-cta-copy")).resolves.toBeUndefined();
+    expect(client.getFeatureFlag).not.toHaveBeenCalled();
+  });
+
+  it("waits for PostHog to load, then for flags, and gives the variant", async () => {
+    const analytics = await loadAnalytics(true);
+    const result = analytics.getFlag("hero-cta-copy");
+
+    const client = fakeClient("granted");
+    client.getFeatureFlag.mockReturnValue("see-my-price");
+    client.onFeatureFlags.mockImplementation((callback: () => void) => {
+      callback();
+      return () => {};
+    });
+    analytics.attachPosthog(client);
+
+    await expect(result).resolves.toBe("see-my-price");
+    expect(client.getFeatureFlag).toHaveBeenCalledWith("hero-cta-copy");
+  });
+
+  it("gives undefined when flags take longer than the timeout", async () => {
+    vi.useFakeTimers();
+    const analytics = await loadAnalytics(true);
+    const client = fakeClient("granted");
+    analytics.attachPosthog(client);
+
+    const result = analytics.getFlag("hero-cta-copy", 1500);
+    vi.advanceTimersByTime(1500);
+    await expect(result).resolves.toBeUndefined();
+    expect(client.getFeatureFlag).not.toHaveBeenCalled();
   });
 });
 

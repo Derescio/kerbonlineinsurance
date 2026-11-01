@@ -54,6 +54,8 @@ type Client = Pick<
   PostHog,
   | "capture"
   | "captureException"
+  | "getFeatureFlag"
+  | "onFeatureFlags"
   | "get_explicit_consent_status"
   | "opt_in_capturing"
   | "opt_out_capturing"
@@ -65,6 +67,7 @@ type Client = Pick<
 let client: Client | undefined;
 let started = false;
 const queue: [event: string, properties?: Properties][] = [];
+const waitingForLoad: ((posthog: Client) => void)[] = [];
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -81,6 +84,7 @@ export function attachPosthog(posthog: Client | undefined) {
   if (posthog) {
     if (posthog.get_explicit_consent_status() === "granted") posthog.startSessionRecording();
     for (const [event, properties] of queue.splice(0)) posthog.capture(event, properties);
+    for (const run of waitingForLoad.splice(0)) run(posthog);
   }
   notify();
 }
@@ -105,6 +109,28 @@ export function startAnalytics() {
 export function track(event: string, properties?: Properties) {
   if (client) client.capture(event, properties);
   else if (analyticsEnabled) queue.push([event, properties]);
+}
+
+/**
+ * A feature flag's value for this visitor (3.5 experiments), or undefined: when PostHog isn't
+ * configured, when the visitor hasn't accepted cookies (cookieless visitors share one ID, so a
+ * flag can't split them), or when flags fail or take longer than `timeoutMs` after PostHog loads.
+ * Callers render the control for undefined. Reading the flag records the experiment exposure.
+ */
+export function getFlag(key: string, timeoutMs = 1500): Promise<string | boolean | undefined> {
+  if (!analyticsEnabled) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const read = (posthog: Client) => {
+      if (posthog.get_explicit_consent_status() !== "granted") return resolve(undefined);
+      const timer = setTimeout(() => resolve(undefined), timeoutMs);
+      posthog.onFeatureFlags(() => {
+        clearTimeout(timer);
+        resolve(posthog.getFeatureFlag(key));
+      });
+    };
+    if (client) read(client);
+    else waitingForLoad.push(read);
+  });
 }
 
 /** Reports an error caught by a React error boundary. Uncaught errors are captured by PostHog itself. */
