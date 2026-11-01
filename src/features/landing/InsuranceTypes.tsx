@@ -1,8 +1,7 @@
-import { usePostHog } from "@posthog/react";
-
 import { Icon } from "#/components/display/Icon";
 import type { IconName } from "#/components/display/icons";
 import { quoteHrefFor, type ProductId } from "#/features/quote/products";
+import { track } from "#/lib/analytics";
 
 import { ButtonLink } from "./ButtonLink";
 
@@ -70,9 +69,6 @@ const right: InsuranceType[] = [
  * item opens by keyboard and without JS. Car starts open.
  */
 export function InsuranceTypes() {
-  const posthog = usePostHog();
-  const posthogLogger = posthog.logger;
-
   return (
     <section className="band kinds" aria-labelledby="kinds-title">
       <div className="site-container">
@@ -86,14 +82,7 @@ export function InsuranceTypes() {
           {[left, right].map((column, i) => (
             <div key={i} className="kinds__column">
               {column.map((type) => (
-                <InsuranceItem
-                  key={type.id}
-                  type={type}
-                  onQuoteSelected={(event, properties) => {
-                    posthog.capture(event, properties);
-                    posthogLogger.info("insurance quote type selected", properties);
-                  }}
-                />
+                <InsuranceItem key={type.id} type={type} />
               ))}
             </div>
           ))}
@@ -103,13 +92,7 @@ export function InsuranceTypes() {
   );
 }
 
-function InsuranceItem({
-  type,
-  onQuoteSelected,
-}: {
-  type: InsuranceType;
-  onQuoteSelected: (event: string, properties: Record<string, string>) => void;
-}) {
+function InsuranceItem({ type }: { type: InsuranceType }) {
   return (
     <details className="kinds__item" open={type.id === "car" || undefined}>
       <summary className="kinds__summary">
@@ -123,7 +106,7 @@ function InsuranceItem({
           href={quoteHrefFor(type.id)}
           variant="accent"
           size="sm"
-          onClick={() => onQuoteSelected("quote_type_selected", { product_type: type.id })}
+          onClick={() => track("quote_type_selected", { product_type: type.id })}
         >
           Get a {type.label.toLowerCase()} quote
         </ButtonLink>

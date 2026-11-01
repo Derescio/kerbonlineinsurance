@@ -41,6 +41,18 @@ test("landing loads and is CDN-cached, with no errors", async ({ page, request }
   expect(problems).toEqual([]);
 });
 
+test("PostHog loads only through the same-origin /ingest proxy", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", (r) => requests.push(r.url()));
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  const ingest = requests.filter((url) => new URL(url).pathname.startsWith("/ingest/"));
+  test.skip(ingest.length === 0, "PostHog isn't configured on this deploy");
+
+  expect(requests.filter((url) => new URL(url).hostname.endsWith("posthog.com"))).toEqual([]);
+  expect(ingest.every((url) => new URL(url).origin === new URL(page.url()).origin)).toBe(true);
+});
+
 test("hero form sends a tidy postcode to the quote start", async ({ page }) => {
   await page.goto("/");
   await page.getByLabel("Your postcode").fill("e83rl");

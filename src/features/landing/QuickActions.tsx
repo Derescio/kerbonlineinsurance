@@ -1,5 +1,3 @@
-import { usePostHog } from "@posthog/react";
-
 import { Icon } from "#/components/display/Icon";
 import type { IconName } from "#/components/display/icons";
 import {
@@ -9,6 +7,7 @@ import {
   paymentsLink,
   trackClaimLink,
 } from "#/components/site/links";
+import { track } from "#/lib/analytics";
 
 // Paths are shared with the footer (links.ts); the titles are the tiles' own (Figma 54:2034).
 export const quickActions: { title: string; subtitle: string; icon: IconName; href: string }[] = [
@@ -40,8 +39,6 @@ export const quickActions: { title: string; subtitle: string; icon: IconName; hr
 
 /** Quick actions for existing customers (Figma 54:2028 web, 88:2401 tablet, 88:2669 mobile). */
 export function QuickActions() {
-  const posthog = usePostHog();
-
   return (
     <section className="band quick" aria-labelledby="quick-title">
       <div className="site-container">
@@ -63,7 +60,7 @@ export function QuickActions() {
                 href={action.href}
                 className="quick__tile"
                 onClick={() =>
-                  posthog.capture("customer_service_action_selected", {
+                  track("customer_service_action_selected", {
                     service_path: action.href,
                   })
                 }

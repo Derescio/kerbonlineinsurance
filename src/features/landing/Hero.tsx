@@ -1,13 +1,24 @@
-import { usePostHog } from "@posthog/react";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Input } from "#/components/forms/Input";
 import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
 import { normalisePostcode, postcodeError } from "#/features/quote/postcode";
+import { getFlag, track } from "#/lib/analytics";
 
 import { ExcessCallout } from "./ExcessCallout";
 import { HeroImage } from "./HeroImage";
+
+// Hero CTA copy experiment (3.5): PostHog flag "hero-cta-copy". The server HTML is CDN-cached and the
+// same for everyone, so it always has the control; a visitor who has accepted cookies may get the
+// other label once flags load. Anything else (no consent, flags slow or failing) keeps the control.
+export const ctaLabels = { control: "Get a quote", "see-my-price": "See my price" } as const;
+type CtaVariant = keyof typeof ctaLabels;
+const ctaVariants = Object.keys(ctaLabels) as CtaVariant[];
+
+function isCtaVariant(value: unknown): value is CtaVariant {
+  return typeof value === "string" && value in ctaLabels;
+}
 
 /**
  * Split hero (Figma 54:1952 web, 88:2274 tablet, 88:2542 mobile): copy and the postcode quote
@@ -15,19 +26,26 @@ import { HeroImage } from "./HeroImage";
  * hydration; with JS it checks the postcode first and sends it normalised.
  */
 export function Hero() {
-  const posthog = usePostHog();
-  const posthogLogger = posthog.logger;
   const [error, setError] = useState<string>();
+  const [cta, setCta] = useState<CtaVariant>("control");
   const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let current = true;
+    void getFlag("hero-cta-copy").then((variant) => {
+      if (current && isCtaVariant(variant)) setCta(variant);
+    });
+    return () => {
+      current = false;
+    };
+  }, []);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     const field = input.current;
     if (!field) return;
     const postcode = normalisePostcode(field.value);
     if (postcode === null) {
-      posthogLogger.warn("quote start blocked by postcode validation", {
-        entry_point: "hero_postcode_form",
-      });
+      track("quote_start_blocked", { entry_point: "hero_postcode_form" });
       e.preventDefault();
       setError(postcodeError);
       field.focus();
@@ -35,10 +53,7 @@ export function Hero() {
     }
     // Let the browser submit, with the tidy value. Phase 5 swaps this for a router navigation.
     field.value = postcode;
-    posthog.capture("quote_started", { entry_point: "hero_postcode_form" });
-    posthogLogger.info("quote started from landing page", {
-      entry_point: "hero_postcode_form",
-    });
+    track("quote_started", { entry_point: "hero_postcode_form" });
   }
 
   return (
@@ -75,7 +90,19 @@ export function Hero() {
                 onChange={() => setError(undefined)}
               />
               <Button type="submit" variant="accent" size="lg" iconRight="arrow-right">
-                Get a quote
+                {/* Both labels share one grid cell, so the button is as wide as the longer one and
+                    the swap can't shift the layout. The hidden one isn't in the accessible name. */}
+                <span className="hero__cta">
+                  {ctaVariants.map((variant) => (
+                    <span
+                      key={variant}
+                      className={variant === cta ? undefined : "hero__cta-spare"}
+                      aria-hidden={variant === cta ? undefined : true}
+                    >
+                      {ctaLabels[variant]}
+                    </span>
+                  ))}
+                </span>
               </Button>
             </div>
             <div className="hero__note">
