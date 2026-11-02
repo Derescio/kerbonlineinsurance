@@ -20,6 +20,24 @@ jobs:
     name: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Postgres for the `integration` test project (4.1). Same major version as Neon (18). It starts
+    # empty on every run; the test setup applies all migrations before the tests.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kerb_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kerb_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/kerb_test
     steps:
       # main only takes release PRs (from staging) and hotfixes; everything else goes into staging
       - name: Check PR source for main
@@ -41,6 +59,18 @@ jobs:
           cache: true
 
       - run: vp check
+
+      # A schema change must ship with its migration (plan/engineering.md section 3). Neither step
+      # needs a database.
+      - name: Check for migration drift
+        run: |
+          vp run db:generate
+          if [ -n "$(git status --porcelain drizzle/)" ]; then
+            git status --porcelain drizzle/
+            echo "::error::The schema changed but no migration is committed. Run `vp run db:generate`, review the SQL and commit it."
+            exit 1
+          fi
+          vp run db:check
 
       # Chromium for the `component` test project (Vitest browser mode). Cached by Playwright version.
       - name: Read Playwright version

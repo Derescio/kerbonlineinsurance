@@ -34,7 +34,8 @@ Copy `.env.example` to `.env.local` when a slice needs real values. Analytics is
 ```sh
 vp check          # format, lint and type-check
 vp check --fix    # fix what can be fixed
-vp test           # Vitest: unit tests, and component tests in real Chromium
+vp run db:test:up # once per session: test Postgres in Docker (needs Docker Desktop running)
+vp test           # Vitest: unit, component (real Chromium) and integration (real Postgres) tests
 vp build          # production build
 ```
 
@@ -48,6 +49,17 @@ BASE_URL=http://localhost:4173 vp exec playwright test   # or BASE_URL=<preview 
 On Vercel previews they also need `VERCEL_AUTOMATION_BYPASS_SECRET` (from `.env.local`). The `e2e` workflow runs them on every preview and staging deploy.
 
 The pre-commit hook runs `vp staged`, which formats and lints only the staged files.
+
+## Database
+
+Neon Postgres in London: branch `prod` for Production, `dev` for Staging, Preview and local. Schema in `src/server/db/schema.ts`, migrations in `drizzle/`.
+
+```sh
+vp run db:generate   # after a schema change: writes the migration SQL (review it, commit both)
+vp run db:migrate    # applies migrations to dev (from .env.local)
+```
+
+Never `drizzle-kit push`. Staging and Production builds apply migrations themselves ([plan/engineering.md §3](plan/engineering.md#3-database-migrations-drizzle)).
 
 ## Layout
 
