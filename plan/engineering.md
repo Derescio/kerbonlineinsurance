@@ -51,10 +51,13 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | Where | Command | Rule |
 |---|---|---|
 | Local | `vp run db:generate` (`drizzle-kit generate`) → review the SQL → `vp run db:migrate` (`drizzle-kit migrate`) on `dev` | Commit the schema and migration files together. **Never `drizzle-kit push`** against a shared DB. |
-| CI (every PR) | `drizzle-kit generate` must produce no new files (`git diff --exit-code`) + `drizzle-kit check` | Catches a schema change with a missing migration |
-| Staging deploy | Vercel build runs `drizzle-kit migrate` on `dev`, then the reference-data script | Committed migrations only; proves they apply cleanly before `main` |
+| CI (every PR) | `vp run db:generate` must leave `drizzle/` unchanged (`git status --porcelain drizzle/`) + `vp run db:check` | Catches a schema change with a missing migration |
+| Staging deploy | Vercel build (`build` script → `vp run db:deploy`) runs `drizzle-kit migrate` on `dev`, then the reference-data script | Committed migrations only; proves they apply cleanly before `main` |
 | Production deploy | Vercel build runs `drizzle-kit migrate` on `prod`, then the reference-data script, then the app build | If anything fails, the deploy fails and the previous version keeps serving |
 | Previews | no migrate | `dev` is already migrated locally by the slice author |
+
+- **Which builds migrate:** `scripts/db-deploy.ts` checks `VERCEL_TARGET_ENV` and only migrates for `production` and `staging`; previews, local builds and CI print "skipped". It fails the build if `DATABASE_URL_UNPOOLED` is missing.
+- **Two connection strings per environment:** `DATABASE_URL` (Neon pooled, used by the app) and `DATABASE_URL_UNPOOLED` (direct, used by migrations: PgBouncer transaction mode doesn't keep the session lock `drizzle-kit migrate` takes). Both with `sslmode=verify-full`.
 
 - **Backward-compatible migrations (expand/contract):** add the column or table, backfill, switch the code over, and only drop the old part in a later release. Vercel keeps serving the old deployment while the new one builds.
 - **Reference data** (vehicle catalogue, rating tables) comes from an idempotent upsert script, versioned by `rating_version`.
@@ -95,7 +98,7 @@ Four layers. Each one has an owner slice and runs in CI. Each phase's `phase.md`
 | **E2E** | `e2e/*.spec.ts` | The deployed app in a browser: smoke test, then the quote and claim journeys | `e2e.yml` on every preview | 3.4 |
 
 - **Three Vitest projects** in `vite.config.ts` (`test.projects`): `unit` (node), `component` (browser mode, Chromium) and `integration` (node + Postgres). `component` is added in 2.2 and `integration` in 4.1. Each project sets `extends: false`, and the app plugins (TanStack Start, Nitro) are skipped under `VITEST`, because they break the test runner (2.2 results). The `component` project lists its React deps in `optimizeDeps.include` so there's one copy of React.
-- **Test database:** each run applies the migrations to an empty database, and tests truncate tables between cases. Tests connect with the node-postgres driver, chosen by env, because the Neon serverless driver can't talk to a plain Postgres. Not a Neon branch per run: it's slower, costs money, and needs secrets that Dependabot PRs don't get.
+- **Test database:** each run applies the migrations to an empty database (`src/test/integration.setup.ts` drops and rebuilds the schemas), and tests truncate tables between cases (`truncateAll()` in `src/test/db.ts`). One driver everywhere: the app and the tests both use node-postgres (`pg`) through the same `getDb()` (4.1, decision 1), so integration tests exercise the production driver. Locally that means Docker (`compose.yaml`, `vp run db:test:up`) must be running for `vp test`; without it the run stops with that instruction. Not a Neon branch per run: it's slower, costs money, and needs secrets that Dependabot PRs don't get.
 - **Accessibility:** an axe scan (`@axe-core/playwright`) on each key page in `e2e.yml`, failing on `serious`/`critical` violations. Added in 3.4; pages join the list as they ship. Lighthouse ≥ 95 stays as the budget in 8.7.
 - **Test data:** E2E uses the seeded accounts from 4.9 (customer A, customer B, claims handler, admin with a TOTP secret known to the tests) on `dev`, and creates its own records with unique ids, so runs don't collide. Turnstile uses Cloudflare's test keys outside production.
 - **External services in tests:** postcodes.io, R2 (at the S3 client boundary) and the AI model (the AI SDK's mock provider) are mocked in unit and integration tests. CI never makes paid AI calls.
@@ -117,7 +120,7 @@ The aim: fast for every visitor, and cheap and stable under a spike from the vid
 | **Client data** | TanStack Query with `staleTime` per data type (reference data: never stale; account: short); optimistic updates in settings | 5.1, 6.3 |
 | **Server memory** | Vehicle catalogue and rating tables cached in module scope per function instance, keyed by `rating_version`. They're immutable, so never stale. | 4.8, 5.4 |
 | **External calls** | postcodes.io results stored in a `postcode_areas` table, so each postcode is looked up once | 5.2 |
-| **Database** | Neon pooled connection + serverless driver; indexes on foreign keys and hot filters (`user_id`, `status`, `created_at`); paginated lists; relational queries (no N+1) | 4.1, 4.2 |
+| **Database** | Neon pooled connection + node-postgres pool (`attachDatabasePool`, Fluid compute); indexes on foreign keys and hot filters (`user_id`, `status`, `created_at`); paginated lists; relational queries (no N+1) | 4.1, 4.2 |
 | **Review photos** | Served via `/media/r/:fileId` with `public, max-age=31536000, immutable`; Vercel's CDN caches them, and R2 has no egress fees | 6.9 |
 | **Kerbie panel** | Lazy-loaded on first open, so chat code is never in the landing bundle | 7.2 |
 | **AI cost** | Prompt caching on the stable prefix (voice rules + knowledge file + tool definitions); low effort; short max output; long threads summarised; per-user limits | 7.2, 7.3 |
