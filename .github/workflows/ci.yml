@@ -67,7 +67,7 @@ jobs:
           vp run db:generate
           if [ -n "$(git status --porcelain drizzle/)" ]; then
             git status --porcelain drizzle/
-            echo "::error::The schema changed but no migration is committed. Run `vp run db:generate`, review the SQL and commit it."
+            echo "::error::The schema changed but no migration is committed. Run 'vp run db:generate', review the SQL and commit it."
             exit 1
           fi
           vp run db:check
