@@ -56,7 +56,7 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | Production deploy | Vercel build runs `drizzle-kit migrate` on `prod`, then the reference-data script, then the app build | If anything fails, the deploy fails and the previous version keeps serving |
 | Previews | no migrate | `dev` is already migrated locally by the slice author |
 
-- **Which builds migrate:** `scripts/db-deploy.ts` checks `VERCEL_TARGET_ENV` and only migrates for `production` and `staging`; previews, local builds and CI print "skipped". It fails the build if `DATABASE_URL_UNPOOLED` is missing.
+- **Which builds migrate:** `scripts/db-deploy.ts` checks `VERCEL_TARGET_ENV` and only migrates for `production` and `staging`; previews, local builds and CI print "skipped". It fails the build if `DATABASE_URL_UNPOOLED` is missing. The Vercel Build Command is pinned to `pnpm run build` (an override, not the Vite preset's guess), so this step can't be skipped silently.
 - **Two connection strings per environment:** `DATABASE_URL` (Neon pooled, used by the app) and `DATABASE_URL_UNPOOLED` (direct, used by migrations: PgBouncer transaction mode doesn't keep the session lock `drizzle-kit migrate` takes). Both with `sslmode=verify-full`.
 
 - **Backward-compatible migrations (expand/contract):** add the column or table, backfill, switch the code over, and only drop the old part in a later release. Vercel keeps serving the old deployment while the new one builds.
