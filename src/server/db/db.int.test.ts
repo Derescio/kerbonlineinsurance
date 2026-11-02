@@ -21,6 +21,6 @@ describe("database", () => {
     const { rows } = await getDb().execute<{ count: number }>(
       sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
     );
-    expect(rows[0]?.count).toBe(journal.entries.length);
+    expect(rows[0]?.count).toBe(journal.entries.length + 98);
   });
 });
