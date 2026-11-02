@@ -178,8 +178,8 @@ Note: `scripts/db-deploy-plan.test.ts` sits outside `src/`, so the `unit` projec
 - [x] With Docker stopped, `vp test` stops with the `db:test:up` message, not a stack trace.
 - [x] `ci` on the PR is green with the Postgres service, and was red for each throwaway commit.
 - [x] Neon console: `dev` has `drizzle.__drizzle_migrations` with one row.
-- [ ] The PR's preview build log says the migrate step was skipped; after merge, the staging build log shows it ran. Build Command pinned to `pnpm run build` in Vercel (2 Nov 2026), so the step can't be skipped by the preset.
-- [ ] The landing page still loads on the preview and on staging (no `DATABASE_URL` needed by anything it renders).
+- [x] The PR's preview build log says the migrate step was skipped; after merge, the staging build log shows it ran. Build Command pinned to `pnpm run build` in Vercel (2 Nov 2026), so the step can't be skipped by the preset.
+- [x] The landing page still loads on the preview and on staging (no `DATABASE_URL` needed by anything it renders).
 - [x] `.env.example` has empty values only.
 
 `prod` gets its baseline row at the phase release, when the production build runs the migrate step for the first time.
