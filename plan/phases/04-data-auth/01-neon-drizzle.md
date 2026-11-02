@@ -1,6 +1,6 @@
 # 4.1 Neon + Drizzle
 
-**Status:** in-progress (approved 1 Nov 2026)
+**Status:** done (approved 1 Nov 2026; built 1–2 Nov 2026)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -147,17 +147,17 @@ Blur the values when recording.
 
 ## Steps
 
-- [ ] Damion: Neon project, branches, Vercel variables, `.env.local` (manual steps 1–7)
-- [ ] Packages, `drizzle.config.ts`, empty `schema.ts`, `db:*` scripts
-- [ ] `vp run db:generate -- --custom --name=baseline`; review the SQL
-- [ ] `client.ts` with the pool and `attachDatabasePool`
-- [ ] `compose.yaml`, global setup, `truncateAll()`, `integration` project, `unit` exclude
-- [ ] Sample integration test, passing against local Docker
-- [ ] `db-deploy.ts` and the `build` script; `vp run build` locally prints "skipped"
-- [ ] `vp run db:migrate` on `dev`; one row in `drizzle.__drizzle_migrations` in the Neon console
-- [ ] CI: Postgres service and drift check
-- [ ] Prove the gates on the PR (two throwaway commits, both reverted): a failing assertion in the sample test turns `ci` red; a table added to `schema.ts` with no migration turns the drift check red
-- [ ] Docs
+- [x] Damion: Neon project, branches, Vercel variables, `.env.local` (manual steps 1–7)
+- [x] Packages, `drizzle.config.ts`, empty `schema.ts`, `db:*` scripts
+- [x] `vp run db:generate --custom --name=baseline`; review the SQL
+- [x] `client.ts` with the pool and `attachDatabasePool`
+- [x] `compose.yaml`, global setup, `truncateAll()`, `integration` project, `unit` exclude
+- [x] Sample integration test, passing against local Docker
+- [x] `db-deploy.ts` and the `build` script; `vp run build` locally prints "skipped"
+- [x] `vp run db:migrate` on `dev`; one row in `drizzle.__drizzle_migrations` in the Neon console
+- [x] CI: Postgres service and drift check
+- [x] Prove the gates on the PR (two throwaway commits, both reverted): a failing assertion in the sample test turns `ci` red; a table added to `schema.ts` with no migration turns the drift check red (2 Nov 2026: red at `vp test` with "expected 1 to be 99", and red at "Check for migration drift" listing `0001_….sql`)
+- [x] Docs
 
 ## Tests
 
@@ -174,13 +174,13 @@ Note: `scripts/db-deploy-plan.test.ts` sits outside `src/`, so the `unit` projec
 
 ## Done when
 
-- [ ] `vp check` and `vp test` pass locally with Docker running (unit, component and integration projects all run).
-- [ ] With Docker stopped, `vp test` stops with the `db:test:up` message, not a stack trace.
-- [ ] `ci` on the PR is green with the Postgres service, and was red for each throwaway commit.
-- [ ] Neon console: `dev` has `drizzle.__drizzle_migrations` with one row.
-- [ ] The PR's preview build log says the migrate step was skipped; after merge, the staging build log shows it ran.
+- [x] `vp check` and `vp test` pass locally with Docker running (unit, component and integration projects all run).
+- [x] With Docker stopped, `vp test` stops with the `db:test:up` message, not a stack trace.
+- [x] `ci` on the PR is green with the Postgres service, and was red for each throwaway commit.
+- [x] Neon console: `dev` has `drizzle.__drizzle_migrations` with one row.
+- [ ] The PR's preview build log says the migrate step was skipped; after merge, the staging build log shows it ran. Build Command pinned to `pnpm run build` in Vercel (2 Nov 2026), so the step can't be skipped by the preset.
 - [ ] The landing page still loads on the preview and on staging (no `DATABASE_URL` needed by anything it renders).
-- [ ] `.env.example` has empty values only.
+- [x] `.env.example` has empty values only.
 
 `prod` gets its baseline row at the phase release, when the production build runs the migrate step for the first time.
 

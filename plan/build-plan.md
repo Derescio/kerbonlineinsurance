@@ -31,7 +31,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 4. Data and auth · `s4-data-auth` · [phase](phases/04-data-auth/phase.md)
 
-- [ ] 4.1 **Neon + Drizzle setup**: London, `prod` + `dev` branches, migration scripts, migrate in the Vercel build (staging/prod), CI drift check; unit/integration test split with a Postgres test DB in CI
+- [x] 4.1 **Neon + Drizzle setup**: London, `prod` + `dev` branches, migration scripts, migrate in the Vercel build (staging/prod), CI drift check; unit/integration test split with a Postgres test DB in CI
 - [ ] 4.2 **Schema + first migration**: multi-product (car, home, business), bundles, auth tables; integrity constraints, money in pence, `version` columns
 - [ ] 4.3 **Auth screens designed in Figma**: incl. Google button and 2FA screens
 - [ ] 4.4 **Better Auth**: sign up (with a demo notice, Turnstile), email + password (breached-password check), Google sign-in, soft email verification (banner, not a blocker), sessions, rate limits
