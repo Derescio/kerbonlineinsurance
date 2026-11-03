@@ -43,14 +43,15 @@ It also has to show Opsed Solutions clients that Damion can take a product from 
 
 Neon Postgres with Drizzle. **Multi-product from the start:** car, home and business, plus bundles. Car and home can be bought online at launch. Business has tables, rating factors and seed data, and its quote flow comes in a later phase. Condo, tenant, landlord and pet are listed on the landing and the quote start only; each needs a detail table, rating factors and seed data when its phase comes (decided 31 Oct 2026).
 
-**Schema shape:** shared core tables + one detail table per product. Adding a product means adding one detail table.
+**Schema shape:** shared core tables + one detail table per product. Adding a product means adding one detail table. The schema lives in `src/server/db/schema/` (one file per area); the integrity rules are in Postgres (checks, composite foreign keys, append-only triggers), and [4.2](phases/04-data-auth/02-schema.md) explains each decision.
 
 - **Core tables:** users and sessions (Better Auth), vehicles, drivers, quotes, policies, claims, claim_events.
 - **Reviews:** reviews (with moderation status and reason).
-- **Access:** user `role`, 2FA tables, `audit_log`.
+- **Access:** `staff_members` (role, display name, pseudonymous staff code, deactivation; customers are users without one), 2FA tables, `audit_log` (append-only, hash-chained), `security_events` (sign-ins and other account activity).
 - **Platform:** `idempotency_keys`, `rate_limits`, `jobs`.
 - **Files:** `files` (upload metadata only; the files themselves live in R2).
-- **Kerbie and analytics:** chat_threads, chat_messages, ai_usage, kerbie_actions, events (server-side funnel milestones for the data video; product analytics and A/B tests are in PostHog).
+- **Kerbie:** chat_threads, chat_messages, ai_usage, kerbie_actions (phase 7).
+- **Data side (4.2):** `events` (server-side funnel milestones; product analytics and A/B tests are in PostHog), `quote_item_factors` (the price breakdown as rows), `deleted_rows` (every delete, so the lakehouse can apply it), and a data contract (`src/server/db/data-contract.ts`) that a unit test keeps in sync with the schema. Phase 9 copies the data into Azure + Databricks.
 - A seed script adds about 12 months of synthetic history, flagged `is_synthetic`, for the data video.
 
 ## Pricing
@@ -65,7 +66,8 @@ A table-driven, versioned **rating engine**, a simplified version of what real i
 | Home | rebuild cost, contents value, property type and age, postcode flood/crime band, security, past claims |
 | Business | trade class, turnover, employees, cover sections chosen |
 
-- **Rating tables** live in the DB with a version number. Every quote stores its full breakdown and the rating version used.
+- **Rating tables** live in the DB with a version number (`rating_versions`: draft / active / retired, one active per product). Every quote item stores its full breakdown and the rating version used, so a later rate change never alters an issued quote.
+- **Underwriting is separate from price.** Eligibility rules give each quote item an outcome: quoted, referred (a claims handler reviews it in the staff console and approves with an optional loading, or declines) or declined (with a neutral reason). All rules and factors are fictional.
 - **Vehicles:** our own curated catalogue (about 40 popular UK models). The picker goes make → model → year → variant, and plate lookup is faked against demo plates. No paid lookup API.
 - **Postcodes:** checked with postcodes.io (free, no key). The postcode area maps to our own synthetic risk bands.
 
@@ -139,4 +141,4 @@ Check the limits in this table against each service's current pricing page in sl
 |---|---|
 | UI/UX design | Live demo link in the description |
 | Website creation | One recording per phase; git tags `s1-setup` … `s8-launch` as cut points; script written in phase 8 |
-| Data | Real and synthetic rows in Neon, chat and usage logs, funnel events |
+| Data | Real and synthetic rows in Neon, chat and usage logs, funnel events, copied into Azure + Databricks in Phase 9 (tag `s9-data`) |

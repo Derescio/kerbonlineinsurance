@@ -10,7 +10,9 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 // `drizzle-kit migrate` takes (plan/engineering.md section 3). `generate` and `check` don't connect.
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/server/db/schema.ts",
+  schema: "./src/server/db/schema/index.ts",
+  // camelCase in TypeScript, snake_case in Postgres (4.2, decision 2); client.ts matches
+  casing: "snake_case",
   out: "./drizzle",
   dbCredentials: { url: process.env.DATABASE_URL_UNPOOLED ?? "" },
   strict: true,
