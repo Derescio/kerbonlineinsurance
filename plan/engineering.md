@@ -215,12 +215,16 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 | File and track **own** claims, upload own files | — | ✓ | — | ✓ |
 | Write and edit **own** reviews | — | ✓ (policyholders) | — | — |
 | See **all** claims and their files, change claim status, add notes and events | — | — | ✓ | ✓ |
+| Review referred quotes: approve with an optional loading, or decline (6.11) | — | — | ✓ | ✓ |
 | Moderate reviews | — | — | — | ✓ |
 | Manage users and roles | — | — | — | ✓ |
 
 - **Admin** can act on customer records only from staff screens, and every action there is audited.
 - **Impersonation:** off, for privacy.
-- **First admin:** made with `vp run auth:make-admin <email>`, never through the UI. Claims handlers are assigned in `/admin/users`.
+- **Where roles live:** `staff_members` (4.2) is the only source. A user with no `staff_members` row is a customer. Claim assignment and referral decisions point at `staff_members`, so Postgres refuses a non-staff user there.
+- **First admin:** made with `vp run auth:make-admin <email>` (inserts the `staff_members` row), never through the UI. Claims handlers are assigned in `/admin/users`.
+- **Leaving staff:** deactivated, never deleted (`deactivated_at`; sessions revoked; open claims back to the queue), so history stays attributed.
+- **Conflict of interest:** a staff action on a record that belongs to the staff member's own customer row is refused (an admin may hold a policy, but can't handle their own claim or approve their own referral).
 
 ### Enforcement: four layers, one rule set
 
@@ -229,14 +233,26 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - `requireRole('claims_handler' | 'admin')`, which also checks that 2FA is set up and the session is fresh
 2. **Scoped data access** (`src/server/data/*`):
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
-   - Staff functions are separate (`staff*`) and need a staff role.
+   - Staff functions are separate (`staff*`) and need an active `staff_members` row with the right role.
    - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live.
 3. **Route guards** (`beforeLoad`): redirects for UX only. The server is the security boundary.
 4. **Audit log:** `audit_log` records:
-   - staff actions: claim status, roles, review decisions
-   - sensitive customer actions: password, 2FA, account deletion
+   - staff actions: claim status, referral decisions, roles, review decisions
+   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions so no page can skip it
+   - sensitive customer actions: password, 2FA, "sign out everywhere", address and driver changes, account deletion
 
-   Kerbie actions stay in `kerbie_actions`.
+   **How it's kept honest:**
+   - written by `audit()` inside the same transaction as the change, so the two commit or roll back together
+   - append-only: a trigger refuses `UPDATE` and `DELETE`
+   - hash-chained: each row stores `sha256(prev_hash ‖ row)`; `verifyAuditChain()` finds the first altered or missing row, and `/admin/audit` (6.8) has a "Verify chain" button
+   - ids and changed field names/values only, no emails, addresses or chat text; an IP is stored only as a hash
+   - no foreign keys on `actor_user_id` / `entity_id`: deleting an account keeps its audit rows (user id only) and the chain stays valid
+
+   **Elsewhere:**
+   - sign-ins, failed sign-ins, lockouts, resets, 2FA challenges and account links go to `security_events` (4.4), unchained, so bot traffic can't flood the chain; it feeds "Recent activity" in Settings
+   - business history stays in its own append-only tables: `claim_events`, `underwriting_decisions`, `kerbie_actions`; policy history in `policy_versions` (6.3)
+   - **not** a generic trigger copying every row change in every table: too much volume, and it copies personal data into a second place
+   - optional (8.9): the app connects as a Postgres role without `UPDATE`/`DELETE` on the audit tables
 
 ### Tests
 
@@ -257,7 +273,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - submit claim → claim + first `claim_events` row + attach files
   - Kerbie action → change + `kerbie_actions` row
   - staff status change → claim + `claim_events` + `audit_log`
-- **Claim status rulebook** (`src/features/claims/status.ts`): only allowed moves, `received → assessing → approved | declined`, then `approved → settled`. It's enforced in code and covered by tests.
+- **Claim status rulebook** (`src/features/claims/status.ts`): only allowed moves, `draft → received` (submit), `received → assessing → approved | declined`, then `approved → settled`. It's enforced in code and covered by tests.
 - **Concurrent edits:** `claims` and `policies` carry a `version` column. An update with a stale version is refused ("This claim changed since you opened it"), so two staff can't overwrite each other.
 - **Immutable history:** quotes keep their price breakdown and `rating_version`; `claim_events` and `audit_log` are append-only.
 
@@ -269,6 +285,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - post a review
   - settings changes
   - staff status changes
+  - staff referral decisions
   - each Kerbie confirm card
 
   The browser generates a UUID when the form or card opens.
@@ -352,7 +369,7 @@ No Redis unless the load test shows a need (§5).
 
 ## 13. Analytics and experiments
 
-PostHog does product analytics and A/B tests. It lands in 3.5. The `events` table keeps only server-side funnel milestones (quote started, quote priced, policy bought, claim opened) for the data video.
+PostHog does product analytics and A/B tests. It lands in 3.5. The `events` table (4.2) keeps only server-side funnel milestones (quote started, quote priced, quote referred, policy bought, claim opened) for the data video; `events.anonymous_id` holds PostHog's distinct id so Phase 9 can join the two.
 
 - **Install:** the PostHog wizard on a branch (#36), then review its diff and apply the rules below by hand. The wizard doesn't know about the nonce CSP, so its defaults work in `vp dev` and fail in production builds.
 - **Region:** US, kept for this portfolio project (31 Oct 2026). A client in the EU gets an EU project, set up by hand; a project's region can't be changed.

@@ -21,7 +21,7 @@ export function getDb(): Db {
   }
   const pool = new Pool({ connectionString, max: 5, idleTimeoutMillis: 5000 });
   attachDatabasePool(pool);
-  db = drizzle({ client: pool, schema });
+  db = drizzle({ client: pool, schema, casing: "snake_case" });
   return db;
 }
 
