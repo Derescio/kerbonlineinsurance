@@ -48,6 +48,9 @@ describe("Hero CTA experiment", () => {
     let answer: (value: string) => void = () => {};
     flag.mockReturnValue(new Promise((resolve) => (answer = resolve)));
     await render(<Hero />);
+    // fonts.css uses font-display: swap, so a web font finishing between the two measurements
+    // would change the width on its own. Measure once the fonts are in.
+    await document.fonts.ready;
     const before = cta().element().getBoundingClientRect().width;
 
     answer("see-my-price");

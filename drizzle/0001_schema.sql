@@ -13,7 +13,9 @@ CREATE TABLE "audit_log" (
 	"prev_hash" text,
 	"hash" text NOT NULL,
 	CONSTRAINT "audit_log_hash_unique" UNIQUE("hash"),
-	CONSTRAINT "audit_log_action_check" CHECK ("audit_log"."action" ~ '^[a-z][a-z_]*\.[a-z][a-z_]*$')
+	CONSTRAINT "audit_log_prev_hash_unique" UNIQUE NULLS NOT DISTINCT("prev_hash"),
+	CONSTRAINT "audit_log_action_check" CHECK ("audit_log"."action" ~ '^[a-z][a-z_]*\.[a-z][a-z_]*$'),
+	CONSTRAINT "audit_log_hash_check" CHECK ("audit_log"."hash" ~ '^[0-9a-f]{64}$' and ("audit_log"."prev_hash" is null or "audit_log"."prev_hash" ~ '^[0-9a-f]{64}$'))
 );
 --> statement-breakpoint
 CREATE TABLE "accounts" (
@@ -97,7 +99,8 @@ CREATE TABLE "claim_events" (
 	CONSTRAINT "claim_events_type_check" CHECK ("claim_events"."type" in ('submitted', 'status_changed', 'details_checked', 'note', 'file_added', 'settlement_scheduled', 'settlement_paid')),
 	CONSTRAINT "claim_events_visibility_check" CHECK ("claim_events"."visibility" in ('customer', 'internal')),
 	CONSTRAINT "claim_events_from_status_check" CHECK ("claim_events"."from_status" in ('draft', 'received', 'assessing', 'approved', 'declined', 'settled')),
-	CONSTRAINT "claim_events_to_status_check" CHECK ("claim_events"."to_status" in ('draft', 'received', 'assessing', 'approved', 'declined', 'settled'))
+	CONSTRAINT "claim_events_to_status_check" CHECK ("claim_events"."to_status" in ('draft', 'received', 'assessing', 'approved', 'declined', 'settled')),
+	CONSTRAINT "claim_events_status_changed_check" CHECK ("claim_events"."type" <> 'status_changed' or "claim_events"."to_status" is not null)
 );
 --> statement-breakpoint
 CREATE TABLE "claim_messages" (
@@ -233,7 +236,7 @@ CREATE TABLE "notifications" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "notifications_type_check" CHECK ("notifications"."type" ~ '^[a-z][a-z_]*\.[a-z][a-z_]*$'),
-	CONSTRAINT "notifications_link_path_check" CHECK ("notifications"."link_path" ~ '^/' and "notifications"."link_path" !~ '^//')
+	CONSTRAINT "notifications_link_path_check" CHECK ("notifications"."link_path" ~ '^/' and "notifications"."link_path" !~ '^/[/\\]')
 );
 --> statement-breakpoint
 CREATE TABLE "idempotency_keys" (
@@ -275,7 +278,8 @@ CREATE TABLE "bundles" (
 	"customer_id" uuid NOT NULL,
 	"quote_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "bundles_quote_id_unique" UNIQUE("quote_id")
+	CONSTRAINT "bundles_quote_id_unique" UNIQUE("quote_id"),
+	CONSTRAINT "bundles_id_quote_id_unique" UNIQUE("id","quote_id")
 );
 --> statement-breakpoint
 CREATE TABLE "payments" (
@@ -305,6 +309,7 @@ CREATE TABLE "policies" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"reference" text NOT NULL,
 	"customer_id" uuid NOT NULL,
+	"quote_id" uuid NOT NULL,
 	"quote_item_id" uuid NOT NULL,
 	"bundle_id" uuid,
 	"renewal_of_policy_id" uuid,
@@ -331,7 +336,9 @@ CREATE TABLE "policies" (
 	CONSTRAINT "policies_status_check" CHECK ("policies"."status" in ('active', 'cancelled', 'lapsed')),
 	CONSTRAINT "policies_dates_check" CHECK ("policies"."ends_on" > "policies"."starts_on"),
 	CONSTRAINT "policies_amounts_check" CHECK ("policies"."annual_premium_pence" > 0 and "policies"."compulsory_excess_pence" >= 0 and "policies"."voluntary_excess_pence" >= 0),
-	CONSTRAINT "policies_version_check" CHECK ("policies"."version" >= 1)
+	CONSTRAINT "policies_version_check" CHECK ("policies"."version" >= 1),
+	CONSTRAINT "policies_cancelled_at_check" CHECK (("policies"."status" = 'cancelled') = ("policies"."cancelled_at" is not null)),
+	CONSTRAINT "policies_renewal_check" CHECK ("policies"."renewal_of_policy_id" <> "policies"."id")
 );
 --> statement-breakpoint
 CREATE TABLE "businesses" (
@@ -472,6 +479,7 @@ CREATE TABLE "quote_items" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "quote_items_quote_id_product_unique" UNIQUE("quote_id","product"),
 	CONSTRAINT "quote_items_id_product_unique" UNIQUE("id","product"),
+	CONSTRAINT "quote_items_id_quote_id_product_unique" UNIQUE("id","quote_id","product"),
 	CONSTRAINT "quote_items_product_check" CHECK ("quote_items"."product" in ('car', 'home', 'business')),
 	CONSTRAINT "quote_items_outcome_check" CHECK ("quote_items"."outcome" in ('quoted', 'referred', 'declined')),
 	CONSTRAINT "quote_items_reason_code_check" CHECK ("quote_items"."outcome" = 'quoted' or "quote_items"."reason_code" is not null),
@@ -502,6 +510,7 @@ CREATE TABLE "quotes" (
 	CONSTRAINT "quotes_status_check" CHECK ("quotes"."status" in ('draft', 'priced', 'referred', 'declined', 'accepted', 'expired')),
 	CONSTRAINT "quotes_payment_plan_check" CHECK ("quotes"."payment_plan" in ('annual', 'monthly')),
 	CONSTRAINT "quotes_amounts_check" CHECK ("quotes"."subtotal_pence" >= 0 and "quotes"."bundle_discount_pence" >= 0 and "quotes"."fees_pence" >= 0 and "quotes"."ipt_pence" >= 0 and "quotes"."total_pence" >= 0),
+	CONSTRAINT "quotes_accepted_check" CHECK ("quotes"."status" <> 'accepted' or ("quotes"."payment_plan" is not null and "quotes"."details_confirmed_at" is not null and "quotes"."cover_acknowledged_at" is not null)),
 	CONSTRAINT "quotes_bundle_discount_check" CHECK ("quotes"."bundle_discount_pence" <= "quotes"."subtotal_pence"),
 	CONSTRAINT "quotes_total_check" CHECK ("quotes"."total_pence" = "quotes"."subtotal_pence" - "quotes"."bundle_discount_pence" + "quotes"."fees_pence" + "quotes"."ipt_pence")
 );
@@ -520,7 +529,8 @@ CREATE TABLE "reviews" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "reviews_policy_id_unique" UNIQUE("policy_id"),
 	CONSTRAINT "reviews_rating_check" CHECK ("reviews"."rating" between 1 and 5),
-	CONSTRAINT "reviews_status_check" CHECK ("reviews"."status" in ('pending', 'published', 'rejected'))
+	CONSTRAINT "reviews_status_check" CHECK ("reviews"."status" in ('pending', 'published', 'rejected')),
+	CONSTRAINT "reviews_published_at_check" CHECK (("reviews"."status" = 'published') = ("reviews"."published_at" is not null))
 );
 --> statement-breakpoint
 CREATE TABLE "staff_members" (
@@ -549,6 +559,7 @@ CREATE TABLE "rating_versions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "rating_versions_product_version_unique" UNIQUE("product","version"),
+	CONSTRAINT "rating_versions_id_product_unique" UNIQUE("id","product"),
 	CONSTRAINT "rating_versions_product_check" CHECK ("rating_versions"."product" in ('car', 'home', 'business')),
 	CONSTRAINT "rating_versions_version_check" CHECK ("rating_versions"."version" > 0),
 	CONSTRAINT "rating_versions_status_check" CHECK ("rating_versions"."status" in ('draft', 'active', 'retired')),
@@ -566,9 +577,10 @@ CREATE TABLE "underwriting_decisions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "underwriting_decisions_outcome_check" CHECK ("underwriting_decisions"."outcome" in ('quoted', 'referred', 'declined')),
 	CONSTRAINT "underwriting_decisions_reason_code_check" CHECK ("underwriting_decisions"."outcome" = 'quoted' or "underwriting_decisions"."reason_code" is not null),
-	CONSTRAINT "underwriting_decisions_loading_percent_check" CHECK ("underwriting_decisions"."loading_percent" between 0 and 100)
+	CONSTRAINT "underwriting_decisions_loading_percent_check" CHECK ("underwriting_decisions"."loading_percent" is null or ("underwriting_decisions"."outcome" = 'quoted' and "underwriting_decisions"."loading_percent" between 0 and 100))
 );
 --> statement-breakpoint
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_prev_hash_fk" FOREIGN KEY ("prev_hash") REFERENCES "public"."audit_log"("hash") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "two_factors" ADD CONSTRAINT "two_factors_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -585,12 +597,13 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_user_id_users_id_fk" FOREIGN K
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "idempotency_keys" ADD CONSTRAINT "idempotency_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bundles" ADD CONSTRAINT "bundles_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "bundles" ADD CONSTRAINT "bundles_quote_id_quotes_id_fk" FOREIGN KEY ("quote_id") REFERENCES "public"."quotes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bundles" ADD CONSTRAINT "bundles_quote_fk" FOREIGN KEY ("quote_id","customer_id") REFERENCES "public"."quotes"("id","customer_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_quote_fk" FOREIGN KEY ("quote_id","customer_id") REFERENCES "public"."quotes"("id","customer_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "policies" ADD CONSTRAINT "policies_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "policies" ADD CONSTRAINT "policies_bundle_id_bundles_id_fk" FOREIGN KEY ("bundle_id") REFERENCES "public"."bundles"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "policies" ADD CONSTRAINT "policies_renewal_of_policy_id_policies_id_fk" FOREIGN KEY ("renewal_of_policy_id") REFERENCES "public"."policies"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "policies" ADD CONSTRAINT "policies_quote_item_fk" FOREIGN KEY ("quote_item_id","product") REFERENCES "public"."quote_items"("id","product") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_quote_fk" FOREIGN KEY ("quote_id","customer_id") REFERENCES "public"."quotes"("id","customer_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_quote_item_fk" FOREIGN KEY ("quote_item_id","quote_id","product") REFERENCES "public"."quote_items"("id","quote_id","product") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_bundle_fk" FOREIGN KEY ("bundle_id","quote_id") REFERENCES "public"."bundles"("id","quote_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "policies" ADD CONSTRAINT "policies_renewal_fk" FOREIGN KEY ("renewal_of_policy_id","customer_id") REFERENCES "public"."policies"("id","customer_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "businesses" ADD CONSTRAINT "businesses_quote_item_fk" FOREIGN KEY ("quote_item_id","product") REFERENCES "public"."quote_items"("id","product") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "drivers" ADD CONSTRAINT "drivers_quote_item_fk" FOREIGN KEY ("quote_item_id","product") REFERENCES "public"."quote_items"("id","product") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "properties" ADD CONSTRAINT "properties_quote_item_fk" FOREIGN KEY ("quote_item_id","product") REFERENCES "public"."quote_items"("id","product") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -599,14 +612,13 @@ ALTER TABLE "quote_item_addons" ADD CONSTRAINT "quote_item_addons_quote_item_id_
 ALTER TABLE "quote_item_factors" ADD CONSTRAINT "quote_item_factors_quote_item_id_quote_items_id_fk" FOREIGN KEY ("quote_item_id") REFERENCES "public"."quote_items"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quote_item_options" ADD CONSTRAINT "quote_item_options_quote_item_id_quote_items_id_fk" FOREIGN KEY ("quote_item_id") REFERENCES "public"."quote_items"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quote_items" ADD CONSTRAINT "quote_items_quote_id_quotes_id_fk" FOREIGN KEY ("quote_id") REFERENCES "public"."quotes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "quote_items" ADD CONSTRAINT "quote_items_rating_version_id_rating_versions_id_fk" FOREIGN KEY ("rating_version_id") REFERENCES "public"."rating_versions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "quote_items" ADD CONSTRAINT "quote_items_rating_version_fk" FOREIGN KEY ("rating_version_id","product") REFERENCES "public"."rating_versions"("id","product") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quote_items" ADD CONSTRAINT "quote_items_selected_option_fk" FOREIGN KEY ("selected_option_id","id") REFERENCES "public"."quote_item_options"("id","quote_item_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quotes" ADD CONSTRAINT "quotes_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_policy_fk" FOREIGN KEY ("policy_id","customer_id") REFERENCES "public"."policies"("id","customer_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "staff_members" ADD CONSTRAINT "staff_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "underwriting_decisions" ADD CONSTRAINT "underwriting_decisions_quote_item_id_quote_items_id_fk" FOREIGN KEY ("quote_item_id") REFERENCES "public"."quote_items"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "underwriting_decisions" ADD CONSTRAINT "underwriting_decisions_decided_by_staff_members_user_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."staff_members"("user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "audit_log_one_first_row_idx" ON "audit_log" USING btree (("prev_hash" is null)) WHERE "audit_log"."prev_hash" is null;--> statement-breakpoint
 CREATE INDEX "audit_log_entity_type_entity_id_index" ON "audit_log" USING btree ("entity_type","entity_id");--> statement-breakpoint
 CREATE INDEX "audit_log_actor_user_id_index" ON "audit_log" USING btree ("actor_user_id");--> statement-breakpoint
 CREATE INDEX "audit_log_action_index" ON "audit_log" USING btree ("action");--> statement-breakpoint
@@ -650,6 +662,7 @@ CREATE INDEX "payments_status_index" ON "payments" USING btree ("status");--> st
 CREATE INDEX "payments_due_on_index" ON "payments" USING btree ("due_on");--> statement-breakpoint
 CREATE INDEX "payments_updated_at_index" ON "payments" USING btree ("updated_at");--> statement-breakpoint
 CREATE INDEX "policies_customer_id_index" ON "policies" USING btree ("customer_id");--> statement-breakpoint
+CREATE INDEX "policies_quote_id_index" ON "policies" USING btree ("quote_id");--> statement-breakpoint
 CREATE INDEX "policies_bundle_id_index" ON "policies" USING btree ("bundle_id");--> statement-breakpoint
 CREATE INDEX "policies_status_index" ON "policies" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "policies_created_at_index" ON "policies" USING btree ("created_at");--> statement-breakpoint
@@ -662,6 +675,7 @@ CREATE INDEX "properties_updated_at_index" ON "properties" USING btree ("updated
 CREATE INDEX "vehicles_updated_at_index" ON "vehicles" USING btree ("updated_at");--> statement-breakpoint
 CREATE INDEX "quote_item_addons_updated_at_index" ON "quote_item_addons" USING btree ("updated_at");--> statement-breakpoint
 CREATE INDEX "quote_items_rating_version_id_index" ON "quote_items" USING btree ("rating_version_id");--> statement-breakpoint
+CREATE INDEX "quote_items_selected_option_id_index" ON "quote_items" USING btree ("selected_option_id");--> statement-breakpoint
 CREATE INDEX "quote_items_outcome_index" ON "quote_items" USING btree ("outcome");--> statement-breakpoint
 CREATE INDEX "quote_items_updated_at_index" ON "quote_items" USING btree ("updated_at");--> statement-breakpoint
 CREATE INDEX "quotes_customer_id_index" ON "quotes" USING btree ("customer_id");--> statement-breakpoint

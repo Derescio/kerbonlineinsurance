@@ -12,7 +12,7 @@ Delete a demo account on the live site, run the pipeline, and show the customer'
 
 ## What's already in place (from 4.2)
 
-- Every table has a change column (`updated_at`, or `created_at` / `id` for append-only tables) for watermark copies.
+- Every table has a change column (`updated_at`, or `created_at` / `id` for append-only tables) for watermark copies. A trigger moves `updated_at` on every update, raw SQL and foreign-key `SET NULL` included, and append-only tables refuse `UPDATE`.
 - `deleted_rows` records every delete, cascades included.
 - `src/server/db/data-contract.ts`: grain, keys, change column and personal-data treatment per table, kept in sync with the schema by a unit test.
 - Analysable shapes: `quote_item_factors`, typed property columns, `postcode_district`, the `events` funnel table, `rating_versions` and append-only history tables.
@@ -26,7 +26,7 @@ Titles only; specced when the phase starts, against the code as it is then.
 |---|---|---|
 | 9.1 | `analytics` schema in Postgres: read-only views generated from the data contract (personal data dropped, hashed or bucketed); a read-only pipeline role that can see only that schema; check whether a Neon read replica fits the plan | todo |
 | 9.2 | Azure foundation: resource group, ADLS Gen2 (bronze/silver/gold containers), Key Vault for the Neon credentials, budget alerts. Infrastructure as code (Bicep or Terraform, decided then) | todo |
-| 9.3 | Ingestion: Azure Data Factory (or Databricks' Postgres connector, compared then) copies each view incrementally by watermark into bronze, plus `deleted_rows`; scheduled; reruns are idempotent | todo |
+| 9.3 | Ingestion: Azure Data Factory (or Databricks' Postgres connector, compared then) copies each view incrementally by watermark into bronze, plus `deleted_rows`; scheduled; reruns are idempotent. Timestamps are transaction start time, so a long transaction can commit behind the watermark: copy with an overlap window and dedupe, or use Neon's logical replication instead (4.2 review) | todo |
 | 9.4 | Databricks + Unity Catalog: bronze → silver (types, dedupe, deletes applied with `MERGE`) | todo |
 | 9.5 | Gold models: quote funnel, conversion by product and postcode district, factor impact on price, underwriting outcomes, claims lifecycle times, review ratings; synthetic vs real split | todo |
 | 9.6 | PostHog events joined via `events.anonymous_id` (PostHog export or API pull, checked then) | todo |

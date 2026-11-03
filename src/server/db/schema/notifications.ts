@@ -25,8 +25,12 @@ export const notifications = pgTable(
   },
   (t) => [
     check("notifications_type_check", areaVerb(t.type)),
-    // An in-app path only: not `https://…`, and not protocol-relative `//host`
-    check("notifications_link_path_check", sql`${t.linkPath} ~ '^/' and ${t.linkPath} !~ '^//'`),
+    // An in-app path only: not `https://…`, nor `//host` or `/\host` (browsers read both as
+    // another site). `\\\\` here is `\\` in SQL: one literal backslash in the bracket expression.
+    check(
+      "notifications_link_path_check",
+      sql`${t.linkPath} ~ '^/' and ${t.linkPath} !~ '^/[/\\\\]'`,
+    ),
     index().on(t.userId, t.readAt),
     index().on(t.updatedAt),
   ],

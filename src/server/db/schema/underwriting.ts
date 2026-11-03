@@ -42,6 +42,8 @@ export const ratingVersions = pgTable(
       sql`${t.effectiveTo} is null or ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
     unique().on(t.product, t.version),
+    // Target of quote_items' composite key
+    unique("rating_versions_id_product_unique").on(t.id, t.product),
     // Only one active version per product
     uniqueIndex("rating_versions_one_active_idx")
       .on(t.product)
@@ -75,7 +77,7 @@ export const underwritingDecisions = pgTable(
     ),
     check(
       "underwriting_decisions_loading_percent_check",
-      sql`${t.loadingPercent} between 0 and 100`,
+      sql`${t.loadingPercent} is null or (${t.outcome} = 'quoted' and ${t.loadingPercent} between 0 and 100)`,
     ),
     index().on(t.quoteItemId),
     index().on(t.decidedBy),

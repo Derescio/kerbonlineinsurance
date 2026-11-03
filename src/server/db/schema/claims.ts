@@ -106,6 +106,10 @@ export const claimEvents = pgTable(
     check("claim_events_visibility_check", oneOf(t.visibility, claimEventVisibilities)),
     check("claim_events_from_status_check", oneOf(t.fromStatus, claimStatuses)),
     check("claim_events_to_status_check", oneOf(t.toStatus, claimStatuses)),
+    check(
+      "claim_events_status_changed_check",
+      sql`${t.type} <> 'status_changed' or ${t.toStatus} is not null`,
+    ),
     index().on(t.claimId),
     index().on(t.actorUserId),
     index().on(t.createdAt),

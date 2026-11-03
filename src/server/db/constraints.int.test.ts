@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
@@ -5,9 +7,12 @@ import { closeDb, getDb } from "#/server/db/client";
 import { dataContract } from "#/server/db/data-contract";
 import {
   auditLog,
+  bundles,
   claimEvents,
+  claimMessages,
   claimSettlements,
   claimThirdParties,
+  claims,
   customers,
   deletedRows,
   drivers,
@@ -198,6 +203,289 @@ describe("Postgres integrity rules", () => {
     });
   });
 
+  describe("history rows change only through a foreign-key action (decision 8)", () => {
+    async function claimWithEvent(actorUserId?: string) {
+      const claim = await makeClaim();
+      const [event] = await db()
+        .insert(claimEvents)
+        .values({ claimId: claim.id, type: "note", visibility: "internal", actorUserId })
+        .returning();
+      return { claim, event: event! };
+    }
+
+    it("refuses a direct UPDATE that clears claim_events.actor_user_id", async () => {
+      const actor = await makeUser();
+      const { event } = await claimWithEvent(actor.id);
+      await expectRefused(
+        db().update(claimEvents).set({ actorUserId: null }).where(eq(claimEvents.id, event.id)),
+        APPEND_ONLY,
+      );
+    });
+
+    it("refuses a direct DELETE on claim_events, but deleting the claim removes them", async () => {
+      const { claim, event } = await claimWithEvent();
+      await expectRefused(
+        db().delete(claimEvents).where(eq(claimEvents.id, event.id)),
+        APPEND_ONLY,
+      );
+      await db().delete(claims).where(eq(claims.id, claim.id));
+      expect(await db().select().from(claimEvents)).toEqual([]);
+    });
+
+    it("refuses a direct DELETE on underwriting_decisions, but deleting the quote removes them", async () => {
+      const { quote, items } = await makeQuote();
+      const [decision] = await db()
+        .insert(underwritingDecisions)
+        .values({ quoteItemId: items[0]!.item.id, outcome: "quoted" })
+        .returning();
+      await expectRefused(
+        db().delete(underwritingDecisions).where(eq(underwritingDecisions.id, decision!.id)),
+        APPEND_ONLY,
+      );
+      await db().delete(quotes).where(eq(quotes.id, quote.id));
+      expect(await db().select().from(underwritingDecisions)).toEqual([]);
+    });
+
+    it("tombstones a deleted claim with its events and messages", async () => {
+      const { claim, event } = await claimWithEvent();
+      const [message] = await db()
+        .insert(claimMessages)
+        .values({ claimId: claim.id, senderKind: "customer", body: "Any news?" })
+        .returning();
+      await db().delete(claims).where(eq(claims.id, claim.id));
+      const tombstones = (await db().select().from(deletedRows)).map(
+        ({ tableName, rowId }) => `${tableName}:${rowId}`,
+      );
+      expect(tombstones).toEqual(
+        expect.arrayContaining([
+          `claims:${claim.id}`,
+          `claim_events:${event.id}`,
+          `claim_messages:${message!.id}`,
+        ]),
+      );
+    });
+  });
+
+  describe("change tracking (decision 16)", () => {
+    // Tables with a BEFORE UPDATE row trigger calling `fn` (tgtype bit 16 = UPDATE)
+    async function updateTriggersCalling(fn: string) {
+      const { rows } = await db().execute<{ table: string }>(
+        sql`select distinct c.relname as table
+            from pg_trigger t
+            join pg_class c on c.oid = t.tgrelid
+            join pg_proc p on p.oid = t.tgfoid
+            where p.proname = ${fn} and not t.tgisinternal and (t.tgtype & 16) = 16`,
+      );
+      return rows.map(({ table }) => table);
+    }
+
+    it("refuses UPDATE on every table the contract calls append-only", async () => {
+      const appendOnly = Object.entries(dataContract)
+        .filter(([, entry]) => entry.kind === "append-only")
+        .map(([table]) => table)
+        .sort();
+      const guarded = [
+        ...(await updateTriggersCalling("refuse_change")),
+        ...(await updateTriggersCalling("refuse_direct_change")),
+      ].sort();
+      expect(guarded).toEqual(appendOnly);
+    });
+
+    it("has the set_updated_at trigger on every table with an updated_at column", async () => {
+      const { rows } = await db().execute<{ table: string }>(
+        sql`select table_name as table from information_schema.columns
+            where table_schema = 'public' and column_name = 'updated_at'`,
+      );
+      expect((await updateTriggersCalling("set_updated_at")).sort()).toEqual(
+        rows.map(({ table }) => table).sort(),
+      );
+    });
+
+    it("moves updated_at when a foreign key sets a column to null", async () => {
+      const claim = await makeClaim();
+      const sender = await makeUser();
+      const before = new Date("2026-01-01T00:00:00Z");
+      const [message] = await db()
+        .insert(claimMessages)
+        .values({
+          claimId: claim.id,
+          senderUserId: sender.id,
+          senderKind: "customer",
+          body: "Hello",
+          createdAt: before,
+          updatedAt: before,
+        })
+        .returning();
+      await db().delete(users).where(eq(users.id, sender.id));
+      const [after] = await db()
+        .select()
+        .from(claimMessages)
+        .where(eq(claimMessages.id, message!.id));
+      expect(after?.senderUserId).toBeNull();
+      expect(after!.updatedAt.getTime()).toBeGreaterThan(before.getTime());
+    });
+
+    it("keeps an updated_at the writer sets (the 4.9 seed backdates)", async () => {
+      const customer = await makeCustomer();
+      const backdated = new Date("2025-12-01T10:00:00Z");
+      await db().execute(
+        sql`update customers set paperless = false, updated_at = ${backdated.toISOString()} where id = ${customer.id}`,
+      );
+      const [row] = await db().select().from(customers).where(eq(customers.id, customer.id));
+      expect(row!.updatedAt.toISOString()).toBe(backdated.toISOString());
+    });
+  });
+
+  describe("ownership (composite keys)", () => {
+    it("refuses a policy for another customer's quote item", async () => {
+      const { quote, items } = await makeQuote();
+      const stranger = await makeCustomer();
+      await expectRefused(
+        makePolicy({ customerId: stranger.id, quoteId: quote.id, quoteItemId: items[0]!.item.id }),
+        FOREIGN_KEY,
+        "policies_quote_fk",
+      );
+    });
+
+    it("refuses a policy whose quote item is on a different quote", async () => {
+      const customer = await makeCustomer();
+      const first = await makeQuote({ customerId: customer.id });
+      const second = await makeQuote({ customerId: customer.id });
+      await expectRefused(
+        makePolicy({
+          customerId: customer.id,
+          quoteId: second.quote.id,
+          quoteItemId: first.items[0]!.item.id,
+        }),
+        FOREIGN_KEY,
+        "policies_quote_item_fk",
+      );
+    });
+
+    it("refuses a bundle on another customer's quote", async () => {
+      const { quote } = await makeQuote();
+      const stranger = await makeCustomer();
+      await expectRefused(
+        db().insert(bundles).values({ customerId: stranger.id, quoteId: quote.id }),
+        FOREIGN_KEY,
+        "bundles_quote_fk",
+      );
+    });
+
+    it("refuses a policy in a bundle from a different quote", async () => {
+      const customer = await makeCustomer();
+      const bundled = await makeQuote({ customerId: customer.id, products: ["car", "home"] });
+      const [bundle] = await db()
+        .insert(bundles)
+        .values({ customerId: customer.id, quoteId: bundled.quote.id })
+        .returning();
+      const other = await makeQuote({ customerId: customer.id });
+      await expectRefused(
+        makePolicy({
+          customerId: customer.id,
+          quoteId: other.quote.id,
+          quoteItemId: other.items[0]!.item.id,
+          bundleId: bundle!.id,
+        }),
+        FOREIGN_KEY,
+        "policies_bundle_fk",
+      );
+    });
+
+    it("refuses a car item rated by a home rating version", async () => {
+      const { quote } = await makeQuote({ products: ["home"] });
+      const homeRates = await makeRatingVersion({ product: "home" });
+      await expectRefused(
+        db().insert(quoteItems).values({
+          quoteId: quote.id,
+          product: "car",
+          ratingVersionId: homeRates.id,
+          outcome: "quoted",
+          startDate: "2026-12-01",
+        }),
+        FOREIGN_KEY,
+        "quote_items_rating_version_fk",
+      );
+    });
+
+    it("refuses a policy that renews itself, or another customer's policy", async () => {
+      const policy = await makePolicy();
+      await expectRefused(
+        db()
+          .update(policies)
+          .set({ renewalOfPolicyId: policy.id })
+          .where(eq(policies.id, policy.id)),
+        CHECK,
+        "policies_renewal_check",
+      );
+      const stranger = await makePolicy();
+      await expectRefused(
+        makePolicy({ customerId: stranger.customerId, renewalOfPolicyId: policy.id }),
+        FOREIGN_KEY,
+        "policies_renewal_fk",
+      );
+    });
+  });
+
+  describe("statuses agree with their timestamps", () => {
+    it("refuses a cancelled policy with no cancelled_at", async () => {
+      await expectRefused(
+        makePolicy({ status: "cancelled" }),
+        CHECK,
+        "policies_cancelled_at_check",
+      );
+    });
+
+    it("refuses a published review with no published_at", async () => {
+      const policy = await makePolicy();
+      await expectRefused(
+        db().insert(reviews).values({
+          policyId: policy.id,
+          customerId: policy.customerId,
+          rating: 5,
+          title: "Great",
+          body: "Great",
+          status: "published",
+        }),
+        CHECK,
+        "reviews_published_at_check",
+      );
+    });
+
+    it("refuses an accepted quote without a payment plan and both confirmations", async () => {
+      await expectRefused(
+        makeQuote({ status: "accepted", paymentPlan: "annual", detailsConfirmedAt: new Date() }),
+        CHECK,
+        "quotes_accepted_check",
+      );
+    });
+
+    it("refuses a status_changed event with no new status", async () => {
+      const claim = await makeClaim();
+      await expectRefused(
+        db()
+          .insert(claimEvents)
+          .values({ claimId: claim.id, type: "status_changed", visibility: "customer" }),
+        CHECK,
+        "claim_events_status_changed_check",
+      );
+    });
+
+    it("refuses a loading on a declined decision", async () => {
+      const { items } = await makeQuote();
+      await expectRefused(
+        db().insert(underwritingDecisions).values({
+          quoteItemId: items[0]!.item.id,
+          outcome: "declined",
+          reasonCode: "too_young",
+          loadingPercent: 10,
+        }),
+        CHECK,
+        "underwriting_decisions_loading_percent_check",
+      );
+    });
+  });
+
   describe("underwriting and pricing", () => {
     it("refuses quote totals that don't add up", async () => {
       const { quote } = await makeQuote();
@@ -302,16 +590,24 @@ describe("Postgres integrity rules", () => {
   });
 
   describe("audit log (decision 15)", () => {
-    async function audit(hash: string, prevHash: string | null = "previous") {
+    const hashOf = (label: string) => createHash("sha256").update(label).digest("hex");
+
+    async function audit(label: string, prevLabel: string | null = null) {
       const [row] = await db()
         .insert(auditLog)
-        .values({ action: "claim.viewed", entityType: "claim", entityId: "c1", hash, prevHash })
+        .values({
+          action: "claim.viewed",
+          entityType: "claim",
+          entityId: "c1",
+          hash: hashOf(label),
+          prevHash: prevLabel === null ? null : hashOf(prevLabel),
+        })
         .returning();
       return row!;
     }
 
     it("refuses UPDATE and DELETE", async () => {
-      const row = await audit("h1");
+      const row = await audit("first");
       await expectRefused(
         db().update(auditLog).set({ reason: "edited" }).where(eq(auditLog.id, row.id)),
         APPEND_ONLY,
@@ -323,31 +619,53 @@ describe("Postgres integrity rules", () => {
       await expectRefused(
         db()
           .insert(auditLog)
-          .values({ action: "viewed", entityType: "claim", entityId: "c1", hash: "h" }),
+          .values({ action: "viewed", entityType: "claim", entityId: "c1", hash: hashOf("x") }),
         CHECK,
         "audit_log_action_check",
       );
     });
 
     it("refuses a duplicate hash", async () => {
-      await audit("same");
-      await expectRefused(audit("same"), UNIQUE, "audit_log_hash_unique");
+      await audit("first");
+      await expectRefused(audit("first", "first"), UNIQUE, "audit_log_hash_unique");
     });
 
     it("refuses a second row with no previous hash", async () => {
-      await audit("first", null);
-      await expectRefused(audit("second", null), UNIQUE, "audit_log_one_first_row_idx");
+      await audit("first");
+      await expectRefused(audit("second"), UNIQUE, "audit_log_prev_hash_unique");
+    });
+
+    it("refuses a fork: two rows on the same previous row", async () => {
+      await audit("first");
+      await audit("second", "first");
+      await expectRefused(audit("rival", "first"), UNIQUE, "audit_log_prev_hash_unique");
+    });
+
+    it("refuses a previous hash that isn't in the log", async () => {
+      await expectRefused(audit("orphan", "missing"), FOREIGN_KEY, "audit_log_prev_hash_fk");
+    });
+
+    it("refuses a hash that isn't 64 hex characters", async () => {
+      await expectRefused(
+        db()
+          .insert(auditLog)
+          .values({ action: "claim.viewed", entityType: "claim", entityId: "c1", hash: "h1" }),
+        CHECK,
+        "audit_log_hash_check",
+      );
     });
 
     it("keeps a user's audit rows when the user is deleted", async () => {
       const user = await makeUser();
-      await db().insert(auditLog).values({
-        actorUserId: user.id,
-        action: "quote.saved",
-        entityType: "quote",
-        entityId: "q1",
-        hash: "h1",
-      });
+      await db()
+        .insert(auditLog)
+        .values({
+          actorUserId: user.id,
+          action: "quote.saved",
+          entityType: "quote",
+          entityId: "q1",
+          hash: hashOf("first"),
+        });
       await db().delete(users).where(eq(users.id, user.id));
       const rows = await db().select().from(auditLog);
       expect(rows.map((row) => row.actorUserId)).toEqual([user.id]);
@@ -576,7 +894,7 @@ describe("Postgres integrity rules", () => {
 
     it("refuses a notification linking off-site", async () => {
       const user = await makeUser();
-      for (const linkPath of ["https://evil.example/x", "//evil.example/x"]) {
+      for (const linkPath of ["https://evil.example/x", "//evil.example/x", "/\\evil.example/x"]) {
         await expectRefused(
           db().insert(notifications).values({
             userId: user.id,

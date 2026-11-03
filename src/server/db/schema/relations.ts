@@ -54,6 +54,7 @@ export const staffMembersRelations = relations(staffMembers, ({ one, many }) => 
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
   customer: one(customers, { fields: [quotes.customerId], references: [customers.id] }),
   items: many(quoteItems),
+  policies: many(policies),
   payments: many(payments),
   bundle: one(bundles),
 }));
@@ -135,6 +136,7 @@ export const bundlesRelations = relations(bundles, ({ one, many }) => ({
 
 export const policiesRelations = relations(policies, ({ one, many }) => ({
   customer: one(customers, { fields: [policies.customerId], references: [customers.id] }),
+  quote: one(quotes, { fields: [policies.quoteId], references: [quotes.id] }),
   quoteItem: one(quoteItems, { fields: [policies.quoteItemId], references: [quoteItems.id] }),
   bundle: one(bundles, { fields: [policies.bundleId], references: [bundles.id] }),
   renewalOf: one(policies, {

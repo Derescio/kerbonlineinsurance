@@ -141,9 +141,17 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     kind: "mutable",
     copied: true,
     columns: {
-      ...keep("role", "staff_code", "started_at", "deactivated_at", "created_at", "updated_at"),
-      // Joined through staff_code downstream, never the user id
-      user_id: "hash",
+      // The user id is kept like every other user id (a pseudonym once names and emails are
+      // dropped), so decisions, assignments and settlements join to a staff_code and role
+      ...keep(
+        "user_id",
+        "role",
+        "staff_code",
+        "started_at",
+        "deactivated_at",
+        "created_at",
+        "updated_at",
+      ),
       display_name: "drop",
     },
   },
@@ -263,16 +271,19 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     changeColumn: "id",
     kind: "append-only",
     copied: true,
-    columns: keep(
-      "id",
-      "quote_item_id",
-      "outcome",
-      "reason_code",
-      "loading_percent",
-      "decided_by",
-      "note",
-      "created_at",
-    ),
+    columns: {
+      // Free text a handler writes can name the person (review H3)
+      note: "drop",
+      ...keep(
+        "id",
+        "quote_item_id",
+        "outcome",
+        "reason_code",
+        "loading_percent",
+        "decided_by",
+        "created_at",
+      ),
+    },
   },
 
   // --- Product details ---
@@ -394,6 +405,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
       "id",
       "reference",
       "customer_id",
+      "quote_id",
       "quote_item_id",
       "bundle_id",
       "renewal_of_policy_id",
@@ -565,13 +577,13 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
         "customer_id",
         "rating",
         "status",
-        "moderation_reason",
         "published_at",
         "created_at",
         "updated_at",
       ),
       title: "drop",
       body: "drop",
+      moderation_reason: "drop",
     },
   },
   notifications: {
@@ -604,21 +616,25 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     changeColumn: "id",
     kind: "append-only",
     copied: true,
-    columns: keep(
-      "id",
-      "created_at",
-      "actor_user_id",
-      "actor_role",
-      "action",
-      "entity_type",
-      "entity_id",
-      "changes",
-      "reason",
-      "request_id",
-      "ip_hash",
-      "prev_hash",
-      "hash",
-    ),
+    columns: {
+      // Free text, and the values of changed fields: never copied, since audit rows can't be
+      // erased (review H3). Personal-data fields are recorded by name only (decision 15).
+      changes: "drop",
+      reason: "drop",
+      ...keep(
+        "id",
+        "created_at",
+        "actor_user_id",
+        "actor_role",
+        "action",
+        "entity_type",
+        "entity_id",
+        "request_id",
+        "ip_hash",
+        "prev_hash",
+        "hash",
+      ),
+    },
   },
   deleted_rows: {
     grain: "one deleted row of a copied table (a tombstone)",

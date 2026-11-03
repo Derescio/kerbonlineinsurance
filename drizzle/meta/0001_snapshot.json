@@ -1,5 +1,5 @@
 {
-  "id": "9fde8df4-8234-426c-8fca-53a890d27bb7",
+  "id": "3804b3a6-a2b3-4d19-ab5b-d3c0a977bcb7",
   "prevId": "eddbb64c-3bf2-40c5-bca7-1b247914e53c",
   "version": "7",
   "dialect": "postgresql",
@@ -100,22 +100,6 @@
         }
       },
       "indexes": {
-        "audit_log_one_first_row_idx": {
-          "name": "audit_log_one_first_row_idx",
-          "columns": [
-            {
-              "expression": "(\"prev_hash\" is null)",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"audit_log\".\"prev_hash\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "audit_log_entity_type_entity_id_index": {
           "name": "audit_log_entity_type_entity_id_index",
           "columns": [
@@ -183,7 +167,21 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "audit_log_prev_hash_fk": {
+          "name": "audit_log_prev_hash_fk",
+          "tableFrom": "audit_log",
+          "tableTo": "audit_log",
+          "columnsFrom": [
+            "prev_hash"
+          ],
+          "columnsTo": [
+            "hash"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "audit_log_hash_unique": {
@@ -192,6 +190,13 @@
           "columns": [
             "hash"
           ]
+        },
+        "audit_log_prev_hash_unique": {
+          "name": "audit_log_prev_hash_unique",
+          "nullsNotDistinct": true,
+          "columns": [
+            "prev_hash"
+          ]
         }
       },
       "policies": {},
@@ -199,6 +204,10 @@
         "audit_log_action_check": {
           "name": "audit_log_action_check",
           "value": "\"audit_log\".\"action\" ~ '^[a-z][a-z_]*\\.[a-z][a-z_]*$'"
+        },
+        "audit_log_hash_check": {
+          "name": "audit_log_hash_check",
+          "value": "\"audit_log\".\"hash\" ~ '^[0-9a-f]{64}$' and (\"audit_log\".\"prev_hash\" is null or \"audit_log\".\"prev_hash\" ~ '^[0-9a-f]{64}$')"
         }
       },
       "isRLSEnabled": false
@@ -915,6 +924,10 @@
         "claim_events_to_status_check": {
           "name": "claim_events_to_status_check",
           "value": "\"claim_events\".\"to_status\" in ('draft', 'received', 'assessing', 'approved', 'declined', 'settled')"
+        },
+        "claim_events_status_changed_check": {
+          "name": "claim_events_status_changed_check",
+          "value": "\"claim_events\".\"type\" <> 'status_changed' or \"claim_events\".\"to_status\" is not null"
         }
       },
       "isRLSEnabled": false
@@ -2159,7 +2172,7 @@
         },
         "notifications_link_path_check": {
           "name": "notifications_link_path_check",
-          "value": "\"notifications\".\"link_path\" ~ '^/' and \"notifications\".\"link_path\" !~ '^//'"
+          "value": "\"notifications\".\"link_path\" ~ '^/' and \"notifications\".\"link_path\" !~ '^/[/\\\\]'"
         }
       },
       "isRLSEnabled": false
@@ -2502,15 +2515,17 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "bundles_quote_id_quotes_id_fk": {
-          "name": "bundles_quote_id_quotes_id_fk",
+        "bundles_quote_fk": {
+          "name": "bundles_quote_fk",
           "tableFrom": "bundles",
           "tableTo": "quotes",
           "columnsFrom": [
-            "quote_id"
+            "quote_id",
+            "customer_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "customer_id"
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
@@ -2522,6 +2537,14 @@
           "name": "bundles_quote_id_unique",
           "nullsNotDistinct": false,
           "columns": [
+            "quote_id"
+          ]
+        },
+        "bundles_id_quote_id_unique": {
+          "name": "bundles_id_quote_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
             "quote_id"
           ]
         }
@@ -2759,6 +2782,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "quote_id": {
+          "name": "quote_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "quote_item_id": {
           "name": "quote_item_id",
           "type": "uuid",
@@ -2884,6 +2913,21 @@
           "method": "btree",
           "with": {}
         },
+        "policies_quote_id_index": {
+          "name": "policies_quote_id_index",
+          "columns": [
+            {
+              "expression": "quote_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "policies_bundle_id_index": {
           "name": "policies_bundle_id_index",
           "columns": [
@@ -2959,28 +3003,17 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "policies_bundle_id_bundles_id_fk": {
-          "name": "policies_bundle_id_bundles_id_fk",
+        "policies_quote_fk": {
+          "name": "policies_quote_fk",
           "tableFrom": "policies",
-          "tableTo": "bundles",
+          "tableTo": "quotes",
           "columnsFrom": [
-            "bundle_id"
+            "quote_id",
+            "customer_id"
           ],
           "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "policies_renewal_of_policy_id_policies_id_fk": {
-          "name": "policies_renewal_of_policy_id_policies_id_fk",
-          "tableFrom": "policies",
-          "tableTo": "policies",
-          "columnsFrom": [
-            "renewal_of_policy_id"
-          ],
-          "columnsTo": [
-            "id"
+            "id",
+            "customer_id"
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
@@ -2991,11 +3024,43 @@
           "tableTo": "quote_items",
           "columnsFrom": [
             "quote_item_id",
+            "quote_id",
             "product"
           ],
           "columnsTo": [
             "id",
+            "quote_id",
             "product"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "policies_bundle_fk": {
+          "name": "policies_bundle_fk",
+          "tableFrom": "policies",
+          "tableTo": "bundles",
+          "columnsFrom": [
+            "bundle_id",
+            "quote_id"
+          ],
+          "columnsTo": [
+            "id",
+            "quote_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "policies_renewal_fk": {
+          "name": "policies_renewal_fk",
+          "tableFrom": "policies",
+          "tableTo": "policies",
+          "columnsFrom": [
+            "renewal_of_policy_id",
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id",
+            "customer_id"
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
@@ -3058,6 +3123,14 @@
         "policies_version_check": {
           "name": "policies_version_check",
           "value": "\"policies\".\"version\" >= 1"
+        },
+        "policies_cancelled_at_check": {
+          "name": "policies_cancelled_at_check",
+          "value": "(\"policies\".\"status\" = 'cancelled') = (\"policies\".\"cancelled_at\" is not null)"
+        },
+        "policies_renewal_check": {
+          "name": "policies_renewal_check",
+          "value": "\"policies\".\"renewal_of_policy_id\" <> \"policies\".\"id\""
         }
       },
       "isRLSEnabled": false
@@ -4093,6 +4166,21 @@
           "method": "btree",
           "with": {}
         },
+        "quote_items_selected_option_id_index": {
+          "name": "quote_items_selected_option_id_index",
+          "columns": [
+            {
+              "expression": "selected_option_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "quote_items_outcome_index": {
           "name": "quote_items_outcome_index",
           "columns": [
@@ -4138,15 +4226,17 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "quote_items_rating_version_id_rating_versions_id_fk": {
-          "name": "quote_items_rating_version_id_rating_versions_id_fk",
+        "quote_items_rating_version_fk": {
+          "name": "quote_items_rating_version_fk",
           "tableFrom": "quote_items",
           "tableTo": "rating_versions",
           "columnsFrom": [
-            "rating_version_id"
+            "rating_version_id",
+            "product"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "product"
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
@@ -4182,6 +4272,15 @@
           "nullsNotDistinct": false,
           "columns": [
             "id",
+            "product"
+          ]
+        },
+        "quote_items_id_quote_id_product_unique": {
+          "name": "quote_items_id_quote_id_product_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "quote_id",
             "product"
           ]
         }
@@ -4440,6 +4539,10 @@
           "name": "quotes_amounts_check",
           "value": "\"quotes\".\"subtotal_pence\" >= 0 and \"quotes\".\"bundle_discount_pence\" >= 0 and \"quotes\".\"fees_pence\" >= 0 and \"quotes\".\"ipt_pence\" >= 0 and \"quotes\".\"total_pence\" >= 0"
         },
+        "quotes_accepted_check": {
+          "name": "quotes_accepted_check",
+          "value": "\"quotes\".\"status\" <> 'accepted' or (\"quotes\".\"payment_plan\" is not null and \"quotes\".\"details_confirmed_at\" is not null and \"quotes\".\"cover_acknowledged_at\" is not null)"
+        },
         "quotes_bundle_discount_check": {
           "name": "quotes_bundle_discount_check",
           "value": "\"quotes\".\"bundle_discount_pence\" <= \"quotes\".\"subtotal_pence\""
@@ -4624,6 +4727,10 @@
         "reviews_status_check": {
           "name": "reviews_status_check",
           "value": "\"reviews\".\"status\" in ('pending', 'published', 'rejected')"
+        },
+        "reviews_published_at_check": {
+          "name": "reviews_published_at_check",
+          "value": "(\"reviews\".\"status\" = 'published') = (\"reviews\".\"published_at\" is not null)"
         }
       },
       "isRLSEnabled": false
@@ -4864,6 +4971,14 @@
             "product",
             "version"
           ]
+        },
+        "rating_versions_id_product_unique": {
+          "name": "rating_versions_id_product_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "product"
+          ]
         }
       },
       "policies": {},
@@ -5041,7 +5156,7 @@
         },
         "underwriting_decisions_loading_percent_check": {
           "name": "underwriting_decisions_loading_percent_check",
-          "value": "\"underwriting_decisions\".\"loading_percent\" between 0 and 100"
+          "value": "\"underwriting_decisions\".\"loading_percent\" is null or (\"underwriting_decisions\".\"outcome\" = 'quoted' and \"underwriting_decisions\".\"loading_percent\" between 0 and 100)"
         }
       },
       "isRLSEnabled": false

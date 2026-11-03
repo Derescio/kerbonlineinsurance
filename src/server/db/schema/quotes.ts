@@ -55,6 +55,11 @@ export const quotes = pgTable(
       "quotes_amounts_check",
       sql`${t.subtotalPence} >= 0 and ${t.bundleDiscountPence} >= 0 and ${t.feesPence} >= 0 and ${t.iptPence} >= 0 and ${t.totalPence} >= 0`,
     ),
+    // Accepting means a payment plan is chosen and both boxes are ticked
+    check(
+      "quotes_accepted_check",
+      sql`${t.status} <> 'accepted' or (${t.paymentPlan} is not null and ${t.detailsConfirmedAt} is not null and ${t.coverAcknowledgedAt} is not null)`,
+    ),
     check("quotes_bundle_discount_check", sql`${t.bundleDiscountPence} <= ${t.subtotalPence}`),
     check(
       "quotes_total_check",
@@ -79,9 +84,7 @@ export const quoteItems = pgTable(
       .notNull()
       .references(() => quotes.id, { onDelete: "cascade" }),
     product: text().notNull(),
-    ratingVersionId: uuid()
-      .notNull()
-      .references(() => ratingVersions.id, { onDelete: "restrict" }),
+    ratingVersionId: uuid().notNull(),
     outcome: text().notNull(),
     reasonCode: text(),
     selectedOptionId: uuid(),
@@ -98,6 +101,12 @@ export const quoteItems = pgTable(
       sql`${t.outcome} = 'quoted' or ${t.reasonCode} is not null`,
     ),
     check("quote_items_voluntary_excess_check", sql`${t.voluntaryExcessPence} >= 0`),
+    // Rated by a version of the same product
+    foreignKey({
+      name: "quote_items_rating_version_fk",
+      columns: [t.ratingVersionId, t.product],
+      foreignColumns: [ratingVersions.id, ratingVersions.product],
+    }).onDelete("restrict"),
     // The selected tier must be one of this item's own options
     foreignKey({
       name: "quote_items_selected_option_fk",
@@ -107,7 +116,10 @@ export const quoteItems = pgTable(
     unique("quote_items_quote_id_product_unique").on(t.quoteId, t.product),
     // Target of the product detail tables' composite keys (decision 6)
     unique().on(t.id, t.product),
+    // Target of policies' composite key: the item, its quote and its product
+    unique("quote_items_id_quote_id_product_unique").on(t.id, t.quoteId, t.product),
     index().on(t.ratingVersionId),
+    index().on(t.selectedOptionId),
     index().on(t.outcome),
     index().on(t.updatedAt),
   ],

@@ -228,15 +228,23 @@ export async function makeQuote({
   return { quote: priced!, items };
 }
 
-/** A live policy bought from a car quote's item (a new quote unless `quoteItemId` is given). */
+/**
+ * A live policy bought from a quote's item: a new car quote unless `quoteItemId` is given (its
+ * quote is looked up when `quoteId` isn't).
+ */
 export async function makePolicy(overrides: Insert<typeof policies> = {}) {
-  let { customerId, quoteItemId } = overrides;
+  let { customerId, quoteId, quoteItemId } = overrides;
   let product = (overrides.product ?? "car") as Product;
   if (!quoteItemId) {
     const { quote, items } = await makeQuote({ products: [product], customerId });
     customerId = quote.customerId;
+    quoteId = quote.id;
     quoteItemId = items[0]!.item.id;
     product = items[0]!.item.product as Product;
+  } else if (!quoteId) {
+    const [item] = await getDb().select().from(quoteItems).where(eq(quoteItems.id, quoteItemId));
+    quoteId = item!.quoteId;
+    product = item!.product as Product;
   }
   const [policy] = await getDb()
     .insert(policies)
@@ -250,6 +258,7 @@ export async function makePolicy(overrides: Insert<typeof policies> = {}) {
       termsAcceptedAt: new Date(),
       ...overrides,
       customerId: customerId!,
+      quoteId,
       quoteItemId,
       product,
     })

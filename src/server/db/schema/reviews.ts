@@ -33,6 +33,10 @@ export const reviews = pgTable(
   (t) => [
     check("reviews_rating_check", sql`${t.rating} between 1 and 5`),
     check("reviews_status_check", oneOf(t.status, reviewStatuses)),
+    check(
+      "reviews_published_at_check",
+      sql`(${t.status} = 'published') = (${t.publishedAt} is not null)`,
+    ),
     foreignKey({
       name: "reviews_policy_fk",
       columns: [t.policyId, t.customerId],
