@@ -1,6 +1,6 @@
 # 4.2 Schema + first migration
 
-**Status:** in-progress (approved 3 Nov 2026; external review addressed 3 Nov 2026)
+**Status:** done (#47, 3 Nov 2026; approved and external review addressed 3 Nov 2026)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -200,7 +200,7 @@ Each arrives with the slice that writes to it.
 - [x] `0002_append_only.sql` (custom)
 - [x] Factories, then the constraint tests (written first, red until the migration exists)
 - [x] `vp check` and `vp test` green locally
-- [ ] `vp run db:migrate` on `dev`; tables visible in the Neon console
+- [x] `vp run db:migrate` on `dev`; tables visible in the Neon console
 - [x] Docs
 
 ## Notes from the build
@@ -251,11 +251,11 @@ Each refusal test checks the Postgres error code (`23514` check, `23505` unique,
 
 ## Done when
 
-- [ ] `vp check` and `vp test` pass locally (Docker running), including every refusal above.
-- [ ] `ci` green on the PR, drift check included.
-- [ ] `dev` has the tables and 3 migration rows; after merge, the staging build log shows the migrate step applying `0001` and `0002`.
-- [ ] Landing still loads on the preview and staging (nothing reads the new tables).
-- [ ] `.env.example` unchanged, or empty values only.
+- [x] `vp check` and `vp test` pass locally (Docker running), including every refusal above.
+- [x] `ci` green on the PR, drift check included.
+- [x] `dev` has the tables and 3 migration rows; after merge, the staging build log shows the migrate step applying `0001` and `0002`.
+- [x] Landing still loads on the preview and staging (nothing reads the new tables).
+- [x] `.env.example` unchanged, or empty values only.
 
 ## Commit message
 
