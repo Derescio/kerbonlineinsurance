@@ -50,8 +50,11 @@ File: [Kerb Online Insurance](https://www.figma.com/design/ajpEaPwbWtwbsSmRheyDA
 
 | Frame | Node | Screens | Phase |
 |---|---|---|---|
-| Local components · Account | `177:2851` | Auth divider, social buttons, brand panel; `Acct / Header`; `Plate` (S/M/L); `Ops / Sidebar`; 16 extra icons (below) | 4.3, 6.x |
-| Account · Web (auth) | `178:2864` | Log in, password error, create account, reset password, reset link sent | 4.3 |
+| Local components · Account | `177:2851` | Auth divider, Google button, brand panel, password hint, code input, Turnstile, backup codes, demo strip; `Acct / Header`; `Plate` (S/M/L); `Ops / Sidebar`; 18 extra icons (below) | 4.3, 6.x |
+| Account · Web (auth) | `178:2864` | 01 log in, 02 password error, 02b too many tries, 03 create account, 03b breached password, 04 reset password, 05 reset link sent | 4.3 |
+| Account · Web (recovery and verify) | `205:4404` | 06 set a new password, 06b reset link expired, 07 verify banner, 07b banner resent, 07c email confirmed, 07d confirm link expired, 08 Google sign-in failed | 4.3 |
+| Account · Web (two-factor) | `205:4701` | 09 code, 09b wrong code, 10 backup code, 11a–11c setup (password, scan, backup codes), 12 staff 2FA required, 13 staff "confirm it's you" dialog | 4.3 |
+| Account · Mobile (auth) | `207:5249` | Every screen above at 390 px except 13 | 4.3 |
 | Account · Settings | `182:3249` | Personal details (view, editing), notifications, payment methods, communication preferences | 6.3 |
 | Account · Policy | `183:3502` | Policy overview, plus the six "Make a change" dialogs | 6.x |
 | Ops · Admin | `184:3886` | Overview, customers, policies, payments, customer panel, refund dialog | 6.8 |
@@ -90,7 +93,6 @@ All 20 local components (`../components/**`) have a matching Figma component set
 
 ## Not in Figma yet (design before building)
 
-- 2FA screens and the Google sign-in flow beyond the social button (4.3)
 - Review UI (6.7)
 - Staff claims console (6.10)
 - Kerbie confirm cards (7.1); the panel and mark are designed
