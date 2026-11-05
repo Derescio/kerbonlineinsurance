@@ -1,6 +1,6 @@
 # 4.4b Hard email verification
 
-**Status:** in-progress (approved 4 Nov 2026)
+**Status:** done (approved 4 Nov 2026; checked on staging 5 Nov 2026)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -62,8 +62,8 @@ People who sign up with email and password must confirm their email before they 
 - [x] Docs
 - [x] `vp check`, `vp test`, `vp build`
 - [ ] `vp run db:migrate` on Neon `dev` (Damion), so previews accept the new event type
-- [ ] A browser run on the preview and on staging
-- [ ] Figma frames updated (02c, 03c, 07d) for your review
+- [x] A browser run on the preview and on staging
+- [x] Figma frames updated (02c `212:6156`, 03c `212:6295`, 07d `205:4538`) for your review
 
 ## Tests
 
@@ -79,10 +79,10 @@ People who sign up with email and password must confirm their email before they 
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass; `ci` green on the PR, including e2e and axe.
-- [ ] On staging, an unconfirmed account can't log in, and a confirmed one can.
-- [ ] The verification email says 6 hours, and an older link shows 07d.
-- [ ] Figma updated to match.
+- [x] `vp check`, `vp test` and `vp build` pass; `ci` green on the PR, including e2e and axe.
+- [x] On staging, an unconfirmed account can't log in, and a confirmed one can.
+- [x] The verification email says 6 hours, and an older link shows 07d.
+- [x] Figma updated to match.
 
 ## Commit message
 
@@ -100,4 +100,8 @@ What was built:
 - Server: `auth.ts` (`requireEmailVerification`, `autoSignIn: false`, `onExistingUserSignUp`, 6-hour `expiresIn`, `sign_in_unverified` in the after hook); `existingAccountEmail` in `templates.ts`; `sign_in_unverified` in `schema/security.ts`; `drizzle/0005_sign_in_unverified.sql`.
 - Screens: `ResendVerification.tsx` (`ResendVerificationAlert` for 03c and 02c, `SendNewLinkForm` for 07d); `SignUpForm` (03c, "Wrong email? Start again"); `LoginForm` (02c); `email-confirmed.tsx` (07d); `AccountPage` without the banner.
 - Tests: 456 passing (`vp test`). Integration: sign-up gives no session; a duplicate sign-up answers like a new one, creates no user and emails the owner; log-in before confirming returns 403 `EMAIL_NOT_VERIFIED`, writes `sign_in_unverified` and sends nothing; a wrong password on an unconfirmed account is still `sign_in_failed`; the link signs you in; the link works at 5 h 59 min and is refused at 6 h 1 min; a resend without a session answers the same for any address. The 4.4 tests now confirm before logging in. Component: 03c, "Start again", 02c with Resend and its countdown, and 07d (empty email, same reply, 429). E2E: sign-up → 03c → log in → 02c → `/account` still guarded; 07d; axe on 03c, 02c and 07d.
+
+After the PR (5 Nov 2026):
+- Merged as #52. Staging built it and applied `0005`; Damion's checks on staging passed (sign-up → 03c, 02c and Resend, the 6-hour email, confirm → log in, duplicate sign-up, 07d, Google).
+- Figma, web only: 02c `212:6156` (a copy of 02b with the info `Alert` and Resend) and 03c `212:6295` (a copy of 05 with the sign-up heading, the info `Alert` and a ghost "Wrong email? Start again") in `Account · Web (auth)` `178:2864`; 07d `205:4538` updated in place (6 hours, email field, ghost "Back to log in"). 07 and 07b are kept at half opacity, labelled "retired in 4.4b". The mobile frames (`207:5249`) aren't updated yet.
 
