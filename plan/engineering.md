@@ -94,7 +94,7 @@ Four layers. Each one has an owner slice and runs in CI. Each phase's `phase.md`
 |---|---|---|---|---|
 | **Unit** | `*.test.ts` | Pure logic with no I/O: `priceQuote()`, the claim status rulebook, Zod schemas, helpers like `cache.ts` | `vp test` locally and in `ci.yml` | 1.2 |
 | **Component** | `*.browser.test.tsx` | Rendered React components in real Chromium (Vitest browser mode, Playwright provider): states, props, keyboard and focus, form validation messages | `vp test` locally and in `ci.yml` | 2.2 |
-| **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
+| **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7; nine actors, guest included), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
 | **E2E** | `e2e/*.spec.ts` | The deployed app in a browser: smoke test, then the quote and claim journeys | `e2e.yml` on every preview | 3.4 |
 
 - **Three Vitest projects** in `vite.config.ts` (`test.projects`): `unit` (node), `component` (browser mode, Chromium) and `integration` (node + Postgres). `component` is added in 2.2 and `integration` in 4.1. Each project sets `extends: false`, and the app plugins (TanStack Start, Nitro) are skipped under `VITEST`, because they break the test runner (2.2 results). The `component` project lists its React deps in `optimizeDeps.include` so there's one copy of React.
@@ -254,11 +254,11 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
    - Staff functions are separate (`staff*`) and need an active `staff_members` row holding the right permission.
    - Someone else's record is `NOT_FOUND`, the same answer as an id that doesn't exist, so ids can't be probed. Staff functions answer `FORBIDDEN` to anyone without the permission.
-   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb`, the schema and `ROLE_PERMISSIONS` can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/db/`, `scripts/` and tests.
+   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb` and the schema (except `schema/values`) can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/db/`, `scripts/` and tests, and `ROLE_PERMISSIONS` only inside `src/server/auth/permissions.ts`.
 3. **Route guards** (`beforeLoad`): redirects for UX only. The server is the security boundary.
 4. **Audit log:** `audit_log` records:
    - staff actions: claim status, referral decisions, roles, review decisions
-   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions so no page can skip it
+   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions so no page can skip it (4.5b; the 4.5 functions do not write them yet)
    - sensitive customer actions: password, 2FA, "sign out everywhere", address and driver changes, account deletion
 
    **How it's kept honest:**

@@ -108,7 +108,7 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 
 ### Permission suite (`src/server/data/permissions.int.test.ts`)
 
-- **Actors:** guest, customer A, customer B, claims handler, admin, deactivated handler, an admin who is also a customer, and a staff member with **no roles**. Each actor is built with the 4.2 factories (`makeUser`, `makeCustomer`, `makeStaff`, `makePolicy`, `makeClaim`, plus a referred quote item).
+- **Actors (nine, guest included):** guest, customer A, customer B, claims handler, admin, deactivated handler, an admin who is also a customer, a staff member with **no roles**, and a claims handler with no customer row. Each actor is built with the 4.2 factories (`makeUser`, `makeCustomer`, `makeStaff`, `makePolicy`, `makeClaim`, plus a referred quote item).
 - **The expected result of each cell comes from the map**, not from a hand-written list. A staff function's expected result for an actor is "allowed" exactly when one of the actor's roles grants the function's permission. The suite stays right when a role is added, and a role added to the map without thought shows up as new passing cells in review.
 - **Cross-user rows:** B asks for A's policy and claim by id and gets `NOT_FOUND`. `listMyPolicies` and `listMyClaims` for B never contain A's rows.
 - **Staff rows:** a handler sees A's claim; a deactivated handler and a staff member with no roles are `FORBIDDEN`; an admin who holds a policy is refused their own claim and their own referral and doesn't see them in the queues; a customer calling a `staff*` function is `FORBIDDEN`.
@@ -151,7 +151,7 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 |---|---|---|
 | Unit | The map snapshot; every permission granted somewhere; `requireUser`, `requirePermission` (union of roles, deactivated refused, no roles refused), `assertNoConflict`, the error mapper (no stack trace, friendly message) | yes |
 | Integration | `0006`: an existing `staff_members.role` is copied into `staff_roles`; a bad role and a duplicate `(user_id, role)` are refused | yes |
-| Integration | The permission suite above: every function × eight actors, expected results from the map, cross-user ids, several roles, and the completeness check | yes |
+| Integration | The permission suite above: every function × nine actors (guest included), expected results from the map, cross-user ids, several roles, and the completeness check | yes |
 | Integration | `auth:make-admin`: makes an admin with the next staff code and an `admin` row in `staff_roles`; refuses an unknown email, an unverified email and an existing staff member | yes |
 | Lint | `getDb` or `ROLE_PERMISSIONS` imported from a page or feature file fails `vp check` | yes |
 | Integration | `getStaffAccess()` answers `guest`, `customer` (including a deactivated member and one with no roles) and `staff` | yes |
@@ -189,6 +189,8 @@ Changes from the spec:
 - **`auth:make-admin` uses raw `pg`** in `scripts/make-admin-core.ts`, so it runs under node. Run it with `vp run auth:make-admin <email> --name "<name>"` (vite-plus's managed Node; plain Node 22.12 can't strip types). A malformed `DATABASE_URL` prints only "DATABASE_URL is not a valid URL." (`scripts/database-host.ts`).
 - **`/account` kept its session check** and the `/staff` placeholder page was added, both as the spec said.
 - **The permission suite asserts owner-only access for customer reads:** any signed-in actor other than the owner gets `NOT_FOUND`.
+- **Staff shapes carry user ids:** `actorUserId` (claim events) and `decidedBy` (referral decisions) are user ids, as the plan's interfaces specified. 6.10 and 6.11 may map them to `staff_code` for display.
+- **Final-review fixes:** the completeness check scans every module in `src/server/data/`, not just `index.ts`; `userMiddleware` and `permissionMiddleware` log and replace any non-redirect error with a fixed sentence (`publicErrorFor`); `db/schema/values` may be imported anywhere (it has no database access); the `ROLE_PERMISSIONS` ban now applies in `src/server/auth/` except `permissions.ts` and its test.
 
 What was built:
 - Server: `src/server/auth/{permissions,actor,middleware,errors,handler}.ts` (the map, `Actor`, `requireUser`, `requirePermission`, `assertNoConflict`, `AuthzError` and its mapper, `userMiddleware` and `permissionMiddleware`); `src/server/data/{define,policies,claims,referrals,index}.ts` (the eight reads, each declaring its permission as data).
@@ -196,7 +198,7 @@ What was built:
 - Scripts: `scripts/make-admin.ts`, `make-admin-core.ts`, `database-host.ts`; `auth:make-admin` in `package.json`.
 - Routes: `/account` keeps its guard; `_staff` layout with `getStaffAccess()` (`src/features/staff/access.ts`) and the `/staff` placeholder.
 - Lint: `no-restricted-imports` rules in `vite.config.ts` with an override for the allowed folders.
-- Tests: 614 passing (`vp test`): 227 unit, 238 integration, 149 component. Unit: the map snapshot, every permission granted somewhere, `requireUser`, `requirePermission` (union of roles, deactivated and no roles refused), `assertNoConflict`, the error mapper. Integration: `0006`–`0008` copy an existing role and refuse a bad role and a duplicate; the permission suite (every function × eight actors, expectations from the map, cross-user ids, several roles, internal notes, completeness); `auth:make-admin` (next staff code, unknown and unverified email, existing staff); `getStaffAccess()`. E2E: signed out → `/staff` redirects to `/login`.
+- Tests: 614 passing (`vp test`): 227 unit, 238 integration, 149 component. Unit: the map snapshot, every permission granted somewhere, `requireUser`, `requirePermission` (union of roles, deactivated and no roles refused), `assertNoConflict`, the error mapper. Integration: `0006`–`0008` copy an existing role and refuse a bad role and a duplicate; the permission suite (every function × nine actors, guest included, expectations from the map, cross-user ids, several roles, internal notes, completeness); `auth:make-admin` (next staff code, unknown and unverified email, existing staff); `getStaffAccess()`. E2E: signed out → `/staff` redirects to `/login`.
 
 Still to do:
 - Damion runs `vp run db:migrate` on Neon `dev`, then `vp run auth:make-admin <email> --name "<name>"` against `dev`, and we check the `staff_members` and `staff_roles` rows in the console. Staging and production apply `0006`–`0008` in the build.
