@@ -1,6 +1,6 @@
 # 4.5b Audit integrity and database security
 
-**Status:** approved 5 Nov 2026, not started
+**Status:** done (built 5 Nov 2026, not yet merged)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -134,14 +134,14 @@ It never prints the URL or the keys. You run it once against `dev` and once agai
 ## Steps
 
 - [x] You approve this spec (5 Nov 2026)
-- [ ] `chain.ts` with unit tests (canonical form, hash, key parsing, tamper cases)
-- [ ] `0009`, `0010`, `getAuditEnv()`; the integration suite switched to `kerb_app`, with an owner connection for setup and tampering
-- [ ] `audit()` and `verifyAuditChain()`, integration tests first
-- [ ] The privilege tests, and the drift check against the expected grants
-- [ ] `claim.viewed`, `referral.viewed`, `staff.added`
-- [ ] `db:check-app-role`
-- [ ] Docs: engineering.md §3 (two roles), §7 (the chain, keys, rotation, the limitation), §9; `phase.md` (4.5b and a new 4.5c row); `build-plan.md`; `.env.example`
-- [ ] `vp check`, `vp test`, `vp build`
+- [x] `chain.ts` with unit tests (canonical form, hash, key parsing, tamper cases)
+- [x] `0009`, `0010`, `getAuditEnv()`; the integration suite switched to `kerb_app`, with an owner connection for setup and tampering
+- [x] `audit()` and `verifyAuditChain()`, integration tests first
+- [x] The privilege tests, and the drift check against the expected grants
+- [x] `claim.viewed`, `referral.viewed`, `staff.added`
+- [x] `db:check-app-role`
+- [x] Docs: engineering.md §3 (two roles), §7 (the chain, keys, rotation, the limitation), §9; `phase.md` (4.5b and a new 4.5c row); `build-plan.md`; `.env.example`
+- [x] `vp check`, `vp test`, `vp build`
 - [ ] Your setup on `dev` (steps 1–4), then a run on staging
 
 ## Tests
@@ -173,3 +173,30 @@ It never prints the URL or the keys. You run it once against `dev` and once agai
 
 - engineering.md §2 (environments to Neon branches), §3 (migrations, two connection strings), §7 (audit log), §9 (logs); 02-schema.md decision 15 and the 4.2 review (M2, M6); 05-authorization.md (decision 2, the staff reads).
 - `src/server/db/schema/audit.ts`, `drizzle/0002_append_only.sql`, `src/server/data/{claims,referrals}.ts`, `scripts/make-admin-core.ts`, `src/test/{db,integration.setup}.ts`, `src/server/env.ts`.
+
+## Results (5 Nov 2026, before the PR)
+
+Changes from the spec:
+- **`changes` also allows arrays and plain objects** of the allowed scalars, with keys sorted at every depth. `staff.added` needs `{ roles: ["admin"] }`. Strings containing ` ` or lone surrogates are refused, in the text fields and in object keys, because they wouldn't round-trip through `jsonb`.
+- **`verifyAuditChain` takes a `Queryable`** (a raw `query()` interface), not the Drizzle db, so the plain-Node check script can call it. App code passes `getDb().$client`. It returns `ok`, `rows`, `lastId` and `lastHash`, or `rowId` and `reason`.
+- **`db:check-app-role` checks `UPDATE`, `DELETE` and `TRUNCATE` with privilege functions** (`has_table_privilege`) instead of running them, so a misconfigured branch can't lose data to the check. Its results also carry an optional `detail` field, which holds the verify row id and reason. It runs six checks.
+- **`0010` guards its `drizzle` schema revoke**, because the 4.5 `0007` replay test applies the SQL files into a bare database, where that schema doesn't exist.
+- **`src/server/audit/**` joins the lint rule's allowed database-access folders** (`vite.config.ts`). The value check (`assertChainable`) runs after the lock is taken, still inside the caller's transaction, so a bad value writes nothing.
+- **Neon's docs confirmed call 7.** Console, API and CLI roles join `neon_superuser`, which has `pg_read_all_data` and `pg_write_all_data`; roles created in SQL don't. Neon also requires a SQL-set password to have at least 60 bits of entropy (`openssl rand -base64 24` is enough). The docs don't say whether a SQL-created role works through `-pooler`, and setup step 4 proves it on `dev`.
+- **`getAuditEnv()` re-parses whenever the raw env strings change** and fails closed.
+- **The migrations-count test moved to the owner connection**, and an owner test proves the trigger refuses even the owner.
+
+What was built:
+- Server: `src/server/audit/{chain,audit,verify}.ts`. `chain.ts` is pure (only `node:crypto`): the canonical payload, `computeHash`, `assertChainable`, `parseKeys` and `nextCreatedAt`, with `AUDIT_FORMAT = 1` and `AUDIT_LOCK_KEY = 1801810530`. `audit(tx, entry, keys = getAuditEnv())` and `actorRoleOf` are in `audit.ts`; `verifyAuditChain(db, keys, { batchSize })` and the limitation comment are in `verify.ts`.
+- Schema: `drizzle/0009_audit_key_version.sql` (`key_version` with its check and index) and `0010_app_role.sql` (`kerb_app` and its grants, default privileges).
+- Config: `getAuditEnv()` in `src/server/env.ts`; the Audit block in `.env.example`.
+- Callers: `staffGetClaim` and `staffGetReferral` run in a transaction and write `claim.viewed`, or `referral.viewed` with entity type `quote_item`, after their checks. `scripts/make-admin-core.ts` writes `staff.added` under the same lock using `chain.ts`; `make-admin.ts` parses the keys before connecting.
+- Scripts: `vp run db:check-app-role` (`scripts/check-app-role{,-core}.ts`).
+- Test infrastructure: the integration suite runs as `kerb_app`. `getOwnerDb()`, `tamper()` and the owner `truncateAll()` are in `src/test/db.ts`; the password is set in `integration.setup.ts`, and the URL and keys in the `vite.config.ts` integration env.
+- Docs: engineering.md §3, §7 and §9, `phase.md` (4.5b rewritten, 4.5c added), `build-plan.md`.
+- Tests: 708 passing (`vp test`): 279 unit, 280 integration, 149 component. Unit: the canonical payload, the HMAC for every field, key parsing (pasted-badly cases), `nextCreatedAt`, value refusals. Integration: `app-role.int.test.ts` (privilege refusals and the drift check against `EXPECTED_GRANTS`); `audit.int.test.ts` (rollback, chaining, clock skew, 20 concurrent writers, `jsonb` round trip, fail-closed, verification: `hash_mismatch`, `broken_link`, `unknown_key_version`, `bad_genesis`, a batch boundary; rotation); the staff views and `staff.added`; the 4.5 permission suite, now as `kerb_app`.
+
+Still to do:
+- Damion's setup on `dev` (steps 1–4 of "What you set up"): generate the key set, set it in Vercel for Staging, Preview and Development, run `ALTER ROLE kerb_app WITH LOGIN PASSWORD '…'` in Neon's SQL editor, build the pooled `DATABASE_URL` for `kerb_app`, then run `vp run db:check-app-role` against `dev`.
+- The staging check: opening a claim as staff writes a `claim.viewed` row, and the chain verifies.
+- Production's steps (5) come at the Phase 4 release.
