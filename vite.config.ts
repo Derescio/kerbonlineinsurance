@@ -50,11 +50,12 @@ const config = defineConfig({
                 "#/server/db/schema/*",
                 "**/db/client",
                 "**/db/schema*",
+                "**/db/schema/**",
               ],
               message: "Query through a function in src/server/data/ (4.5)",
             },
             {
-              group: ["#/server/auth/permissions"],
+              group: ["#/server/auth/permissions", "**/auth/permissions"],
               importNames: ["ROLE_PERMISSIONS"],
               message: "Check a permission with requirePermission, never a role",
             },
