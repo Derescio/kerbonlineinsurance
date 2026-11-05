@@ -23,7 +23,11 @@ import { Turnstile } from "./Turnstile";
 
 // Forgotten password (Figma 04, 05) and set a new password (06, 06b).
 
-function BackToLogIn({ variant = "secondary" }: { variant?: "secondary" | "primary" }) {
+export function BackToLogIn({
+  variant = "secondary",
+}: {
+  variant?: "secondary" | "primary" | "ghost";
+}) {
   return (
     <Link to="/login" className={`kb-btn kb-btn--${variant} kb-btn--lg kb-btn--full`}>
       <span>Back to log in</span>
@@ -125,8 +129,8 @@ export function ForgotPasswordForm() {
   );
 }
 
-/** 06b and 07d: a link that's expired or already used */
-export function LinkExpired({ again }: { again: "/forgot-password" | "/account" }) {
+/** 06b: a reset link that's expired or already used (07d has its own form, SendNewLinkForm) */
+export function LinkExpired({ again }: { again: "/forgot-password" }) {
   return (
     <div className="auth__form">
       <Link to={again} className="kb-btn kb-btn--primary kb-btn--lg kb-btn--full">

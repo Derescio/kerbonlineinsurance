@@ -2,11 +2,11 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { AuthShell } from "#/features/auth/AuthShell";
-import { LinkExpired } from "#/features/auth/PasswordResetForms";
+import { LINK_HOURS, SendNewLinkForm } from "#/features/auth/ResendVerification";
 
 // Where the verification link lands (4.4). Success goes on to the account with the "Email
-// confirmed" toast (07c); a bad or expired link shows 07d. A new link is sent from the banner on
-// /account, which asks you to log in first if you aren't.
+// confirmed" toast (07c); a bad or expired link shows 07d. An unconfirmed account can't log in
+// (4.4b), so 07d asks for the email and sends a new link from here.
 const search = z.object({ error: z.string().optional().catch(undefined) });
 
 export const Route = createFileRoute("/_auth/email-confirmed")({
@@ -19,9 +19,9 @@ export const Route = createFileRoute("/_auth/email-confirmed")({
     <AuthShell
       topBar={{ text: "New to Kerb?", to: "/signup", label: "Create account" }}
       title="This link has expired"
-      subtitle="Confirmation links work for 24 hours. We can send you a fresh one."
+      subtitle={`Confirmation links work for ${LINK_HOURS} hours. Enter your email and we'll send a fresh one.`}
     >
-      <LinkExpired again="/account" />
+      <SendNewLinkForm />
     </AuthShell>
   ),
 });

@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
 import { accounts, securityEvents, sessions, twoFactors, users } from "#/server/db/schema";
@@ -75,10 +75,32 @@ async function signUp(auth: ReturnType<typeof makeAuth>, email = "maya.patel@exa
     email,
     password: PASSWORD,
     acceptTerms: true,
+    // As SignUpForm sends it
+    callbackURL: "/email-confirmed",
   });
   expect(response.status).toBe(200);
   const [user] = await getDb().select().from(users).where(eq(users.email, email));
-  return { user: user!, cookie: sessionCookie(response) };
+  return { user: user! };
+}
+
+/** Opens the latest verification link sent to an address; returns the redirect and the session */
+async function openVerificationLink(auth: ReturnType<typeof makeAuth>, email: string) {
+  const message = sent
+    .filter((mail) => mail.to === email && mail.subject === "Confirm your email for Kerb")
+    .at(-1);
+  const url = /(http\S+verify-email\?token=\S+)/.exec(message!.text)![1]!;
+  const response = await auth.handler(new Request(url, { headers: requestHeaders() }));
+  return { location: response.headers.get("location"), cookie: sessionCookie(response) };
+}
+
+/** Sign up and confirm (4.4b): the only way an email-and-password user gets a session */
+async function signUpAndConfirm(
+  auth: ReturnType<typeof makeAuth>,
+  email = "maya.patel@example.com",
+) {
+  const { user } = await signUp(auth, email);
+  const { cookie } = await openVerificationLink(auth, email);
+  return { user, cookie };
 }
 
 const events = () => getDb().select().from(securityEvents).orderBy(securityEvents.createdAt);
@@ -100,6 +122,39 @@ describe("Better Auth (4.4)", () => {
       expect(sent[0]!.to).toBe("maya.patel@example.com");
       expect(sent[0]!.subject).toBe("Confirm your email for Kerb");
       expect(sent[0]!.text).toContain(`${LOCAL_URL}/api/auth/verify-email?token=`);
+      expect(sent[0]!.text).toContain("The link works for 6 hours.");
+    });
+
+    it("doesn't sign the new user in (4.4b)", async () => {
+      const response = await post(makeAuth(), "/sign-up/email", {
+        name: "Maya Patel",
+        email: "maya.patel@example.com",
+        password: PASSWORD,
+        acceptTerms: true,
+      });
+      expect(response.status).toBe(200);
+      expect(((await response.json()) as { token: string | null }).token).toBeNull();
+      expect(await getDb().select().from(sessions)).toHaveLength(0);
+    });
+
+    it("answers a sign-up for an existing email like a new one, and tells the owner (4.4b)", async () => {
+      const auth = makeAuth();
+      const { user } = await signUp(auth);
+      sent = [];
+      const again = await post(auth, "/sign-up/email", {
+        name: "Someone Else",
+        email: "maya.patel@example.com",
+        password: "another long password",
+        acceptTerms: true,
+      });
+      expect(again.status).toBe(200);
+      const body = (await again.json()) as { token: string | null; user: { id: string } };
+      expect(body.token).toBeNull();
+      expect(body.user.id).not.toBe(user.id);
+      expect(await getDb().select().from(users)).toHaveLength(1);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.to).toBe("maya.patel@example.com");
+      expect(sent[0]!.subject).toBe("Someone tried to make a Kerb account with your email");
     });
 
     it("refuses a sign-up without the terms box", async () => {
@@ -146,7 +201,7 @@ describe("Better Auth (4.4)", () => {
   describe("sign in, 2FA and security events", () => {
     it("signs up, signs in and turns on 2FA against the generated tables", async () => {
       const auth = makeAuth();
-      const { user } = await signUp(auth);
+      const { user } = await signUpAndConfirm(auth);
       const signIn = await post(auth, "/sign-in/email", {
         email: "maya.patel@example.com",
         password: PASSWORD,
@@ -173,7 +228,7 @@ describe("Better Auth (4.4)", () => {
 
     it("writes one event each for sign-up, sign-in and a failed sign-in, with a hashed IP and no email", async () => {
       const auth = makeAuth();
-      const { user } = await signUp(auth);
+      const { user } = await signUpAndConfirm(auth);
       await post(auth, "/sign-in/email", { email: "maya.patel@example.com", password: PASSWORD });
       await post(auth, "/sign-in/email", {
         email: "maya.patel@example.com",
@@ -184,6 +239,7 @@ describe("Better Auth (4.4)", () => {
       const rows = await events();
       expect(rows.map(({ type, userId, method }) => [type, userId, method])).toEqual([
         ["sign_up", user.id, "password"],
+        ["email_verified", user.id, null],
         ["sign_in", user.id, "password"],
         ["sign_in_failed", user.id, "password"],
         ["sign_in_failed", null, "password"],
@@ -198,16 +254,95 @@ describe("Better Auth (4.4)", () => {
 
     it("records a sign-out", async () => {
       const auth = makeAuth();
-      const { user, cookie } = await signUp(auth);
+      const { user, cookie } = await signUpAndConfirm(auth);
       await post(auth, "/sign-out", {}, { cookie });
       expect((await events()).at(-1)).toMatchObject({ type: "sign_out", userId: user.id });
+    });
+  });
+
+  describe("email verification (4.4b)", () => {
+    it("refuses to log in before the email is confirmed, records it and sends nothing", async () => {
+      const auth = makeAuth();
+      const { user } = await signUp(auth);
+      sent = [];
+      const signIn = await post(auth, "/sign-in/email", {
+        email: "maya.patel@example.com",
+        password: PASSWORD,
+      });
+      expect(signIn.status).toBe(403);
+      expect(((await signIn.json()) as { code: string }).code).toBe("EMAIL_NOT_VERIFIED");
+      expect(await getDb().select().from(sessions)).toHaveLength(0);
+      // No sendOnSignIn: resends go through the 3-per-15-minutes endpoint instead
+      expect(sent).toHaveLength(0);
+      expect((await events()).at(-1)).toMatchObject({
+        type: "sign_in_unverified",
+        userId: user.id,
+        method: "password",
+      });
+    });
+
+    it("a wrong password on an unconfirmed account is still just a failed sign-in", async () => {
+      const auth = makeAuth();
+      await signUp(auth);
+      const signIn = await post(auth, "/sign-in/email", {
+        email: "maya.patel@example.com",
+        password: "wrong one!!",
+      });
+      expect(signIn.status).toBe(401);
+      expect((await events()).at(-1)).toMatchObject({ type: "sign_in_failed" });
+    });
+
+    it("the link signs the user in, and after that logging in works", async () => {
+      const auth = makeAuth();
+      await signUp(auth);
+      const { location, cookie } = await openVerificationLink(auth, "maya.patel@example.com");
+      expect(location).toBe("/email-confirmed");
+      expect(cookie).toContain("session_token");
+      const signIn = await post(auth, "/sign-in/email", {
+        email: "maya.patel@example.com",
+        password: PASSWORD,
+      });
+      expect(signIn.status).toBe(200);
+    });
+
+    describe("the link lasts 6 hours", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it.each([
+        [5 * 60 + 59, "/email-confirmed"],
+        [6 * 60 + 1, "/email-confirmed?error=TOKEN_EXPIRED"],
+      ])("opened after %i minutes", async (minutes, expected) => {
+        const auth = makeAuth();
+        await signUp(auth);
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(Date.now() + minutes * 60 * 1000);
+        const { location } = await openVerificationLink(auth, "maya.patel@example.com");
+        expect(location).toBe(expected);
+      });
+    });
+
+    it("a resend without a session gives the same answer for any address", async () => {
+      const auth = makeAuth();
+      await signUp(auth);
+      sent = [];
+      for (const email of ["maya.patel@example.com", "nobody@example.com"]) {
+        const response = await post(auth, "/send-verification-email", {
+          email,
+          callbackURL: "/email-confirmed",
+        });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ status: true });
+      }
+      expect(sent.map(({ to }) => to)).toEqual(["maya.patel@example.com"]);
     });
   });
 
   describe("password reset", () => {
     it("emails a one-hour link, resets, signs out every session and records both steps", async () => {
       const auth = makeAuth();
-      await signUp(auth);
+      await signUpAndConfirm(auth);
       await post(auth, "/sign-in/email", { email: "maya.patel@example.com", password: PASSWORD });
       expect(await getDb().select().from(sessions)).toHaveLength(2);
 

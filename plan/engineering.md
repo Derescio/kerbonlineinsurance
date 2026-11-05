@@ -191,7 +191,7 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 ### Authentication (Better Auth)
 
-- **Email + password:** minimum 10 characters, with the Have I Been Pwned check (known-breached passwords refused; only the first 5 characters of the SHA-1 hash are sent, and the check fails open if the service is down). Soft email verification: a banner, not a blocker. Emails come from `Kerb <hello@kerb.opsedsolutions.com>` (Resend, sent after the response).
+- **Email + password:** minimum 10 characters, with the Have I Been Pwned check (known-breached passwords refused; only the first 5 characters of the SHA-1 hash are sent, and the check fails open if the service is down). Email verification is required: you confirm your email before you can log in (4.4b, replacing 4.4's soft verification). The link lasts 6 hours, and a sign-up for a taken email gets the same answer as a new one, with an email to the owner instead. Emails come from `Kerb <hello@kerb.opsedsolutions.com>` (Resend, sent after the response).
 - **Google sign-in:** one OAuth client per environment (production and staging redirect URLs).
   - **Previews** use Better Auth's OAuth proxy plugin, routed through the staging URL. If that proves awkward, the Google button is hidden on previews.
   - **Account linking** (4.4, decision 2):

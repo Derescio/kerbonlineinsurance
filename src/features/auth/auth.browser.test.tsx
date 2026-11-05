@@ -5,6 +5,7 @@ import { renderWithRouter } from "#/test/router";
 
 import { ForgotPasswordForm } from "./PasswordResetForms";
 import { LoginForm } from "./LoginForm";
+import { SendNewLinkForm } from "./ResendVerification";
 import { SignUpForm } from "./SignUpForm";
 
 // The auth forms (4.4) against a mocked Better Auth client: validation, focus, the 4.3 error
@@ -14,6 +15,7 @@ const client = vi.hoisted(() => ({
   signIn: { email: vi.fn(), social: vi.fn() },
   signUp: { email: vi.fn() },
   requestPasswordReset: vi.fn(),
+  sendVerificationEmail: vi.fn(),
 }));
 
 vi.mock("./auth-client", async (importOriginal) => ({
@@ -39,6 +41,7 @@ beforeEach(() => {
   client.signIn.social.mockResolvedValue(ok);
   client.signUp.email.mockResolvedValue(ok);
   client.requestPasswordReset.mockResolvedValue(ok);
+  client.sendVerificationEmail.mockResolvedValue(ok);
 });
 
 describe("LoginForm", () => {
@@ -91,6 +94,23 @@ describe("LoginForm", () => {
     await expect.element(page.getByRole("button", { name: "Log in" })).toBeDisabled();
   });
 
+  it("asks an unconfirmed account to confirm first, and resends the link (02c, 4.4b)", async () => {
+    client.signIn.email.mockResolvedValue(fail(403, "EMAIL_NOT_VERIFIED"));
+    const { router } = await renderWithRouter(<LoginForm redirectTo="/account" />);
+    await userEvent.fill(page.getByLabelText("Email address"), "Maya.Patel@example.com");
+    await userEvent.fill(page.getByLabelText("Password"), "correct horse battery");
+    await userEvent.click(page.getByRole("button", { name: "Log in" }));
+    await expect.element(page.getByText("Confirm your email first")).toBeVisible();
+    expect(router.state.location.pathname).not.toBe("/account");
+    await userEvent.click(page.getByRole("button", { name: "Resend email" }));
+    expect(client.sendVerificationEmail).toHaveBeenCalledWith({
+      email: "maya.patel@example.com",
+      callbackURL: "/email-confirmed",
+    });
+    await expect.element(page.getByText("Sent.", { exact: false })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: /Resend in \d+s/ })).toBeDisabled();
+  });
+
   it("starts Google sign-in", async () => {
     await renderWithRouter(<LoginForm redirectTo="/account" />);
     await userEvent.click(page.getByRole("button", { name: "Continue with Google" }));
@@ -140,7 +160,7 @@ describe("SignUpForm", () => {
     expect(client.signUp.email).not.toHaveBeenCalled();
   });
 
-  it("sends the Turnstile token in a header, then goes to the account", async () => {
+  it("sends the Turnstile token in a header, then asks you to check your inbox (03c, 4.4b)", async () => {
     const { router } = await renderWithRouter(<SignUpForm />);
     await fillValid();
     await userEvent.click(page.getByText("I agree to the terms of use"));
@@ -155,7 +175,22 @@ describe("SignUpForm", () => {
       }),
       { headers: { "x-captcha-response": "test-token" } },
     );
-    await expect.poll(() => router.state.location.pathname).toBe("/account");
+    await expect.element(page.getByText("Check your inbox")).toBeVisible();
+    await expect
+      .element(page.getByText("We sent a link to maya.patel@example.com", { exact: false }))
+      .toBeVisible();
+    await expect.element(page.getByText("It works for 6 hours.", { exact: false })).toBeVisible();
+    expect(router.state.location.pathname).not.toBe("/account");
+  });
+
+  it("goes back to the form from 'Start again'", async () => {
+    await renderWithRouter(<SignUpForm />);
+    await fillValid();
+    await userEvent.click(page.getByText("I agree to the terms of use"));
+    await userEvent.click(page.getByRole("button", { name: "Pass robot check" }));
+    await userEvent.click(page.getByRole("button", { name: "Create account" }));
+    await userEvent.click(page.getByRole("button", { name: "Wrong email? Start again" }));
+    await expect.element(page.getByLabelText("Email address")).toBeVisible();
   });
 
   it("shows the breached-password message on the field (03b)", async () => {
@@ -186,5 +221,36 @@ describe("ForgotPasswordForm", () => {
     await expect
       .element(page.getByText("If there's an account for that email", { exact: false }))
       .toBeVisible();
+  });
+});
+
+describe("SendNewLinkForm (07d, 4.4b)", () => {
+  it("asks for an email first", async () => {
+    await renderWithRouter(<SendNewLinkForm />);
+    await userEvent.click(page.getByRole("button", { name: "Send a new link" }));
+    await expect.element(page.getByText("Enter your email address.")).toBeVisible();
+    expect(client.sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it("says the same thing whether or not the email has an unconfirmed account", async () => {
+    await renderWithRouter(<SendNewLinkForm />);
+    await userEvent.fill(page.getByLabelText("Email address"), "anyone@example.com");
+    await userEvent.click(page.getByRole("button", { name: "Send a new link" }));
+    expect(client.sendVerificationEmail).toHaveBeenCalledWith({
+      email: "anyone@example.com",
+      callbackURL: "/email-confirmed",
+    });
+    await expect.element(page.getByText("New link sent")).toBeVisible();
+    await expect
+      .element(page.getByText("If there's an unconfirmed account for that email", { exact: false }))
+      .toBeVisible();
+  });
+
+  it("says when you're going too fast", async () => {
+    client.sendVerificationEmail.mockResolvedValue(fail(429));
+    await renderWithRouter(<SendNewLinkForm />);
+    await userEvent.fill(page.getByLabelText("Email address"), "anyone@example.com");
+    await userEvent.click(page.getByRole("button", { name: "Send a new link" }));
+    await expect.element(page.getByText("You're going a bit fast", { exact: false })).toBeVisible();
   });
 });

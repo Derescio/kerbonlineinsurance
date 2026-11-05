@@ -36,6 +36,13 @@
       "when": 1793817050998,
       "tag": "0004_security_events_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793849997191,
+      "tag": "0005_sign_in_unverified",
+      "breakpoints": true
     }
   ]
 }
