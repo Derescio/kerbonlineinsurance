@@ -5,6 +5,7 @@ export const products = ["car", "home", "business"] as const;
 export type Product = (typeof products)[number];
 
 export const staffRoles = ["claims_handler", "admin"] as const;
+export type StaffRole = (typeof staffRoles)[number];
 
 export const quoteStatuses = [
   "draft",
