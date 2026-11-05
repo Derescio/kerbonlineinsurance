@@ -2,7 +2,7 @@ import { createMiddleware } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
 import { getActor, requirePermission, requireUser, type Actor } from "./actor";
-import { AuthzError, publicErrorFor } from "./errors";
+import { AuthzError, logSafeError, publicErrorFor } from "./errors";
 import type { Permission } from "./permissions";
 
 // Server-function middleware (4.5): resolves the Actor from the session cookie and refuses the
@@ -18,7 +18,7 @@ function fail(error: unknown): never {
   const out = publicErrorFor(error);
   if (out !== error) {
     if (error instanceof AuthzError) console.error(`[authz] ${error.code}`);
-    else console.error(`[server fn] ${error instanceof Error ? error.name : "non-error"}`, error);
+    else console.error("[server fn]", logSafeError(error));
   }
   throw out;
 }

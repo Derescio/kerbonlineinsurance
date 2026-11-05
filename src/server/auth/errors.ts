@@ -64,3 +64,21 @@ export function publicErrorFor(error: unknown): Error {
   if (isRedirect(error) || isNotFound(error)) return error as unknown as Error;
   return new PublicError(error);
 }
+
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+
+/**
+ * The only parts of an unexpected error that are safe to log: its class name and, when a Postgres
+ * error sits in the cause chain, the SQLSTATE. Never the message (Drizzle puts query parameters
+ * in it), the stack, `detail` (it holds the conflicting value) or `cause`.
+ */
+export function logSafeError(error: unknown): { name: string; pgCode?: string } {
+  if (!(error instanceof Error)) return { name: "non-error" };
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth++) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === "string" && SQLSTATE.test(code)) return { name: error.name, pgCode: code };
+    current = current.cause;
+  }
+  return { name: error.name };
+}

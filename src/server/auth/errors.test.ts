@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { notFound, redirect } from "@tanstack/react-router";
 
-import { AuthzError, publicErrorFor, toPublicError } from "./errors";
+import { AuthzError, logSafeError, publicErrorFor, toPublicError } from "./errors";
 
 describe("AuthzError", () => {
   it("maps each code to its status", () => {
@@ -68,5 +68,34 @@ describe("publicErrorFor", () => {
     const missing = notFound();
     expect(publicErrorFor(moved)).toBe(moved);
     expect(publicErrorFor(missing)).toBe(missing);
+  });
+});
+
+describe("logSafeError", () => {
+  it("keeps the name and SQLSTATE of a Drizzle-shaped error and nothing else", () => {
+    const cause = Object.assign(new Error("duplicate key"), {
+      code: "23505",
+      detail: "Key (email)=(maya@example.com) already exists",
+    });
+    const error = Object.assign(
+      new Error("Failed query: insert into users\nparams: maya@example.com,1 Test Street", {
+        cause,
+      }),
+      { name: "DrizzleQueryError" },
+    );
+    const safe = logSafeError(error);
+    expect(safe).toEqual({ name: "DrizzleQueryError", pgCode: "23505" });
+    const text = JSON.stringify(safe);
+    expect(text).not.toContain("maya@example.com");
+    expect(text).not.toContain("Test Street");
+  });
+
+  it("reports a non-Error throw as non-error", () => {
+    expect(logSafeError("boom")).toEqual({ name: "non-error" });
+  });
+
+  it("ignores a code that is not a 5-character SQLSTATE", () => {
+    const error = Object.assign(new Error("connect"), { code: "ECONNREFUSED" });
+    expect(logSafeError(error)).toEqual({ name: "Error" });
   });
 });

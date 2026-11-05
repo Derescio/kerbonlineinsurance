@@ -4,6 +4,7 @@ import type { Db } from "#/server/db/client";
 import { securityEvents, type SecurityEventType, users } from "#/server/db/schema";
 
 import { clientIp, hashIp, summariseUserAgent } from "./request-info";
+import { logSafeError } from "./errors";
 
 export interface SecurityEventInput {
   type: SecurityEventType;
@@ -30,7 +31,7 @@ export async function recordSecurityEvent(
       userAgentSummary: summariseUserAgent(headers?.get("user-agent")),
     });
   } catch (error) {
-    console.error(`[auth] security event ${type} not recorded:`, (error as Error).message);
+    console.error(`[auth] security event ${type} not recorded:`, logSafeError(error));
   }
 }
 

@@ -186,6 +186,7 @@ Changes from the spec:
 - **A `makeReferral` factory** was added with the customer reads, because the world needed referrals. A referral is an item with `outcome = 'referred'` or any `referred` decision; the queue lists only `outcome = 'referred'`.
 - **`defineRead` takes `<I, P, O>`**, so inputs with defaults (limit, offset) are optional for callers.
 - **The lint rule also catches relative imports** (`**/db/client`, `**/db/schema*`, `**/db/schema/**`, and `**/auth/permissions` for `ROLE_PERMISSIONS`). The auth route's database call moved into `handleAuthRoute` in `src/server/auth/handler.ts`.
+- **Server errors log only a name and a SQLSTATE.** `logSafeError` (in `errors.ts`) is what the middleware, the email sender and the security-event recorder log; Drizzle messages carry query parameters and pg `detail` carries values, so neither is ever logged (engineering.md section 9).
 - **`auth:make-admin` uses raw `pg`** in `scripts/make-admin-core.ts`, so it runs under node. Run it with `vp run auth:make-admin <email> --name "<name>"` (vite-plus's managed Node; plain Node 22.12 can't strip types). A malformed `DATABASE_URL` prints only "DATABASE_URL is not a valid URL." (`scripts/database-host.ts`).
 - **`/account` kept its session check** and the `/staff` placeholder page was added, both as the spec said.
 - **The permission suite asserts owner-only access for customer reads:** any signed-in actor other than the owner gets `NOT_FOUND`.

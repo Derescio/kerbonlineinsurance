@@ -13,6 +13,7 @@ import { resendSender, type SendEmail } from "#/server/email/send";
 import { existingAccountEmail, resetPasswordEmail, verifyEmail } from "#/server/email/templates";
 import { getAuthEnv, type AuthEnv } from "#/server/env";
 
+import { logSafeError } from "./errors";
 import { breachedPasswordCheck } from "./breached-password";
 import {
   ACCOUNT_EXISTS_CODE,
@@ -63,7 +64,7 @@ export function createAuth(deps: AuthDeps) {
   // visible from how long the request takes. A failed send is logged, never shown as an error.
   const deliver = (to: string, content: { subject: string; html: string; text: string }) => {
     const work = deps.sendEmail({ to, ...content }).catch((error: unknown) => {
-      console.error("[auth] email not sent:", (error as Error).message);
+      console.error("[auth] email not sent:", logSafeError(error));
     });
     if (deps.defer) deps.defer(work);
   };
