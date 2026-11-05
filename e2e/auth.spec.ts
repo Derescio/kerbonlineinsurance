@@ -65,6 +65,11 @@ test("the account page sends a signed-out visitor to log in", async ({ page }) =
   await expect(page.getByRole("heading", { name: "Log in to Kerb" })).toBeVisible();
 });
 
+test("the staff area sends a signed-out visitor to log in", async ({ page }) => {
+  await page.goto("/staff");
+  await expect(page).toHaveURL(/\/login\?redirect=%2Fstaff$/);
+});
+
 test("auth pages are never cached", async ({ request }) => {
   for (const path of ["/login", "/signup"]) {
     const response = await request.get(path);

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
 // The signed-in user, read on the server from the session cookie (4.4). Route guards use it for
-// UX only; 4.5 adds requireUser() for the data layer.
+// UX only; the data layer (src/server/data/) checks the Actor from getActor.
 
 export interface SessionUser {
   id: string;
