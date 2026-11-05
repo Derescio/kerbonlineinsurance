@@ -63,16 +63,17 @@ async function codeOf(call: () => Promise<unknown>): Promise<AuthzCode | null> {
 }
 
 describe("access from the map", () => {
-  const rows = cases.flatMap(({ read, input }, index) =>
+  const rows = cases.flatMap(({ read, input, owner }, index) =>
     actorNames.map((actorName) => ({
       name: `case ${index} as ${actorName}`,
       read,
       input,
       actorName,
+      owner,
     })),
   );
 
-  it.each(rows)("$name", async ({ read, input, actorName }) => {
+  it.each(rows)("$name", async ({ read, input, actorName, owner }) => {
     const actor: Actor | null = world[actorName];
     const code = await codeOf(() => read(actor, input(world)));
 
@@ -81,6 +82,8 @@ describe("access from the map", () => {
     } else if (read.access === "signed_in") {
       expect(code).not.toBe("UNAUTHENTICATED");
       expect(code).not.toBe("FORBIDDEN");
+      // A record read of A's is A's alone: everyone else, staff included, gets NOT_FOUND
+      if (owner === "A") expect(code).toBe(actorName === "customerA" ? null : "NOT_FOUND");
     } else if (actor.staff?.permissions.has(read.access)) {
       expect(code).not.toBe("FORBIDDEN");
     } else {
