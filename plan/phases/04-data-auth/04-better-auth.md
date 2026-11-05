@@ -1,6 +1,6 @@
 # 4.4 Better Auth
 
-**Status:** in-progress (approved 4 Nov 2026)
+**Status:** done (approved 4 Nov 2026; checked on staging 5 Nov 2026)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -188,7 +188,7 @@ This is the phase's payoff shot: sign up on the live site, click the verificatio
 - [x] CSP for Turnstile; e2e and axe specs
 - [x] `vp check`, `vp test`, `vp build`; a local browser run against the Docker database
 - [x] `vp run db:migrate` on Neon `dev` (Damion, 4 Nov) and a local run against it
-- [ ] Manual checks on the preview and staging
+- [x] Manual checks on the preview and staging
 
 ## Tests
 
@@ -205,10 +205,10 @@ This is the phase's payoff shot: sign up on the live site, click the verificatio
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass; `ci` green on the PR, including e2e and axe.
-- [ ] Full round trip on staging: sign up, verify by email, log out, log in, reset, Google sign-in.
-- [ ] `security_events` rows appear for each of those, with no emails or raw IPs.
-- [ ] Payoff shot recorded: the new row in the Neon console.
+- [x] `vp check`, `vp test` and `vp build` pass; `ci` green on the PR, including e2e and axe.
+- [x] Full round trip on staging: sign up, verify by email, log out, log in, reset, Google sign-in.
+- [x] `security_events` rows appear for each of those, with no emails or raw IPs.
+- [x] Payoff shot recorded: the new row in the Neon console.
 - [x] `.env.example` has empty values only.
 
 ## Commit message

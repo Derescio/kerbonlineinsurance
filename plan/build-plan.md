@@ -33,9 +33,9 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 - [x] 4.1 **Neon + Drizzle setup**: London, `prod` + `dev` branches, migration scripts, migrate in the Vercel build (staging/prod), CI drift check; unit/integration test split with a Postgres test DB in CI
 - [x] 4.2 **Schema + first migration**: multi-product (car, home, business), bundles, auth tables, underwriting outcomes and rating versions, audit log; data-ready (tombstones, factor rows, funnel events, data contract test); integrity constraints, money in pence, `version` columns
-- [ ] 4.3 **Auth screens designed in Figma**: incl. Google button and 2FA screens
-- [ ] 4.4 **Better Auth**: sign up (with a demo notice, Turnstile), email + password (breached-password check), Google sign-in, soft email verification (banner, not a blocker), sessions, rate limits, security events
-- [ ] 4.4b **Hard email verification**: confirm before logging in, 6-hour links, no account enumeration on sign-up
+- [x] 4.3 **Auth screens designed in Figma**: incl. Google button and 2FA screens
+- [x] 4.4 **Better Auth**: sign up (with a demo notice, Turnstile), email + password (breached-password check), Google sign-in, soft email verification (banner, not a blocker), sessions, rate limits, security events
+- [x] 4.4b **Hard email verification**: confirm before logging in, 6-hour links, no account enumeration on sign-up
 - [ ] 4.5 **Authorization layer**: roles (customer, claims handler, admin), server middleware, scoped data access, audit log, make-admin script, permission tests, audit hash chain; plus `withTx`, `withIdempotency`, shared rate limiter
 - [ ] 4.6 **2FA**: optional for customers, required for staff; sign out everywhere
 - [ ] 4.7 **Privacy page + delete account**
