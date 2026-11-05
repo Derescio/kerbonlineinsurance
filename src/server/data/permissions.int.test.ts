@@ -9,6 +9,7 @@ import { closeDb, getDb } from "#/server/db/client";
 import { parseKeys } from "#/server/audit/chain";
 import { verifyAuditChain } from "#/server/audit/verify";
 import { auditLog, quoteItems, underwritingDecisions } from "#/server/db/schema";
+import { AuditConfigError } from "#/server/env";
 import { getOwnerDb, truncateAll } from "#/test/db";
 import { makeQuote } from "#/test/factories";
 import { buildWorld, type World } from "#/test/world";
@@ -344,16 +345,23 @@ describe("audit of staff views (4.5b)", () => {
   });
 
   it("throws and writes nothing when the keys are missing, without leaking key text", async () => {
-    vi.stubEnv("AUDIT_HMAC_KEYS", "");
-    let message = "";
+    // Malformed but key-like (too short), so there is key text that a leak would expose
+    vi.stubEnv("AUDIT_HMAC_KEYS", "v1:AQEBAQEB");
+    let thrown: unknown;
+    let result: unknown;
     try {
-      await data.staffGetClaim(world.handler, { claimId: world.records.claimA.id });
+      result = await data.staffGetClaim(world.handler, { claimId: world.records.claimA.id });
     } catch (error) {
-      message = error instanceof Error ? error.message : String(error);
+      thrown = error;
     }
-    expect(message).not.toBe("");
-    expect(message).not.toContain("AQEB");
     vi.unstubAllEnvs();
+    expect(result).toBeUndefined();
+    expect(thrown).toBeInstanceOf(AuditConfigError);
+    const message = (thrown as Error).message;
+    expect(message).toMatch(/Audit \(4\.5b\)/);
+    expect(message).not.toContain("AQEBAQEB");
+    expect(message).not.toContain(process.env.DATABASE_URL ?? "<unset>");
+    expect(message).not.toContain("kerb_app:");
     expect(await auditRows()).toHaveLength(0);
   });
 });

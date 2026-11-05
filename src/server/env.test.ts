@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { getAuditEnv } from "#/server/env";
+import { AuditConfigError, getAuditEnv } from "#/server/env";
 
 const key = Buffer.alloc(32, 7).toString("base64");
 
@@ -13,6 +13,15 @@ describe("getAuditEnv", () => {
 
   it("throws a message that names the setting group when the keys are missing", () => {
     expect(() => getAuditEnv({})).toThrow(/Audit \(4\.5b\).*missing/);
+  });
+
+  it("throws the named AuditConfigError", () => {
+    expect(() => getAuditEnv({})).toThrow(AuditConfigError);
+    try {
+      getAuditEnv({});
+    } catch (e) {
+      expect((e as Error).name).toBe("AuditConfigError");
+    }
   });
 
   it("sees a changed active version after a valid call, so the cache doesn't hide it", () => {

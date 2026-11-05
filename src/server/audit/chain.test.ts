@@ -45,6 +45,42 @@ describe("canonicalPayload", () => {
     expect(a).toBe(b);
   });
 
+  it("sorts integer-like keys as strings, not numerically", () => {
+    const payload = canonicalPayload({ ...row, changes: { "10": 1, "2": 2, b: 3 } });
+    expect(payload).toContain('{"10":1,"2":2,"b":3}');
+  });
+
+  it("handles arrays, nesting, null and empty objects, and stays valid JSON", () => {
+    const changes = { z: [{ "2": 1, "10": [] }, null, "x"], a: {}, m: { "1": { b: 1, a: 2 } } };
+    const payload = canonicalPayload({ ...row, changes });
+    expect(payload).toContain('{"a":{},"m":{"1":{"a":2,"b":1}},"z":[{"10":[],"2":1},null,"x"]}');
+    const parsed = JSON.parse(payload) as unknown[];
+    expect(parsed).toHaveLength(13);
+    expect(parsed[9]).toEqual(changes);
+    expect(parsed[10]).toBe("duplicate");
+    expect(canonicalPayload({ ...row, changes: {} })).toContain(',{},"duplicate"');
+  });
+
+  it("matches plain JSON.stringify for sorted non-integer keys", () => {
+    const changes = { a: { b: [1, "é😀", true], c: null }, d: "x" };
+    const expected = JSON.stringify([
+      1,
+      row.prevHash,
+      row.keyVersion,
+      row.createdAt.toISOString(),
+      row.actorUserId,
+      row.actorRole,
+      row.action,
+      row.entityType,
+      row.entityId,
+      changes,
+      row.reason,
+      row.requestId,
+      row.ipHash,
+    ]);
+    expect(canonicalPayload({ ...row, changes })).toBe(expected);
+  });
+
   it("writes createdAt as an ISO string with milliseconds", () => {
     expect(canonicalPayload(row)).toContain('"2026-11-05T10:00:00.123Z"');
   });

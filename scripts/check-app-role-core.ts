@@ -43,9 +43,10 @@ export async function checkAppRole(client: Queryable, keys: AuditKeys): Promise<
 
   const { rows: privs } = await client.query<{ ok: boolean }>(
     `select not (
-       has_table_privilege(current_user, 'audit_log', 'UPDATE')
-       or has_table_privilege(current_user, 'audit_log', 'DELETE')
-       or has_table_privilege(current_user, 'audit_log', 'TRUNCATE')
+       has_table_privilege(current_user, 'public.audit_log', 'UPDATE')
+       or has_any_column_privilege(current_user, 'public.audit_log', 'UPDATE')
+       or has_table_privilege(current_user, 'public.audit_log', 'DELETE')
+       or has_table_privilege(current_user, 'public.audit_log', 'TRUNCATE')
      ) as ok`,
   );
   results.push({

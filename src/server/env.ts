@@ -65,6 +65,15 @@ export function getAuthEnv(source: Record<string, string | undefined> = process.
 // Audit HMAC keys (4.5b). Validated on first use, like getAuthEnv. Cached on the raw pair of
 // strings rather than on process.env identity, so a changed value (a rotation, or a test) is seen
 // and a missing key always throws.
+// Named so logSafeError records "AuditConfigError" rather than a bare "Error"
+export class AuditConfigError extends Error {
+  override name = "AuditConfigError";
+  constructor(reason: string) {
+    // The reason names a version or a setting, never key material
+    super(`Invalid audit environment (.env.example, "Audit (4.5b)"): ${reason}`);
+  }
+}
+
 let auditCache:
   | { raw: string | undefined; active: string | undefined; keys: AuditKeys }
   | undefined;
@@ -82,7 +91,7 @@ export function getAuditEnv(source: Record<string, string | undefined> = process
   } catch (error) {
     if (error instanceof AuditKeyError) {
       // The reason names a version or a setting, never key material
-      throw new Error(`Invalid audit environment (.env.example, "Audit (4.5b)"): ${error.reason}`);
+      throw new AuditConfigError(error.reason);
     }
     throw error;
   }

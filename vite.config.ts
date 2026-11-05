@@ -45,6 +45,7 @@ const config = defineConfig({
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
       // Only the data layer touches the database (4.5): pages and features go through src/server/data/
+      // (src/server/audit/ too, but only to write audit_log)
       "no-restricted-imports": [
         "error",
         {
@@ -81,7 +82,6 @@ const config = defineConfig({
       {
         files: [
           "src/server/data/**",
-          "src/server/audit/**",
           "src/server/db/**",
           "src/test/**",
           "scripts/**",
@@ -90,8 +90,10 @@ const config = defineConfig({
         rules: { "no-restricted-imports": "off" },
       },
       {
-        // The auth folder may use the database, but only permissions.ts reads ROLE_PERMISSIONS
-        files: ["src/server/auth/**"],
+        // The audit and auth folders may use the database, but only permissions.ts reads
+        // ROLE_PERMISSIONS. Protected reads of audit_log (6.8) belong in src/server/data/, where
+        // the permission suite's completeness check sees them.
+        files: ["src/server/audit/**", "src/server/auth/**"],
         excludeFiles: ["src/server/auth/permissions.ts", "src/server/auth/permissions.test.ts"],
         rules: {
           "no-restricted-imports": [

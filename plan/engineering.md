@@ -258,11 +258,12 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
    - Staff functions are separate (`staff*`) and need an active `staff_members` row holding the right permission.
    - Someone else's record is `NOT_FOUND`, the same answer as an id that doesn't exist, so ids can't be probed. Staff functions answer `FORBIDDEN` to anyone without the permission.
-   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb` and the schema (except `schema/values`) can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/db/`, `scripts/` and tests, and `ROLE_PERMISSIONS` only inside `src/server/auth/permissions.ts`.
+   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb` and the schema (except `schema/values`) can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/audit/` (only to write `audit_log`), `src/server/db/`, `scripts/` and tests, and `ROLE_PERMISSIONS` only inside `src/server/auth/permissions.ts`.
 3. **Route guards** (`beforeLoad`): redirects for UX only. The server is the security boundary.
 4. **Audit log:** `audit_log` records:
    - staff actions: claim status, referral decisions, roles, review decisions
    - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions (`staffGetClaim`, `staffGetReferral`) so no page can skip it. A refused view (not found, conflict of interest) rolls back and writes nothing; only successful views are logged
+   - staff detail routes that call these audited reads must not run them from a hover-preloaded loader (the router's `defaultPreload: "intent"` would write `*.viewed` rows for views that never happened): set `preload: false` on those routes, or call the read from a user-triggered server function
    - sensitive customer actions: password, 2FA, "sign out everywhere", address and driver changes, account deletion
 
    **How it's kept honest:**

@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-
 import type { Actor } from "#/server/auth/actor";
 import { closeDb, getDb } from "#/server/db/client";
 import { auditLog } from "#/server/db/schema";
+import { AuditConfigError } from "#/server/env";
 import { getOwnerDb, tamper, truncateAll } from "#/test/db";
 
 import { audit, type AuditEntry } from "./audit";
@@ -124,9 +125,21 @@ describe("audit()", () => {
   });
 
   it("refuses to write without keys (fails closed)", async () => {
-    vi.stubEnv("AUDIT_HMAC_KEYS", "");
-    await expect(getDb().transaction((tx) => audit(tx, entry()))).rejects.toThrow();
+    // Malformed but key-like (too short), so there is key text that a leak would expose
+    vi.stubEnv("AUDIT_HMAC_KEYS", "v1:AQEBAQEB");
+    let thrown: unknown;
+    try {
+      await getDb().transaction((tx) => audit(tx, entry()));
+    } catch (error) {
+      thrown = error;
+    }
     vi.unstubAllEnvs();
+    expect(thrown).toBeInstanceOf(AuditConfigError);
+    const message = (thrown as Error).message;
+    expect(message).toMatch(/Audit \(4\.5b\)/);
+    expect(message).not.toContain("AQEBAQEB");
+    expect(message).not.toContain(process.env.DATABASE_URL ?? "<unset>");
+    expect(message).not.toContain("kerb_app:");
     expect(await rows()).toHaveLength(0);
   });
 });

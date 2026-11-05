@@ -18,7 +18,10 @@ import { getAuditEnv } from "#/server/env";
 // Writes the HMAC-chained audit_log (4.5b). audit() runs inside the caller's transaction, so the
 // row and the change it records commit or roll back together. A transaction-scoped advisory lock
 // serialises writers: each row is read-then-linked against the latest one, and the lock is held
-// until the caller commits, so two writers can never both extend the same row.
+// until the caller commits, so two writers can never both extend the same row. The read after the
+// lock relies on the caller's transaction being READ COMMITTED: under REPEATABLE READ or
+// SERIALIZABLE a read before audit() fixes the snapshot, and the prev_hash unique constraint then
+// fails the transaction rather than forking the chain.
 
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 

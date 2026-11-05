@@ -138,7 +138,9 @@ describe("makeAdmin", () => {
   it("writes nothing when the active key is not loaded", async () => {
     await makeUser({ email: "a@example.com", emailVerified: true });
     const noKey = { activeVersion: "v2", keys: new Map<string, Buffer>() };
-    await expect(makeAdmin(client, "a@example.com", "Ann", noKey)).rejects.toThrow();
+    await expect(makeAdmin(client, "a@example.com", "Ann", noKey)).rejects.toThrow(
+      /Audit key version v2 is not loaded/,
+    );
     for (const table of ["staff_members", "staff_roles", "audit_log"]) {
       const result = await client.query(`select 1 from ${table}`);
       expect(result.rowCount, table).toBe(0);

@@ -127,21 +127,22 @@ export function assertChainable(row: ChainRow): void {
   if (row.changes !== null) assertValue(row.changes, "changes");
 }
 
-// Object keys sorted at every depth, so the same data always serialises the same way
-function canonical(v: AuditValue): AuditValue {
-  if (Array.isArray(v)) return v.map(canonical);
+// Canonical JSON text with object keys in string order at every depth. Built as text because a
+// JS object reorders integer-like keys ("2" before "10") whatever order they were inserted in.
+function canonical(v: AuditValue): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
   if (v !== null && typeof v === "object") {
-    return Object.fromEntries(
-      Object.keys(v)
-        .sort()
-        .map((k) => [k, canonical(v[k] as AuditValue)]),
-    );
+    const members = Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(v[k] as AuditValue)}`);
+    return `{${members.join(",")}}`;
   }
-  return v;
+  return JSON.stringify(v);
 }
 
 export function canonicalPayload(row: ChainRow): string {
-  return JSON.stringify([
+  // The same text JSON.stringify([...]) gives, with the changes slot spliced in as canonical text
+  const head = JSON.stringify([
     AUDIT_FORMAT,
     row.prevHash,
     row.keyVersion,
@@ -151,11 +152,10 @@ export function canonicalPayload(row: ChainRow): string {
     row.action,
     row.entityType,
     row.entityId,
-    row.changes === null ? null : canonical(row.changes),
-    row.reason,
-    row.requestId,
-    row.ipHash,
-  ]);
+  ]).slice(0, -1);
+  const tail = JSON.stringify([row.reason, row.requestId, row.ipHash]).slice(1);
+  const changes = row.changes === null ? "null" : canonical(row.changes);
+  return `${head},${changes},${tail}`;
 }
 
 export function computeHash(row: ChainRow, key: Buffer): string {

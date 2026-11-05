@@ -111,12 +111,6 @@ export const staffGetReferral = defineRead(
         );
       if (!row) throw new AuthzError("NOT_FOUND");
       assertNoConflict(actor, row.customerId);
-      await audit(tx, {
-        actor,
-        action: "referral.viewed",
-        entityType: "quote_item",
-        entityId: quoteItemId,
-      });
 
       const decisions = await tx
         .select({
@@ -131,6 +125,14 @@ export const staffGetReferral = defineRead(
         .from(underwritingDecisions)
         .where(eq(underwritingDecisions.quoteItemId, quoteItemId))
         .orderBy(asc(underwritingDecisions.createdAt), asc(underwritingDecisions.id));
+
+      // Last, so the global audit lock is held for as little of the transaction as possible
+      await audit(tx, {
+        actor,
+        action: "referral.viewed",
+        entityType: "quote_item",
+        entityId: quoteItemId,
+      });
 
       return {
         quoteItemId: row.quoteItemId,
