@@ -1,4 +1,4 @@
-// The verification and reset emails (4.4): plain HTML plus a text version, in Kerb's voice. No
+// The verification, reset and existing-account emails (4.4, 4.4b): plain HTML plus a text version, in Kerb's voice. No
 // images or tracking. 4.11 sends them from the jobs table; the templates stay the same.
 
 export interface EmailContent {
@@ -46,9 +46,9 @@ export function verifyEmail({ name, url }: { name: string; url: string }): Email
       body: `${escapeHtml(hello)} tap the button to confirm this is your email address.`,
       cta: "Confirm my email",
       url,
-      after: "The link works for 24 hours. If you didn't make a Kerb account, ignore this email.",
+      after: "The link works for 6 hours. If you didn't make a Kerb account, ignore this email.",
     }),
-    text: `${hello}\n\nConfirm your email for Kerb:\n${url}\n\nThe link works for 24 hours. If you didn't make a Kerb account, ignore this email.\n\n${DEMO_LINE}\n`,
+    text: `${hello}\n\nConfirm your email for Kerb:\n${url}\n\nThe link works for 6 hours. If you didn't make a Kerb account, ignore this email.\n\n${DEMO_LINE}\n`,
   };
 }
 
@@ -65,5 +65,32 @@ export function resetPasswordEmail({ name, url }: { name: string; url: string })
         "The link works once, for one hour. If you didn't ask for this, ignore this email: your password hasn't changed.",
     }),
     text: `${hello}\n\nChoose a new Kerb password:\n${url}\n\nThe link works once, for one hour. If you didn't ask for this, ignore this email: your password hasn't changed.\n\n${DEMO_LINE}\n`,
+  };
+}
+
+// Sent to the owner when someone signs up with an email that already has an account (4.4b). The
+// sign-up itself answers as if it worked, so this is the only place the attempt shows.
+export function existingAccountEmail({ name, url }: { name: string; url: string }): EmailContent {
+  const hello = `Hi ${firstName(name)},`;
+  const after =
+    "If it wasn't you, you don't need to do anything: nobody can use your account without your password.";
+  return {
+    subject: "Someone tried to make a Kerb account with your email",
+    html: layout({
+      heading: "You already have an account",
+      body: `${escapeHtml(hello)} someone just tried to make a new Kerb account with this email. If it was you, log in instead, or reset your password if you've forgotten it.`,
+      cta: "Log in to Kerb",
+      url,
+      after,
+    }),
+    text: `${hello}
+
+Someone just tried to make a new Kerb account with this email. If it was you, log in instead, or reset your password if you've forgotten it:
+${url}
+
+${after}
+
+${DEMO_LINE}
+`,
   };
 }

@@ -1,20 +1,17 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Wordmark } from "#/components/display/Wordmark";
-import { Alert } from "#/components/feedback/Alert";
 
 import { authClient } from "./auth-client";
-import { TOO_FAST } from "./form";
 import { DemoStrip, GoogleMark } from "./parts";
 import type { AccountSummary } from "./session";
 import { useOneTimeToast } from "./use-one-time-toast";
 
-// The minimal account page (4.4, decision 6; Figma 07, 07b, 07c and the Connect Google panel).
-// 6.1 replaces the body with the real dashboard; the banner and "Ways to log in" move with it.
-
-const RESEND_WAIT_SECONDS = 60;
+// The minimal account page (4.4, decision 6; Figma 07c and the Connect Google panel). 6.1 replaces
+// the body with the real dashboard; "Ways to log in" moves with it. The verify banner (07, 07b) went
+// in 4.4b: you confirm your email before you can log in, so everyone here is confirmed.
 
 export interface AccountNotice {
   confirmed?: boolean;
@@ -80,7 +77,6 @@ export function AccountPage({
         </div>
       </header>
       <main id="main" tabIndex={-1} className="site-container account__body">
-        {user.emailVerified ? null : <VerifyBanner email={user.email} />}
         <h1 className="account__title">
           {greeting}, {firstName}
         </h1>
@@ -90,61 +86,6 @@ export function AccountPage({
         </section>
       </main>
     </div>
-  );
-}
-
-function VerifyBanner({ email }: { email: string }) {
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
-  const [wait, setWait] = useState(0);
-  const [failure, setFailure] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (wait <= 0) return;
-    const timer = setTimeout(() => setWait((seconds) => seconds - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [wait]);
-
-  async function resend() {
-    setState("sending");
-    const { error } = await authClient.sendVerificationEmail({
-      email,
-      callbackURL: "/email-confirmed",
-    });
-    if (error) {
-      setState("failed");
-      setFailure(error.status === 429 ? TOO_FAST : "We couldn't send it. Try again in a minute.");
-      return;
-    }
-    setState("sent");
-    setWait(RESEND_WAIT_SECONDS);
-  }
-
-  const message =
-    state === "sent"
-      ? "Sent. It can take a minute to arrive. Check your spam folder too."
-      : state === "failed" && failure
-        ? failure
-        : `We sent a link to ${email}. Open it to confirm your address.`;
-
-  return (
-    <Alert
-      tone="info"
-      title="Confirm your email"
-      announce={state !== "idle"}
-      action={
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={resend}
-          loading={state === "sending"}
-          disabled={wait > 0}
-        >
-          {wait > 0 ? `Resend in ${wait}s` : "Resend email"}
-        </Button>
-      }
-    >
-      {message}
-    </Alert>
   );
 }
 

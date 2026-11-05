@@ -10,7 +10,7 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { PASSWORD_MAX, PASSWORD_MIN } from "#/features/auth/schemas";
 import { getDb, type Db } from "#/server/db/client";
 import { resendSender, type SendEmail } from "#/server/email/send";
-import { resetPasswordEmail, verifyEmail } from "#/server/email/templates";
+import { existingAccountEmail, resetPasswordEmail, verifyEmail } from "#/server/email/templates";
 import { getAuthEnv, type AuthEnv } from "#/server/env";
 
 import { breachedPasswordCheck } from "./breached-password";
@@ -31,6 +31,13 @@ import { recordSecurityEvent, userIdForEmail, type SecurityEventInput } from "./
 export const TERMS_REQUIRED_MESSAGE = "Tick to agree to the terms of use.";
 
 const DAY = 24 * 60 * 60;
+
+/** Better Auth's answer to a correct password on an unconfirmed email (4.4b) */
+export const EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED";
+
+const isEmailNotVerified = (returned: unknown) =>
+  returned instanceof APIError &&
+  (returned.body as { code?: string } | undefined)?.code === EMAIL_NOT_VERIFIED;
 
 export interface AuthDeps {
   db: Db;
@@ -83,9 +90,17 @@ export function createAuth(deps: AuthDeps) {
       enabled: true,
       minPasswordLength: PASSWORD_MIN,
       maxPasswordLength: PASSWORD_MAX,
-      // Soft verification: a banner, not a blocker (engineering.md section 7)
-      requireEmailVerification: false,
-      autoSignIn: true,
+      // Confirm your email before you can log in (4.4b, replacing 4.4's soft verification).
+      // Sign-up doesn't sign in, and a sign-up for a taken email gets the same answer as a new
+      // one, so sign-up no longer shows which emails have an account
+      requireEmailVerification: true,
+      autoSignIn: false,
+      onExistingUserSignUp: async ({ user }) => {
+        deliver(
+          user.email,
+          existingAccountEmail({ name: user.name, url: `${urls.baseURL}/login` }),
+        );
+      },
       revokeSessionsOnPasswordReset: true,
       // One hour, as frame 06b says
       resetPasswordTokenExpiresIn: 60 * 60,
@@ -99,9 +114,11 @@ export function createAuth(deps: AuthDeps) {
 
     emailVerification: {
       sendOnSignUp: true,
+      // No sendOnSignIn: it would send an email on every login attempt (up to 10 per 15 minutes)
+      // and use up Resend's allowance. Login offers a Resend button instead (3 per 15 minutes)
       autoSignInAfterVerification: true,
-      // 24 hours, as frame 07d says
-      expiresIn: DAY,
+      // 6 hours, as frame 07d says (4.4b)
+      expiresIn: 6 * 60 * 60,
       sendVerificationEmail: async ({ user, url }) => {
         deliver(user.email, verifyEmail({ name: user.name, url }));
       },
@@ -256,6 +273,10 @@ export function createAuth(deps: AuthDeps) {
           const session = ctx.context.newSession;
           if (session) {
             await record({ type: "sign_in", userId: session.user.id, method: "password", headers });
+          } else if (isEmailNotVerified(ctx.context.returned)) {
+            // Only reached with the right password: Better Auth checks it first (4.4b)
+            const userId = await userIdForEmail(db, body?.email);
+            await record({ type: "sign_in_unverified", userId, method: "password", headers });
           } else if (ctx.context.returned instanceof APIError) {
             // No email stored: the user id if the address is known, otherwise nothing
             const userId = await userIdForEmail(db, body?.email);

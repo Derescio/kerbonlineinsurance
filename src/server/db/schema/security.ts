@@ -11,6 +11,8 @@ export const SECURITY_EVENT_TYPES = [
   "sign_up",
   "sign_in",
   "sign_in_failed",
+  // A correct password on an email that isn't confirmed yet (4.4b)
+  "sign_in_unverified",
   "rate_limited",
   "sign_out",
   "password_reset_requested",

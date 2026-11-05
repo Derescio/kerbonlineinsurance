@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -19,10 +18,11 @@ import {
   useHydrated,
 } from "./form";
 import { AuthDivider, GoogleButton, PasswordHint } from "./parts";
+import { LINK_HOURS, ResendVerificationAlert } from "./ResendVerification";
 import { signUpSchema, type SignUpInput } from "./schemas";
 import { Turnstile } from "./Turnstile";
 
-// Create account (Figma 03, 03b).
+// Create account (Figma 03, 03b) and "Check your inbox" (03c, 4.4b).
 
 export const BREACHED_PASSWORD_MESSAGE = "This password was in a data breach. Try a different one.";
 const ROBOT_CHECK_PENDING = "Wait for the check above to finish, then try again.";
@@ -31,7 +31,6 @@ type Errors = FieldErrors<SignUpInput> & { robot?: string };
 
 export function SignUpForm() {
   const hydrated = useHydrated();
-  const navigate = useNavigate();
   const form = useRef<HTMLFormElement>(null);
   const [values, setValues] = useState({ name: "", email: "", password: "" });
   const [token, setToken] = useState<string | null>(null);
@@ -39,6 +38,8 @@ export function SignUpForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<"email" | "google" | null>(null);
+  // Set once the account is made: you confirm your email before you can log in (4.4b)
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   const update = (field: keyof typeof values) => (event: { target: { value: string } }) => {
     setValues((current) => ({ ...current, [field]: event.target.value }));
@@ -75,17 +76,15 @@ export function SignUpForm() {
       { headers: captchaHeaders(token!) },
     );
     setBusy(null);
+    // A taken email gets this same answer, so sign-up never shows who has an account (4.4b)
     if (!error) {
-      await navigate({ to: "/account" });
+      setSentTo(checked.data.email);
       return;
     }
     // A token works once, so any failure needs a fresh check
     setResetKey((key) => key + 1);
     if (error.code === "PASSWORD_COMPROMISED") {
       setErrors({ password: BREACHED_PASSWORD_MESSAGE });
-      focusFirstError(form.current);
-    } else if (error.code?.startsWith("USER_ALREADY_EXISTS")) {
-      setErrors({ email: "There's already an account with this email. Log in instead." });
       focusFirstError(form.current);
     } else if (error.status === 429) {
       setNotice(TOO_FAST);
@@ -107,6 +106,27 @@ export function SignUpForm() {
       setBusy(null);
       setNotice("Google sign-in didn't work. Try again, or use your email.");
     }
+  }
+
+  if (sentTo) {
+    return (
+      <div className="auth__form">
+        <ResendVerificationAlert email={sentTo} title="Check your inbox">
+          {`We sent a link to ${sentTo}. Open it to confirm your email, then you're in. It works for ${LINK_HOURS} hours.`}
+        </ResendVerificationAlert>
+        <Button
+          variant="ghost"
+          size="lg"
+          fullWidth
+          onClick={() => {
+            setSentTo(null);
+            setResetKey((key) => key + 1);
+          }}
+        >
+          Wrong email? Start again
+        </Button>
+      </div>
+    );
   }
 
   return (
