@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 
 import pg from "pg";
 
+import { databaseHost } from "./database-host.ts";
 import { MakeAdminError, makeAdmin } from "./make-admin-core.ts";
 import type { MakeAdminReason } from "./make-admin-core.ts";
 
@@ -31,7 +32,12 @@ if (!url) {
   process.exit(1);
 }
 
-console.log(`Database: ${new URL(url).host}`);
+const host = databaseHost(url);
+if (!host) {
+  console.error("DATABASE_URL is not a valid URL.");
+  process.exit(1);
+}
+console.log(`Database: ${host}`);
 
 const client = new pg.Client({ connectionString: url });
 let code = 0;
