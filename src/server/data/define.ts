@@ -17,12 +17,13 @@ export interface DataRead<I, O> {
 
 /**
  * Checks access first, then the input. A malformed id is a missing record, so any zod failure is
- * NOT_FOUND and the browser can't tell the two apart.
+ * NOT_FOUND and the browser can't tell the two apart. `I` is what callers pass (defaults optional),
+ * `P` what `run` receives once parsed.
  */
-export function defineRead<I, O>(
+export function defineRead<I, P, O>(
   access: Access,
-  input: z.ZodType<I>,
-  run: (actor: Actor, input: I, db: Db) => Promise<O>,
+  input: z.ZodType<P, I>,
+  run: (actor: Actor, input: P, db: Db) => Promise<O>,
 ): DataRead<I, O> {
   const read = async (actor: Actor | null, raw: I): Promise<O> => {
     const known = access === "signed_in" ? requireUser(actor) : requirePermission(actor, access);

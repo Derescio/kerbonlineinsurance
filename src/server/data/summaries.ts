@@ -9,3 +9,17 @@ export const claimSummaryColumns = {
   submittedAt: true,
   createdAt: true,
 } as const;
+
+// The extra columns on a claim's detail, shared by the customer and staff reads.
+export const claimDetailColumns = {
+  ...claimSummaryColumns,
+  incidentLocation: true,
+  description: true,
+  otherVehicleInvolved: true,
+  rearEnded: true,
+  injuries: true,
+  policeAttended: true,
+  policeReference: true,
+  claimedAmountPence: true,
+  version: true,
+} as const;

@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { Actor } from "#/server/auth/actor";
 import { AuthzError, type AuthzCode } from "#/server/auth/errors";
-import { closeDb } from "#/server/db/client";
+import { closeDb, getDb } from "#/server/db/client";
+import { quoteItems, underwritingDecisions } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
+import { makeQuote } from "#/test/factories";
 import { buildWorld, type World } from "#/test/world";
 
 import type { DataRead } from "./define";
@@ -30,6 +33,14 @@ const cases: Case[] = [
   { read: data.getMyPolicy, input: (w) => ({ policyId: w.records.policyA.id }), owner: "A" },
   { read: data.listMyClaims, input: () => ({}), owner: null },
   { read: data.getMyClaim, input: (w) => ({ claimId: w.records.claimA.id }), owner: "A" },
+  { read: data.staffListClaims, input: () => ({}), owner: null },
+  { read: data.staffGetClaim, input: (w) => ({ claimId: w.records.claimA.id }), owner: "A" },
+  { read: data.staffListReferrals, input: () => ({}), owner: null },
+  {
+    read: data.staffGetReferral,
+    input: (w) => ({ quoteItemId: w.records.referralA.item.id }),
+    owner: "A",
+  },
 ];
 
 const actorNames = [
@@ -153,6 +164,97 @@ describe("customer reads", () => {
       expect(await codeOf(() => data.getMyClaim(customerA, { claimId: id }))).toBe("NOT_FOUND");
     },
   );
+});
+
+describe("staff reads", () => {
+  it("shows a handler the internal events on a claim", async () => {
+    const claim = await data.staffGetClaim(world.handler, { claimId: world.records.claimA.id });
+    expect(claim.events.map((e) => e.visibility).sort((a, b) => a.localeCompare(b))).toEqual([
+      "customer",
+      "internal",
+    ]);
+    expect(claim.customerId).toBe(world.customerA!.customerId);
+  });
+
+  it("refuses an admin who is also the customer their own claim and referral", async () => {
+    const { adminCustomer, records } = world;
+    expect(
+      await codeOf(() => data.staffGetClaim(adminCustomer, { claimId: records.adminClaim.id })),
+    ).toBe("CONFLICT_OF_INTEREST");
+    expect(
+      await codeOf(() =>
+        data.staffGetReferral(adminCustomer, { quoteItemId: records.adminReferral.item.id }),
+      ),
+    ).toBe("CONFLICT_OF_INTEREST");
+  });
+
+  it("leaves an admin's own records out of their lists", async () => {
+    const { adminCustomer, records } = world;
+    const claimIds = (await data.staffListClaims(adminCustomer, {})).map((c) => c.id);
+    expect(claimIds).toContain(records.claimA.id);
+    expect(claimIds).not.toContain(records.adminClaim.id);
+    const itemIds = (await data.staffListReferrals(adminCustomer, {})).map((r) => r.quoteItemId);
+    expect(itemIds).toContain(records.referralA.item.id);
+    expect(itemIds).not.toContain(records.adminReferral.item.id);
+  });
+
+  it("filters the claims queue by status", async () => {
+    const claims = await data.staffListClaims(world.handler, { status: "draft" });
+    expect(claims.map((c) => c.id)).toEqual([world.records.draftClaimA.id]);
+  });
+
+  it("shows staff with no customer row everyone's records", async () => {
+    const { handlerNoCustomer, records } = world;
+    const claimIds = (await data.staffListClaims(handlerNoCustomer, {})).map((c) => c.id);
+    expect(claimIds).toContain(records.claimA.id);
+    expect(claimIds).toContain(records.adminClaim.id);
+    const itemIds = (await data.staffListReferrals(handlerNoCustomer, {})).map(
+      (r) => r.quoteItemId,
+    );
+    expect(itemIds).toContain(records.referralA.item.id);
+    expect(itemIds).toContain(records.adminReferral.item.id);
+  });
+
+  it("drops a decided referral from the queue but keeps it readable with its history", async () => {
+    const { handler, records } = world;
+    const db = getDb();
+    const itemId = records.referralA.item.id;
+    await db.update(quoteItems).set({ outcome: "quoted" }).where(eq(quoteItems.id, itemId));
+    await db
+      .insert(underwritingDecisions)
+      .values({ quoteItemId: itemId, outcome: "quoted", decidedBy: handler!.userId });
+    const queue = (await data.staffListReferrals(handler, {})).map((r) => r.quoteItemId);
+    expect(queue).not.toContain(itemId);
+    const referral = await data.staffGetReferral(handler, { quoteItemId: itemId });
+    expect(referral.decisions.map((d) => d.outcome).sort((a, b) => a.localeCompare(b))).toEqual([
+      "quoted",
+      "referred",
+    ]);
+  });
+
+  it("treats an item that was never referred as not found", async () => {
+    const { items } = await makeQuote();
+    expect(
+      await codeOf(() => data.staffGetReferral(world.handler, { quoteItemId: items[0]!.item.id })),
+    ).toBe("NOT_FOUND");
+  });
+
+  it.each(["", "not-a-uuid", "'; drop table claims;--", randomUUID()])(
+    "treats the id %j as not found",
+    async (id) => {
+      const { handler } = world;
+      expect(await codeOf(() => data.staffGetClaim(handler, { claimId: id }))).toBe("NOT_FOUND");
+      expect(await codeOf(() => data.staffGetReferral(handler, { quoteItemId: id }))).toBe(
+        "NOT_FOUND",
+      );
+    },
+  );
+
+  it.each([0, 101, -1, 1.5])("treats limit %j as not found", async (limit) => {
+    const { handler } = world;
+    expect(await codeOf(() => data.staffListClaims(handler, { limit }))).toBe("NOT_FOUND");
+    expect(await codeOf(() => data.staffListReferrals(handler, { limit }))).toBe("NOT_FOUND");
+  });
 });
 
 describe("completeness", () => {
