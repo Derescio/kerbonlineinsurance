@@ -91,7 +91,7 @@ const config = defineConfig({
           name: "unit",
           environment: "node",
           include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
-          exclude: ["src/**/*.int.test.ts"],
+          exclude: ["src/**/*.int.test.ts", "scripts/**/*.int.test.ts"],
         },
       },
       {
@@ -103,7 +103,7 @@ const config = defineConfig({
         test: {
           name: "integration",
           environment: "node",
-          include: ["src/**/*.int.test.ts"],
+          include: ["src/**/*.int.test.ts", "scripts/**/*.int.test.ts"],
           globalSetup: ["src/test/integration.setup.ts"],
           env: {
             DATABASE_URL:
