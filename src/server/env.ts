@@ -1,10 +1,8 @@
 import { z } from "zod";
 
 // Server-only environment, validated once at startup so a missing variable fails fast.
-// Later phases add: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, GOOGLE_CLIENT_ID,
-// GOOGLE_CLIENT_SECRET, RESEND_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, R2_ACCOUNT_ID,
-// R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, CRON_SECRET, TURNSTILE_SITE_KEY,
-// TURNSTILE_SECRET_KEY.
+// Later phases add: ANTHROPIC_API_KEY, OPENAI_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+// R2_SECRET_ACCESS_KEY, R2_BUCKET, CRON_SECRET. Auth's variables are below (getAuthEnv).
 export const envSchema = z.object({
   PUBLIC_CACHE_SECONDS: z.coerce.number().int().nonnegative().default(300),
 });
@@ -23,3 +21,41 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
 }
 
 export const env = parseEnv();
+
+// Auth, email and Turnstile (4.4). Validated on first use rather than at import, so pages that
+// never touch auth (the CDN-cached landing page, /system) don't need them, the same way getDb()
+// reads DATABASE_URL.
+// Values are trimmed: a stray space or tab pasted into Vercel would otherwise break a key
+export const authEnvSchema = z.object({
+  BETTER_AUTH_SECRET: z.string().trim().min(32, "use `openssl rand -base64 32`"),
+  // Set on Production and Staging; Preview builds it from VERCEL_URL, so it's unset there
+  BETTER_AUTH_URL: z.string().trim().pipe(z.url()).optional(),
+  GOOGLE_CLIENT_ID: z.string().trim().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().trim().min(1),
+  RESEND_API_KEY: z.string().trim().min(1),
+  EMAIL_FROM: z.string().trim().min(3),
+  TURNSTILE_SECRET_KEY: z.string().trim().min(1),
+  // Shared by Staging and Preview only: seals the Google round trip through staging (oAuthProxy)
+  OAUTH_PROXY_SECRET: z.string().trim().min(32).optional(),
+  // Set by Vercel. VERCEL_TARGET_ENV is "production", "preview" or a custom environment's name
+  // ("staging"); VERCEL_ENV says "preview" for custom environments too, so it can't tell them apart.
+  VERCEL_TARGET_ENV: z.string().trim().optional(),
+  VERCEL_URL: z.string().trim().optional(),
+});
+
+export type AuthEnv = z.infer<typeof authEnvSchema>;
+
+let authEnv: AuthEnv | undefined;
+
+export function getAuthEnv(source: Record<string, string | undefined> = process.env): AuthEnv {
+  if (authEnv && source === process.env) return authEnv;
+  const result = authEnvSchema.safeParse(source);
+  if (!result.success) {
+    const problems = result.error.issues
+      .map((issue) => `  ${issue.path.join(".")}: ${issue.message}`)
+      .join("\n");
+    throw new Error(`Invalid auth environment (.env.example, "Auth (4.4)"):\n${problems}`);
+  }
+  if (source === process.env) authEnv = result.data;
+  return result.data;
+}

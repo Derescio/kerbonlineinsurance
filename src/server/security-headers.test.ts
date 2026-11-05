@@ -22,9 +22,15 @@ describe("contentSecurityPolicy", () => {
 
   const directive = (name: string) => csp.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
 
-  it("allows only same-origin and nonce'd scripts", () => {
-    expect(directive("script-src")).toBe("script-src 'self' 'nonce-abc123'");
+  it("allows only same-origin and nonce'd scripts, plus Cloudflare Turnstile", () => {
+    expect(directive("script-src")).toBe(
+      "script-src 'self' 'nonce-abc123' https://challenges.cloudflare.com",
+    );
     expect(csp).not.toContain("unsafe-eval");
+  });
+
+  it("frames only Turnstile's widget (4.4)", () => {
+    expect(directive("frame-src")).toBe("frame-src https://challenges.cloudflare.com");
   });
 
   it("allows inline style attributes only, not inline <style> or scripts", () => {
@@ -43,7 +49,9 @@ describe("contentSecurityPolicy", () => {
     const withPosthog = contentSecurityPolicy("abc123", "https://us.i.posthog.com");
     const posthog = "https://us.i.posthog.com https://us-assets.i.posthog.com";
 
-    expect(withPosthog).toContain(`script-src 'self' 'nonce-abc123' ${posthog};`);
+    expect(withPosthog).toContain(
+      `script-src 'self' 'nonce-abc123' https://challenges.cloudflare.com ${posthog};`,
+    );
     expect(withPosthog).toContain(`connect-src 'self' ${posthog};`);
     expect(directive("connect-src")).toBe("connect-src 'self'");
   });

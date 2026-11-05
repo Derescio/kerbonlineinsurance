@@ -52,9 +52,9 @@ File: [Kerb Online Insurance](https://www.figma.com/design/ajpEaPwbWtwbsSmRheyDA
 |---|---|---|---|
 | Local components · Account | `177:2851` | Auth divider, Google button, brand panel, password hint, code input, Turnstile, backup codes, demo strip; `Acct / Header`; `Plate` (S/M/L); `Ops / Sidebar`; 18 extra icons (below) | 4.3, 6.x |
 | Account · Web (auth) | `178:2864` | 01 log in, 02 password error, 02b too many tries, 03 create account, 03b breached password, 04 reset password, 05 reset link sent | 4.3 |
-| Account · Web (recovery and verify) | `205:4404` | 06 set a new password, 06b reset link expired, 07 verify banner, 07b banner resent, 07c email confirmed, 07d confirm link expired, 08 Google sign-in failed | 4.3 |
+| Account · Web (recovery and verify) | `205:4404` | 06 set a new password, 06b reset link expired, 07 verify banner (with the Ways to log in / Connect Google panel `209:6239`, 4.4), 07b banner resent, 07c email confirmed, 07d confirm link expired, 08 Google sign-in failed, 08b Google refused, account already exists `209:6005` (4.4) | 4.3, 4.4 |
 | Account · Web (two-factor) | `205:4701` | 09 code, 09b wrong code, 10 backup code, 11a–11c setup (password, scan, backup codes), 12 staff 2FA required, 13 staff "confirm it's you" dialog | 4.3 |
-| Account · Mobile (auth) | `207:5249` | Every screen above at 390 px except 13 | 4.3 |
+| Account · Mobile (auth) | `207:5249` | Every screen above at 390 px except 13; 08b `209:6142` and the Connect Google panel `209:6260` added in 4.4 | 4.3, 4.4 |
 | Account · Settings | `182:3249` | Personal details (view, editing), notifications, payment methods, communication preferences | 6.3 |
 | Account · Policy | `183:3502` | Policy overview, plus the six "Make a change" dialogs | 6.x |
 | Ops · Admin | `184:3886` | Overview, customers, policies, payments, customer panel, refund dialog | 6.8 |

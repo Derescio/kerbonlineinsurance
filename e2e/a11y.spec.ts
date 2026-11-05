@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 // axe on each key page (plan/engineering.md section 4). Fails on serious or critical violations.
 // Pages join the list as they ship.
-const pages = ["/"];
+const pages = ["/", "/login", "/signup", "/forgot-password", "/reset-password"];
 const widths = [390, 1440];
 
 for (const path of pages) {

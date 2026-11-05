@@ -12,5 +12,6 @@ export * from "./products";
 export * from "./quotes";
 export * from "./relations";
 export * from "./reviews";
+export * from "./security";
 export * from "./staff";
 export * from "./underwriting";

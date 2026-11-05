@@ -22,6 +22,20 @@
       "when": 1793685084705,
       "tag": "0002_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793817037948,
+      "tag": "0003_security_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793817050998,
+      "tag": "0004_security_events_append_only",
+      "breakpoints": true
     }
   ]
 }
