@@ -177,7 +177,7 @@ It never prints the URL or the keys. You run it once against `dev` and once agai
 ## Results (5 Nov 2026, before the PR)
 
 Changes from the spec:
-- **`changes` also allows arrays and plain objects** of the allowed scalars, with keys sorted at every depth. `staff.added` needs `{ roles: ["admin"] }`. Strings containing ` ` or lone surrogates are refused, in the text fields and in object keys, because they wouldn't round-trip through `jsonb`.
+- **`changes` also allows arrays and plain objects** of the allowed scalars, with keys sorted at every depth. `staff.added` needs `{ roles: ["admin"] }`. Strings containing `\u0000` or lone surrogates are refused, in the text fields and in object keys, because they wouldn't round-trip through `jsonb`.
 - **`verifyAuditChain` takes a `Queryable`** (a raw `query()` interface), not the Drizzle db, so the plain-Node check script can call it. App code passes `getDb().$client`. It returns `ok`, `rows`, `lastId` and `lastHash`, or `rowId` and `reason`.
 - **`db:check-app-role` checks `UPDATE`, `DELETE` and `TRUNCATE` with privilege functions** (`has_table_privilege`) instead of running them, so a misconfigured branch can't lose data to the check. Its results also carry an optional `detail` field, which holds the verify row id and reason. It runs six checks.
 - **`0010` guards its `drizzle` schema revoke**, because the 4.5 `0007` replay test applies the SQL files into a bare database, where that schema doesn't exist.
