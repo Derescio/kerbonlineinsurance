@@ -1,4 +1,9 @@
+import { getDb } from "#/server/db/client";
+import { getAuthEnv } from "#/server/env";
+
+import { getAuth } from "./auth";
 import type { Auth } from "./auth";
+import { recordSecurityEvent } from "./security-events";
 
 /**
  * Runs a request through Better Auth. Its limiter answers 429 before any hook runs, so the
@@ -18,4 +23,14 @@ export async function handleAuthRequest(
     statusText: response.statusText,
     headers,
   });
+}
+
+/** The /api/auth/* route's body: Better Auth plus the security-event write, so the route imports no database code. */
+export async function handleAuthRoute(request: Request): Promise<Response> {
+  return handleAuthRequest(getAuth(), request, (headers) =>
+    recordSecurityEvent(getDb(), getAuthEnv().BETTER_AUTH_SECRET, {
+      type: "rate_limited",
+      headers,
+    }),
+  );
 }
