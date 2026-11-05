@@ -81,6 +81,7 @@ const config = defineConfig({
       {
         files: [
           "src/server/data/**",
+          "src/server/audit/**",
           "src/server/db/**",
           "src/test/**",
           "scripts/**",
