@@ -18,6 +18,7 @@ import {
   ratingVersions,
   staffMembers,
   staffRoles,
+  underwritingDecisions,
   users,
   vehicles,
 } from "#/server/db/schema";
@@ -329,4 +330,21 @@ export async function makeClaim({ status = "received", ...overrides }: Insert<ty
     })
     .returning();
   return claim!;
+}
+
+/** A car quote item referred to a handler, with the automatic underwriting decision that referred it. */
+export async function makeReferral({ customerId }: { customerId?: string } = {}) {
+  const { quote, items } = await makeQuote({ customerId });
+  const [item] = await getDb()
+    .update(quoteItems)
+    .set({ outcome: "referred", reasonCode: "high_value_vehicle" })
+    .where(eq(quoteItems.id, items[0]!.item.id))
+    .returning();
+  await getDb().insert(underwritingDecisions).values({
+    quoteItemId: item!.id,
+    outcome: "referred",
+    reasonCode: "high_value_vehicle",
+    decidedBy: null,
+  });
+  return { quote, item: item! };
 }
