@@ -1,6 +1,6 @@
 # 4.5 Authorization and data access
 
-**Status:** done (built 5 Nov 2026; waiting for the PR and Damion's Neon dev steps)
+**Status:** done (merged as #54 on 5 Nov 2026; Neon `dev` migrated and Damion made admin the same day)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -159,7 +159,7 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass (locally: yes); `ci` green on the PR.
+- [x] `vp check`, `vp test` and `vp build` pass; `ci` green on #54 (merged 5 Nov 2026).
 - [x] No function checks a role name; every staff check goes through `requirePermission`.
 - [x] The permission suite covers all eight functions, takes its expectations from the map, and fails if a new function is added without a declared permission.
 - [x] You are an admin on Neon `dev`, made by the script.
