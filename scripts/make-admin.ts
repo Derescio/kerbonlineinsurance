@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import pg from "pg";
@@ -19,6 +20,10 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { name: { type: "string" } },
 });
+
+// Locally the URL comes from .env.local (Neon `dev`), as in drizzle.config.ts. A DATABASE_URL already
+// set in the shell wins (loadEnvFile never overrides), so `prod` is an explicit choice.
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 const email = positionals[0];
 const url = process.env.DATABASE_URL;

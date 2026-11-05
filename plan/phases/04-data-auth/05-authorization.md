@@ -1,6 +1,6 @@
 # 4.5 Authorization and data access
 
-**Status:** done (built 5 Nov 2026; waiting for the PR and Damion's Neon dev steps)
+**Status:** done (merged as #54 on 5 Nov 2026; Neon `dev` migrated and Damion made admin the same day)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -142,8 +142,8 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 - [x] `/account` on `requireUser`; the empty `_staff` layout and guard; e2e check of both redirects
 - [x] Docs: engineering.md §7 (roles and permissions table, decisions 5–8, calls 9–15), 02-schema.md (a note that 4.5 moved roles to `staff_roles`), `phase.md` (4.5 and 4.5b rows, anchoring in 4.11), `build-plan.md`
 - [x] `vp check`, `vp test`, `vp build`
-- [ ] You run `vp run db:migrate` on Neon `dev` (staging and production apply `0006` in the build)
-- [ ] You run `auth:make-admin` on Neon `dev` for your own account, and we check the `staff_members` and `staff_roles` rows in the console
+- [x] You run `vp run db:migrate` on Neon `dev` (staging and production apply `0006` in the build) (Damion, 5 Nov 2026)
+- [x] You run `auth:make-admin` on Neon `dev` for your own account, and we check the `staff_members` and `staff_roles` rows in the console (Damion, 5 Nov 2026; the script now reads `.env.local`, fixed after the first run)
 
 ## Tests
 
@@ -159,10 +159,10 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass (locally: yes); `ci` green on the PR.
+- [x] `vp check`, `vp test` and `vp build` pass; `ci` green on #54 (merged 5 Nov 2026).
 - [x] No function checks a role name; every staff check goes through `requirePermission`.
 - [x] The permission suite covers all eight functions, takes its expectations from the map, and fails if a new function is added without a declared permission.
-- [ ] You are an admin on Neon `dev`, made by the script.
+- [x] You are an admin on Neon `dev`, made by the script.
 
 ## Commit message
 
