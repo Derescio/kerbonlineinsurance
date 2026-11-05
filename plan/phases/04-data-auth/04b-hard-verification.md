@@ -61,7 +61,7 @@ People who sign up with email and password must confirm their email before they 
 - [x] e2e: the sign-up spec now stops at 03c, and logging in before confirming shows 02c
 - [x] Docs
 - [x] `vp check`, `vp test`, `vp build`
-- [ ] `vp run db:migrate` on Neon `dev` (Damion), so previews accept the new event type
+- [x] `vp run db:migrate` on Neon `dev` (Damion), so previews accept the new event type (confirmed 5 Nov: `0005` in the migration log, the constraint includes `sign_in_unverified`)
 - [x] A browser run on the preview and on staging
 - [x] Figma frames updated (02c `212:6156`, 03c `212:6295`, 07d `205:4538`) for your review
 
