@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
@@ -25,11 +27,12 @@ import {
   quotes,
   reviews,
   sessions,
+  staffRoles,
   underwritingDecisions,
   users,
   vehicles,
 } from "#/server/db/schema";
-import { truncateAll } from "#/test/db";
+import { TEST_DATABASE_URL, truncateAll } from "#/test/db";
 import {
   makeClaim,
   makeCustomer,
@@ -950,7 +953,101 @@ describe("Postgres integrity rules", () => {
     });
 
     it("refuses an unknown role", async () => {
-      await expectRefused(makeStaff({ role: "superuser" }), CHECK, "staff_members_role_check");
+      const staff = await makeStaff({ roles: [] });
+      await expectRefused(
+        getDb().insert(staffRoles).values({ userId: staff.userId, role: "superuser" }),
+        CHECK,
+        "staff_roles_role_check",
+      );
+    });
+
+    it("refuses the same role twice", async () => {
+      const staff = await makeStaff({ roles: ["admin"] });
+      await expectRefused(
+        getDb().insert(staffRoles).values({ userId: staff.userId, role: "admin" }),
+        UNIQUE,
+        "staff_roles_pkey",
+      );
+    });
+
+    it("refuses updating a role row (grant or remove, never edit)", async () => {
+      const staff = await makeStaff({ roles: ["admin"] });
+      await expectRefused(
+        getDb()
+          .update(staffRoles)
+          .set({ role: "claims_handler" })
+          .where(eq(staffRoles.userId, staff.userId)),
+        APPEND_ONLY,
+      );
+    });
+
+    it("records a removed role for the pipeline", async () => {
+      const staff = await makeStaff({ roles: ["admin", "claims_handler"] });
+      await getDb()
+        .delete(staffRoles)
+        .where(and(eq(staffRoles.userId, staff.userId), eq(staffRoles.role, "admin")));
+      const rows = await getDb()
+        .select()
+        .from(deletedRows)
+        .where(eq(deletedRows.tableName, "staff_roles"));
+      expect(rows.map((r) => r.rowId)).toEqual([`${staff.userId}:admin`]);
+    });
+
+    it("0007 copies existing roles into staff_roles", async () => {
+      const migrations = async (tags: (tag: string) => boolean) => {
+        const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8")) as {
+          entries: { tag: string }[];
+        };
+        const files = journal.entries.map((entry) => entry.tag).filter(tags);
+        return Promise.all(
+          files.map(async (tag) =>
+            (await readFile(`drizzle/${tag}.sql`, "utf8")).split("--> statement-breakpoint"),
+          ),
+        );
+      };
+      const apply = async (client: Client, statementsByFile: string[][]) => {
+        for (const statements of statementsByFile) {
+          for (const statement of statements) await client.query(statement);
+        }
+      };
+      const early = await migrations((tag) => tag < "0007");
+      const late = await migrations((tag) => tag >= "0007");
+
+      // A separate database, not a schema: the 0002 functions pin search_path = public
+      const name = "kerb_migration_check";
+      const admin = new Client({ connectionString: TEST_DATABASE_URL });
+      await admin.connect();
+      try {
+        await admin.query(`DROP DATABASE IF EXISTS ${name}`);
+        await admin.query(`CREATE DATABASE ${name}`);
+        const url = new URL(TEST_DATABASE_URL);
+        url.pathname = `/${name}`;
+        const client = new Client({ connectionString: url.toString() });
+        await client.connect();
+        try {
+          await apply(client, early);
+          await client.query(
+            `INSERT INTO users (id, name, email) VALUES ('u1', 'Old Staff', 'old@example.test')`,
+          );
+          await client.query(
+            `INSERT INTO staff_members (user_id, role, display_name, staff_code)
+             VALUES ('u1', 'admin', 'Sam from Kerb', 'H-001')`,
+          );
+          await apply(client, late);
+          const roles = await client.query(`SELECT user_id, role FROM staff_roles`);
+          expect(roles.rows).toEqual([{ user_id: "u1", role: "admin" }]);
+          const columns = await client.query(
+            `SELECT column_name FROM information_schema.columns
+             WHERE table_name = 'staff_members' AND column_name = 'role'`,
+          );
+          expect(columns.rows).toEqual([]);
+        } finally {
+          await client.end();
+        }
+      } finally {
+        await admin.query(`DROP DATABASE IF EXISTS ${name}`);
+        await admin.end();
+      }
     });
 
     it("refuses a duplicate staff code", async () => {

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as SiteRouteImport } from './routes/_site'
+import { Route as StaffRouteImport } from './routes/_staff'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as SystemRouteImport } from './routes/system'
 import { Route as AuthEmailConfirmedRouteImport } from './routes/_auth/email-confirmed'
@@ -19,6 +20,7 @@ import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
+import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -28,6 +30,10 @@ const AuthRoute = AuthRouteImport.update({
 } as any)
 const SiteRoute = SiteRouteImport.update({
   id: '/_site',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffRoute = StaffRouteImport.update({
+  id: '/_staff',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -70,6 +76,11 @@ const SiteIndexRoute = SiteIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SiteRoute,
 } as any)
+const StaffStaffRoute = StaffStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => StaffRoute,
+} as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
   path: '/api/stream-test',
@@ -90,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
+  '/staff': typeof StaffStaffRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -102,6 +114,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
+  '/staff': typeof StaffStaffRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -109,6 +122,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
   '/_site': typeof SiteRouteWithChildren
+  '/_staff': typeof StaffRouteWithChildren
   '/account': typeof AccountRoute
   '/system': typeof SystemRoute
   '/_auth/email-confirmed': typeof AuthEmailConfirmedRoute
@@ -116,6 +130,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
   '/_auth/signup': typeof AuthSignupRoute
+  '/_staff/staff': typeof StaffStaffRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/_site/': typeof SiteIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -131,6 +146,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/staff'
     | '/api/stream-test'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
@@ -143,12 +159,14 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/staff'
     | '/api/stream-test'
     | '/api/auth/$'
   id:
     | '__root__'
     | '/_auth'
     | '/_site'
+    | '/_staff'
     | '/account'
     | '/system'
     | '/_auth/email-confirmed'
@@ -156,6 +174,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/reset-password'
     | '/_auth/signup'
+    | '/_staff/staff'
     | '/api/stream-test'
     | '/_site/'
     | '/api/auth/$'
@@ -164,6 +183,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   SiteRoute: typeof SiteRouteWithChildren
+  StaffRoute: typeof StaffRouteWithChildren
   AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
@@ -184,6 +204,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof SiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_staff': {
+      id: '/_staff'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof StaffRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -242,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteIndexRouteImport
       parentRoute: typeof SiteRoute
     }
+    '/_staff/staff': {
+      id: '/_staff/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof StaffStaffRouteImport
+      parentRoute: typeof StaffRoute
+    }
     '/api/stream-test': {
       id: '/api/stream-test'
       path: '/api/stream-test'
@@ -287,9 +321,20 @@ const SiteRouteChildren: SiteRouteChildren = {
 
 const SiteRouteWithChildren = SiteRoute._addFileChildren(SiteRouteChildren)
 
+interface StaffRouteChildren {
+  StaffStaffRoute: typeof StaffStaffRoute
+}
+
+const StaffRouteChildren: StaffRouteChildren = {
+  StaffStaffRoute: StaffStaffRoute,
+}
+
+const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   SiteRoute: SiteRouteWithChildren,
+  StaffRoute: StaffRouteWithChildren,
   AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,

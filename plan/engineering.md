@@ -94,7 +94,7 @@ Four layers. Each one has an owner slice and runs in CI. Each phase's `phase.md`
 |---|---|---|---|---|
 | **Unit** | `*.test.ts` | Pure logic with no I/O: `priceQuote()`, the claim status rulebook, Zod schemas, helpers like `cache.ts` | `vp test` locally and in `ci.yml` | 1.2 |
 | **Component** | `*.browser.test.tsx` | Rendered React components in real Chromium (Vitest browser mode, Playwright provider): states, props, keyboard and focus, form validation messages | `vp test` locally and in `ci.yml` | 2.2 |
-| **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
+| **Integration** | `*.int.test.ts` | Server functions and the data layer against a real Postgres: the permission suite (§7; nine actors, guest included), `withTx`, `withIdempotency`, rate limiter, job retries → `dead` | `ci.yml` with a Postgres service container; locally against a Docker Postgres | 4.1 |
 | **E2E** | `e2e/*.spec.ts` | The deployed app in a browser: smoke test, then the quote and claim journeys | `e2e.yml` on every preview | 3.4 |
 
 - **Three Vitest projects** in `vite.config.ts` (`test.projects`): `unit` (node), `component` (browser mode, Chromium) and `integration` (node + Postgres). `component` is added in 2.2 and `integration` in 4.1. Each project sets `extends: false`, and the app plugins (TanStack Start, Nitro) are skipped under `VITEST`, because they break the test runner (2.2 results). The `component` project lists its React deps in `optimizeDeps.include` so there's one copy of React.
@@ -224,24 +224,41 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 - **Admin** can act on customer records only from staff screens, and every action there is audited.
 - **Impersonation:** off, for privacy.
-- **Where roles live:** `staff_members` (4.2) is the only source. A user with no `staff_members` row is a customer. Claim assignment and referral decisions point at `staff_members`, so Postgres refuses a non-staff user there.
-- **First admin:** made with `vp run auth:make-admin <email>` (inserts the `staff_members` row), never through the UI. Claims handlers are assigned in `/admin/users`.
+- **Permissions, not role names (4.5):** functions ask for a named permission, never a role. One file, `src/server/auth/permissions.ts`, maps roles to permissions. A person's permissions are the union of their roles' permissions, and a staff member can hold several roles. The map lives in code, so a change goes through a PR and the permission suite.
+- **Where roles live:** `staff_members` (4.2) and `staff_roles` (4.5) together are the only source. A user with no `staff_members` row is a customer. A staff member with no roles, or a deactivated one, has no permissions. Claim assignment and referral decisions point at `staff_members`, so Postgres refuses a non-staff user there.
+- **First admin:** made with `vp run auth:make-admin <email> --name "<name>"` (inserts the `staff_members` row and an `admin` row in `staff_roles`), never through the UI. Claims handlers are assigned in `/admin/users`.
 - **Leaving staff:** deactivated, never deleted (`deactivated_at`; sessions revoked; open claims back to the queue), so history stays attributed.
-- **Conflict of interest:** a staff action on a record that belongs to the staff member's own customer row is refused (an admin may hold a policy, but can't handle their own claim or approve their own referral).
+- **Conflict of interest (reads too):** a staff action on a record that belongs to the staff member's own customer row is refused (an admin may hold a policy, but can't handle their own claim or approve their own referral). Staff queues leave out the staff member's own records, and opening one directly is refused.
+
+**Permissions (`ROLE_PERMISSIONS`, 4.5):**
+
+| Permission | What it allows | First used | Claims handler | Admin |
+|---|---|---|---|---|
+| `claims.read_all` | see every claim (except your own) with internal notes | 4.5 | ✓ | ✓ |
+| `claims.update` | change status, add notes and events, settle | 6.10 | ✓ | ✓ |
+| `referrals.read` | see referred quotes (except your own) | 4.5 | ✓ | ✓ |
+| `referrals.decide` | approve, load or decline a referral | 6.11 | ✓ | ✓ |
+| `reviews.moderate` | approve or reject reviews | 6.8 | | ✓ |
+| `staff.manage` | add staff, grant and remove roles, deactivate | 6.8 | | ✓ |
+| `audit.read` | the audit viewer and "Verify chain" | 6.8 | | ✓ |
+
+`admin` is listed in full rather than as "everything", so a permission added later is never granted to admins without anyone choosing that.
 
 ### Enforcement: four layers, one rule set
 
 1. **Server middleware** (`src/server/auth/middleware.ts`) on every protected server function:
    - `requireUser`
-   - `requireRole('claims_handler' | 'admin')`, which also checks that 2FA is set up and the session is fresh
+   - `requirePermission(actor, permission)`, which refuses anyone who isn't active staff holding that permission; 4.6 adds the 2FA and fresh-session checks inside it
+   - there is no `requireRole`: nothing outside `permissions.ts` checks a role name
 2. **Scoped data access** (`src/server/data/*`):
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
-   - Staff functions are separate (`staff*`) and need an active `staff_members` row with the right role.
-   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live.
+   - Staff functions are separate (`staff*`) and need an active `staff_members` row holding the right permission.
+   - Someone else's record is `NOT_FOUND`, the same answer as an id that doesn't exist, so ids can't be probed. Staff functions answer `FORBIDDEN` to anyone without the permission.
+   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb` and the schema (except `schema/values`) can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/db/`, `scripts/` and tests, and `ROLE_PERMISSIONS` only inside `src/server/auth/permissions.ts`.
 3. **Route guards** (`beforeLoad`): redirects for UX only. The server is the security boundary.
 4. **Audit log:** `audit_log` records:
    - staff actions: claim status, referral decisions, roles, review decisions
-   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions so no page can skip it
+   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions so no page can skip it (4.5b; the 4.5 functions do not write them yet)
    - sensitive customer actions: password, 2FA, "sign out everywhere", address and driver changes, account deletion
 
    **How it's kept honest:**

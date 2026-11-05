@@ -31,7 +31,76 @@ const config = defineConfig({
   },
   lint: {
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
-    rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+    rules: {
+      "vite-plus/prefer-vite-plus-imports": "error",
+      // Only the data layer touches the database (4.5): pages and features go through src/server/data/
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "#/server/db/client",
+              message: "Query through a function in src/server/data/ (4.5)",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "#/server/db/schema",
+                "#/server/db/schema/*",
+                "**/db/client",
+                "**/db/schema*",
+                "**/db/schema/**",
+                // values.ts is closed value sets with no database access; UI code may import it
+                "!#/server/db/schema/values",
+                "!**/db/schema/values",
+              ],
+              message: "Query through a function in src/server/data/ (4.5)",
+            },
+            {
+              group: ["#/server/auth/permissions", "**/auth/permissions"],
+              importNames: ["ROLE_PERMISSIONS"],
+              message: "Check a permission with requirePermission, never a role",
+            },
+          ],
+        },
+      ],
+    },
+    overrides: [
+      {
+        files: [
+          "src/server/data/**",
+          "src/server/db/**",
+          "src/test/**",
+          "scripts/**",
+          "**/*.int.test.ts",
+        ],
+        rules: { "no-restricted-imports": "off" },
+      },
+      {
+        // The auth folder may use the database, but only permissions.ts reads ROLE_PERMISSIONS
+        files: ["src/server/auth/**"],
+        excludeFiles: ["src/server/auth/permissions.ts", "src/server/auth/permissions.test.ts"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                {
+                  group: ["#/server/auth/permissions", "**/auth/permissions", "./permissions"],
+                  importNames: ["ROLE_PERMISSIONS"],
+                  message: "Check a permission with requirePermission, never a role",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: ["src/server/auth/permissions.ts", "src/server/auth/permissions.test.ts"],
+        rules: { "no-restricted-imports": "off" },
+      },
+    ],
     options: { typeAware: true, typeCheck: true },
   },
   resolve: { tsconfigPaths: true },
@@ -47,7 +116,7 @@ const config = defineConfig({
           name: "unit",
           environment: "node",
           include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
-          exclude: ["src/**/*.int.test.ts"],
+          exclude: ["src/**/*.int.test.ts", "scripts/**/*.int.test.ts"],
         },
       },
       {
@@ -59,7 +128,7 @@ const config = defineConfig({
         test: {
           name: "integration",
           environment: "node",
-          include: ["src/**/*.int.test.ts"],
+          include: ["src/**/*.int.test.ts", "scripts/**/*.int.test.ts"],
           globalSetup: ["src/test/integration.setup.ts"],
           env: {
             DATABASE_URL:

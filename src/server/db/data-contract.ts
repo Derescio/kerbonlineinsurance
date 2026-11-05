@@ -149,25 +149,26 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     },
   },
   staff_members: {
-    grain: "one staff member (their role)",
+    grain: "one staff member",
     primaryKey: ["user_id"],
     changeColumn: "updated_at",
     kind: "mutable",
     copied: true,
     columns: {
       // The user id is kept like every other user id (a pseudonym once names and emails are
-      // dropped), so decisions, assignments and settlements join to a staff_code and role
-      ...keep(
-        "user_id",
-        "role",
-        "staff_code",
-        "started_at",
-        "deactivated_at",
-        "created_at",
-        "updated_at",
-      ),
+      // dropped), so decisions, assignments and settlements join to a staff_code (roles are in
+      // staff_roles)
+      ...keep("user_id", "staff_code", "started_at", "deactivated_at", "created_at", "updated_at"),
       display_name: "drop",
     },
+  },
+  staff_roles: {
+    grain: "one role held by a staff member",
+    primaryKey: ["user_id", "role"],
+    changeColumn: "granted_at",
+    kind: "append-only",
+    copied: true,
+    columns: keep("user_id", "role", "granted_at"),
   },
 
   // --- Quotes and underwriting ---

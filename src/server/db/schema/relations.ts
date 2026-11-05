@@ -8,7 +8,7 @@ import { bundles, payments, policies } from "./policies";
 import { businesses, drivers, properties, vehicles } from "./products";
 import { quoteItemAddons, quoteItemFactors, quoteItemOptions, quoteItems, quotes } from "./quotes";
 import { reviews } from "./reviews";
-import { staffMembers } from "./staff";
+import { staffMembers, staffRoles } from "./staff";
 import { ratingVersions, underwritingDecisions } from "./underwriting";
 
 // Drizzle relations for the core tables, so 4.5's queries load a policy with its claims (and the
@@ -47,8 +47,16 @@ export const customersRelations = relations(customers, ({ one, many }) => ({
 
 export const staffMembersRelations = relations(staffMembers, ({ one, many }) => ({
   user: one(users, { fields: [staffMembers.userId], references: [users.id] }),
+  roles: many(staffRoles),
   assignedClaims: many(claims),
   decisions: many(underwritingDecisions),
+}));
+
+export const staffRolesRelations = relations(staffRoles, ({ one }) => ({
+  staffMember: one(staffMembers, {
+    fields: [staffRoles.userId],
+    references: [staffMembers.userId],
+  }),
 }));
 
 export const quotesRelations = relations(quotes, ({ one, many }) => ({

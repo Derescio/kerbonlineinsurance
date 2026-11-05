@@ -5,7 +5,7 @@ import { AccountPage } from "#/features/auth/AccountPage";
 import { getAccountSummary } from "#/features/auth/session";
 
 // The minimal account page (4.4, decision 6). Signed out → log in first. This guard is UX only;
-// 4.5 adds requireUser() to the data layer.
+// the data layer (src/server/data/) checks the Actor from getActor.
 const search = z.object({
   confirmed: z.boolean().optional().catch(undefined),
   linked: z.literal("google").optional().catch(undefined),

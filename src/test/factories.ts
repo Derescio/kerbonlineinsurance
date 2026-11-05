@@ -17,10 +17,12 @@ import {
   quotes,
   ratingVersions,
   staffMembers,
+  staffRoles,
+  underwritingDecisions,
   users,
   vehicles,
 } from "#/server/db/schema";
-import type { Product } from "#/server/db/schema/values";
+import type { Product, StaffRole } from "#/server/db/schema/values";
 
 // Test factories (4.2): each inserts one valid row, and its parents when they aren't given, with
 // any field overridable. 4.5's permission suite and later slices build on them. Integration tests
@@ -65,21 +67,25 @@ export async function makeCustomer(overrides: Insert<typeof customers> = {}) {
 }
 
 export async function makeStaff({
-  role = "claims_handler",
+  roles = ["claims_handler"],
   ...overrides
-}: Insert<typeof staffMembers> = {}) {
+}: Insert<typeof staffMembers> & { roles?: StaffRole[] } = {}) {
   const userId = overrides.userId ?? (await makeUser()).id;
   const [staff] = await getDb()
     .insert(staffMembers)
     .values({
       userId,
-      role,
       displayName: "Sam from Kerb claims",
       staffCode: `H-${digits(3).slice(-3)}`,
       ...overrides,
     })
     .returning();
-  return staff!;
+  if (roles.length > 0) {
+    await getDb()
+      .insert(staffRoles)
+      .values(roles.map((role) => ({ userId, role })));
+  }
+  return { ...staff!, roles: roles as string[] };
 }
 
 export async function makeRatingVersion(overrides: Insert<typeof ratingVersions> = {}) {
@@ -324,4 +330,21 @@ export async function makeClaim({ status = "received", ...overrides }: Insert<ty
     })
     .returning();
   return claim!;
+}
+
+/** A car quote item referred to a handler, with the automatic underwriting decision that referred it. */
+export async function makeReferral({ customerId }: { customerId?: string } = {}) {
+  const { quote, items } = await makeQuote({ customerId });
+  const [item] = await getDb()
+    .update(quoteItems)
+    .set({ outcome: "referred", reasonCode: "high_value_vehicle" })
+    .where(eq(quoteItems.id, items[0]!.item.id))
+    .returning();
+  await getDb().insert(underwritingDecisions).values({
+    quoteItemId: item!.id,
+    outcome: "referred",
+    reasonCode: "high_value_vehicle",
+    decidedBy: null,
+  });
+  return { quote, item: item! };
 }
