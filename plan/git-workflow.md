@@ -49,8 +49,8 @@ The slice spec must be approved before building starts. Build that slice only, a
 ### 2. Open the PR into `staging`
 
 ```
-git push -u origin slice/05-systempage
-gh pr create --base staging --title "feat: /system page showing every Kerb token and component"
+git push -u origin slice/4.4-better-auth
+gh pr create --base staging --title "feat: accounts with email + password and Google sign-in, email verification, password reset, breached-password check, Turnstile, rate limits and security events"
 ```
 
 - At "Choose a template", pick `pull_request_template.md`. At "Body", press `e` to fill it in Notepad, then save, close and Submit.

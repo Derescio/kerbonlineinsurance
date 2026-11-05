@@ -191,10 +191,13 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 ### Authentication (Better Auth)
 
-- **Email + password:** minimum 10 characters, with the Have I Been Pwned check (known-breached passwords refused). Soft email verification: a banner, not a blocker.
+- **Email + password:** minimum 10 characters, with the Have I Been Pwned check (known-breached passwords refused; only the first 5 characters of the SHA-1 hash are sent, and the check fails open if the service is down). Soft email verification: a banner, not a blocker. Emails come from `Kerb <hello@kerb.opsedsolutions.com>` (Resend, sent after the response).
 - **Google sign-in:** one OAuth client per environment (production and staging redirect URLs).
   - **Previews** use Better Auth's OAuth proxy plugin, routed through the staging URL. If that proves awkward, the Google button is hidden on previews.
-  - **Account linking:** a Google sign-in with the same verified email links to the existing account.
+  - **Account linking** (4.4, decision 2):
+    - only an email Google itself has verified is ever matched to a Kerb account
+    - a Kerb account whose email was never verified is linked, and its password and sessions are removed (whoever set them never proved they own the address)
+    - a Kerb account whose email is verified is never merged automatically: the Google sign-in is refused, and the owner logs in and presses **Connect Google** (`linkSocial`)
   - Google users are already verified, so no verification email is sent.
 - **2FA:** the `twoFactor` plugin (TOTP + backup codes). Optional for customers in Settings. **Required for staff** before any staff page loads.
 - **Sessions:**
@@ -203,8 +206,8 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
   - "sign out everywhere"; all sessions revoked on password change
   - staff actions need a fresh session
 - **Rate limits:** Better Auth's limiter backed by the database (serverless has no shared memory) on sign-in, sign-up, reset and 2FA, plus the Vercel Firewall rules.
-- **Origins:** `trustedOrigins` per environment (production URL; staging URL + `*.vercel.app` for dev).
-- **Env vars (per environment):** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+- **Origins:** `trustedOrigins` per environment: the production URL; the staging URL; on Preview the deploy URL plus `https://kerbonlineinsurance-*-damion-wilsons-projects.vercel.app` (this project's previews only, never every `*.vercel.app`); `http://localhost:3000` locally.
+- **Env vars (per environment):** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (unset on Preview), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_PROXY_SECRET` (Staging and Preview, same value), `RESEND_API_KEY`, `EMAIL_FROM`, `VITE_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`.
 
 ### Roles and permissions
 
@@ -314,7 +317,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - Reviews and claim notes are rendered as **plain text**.
   - Kerbie's replies are rendered as limited Markdown with raw HTML stripped and links restricted to Kerb pages.
   - No `dangerouslySetInnerHTML` on user content; a lint rule flags it.
-- **Bot protection: Cloudflare Turnstile** (free; usually invisible) on sign-up, password reset, review submit, and the first guest Kerbie message. The token is checked on the server. Env vars: `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`.
+- **Bot protection: Cloudflare Turnstile** (free; usually invisible) on sign-up, password reset, review submit, and the first guest Kerbie message. The token is checked on the server. Env vars: `VITE_PUBLIC_TURNSTILE_SITE_KEY` (public), `TURNSTILE_SECRET_KEY`; Cloudflare's test keys on Preview and Development.
 - **Supply chain and secrets:**
   - Dependabot security alerts and a `pnpm audit --prod` step in CI.
   - GitHub secret scanning with push protection turned on (repo setting).

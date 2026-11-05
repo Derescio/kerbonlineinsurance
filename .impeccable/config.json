@@ -8,6 +8,12 @@
         "value": "instrument sans",
         "createdAt": "2026-10-30T02:40:36.791Z",
         "reason": "Kerb brand body font, defined by the design system (../tokens/typography.css) and Figma Foundation Design Body/* text styles (4:2); not a stylistic default"
+      },
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-11-04T20:53:01.059Z",
+        "reason": "Claude: HTML email (src/server/email/templates.ts) needs an email-safe system font stack; email clients don't reliably load web fonts"
       }
     ]
   }

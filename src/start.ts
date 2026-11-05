@@ -1,4 +1,4 @@
-import { createMiddleware, createStart } from "@tanstack/react-start";
+import { createCsrfMiddleware, createMiddleware, createStart } from "@tanstack/react-start";
 
 import { posthogApiHost } from "#/lib/analytics";
 import { contentSecurityPolicy, createNonce } from "#/server/security-headers";
@@ -18,6 +18,12 @@ const cspMiddleware = createMiddleware().server(async ({ next }) => {
   return result;
 });
 
+// Server functions (src/features/auth/session.ts and later ones) are same-origin RPC endpoints:
+// a call from another site is refused (Sec-Fetch-Site, then Origin, then Referer).
+const csrfMiddleware = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [cspMiddleware],
+  requestMiddleware: [csrfMiddleware, cspMiddleware],
 }));

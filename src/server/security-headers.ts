@@ -2,8 +2,7 @@
 //
 // The static set goes on every response, including static files, via Nitro route rules in
 // vite.config.ts. The CSP needs a fresh nonce per request (TanStack injects inline hydration
-// scripts), so src/start.ts sets it in request middleware. Later phases add R2 (img-src) and
-// Turnstile (script-src, frame-src, connect-src).
+// scripts), so src/start.ts sets it in request middleware. Later phases add R2 (img-src).
 
 export const staticSecurityHeaders = {
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
@@ -32,6 +31,9 @@ export function posthogOrigins(host: string | undefined): string[] {
   return region ? [origin, `https://${region}-assets.i.posthog.com`] : [origin];
 }
 
+/** Cloudflare Turnstile on sign-up and reset (4.4): its script, and the widget's iframe */
+export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 export function contentSecurityPolicy(nonce: string, posthogHost?: string) {
   const posthogSource = posthogOrigins(posthogHost)
     .map((origin) => ` ${origin}`)
@@ -39,7 +41,7 @@ export function contentSecurityPolicy(nonce: string, posthogHost?: string) {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${posthogSource}`,
+    `script-src 'self' 'nonce-${nonce}' ${TURNSTILE_ORIGIN}${posthogSource}`,
     `style-src 'self' 'nonce-${nonce}'`,
     // React renders `style` props as attributes in server HTML. Attributes can't run script, and
     // img-src/font-src stop them loading anything off-site. <style> and stylesheets stay strict.
@@ -47,6 +49,7 @@ export function contentSecurityPolicy(nonce: string, posthogHost?: string) {
     "img-src 'self' data:",
     "font-src 'self'",
     `connect-src 'self'${posthogSource}`,
+    `frame-src ${TURNSTILE_ORIGIN}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

@@ -45,6 +45,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
         "updated_at",
         "two_factor_enabled",
         "is_synthetic",
+        "terms_accepted_at",
       ),
       name: "drop",
       email: "drop",
@@ -104,6 +105,19 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
       ...keep("id", "user_id", "verified", "failed_verification_count", "locked_until"),
       secret: "drop",
       backup_codes: "drop",
+    },
+  },
+  security_events: {
+    grain: "one sign-in, failure, reset or account-link event (4.4)",
+    primaryKey: ["id"],
+    changeColumn: null,
+    kind: "append-only",
+    // Bot traffic and per-person activity: nothing here goes to the lakehouse
+    copied: false,
+    columns: {
+      ...keep("id", "user_id", "type", "method", "created_at"),
+      ip_hash: "drop",
+      user_agent_summary: "drop",
     },
   },
   auth_rate_limits: {
