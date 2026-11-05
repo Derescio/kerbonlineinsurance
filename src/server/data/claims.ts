@@ -1,6 +1,7 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 
+import { audit } from "#/server/audit/audit";
 import { assertNoConflict } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import { claims } from "#/server/db/schema";
@@ -126,27 +127,32 @@ export const staffGetClaim = defineRead(
   "claims.read_all",
   z.object({ claimId: z.uuid() }),
   async (actor, { claimId }, db): Promise<StaffClaimDetail> => {
-    const claim = await db.query.claims.findFirst({
-      columns: { ...claimDetailColumns, customerId: true, assignedHandlerId: true },
-      where: eq(claims.id, claimId),
-      with: {
-        events: {
-          columns: {
-            id: true,
-            type: true,
-            fromStatus: true,
-            toStatus: true,
-            note: true,
-            createdAt: true,
-            visibility: true,
-            actorUserId: true,
+    // One transaction, so the view is recorded only if the read succeeds and a refused read writes
+    // nothing (4.5b)
+    return db.transaction(async (tx) => {
+      const claim = await tx.query.claims.findFirst({
+        columns: { ...claimDetailColumns, customerId: true, assignedHandlerId: true },
+        where: eq(claims.id, claimId),
+        with: {
+          events: {
+            columns: {
+              id: true,
+              type: true,
+              fromStatus: true,
+              toStatus: true,
+              note: true,
+              createdAt: true,
+              visibility: true,
+              actorUserId: true,
+            },
+            orderBy: (event, { asc }) => [asc(event.createdAt), asc(event.id)],
           },
-          orderBy: (event, { asc }) => [asc(event.createdAt), asc(event.id)],
         },
-      },
+      });
+      if (!claim) throw new AuthzError("NOT_FOUND");
+      assertNoConflict(actor, claim.customerId);
+      await audit(tx, { actor, action: "claim.viewed", entityType: "claim", entityId: claimId });
+      return claim;
     });
-    if (!claim) throw new AuthzError("NOT_FOUND");
-    assertNoConflict(actor, claim.customerId);
-    return claim;
   },
 );

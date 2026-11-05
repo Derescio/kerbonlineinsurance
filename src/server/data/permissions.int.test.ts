@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { asc, eq } from "drizzle-orm";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { Actor } from "#/server/auth/actor";
 import { AuthzError, type AuthzCode } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
-import { quoteItems, underwritingDecisions } from "#/server/db/schema";
-import { truncateAll } from "#/test/db";
+import { parseKeys } from "#/server/audit/chain";
+import { verifyAuditChain } from "#/server/audit/verify";
+import { auditLog, quoteItems, underwritingDecisions } from "#/server/db/schema";
+import { getOwnerDb, truncateAll } from "#/test/db";
 import { makeQuote } from "#/test/factories";
 import { buildWorld, type World } from "#/test/world";
 
@@ -61,6 +63,9 @@ beforeEach(async () => {
   world = await buildWorld();
 });
 afterAll(closeDb);
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 /** The AuthzError code a call fails with, or null if it didn't throw one */
 async function codeOf(call: () => Promise<unknown>): Promise<AuthzCode | null> {
@@ -268,6 +273,88 @@ describe("staff reads", () => {
     const { handler } = world;
     expect(await codeOf(() => data.staffListClaims(handler, { limit }))).toBe("NOT_FOUND");
     expect(await codeOf(() => data.staffListReferrals(handler, { limit }))).toBe("NOT_FOUND");
+  });
+});
+
+describe("audit of staff views (4.5b)", () => {
+  const keys = parseKeys(process.env.AUDIT_HMAC_KEYS, process.env.AUDIT_HMAC_ACTIVE_VERSION);
+  const auditRows = () => getDb().select().from(auditLog).orderBy(asc(auditLog.id));
+
+  it("writes one claim.viewed row when a handler opens a claim", async () => {
+    const { handler, records } = world;
+    await data.staffGetClaim(handler, { claimId: records.claimA.id });
+    expect(await auditRows()).toMatchObject([
+      {
+        action: "claim.viewed",
+        entityType: "claim",
+        entityId: records.claimA.id,
+        actorUserId: handler!.userId,
+        actorRole: "claims_handler",
+        changes: null,
+      },
+    ]);
+  });
+
+  it("writes one referral.viewed row when a handler opens a referral", async () => {
+    const { handler, records } = world;
+    await data.staffGetReferral(handler, { quoteItemId: records.referralA.item.id });
+    expect(await auditRows()).toMatchObject([
+      {
+        action: "referral.viewed",
+        entityType: "quote_item",
+        entityId: records.referralA.item.id,
+        actorUserId: handler!.userId,
+        actorRole: "claims_handler",
+        changes: null,
+      },
+    ]);
+  });
+
+  it("writes nothing for a conflict of interest, a missing record or a customer", async () => {
+    const { adminCustomer, customerA, handler, records } = world;
+    expect(
+      await codeOf(() => data.staffGetClaim(adminCustomer, { claimId: records.adminClaim.id })),
+    ).toBe("CONFLICT_OF_INTEREST");
+    expect(
+      await codeOf(() =>
+        data.staffGetReferral(adminCustomer, { quoteItemId: records.adminReferral.item.id }),
+      ),
+    ).toBe("CONFLICT_OF_INTEREST");
+    expect(await codeOf(() => data.staffGetClaim(handler, { claimId: randomUUID() }))).toBe(
+      "NOT_FOUND",
+    );
+    expect(await codeOf(() => data.staffGetReferral(handler, { quoteItemId: randomUUID() }))).toBe(
+      "NOT_FOUND",
+    );
+    expect(await codeOf(() => data.staffGetClaim(customerA, { claimId: records.claimA.id }))).toBe(
+      "FORBIDDEN",
+    );
+    expect(await auditRows()).toHaveLength(0);
+  });
+
+  it("leaves a chain that verifies after a mix of views", async () => {
+    const { handler, admin, records } = world;
+    await data.staffGetClaim(handler, { claimId: records.claimA.id });
+    await data.staffGetReferral(admin, { quoteItemId: records.referralA.item.id });
+    await data.staffGetClaim(admin, { claimId: records.claimA.id });
+    expect(await verifyAuditChain(getOwnerDb().$client, keys)).toMatchObject({
+      ok: true,
+      rows: 3,
+    });
+  });
+
+  it("throws and writes nothing when the keys are missing, without leaking key text", async () => {
+    vi.stubEnv("AUDIT_HMAC_KEYS", "");
+    let message = "";
+    try {
+      await data.staffGetClaim(world.handler, { claimId: world.records.claimA.id });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).not.toBe("");
+    expect(message).not.toContain("AQEB");
+    vi.unstubAllEnvs();
+    expect(await auditRows()).toHaveLength(0);
   });
 });
 
