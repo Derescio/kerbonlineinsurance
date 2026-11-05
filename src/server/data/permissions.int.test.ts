@@ -232,6 +232,18 @@ describe("staff reads", () => {
     ]);
   });
 
+  it("returns an item still marked referred even with no decision row", async () => {
+    const { items } = await makeQuote();
+    const itemId = items[0]!.item.id;
+    await getDb()
+      .update(quoteItems)
+      .set({ outcome: "referred", reasonCode: "high_value_vehicle" })
+      .where(eq(quoteItems.id, itemId));
+    const referral = await data.staffGetReferral(world.handler, { quoteItemId: itemId });
+    expect(referral.quoteItemId).toBe(itemId);
+    expect(referral.decisions).toEqual([]);
+  });
+
   it("treats an item that was never referred as not found", async () => {
     const { items } = await makeQuote();
     expect(

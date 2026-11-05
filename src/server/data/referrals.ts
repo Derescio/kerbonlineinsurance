@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, ne } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ne, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { assertNoConflict } from "#/server/auth/actor";
@@ -89,16 +89,19 @@ export const staffGetReferral = defineRead(
         and(
           eq(quoteItems.id, quoteItemId),
           // A referral is an item that is referred now or ever was
-          exists(
-            db
-              .select({ one: underwritingDecisions.id })
-              .from(underwritingDecisions)
-              .where(
-                and(
-                  eq(underwritingDecisions.quoteItemId, quoteItems.id),
-                  eq(underwritingDecisions.outcome, "referred"),
+          or(
+            eq(quoteItems.outcome, "referred"),
+            exists(
+              db
+                .select({ one: underwritingDecisions.id })
+                .from(underwritingDecisions)
+                .where(
+                  and(
+                    eq(underwritingDecisions.quoteItemId, quoteItems.id),
+                    eq(underwritingDecisions.outcome, "referred"),
+                  ),
                 ),
-              ),
+            ),
           ),
         ),
       );
