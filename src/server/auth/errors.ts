@@ -1,3 +1,5 @@
+import { isNotFound, isRedirect } from "@tanstack/react-router";
+
 // What a failed permission check looks like (4.5). The browser gets a code and a fixed sentence,
 // never the original message or a stack trace.
 
@@ -38,4 +40,27 @@ export function toPublicError(error: unknown): {
     return { status: error.status, code: error.code, message: MESSAGE[error.code] };
   }
   return { status: 500, code: "INTERNAL", message: "Something went wrong. Please try again." };
+}
+
+/** What the browser receives for any failure: a fixed sentence, a code and a status */
+export class PublicError extends Error {
+  readonly code: AuthzCode | "INTERNAL";
+  readonly status: number;
+
+  constructor(error: unknown) {
+    const pub = toPublicError(error);
+    super(pub.message);
+    this.name = "PublicError";
+    this.code = pub.code;
+    this.status = pub.status;
+  }
+}
+
+/**
+ * The error to throw out of a server function. TanStack redirects and notFound pass through
+ * unchanged; everything else becomes a PublicError, so a database message never reaches the browser.
+ */
+export function publicErrorFor(error: unknown): Error {
+  if (isRedirect(error) || isNotFound(error)) return error as unknown as Error;
+  return new PublicError(error);
 }

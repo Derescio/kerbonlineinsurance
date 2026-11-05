@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { AuthzError, toPublicError } from "./errors";
+import { notFound, redirect } from "@tanstack/react-router";
+
+import { AuthzError, publicErrorFor, toPublicError } from "./errors";
 
 describe("AuthzError", () => {
   it("maps each code to its status", () => {
@@ -40,5 +42,31 @@ describe("toPublicError", () => {
 
   it("handles non-Error throws", () => {
     expect(toPublicError("boom").code).toBe("INTERNAL");
+  });
+});
+
+describe("publicErrorFor", () => {
+  it("gives an AuthzError its fixed sentence, code and status", () => {
+    const out = publicErrorFor(new AuthzError("FORBIDDEN")) as Error & { code: string };
+    expect(out.message).toBe("You don't have access to this.");
+    expect(out.code).toBe("FORBIDDEN");
+    expect((out as unknown as { status: number }).status).toBe(403);
+  });
+
+  it("hides a database error behind the generic sentence", () => {
+    const out = publicErrorFor(
+      new Error('duplicate key value violates unique constraint "x"'),
+    ) as Error & { code: string };
+    expect(out.message).toBe("Something went wrong. Please try again.");
+    expect(out.code).toBe("INTERNAL");
+    expect(JSON.stringify(out)).not.toContain("duplicate");
+    expect(out.stack ?? "").not.toContain("duplicate");
+  });
+
+  it("passes a redirect and a notFound through unchanged", () => {
+    const moved = redirect({ to: "/" });
+    const missing = notFound();
+    expect(publicErrorFor(moved)).toBe(moved);
+    expect(publicErrorFor(missing)).toBe(missing);
   });
 });

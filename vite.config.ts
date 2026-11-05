@@ -51,6 +51,9 @@ const config = defineConfig({
                 "**/db/client",
                 "**/db/schema*",
                 "**/db/schema/**",
+                // values.ts is closed value sets with no database access; UI code may import it
+                "!#/server/db/schema/values",
+                "!**/db/schema/values",
               ],
               message: "Query through a function in src/server/data/ (4.5)",
             },
@@ -67,12 +70,34 @@ const config = defineConfig({
       {
         files: [
           "src/server/data/**",
-          "src/server/auth/**",
           "src/server/db/**",
           "src/test/**",
           "scripts/**",
           "**/*.int.test.ts",
         ],
+        rules: { "no-restricted-imports": "off" },
+      },
+      {
+        // The auth folder may use the database, but only permissions.ts reads ROLE_PERMISSIONS
+        files: ["src/server/auth/**"],
+        excludeFiles: ["src/server/auth/permissions.ts", "src/server/auth/permissions.test.ts"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                {
+                  group: ["#/server/auth/permissions", "**/auth/permissions", "./permissions"],
+                  importNames: ["ROLE_PERMISSIONS"],
+                  message: "Check a permission with requirePermission, never a role",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: ["src/server/auth/permissions.ts", "src/server/auth/permissions.test.ts"],
         rules: { "no-restricted-imports": "off" },
       },
     ],

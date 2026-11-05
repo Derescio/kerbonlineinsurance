@@ -96,7 +96,9 @@ describe("access from the map", () => {
       // A record read of A's is A's alone: everyone else, staff included, gets NOT_FOUND
       if (owner === "A") expect(code).toBe(actorName === "customerA" ? null : "NOT_FOUND");
     } else if (actor.staff?.permissions.has(read.access)) {
-      expect(code).not.toBe("FORBIDDEN");
+      // Allowed staff (admin too) read A's record unless it is their own, which none of them is
+      if (owner === "A") expect(actor.customerId).not.toBe(world.customerA?.customerId);
+      expect(code).toBeNull();
     } else {
       expect(code).toBe("FORBIDDEN");
     }
@@ -269,12 +271,34 @@ describe("staff reads", () => {
   });
 });
 
+// Every module in src/server/data/ except these, whether or not index.ts re-exports it
+const modules = import.meta.glob(
+  ["./*.ts", "!./*.test.ts", "!./index.ts", "!./define.ts", "!./summaries.ts"],
+  {
+    eager: true,
+  },
+) as Record<string, Record<string, unknown>>;
+const found = Object.entries(modules).flatMap(([file, exports]) =>
+  Object.entries(exports)
+    .filter(([, value]) => typeof value === "function")
+    .map(([name, read]) => ({ label: `${file} ${name}`, name, read })),
+);
+const indexed = new Set(Object.values(data));
+
 describe("completeness", () => {
-  it.each(Object.entries(data))("%s declares its access and has a case", (name, read) => {
-    expect(typeof (read as AnyRead).access, `${name} has no access`).toBe("string");
-    expect(
-      cases.some((c) => c.read === read),
-      `${name} is missing from the cases table`,
-    ).toBe(true);
+  it("finds the data modules", () => {
+    expect(found.length).toBeGreaterThan(0);
   });
+
+  it.each(found)(
+    "$label is exported from index.ts, declares access and has a case",
+    ({ name, read }) => {
+      expect(indexed.has(read as never), `${name} is not exported from index.ts`).toBe(true);
+      expect(typeof (read as AnyRead).access, `${name} has no access`).toBe("string");
+      expect(
+        cases.some((c) => c.read === read),
+        `${name} is missing from the cases table`,
+      ).toBe(true);
+    },
+  );
 });

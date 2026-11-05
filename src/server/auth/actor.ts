@@ -19,7 +19,10 @@ export interface Actor {
   } | null;
 }
 
-/** One query: the user with their customer row, and their staff row (if not deactivated) and its roles */
+/**
+ * One query: the user with their customer row, their staff row and its roles. The staff row is
+ * dropped in JS after the fetch if `deactivated_at` is set at all, even to a future date.
+ */
 export async function resolveActor(db: Db, userId: string): Promise<Actor | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
