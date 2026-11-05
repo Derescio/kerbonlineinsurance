@@ -1,6 +1,6 @@
 # 4.5 Authorization and data access
 
-**Status:** approved 5 Nov 2026, not started
+**Status:** done (built 5 Nov 2026; waiting for the PR and Damion's Neon dev steps)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -133,15 +133,15 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 ## Steps
 
 - [x] You approve this spec (5 Nov 2026)
-- [ ] `0006_staff_roles`, schema, data contract, factories; the 4.2 tests updated and passing
-- [ ] `permissions.ts` and its snapshot test; `Actor`, `requireUser`, `requirePermission`, `assertNoConflict`, `AuthzError`, the middleware; unit tests first
-- [ ] The permission suite and a referred-quote-item factory; integration tests first, failing
-- [ ] The eight data functions until the suite passes
-- [ ] The lint rule (call 11), and fixing anything it flags
-- [ ] `auth:make-admin` with integration tests
-- [ ] `/account` on `requireUser`; the empty `_staff` layout and guard; e2e check of both redirects
-- [ ] Docs: engineering.md §7 (roles and permissions table, decisions 5–8, calls 9–15), 02-schema.md (a note that 4.5 moved roles to `staff_roles`), `phase.md` (4.5 and 4.5b rows, anchoring in 4.11), `build-plan.md`
-- [ ] `vp check`, `vp test`, `vp build`
+- [x] `0006_staff_roles`, schema, data contract, factories; the 4.2 tests updated and passing
+- [x] `permissions.ts` and its snapshot test; `Actor`, `requireUser`, `requirePermission`, `assertNoConflict`, `AuthzError`, the middleware; unit tests first
+- [x] The permission suite and a referred-quote-item factory; integration tests first, failing
+- [x] The eight data functions until the suite passes
+- [x] The lint rule (call 11), and fixing anything it flags
+- [x] `auth:make-admin` with integration tests
+- [x] `/account` on `requireUser`; the empty `_staff` layout and guard; e2e check of both redirects
+- [x] Docs: engineering.md §7 (roles and permissions table, decisions 5–8, calls 9–15), 02-schema.md (a note that 4.5 moved roles to `staff_roles`), `phase.md` (4.5 and 4.5b rows, anchoring in 4.11), `build-plan.md`
+- [x] `vp check`, `vp test`, `vp build`
 - [ ] You run `vp run db:migrate` on Neon `dev` (staging and production apply `0006` in the build)
 - [ ] You run `auth:make-admin` on Neon `dev` for your own account, and we check the `staff_members` and `staff_roles` rows in the console
 
@@ -159,9 +159,9 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass; `ci` green on the PR.
-- [ ] No function checks a role name; every staff check goes through `requirePermission`.
-- [ ] The permission suite covers all eight functions, takes its expectations from the map, and fails if a new function is added without a declared permission.
+- [ ] `vp check`, `vp test` and `vp build` pass (locally: yes); `ci` green on the PR.
+- [x] No function checks a role name; every staff check goes through `requirePermission`.
+- [x] The permission suite covers all eight functions, takes its expectations from the map, and fails if a new function is added without a declared permission.
 - [ ] You are an admin on Neon `dev`, made by the script.
 
 ## Commit message
@@ -177,3 +177,26 @@ Customer functions take the `Actor`, never an owner id from input, and always fi
 
 - **New:** `src/server/auth/{permissions,actor,middleware,errors}.ts`, `src/server/data/{policies,claims,referrals,index}.ts`, `src/server/data/permissions.int.test.ts`, `src/server/auth/permissions.test.ts`, `drizzle/0006`–`0008` (staff roles: add the table; copy rows and add triggers; drop the column), `scripts/{make-admin,make-admin-core}.ts`, `src/routes/_staff.tsx`, `src/routes/_staff/staff.tsx`, `src/features/staff/access.ts`, tests.
 - **Changed:** `src/server/db/schema/{staff,relations}.ts`, `src/server/db/data-contract.ts`, `src/server/db/constraints.int.test.ts`, `src/test/factories.ts` (`roles`, a referred quote item, a deactivated staff member), `src/features/auth/session.ts`, `src/routes/account.tsx`, `vite.config.ts` (the `lint` rules, with an override for the allowed folders), `package.json` (`auth:make-admin`), `plan/engineering.md`, `plan/phases/04-data-auth/02-schema.md`, `plan/phases/04-data-auth/phase.md`, `plan/build-plan.md`.
+
+## Results (5 Nov 2026, before the PR)
+
+Changes from the spec:
+- **Roles moved in three migrations, not one.** `0006_military_famine` (generated) creates `staff_roles`. `0007_staff_roles_data` (custom) copies the existing `staff_members.role` rows across and adds the append-only and `record_delete` triggers. `0008_strange_the_fury` (generated) drops `staff_members.role`. The primary key is named `staff_roles_pkey`.
+- **`staff_roles` is `append-only` in the data contract**, not `mutable`: rows are granted or removed, never edited.
+- **A `makeReferral` factory** was added with the customer reads, because the world needed referrals. A referral is an item with `outcome = 'referred'` or any `referred` decision; the queue lists only `outcome = 'referred'`.
+- **`defineRead` takes `<I, P, O>`**, so inputs with defaults (limit, offset) are optional for callers.
+- **The lint rule also catches relative imports** (`**/db/client`, `**/db/schema*`, `**/db/schema/**`, and `**/auth/permissions` for `ROLE_PERMISSIONS`). The auth route's database call moved into `handleAuthRoute` in `src/server/auth/handler.ts`.
+- **`auth:make-admin` uses raw `pg`** in `scripts/make-admin-core.ts`, so it runs under node. Run it with `vp run auth:make-admin <email> --name "<name>"` (vite-plus's managed Node; plain Node 22.12 can't strip types). A malformed `DATABASE_URL` prints only "DATABASE_URL is not a valid URL." (`scripts/database-host.ts`).
+- **`/account` kept its session check** and the `/staff` placeholder page was added, both as the spec said.
+- **The permission suite asserts owner-only access for customer reads:** any signed-in actor other than the owner gets `NOT_FOUND`.
+
+What was built:
+- Server: `src/server/auth/{permissions,actor,middleware,errors,handler}.ts` (the map, `Actor`, `requireUser`, `requirePermission`, `assertNoConflict`, `AuthzError` and its mapper, `userMiddleware` and `permissionMiddleware`); `src/server/data/{define,policies,claims,referrals,index}.ts` (the eight reads, each declaring its permission as data).
+- Data: `staff_roles` in `schema/staff.ts` and `relations.ts`, the data contract entry, `drizzle/0006`–`0008`, the `makeStaff({ roles })`, `makeReferral` and deactivated-staff factories.
+- Scripts: `scripts/make-admin.ts`, `make-admin-core.ts`, `database-host.ts`; `auth:make-admin` in `package.json`.
+- Routes: `/account` keeps its guard; `_staff` layout with `getStaffAccess()` (`src/features/staff/access.ts`) and the `/staff` placeholder.
+- Lint: `no-restricted-imports` rules in `vite.config.ts` with an override for the allowed folders.
+- Tests: 614 passing (`vp test`): 227 unit, 238 integration, 149 component. Unit: the map snapshot, every permission granted somewhere, `requireUser`, `requirePermission` (union of roles, deactivated and no roles refused), `assertNoConflict`, the error mapper. Integration: `0006`–`0008` copy an existing role and refuse a bad role and a duplicate; the permission suite (every function × eight actors, expectations from the map, cross-user ids, several roles, internal notes, completeness); `auth:make-admin` (next staff code, unknown and unverified email, existing staff); `getStaffAccess()`. E2E: signed out → `/staff` redirects to `/login`.
+
+Still to do:
+- Damion runs `vp run db:migrate` on Neon `dev`, then `vp run auth:make-admin <email> --name "<name>"` against `dev`, and we check the `staff_members` and `staff_roles` rows in the console. Staging and production apply `0006`–`0008` in the build.

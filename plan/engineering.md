@@ -224,20 +224,37 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 - **Admin** can act on customer records only from staff screens, and every action there is audited.
 - **Impersonation:** off, for privacy.
-- **Where roles live:** `staff_members` (4.2) is the only source. A user with no `staff_members` row is a customer. Claim assignment and referral decisions point at `staff_members`, so Postgres refuses a non-staff user there.
-- **First admin:** made with `vp run auth:make-admin <email>` (inserts the `staff_members` row), never through the UI. Claims handlers are assigned in `/admin/users`.
+- **Permissions, not role names (4.5):** functions ask for a named permission, never a role. One file, `src/server/auth/permissions.ts`, maps roles to permissions. A person's permissions are the union of their roles' permissions, and a staff member can hold several roles. The map lives in code, so a change goes through a PR and the permission suite.
+- **Where roles live:** `staff_members` (4.2) and `staff_roles` (4.5) together are the only source. A user with no `staff_members` row is a customer. A staff member with no roles, or a deactivated one, has no permissions. Claim assignment and referral decisions point at `staff_members`, so Postgres refuses a non-staff user there.
+- **First admin:** made with `vp run auth:make-admin <email> --name "<name>"` (inserts the `staff_members` row and an `admin` row in `staff_roles`), never through the UI. Claims handlers are assigned in `/admin/users`.
 - **Leaving staff:** deactivated, never deleted (`deactivated_at`; sessions revoked; open claims back to the queue), so history stays attributed.
-- **Conflict of interest:** a staff action on a record that belongs to the staff member's own customer row is refused (an admin may hold a policy, but can't handle their own claim or approve their own referral).
+- **Conflict of interest (reads too):** a staff action on a record that belongs to the staff member's own customer row is refused (an admin may hold a policy, but can't handle their own claim or approve their own referral). Staff queues leave out the staff member's own records, and opening one directly is refused.
+
+**Permissions (`ROLE_PERMISSIONS`, 4.5):**
+
+| Permission | What it allows | First used | Claims handler | Admin |
+|---|---|---|---|---|
+| `claims.read_all` | see every claim (except your own) with internal notes | 4.5 | ✓ | ✓ |
+| `claims.update` | change status, add notes and events, settle | 6.10 | ✓ | ✓ |
+| `referrals.read` | see referred quotes (except your own) | 4.5 | ✓ | ✓ |
+| `referrals.decide` | approve, load or decline a referral | 6.11 | ✓ | ✓ |
+| `reviews.moderate` | approve or reject reviews | 6.8 | | ✓ |
+| `staff.manage` | add staff, grant and remove roles, deactivate | 6.8 | | ✓ |
+| `audit.read` | the audit viewer and "Verify chain" | 6.8 | | ✓ |
+
+`admin` is listed in full rather than as "everything", so a permission added later is never granted to admins without anyone choosing that.
 
 ### Enforcement: four layers, one rule set
 
 1. **Server middleware** (`src/server/auth/middleware.ts`) on every protected server function:
    - `requireUser`
-   - `requireRole('claims_handler' | 'admin')`, which also checks that 2FA is set up and the session is fresh
+   - `requirePermission(actor, permission)`, which refuses anyone who isn't active staff holding that permission; 4.6 adds the 2FA and fresh-session checks inside it
+   - there is no `requireRole`: nothing outside `permissions.ts` checks a role name
 2. **Scoped data access** (`src/server/data/*`):
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
-   - Staff functions are separate (`staff*`) and need an active `staff_members` row with the right role.
-   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live.
+   - Staff functions are separate (`staff*`) and need an active `staff_members` row holding the right permission.
+   - Someone else's record is `NOT_FOUND`, the same answer as an id that doesn't exist, so ids can't be probed. Staff functions answer `FORBIDDEN` to anyone without the permission.
+   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb`, the schema and `ROLE_PERMISSIONS` can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/db/`, `scripts/` and tests.
 3. **Route guards** (`beforeLoad`): redirects for UX only. The server is the security boundary.
 4. **Audit log:** `audit_log` records:
    - staff actions: claim status, referral decisions, roles, review decisions
