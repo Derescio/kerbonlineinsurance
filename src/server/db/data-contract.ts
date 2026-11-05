@@ -647,6 +647,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
         "request_id",
         "ip_hash",
         "prev_hash",
+        "key_version",
         "hash",
       ),
     },

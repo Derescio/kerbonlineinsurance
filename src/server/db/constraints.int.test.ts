@@ -602,6 +602,7 @@ describe("Postgres integrity rules", () => {
           action: "claim.viewed",
           entityType: "claim",
           entityId: "c1",
+          keyVersion: "v1",
           hash: hashOf(label),
           prevHash: prevLabel === null ? null : hashOf(prevLabel),
         })
@@ -622,7 +623,13 @@ describe("Postgres integrity rules", () => {
       await expectRefused(
         db()
           .insert(auditLog)
-          .values({ action: "viewed", entityType: "claim", entityId: "c1", hash: hashOf("x") }),
+          .values({
+            action: "viewed",
+            entityType: "claim",
+            entityId: "c1",
+            keyVersion: "v1",
+            hash: hashOf("x"),
+          }),
         CHECK,
         "audit_log_action_check",
       );
@@ -650,11 +657,31 @@ describe("Postgres integrity rules", () => {
 
     it("refuses a hash that isn't 64 hex characters", async () => {
       await expectRefused(
-        db()
-          .insert(auditLog)
-          .values({ action: "claim.viewed", entityType: "claim", entityId: "c1", hash: "h1" }),
+        db().insert(auditLog).values({
+          action: "claim.viewed",
+          entityType: "claim",
+          entityId: "c1",
+          keyVersion: "v1",
+          hash: "h1",
+        }),
         CHECK,
         "audit_log_hash_check",
+      );
+    });
+
+    it("refuses a key version that isn't v<number>", async () => {
+      await expectRefused(
+        db()
+          .insert(auditLog)
+          .values({
+            action: "claim.viewed",
+            entityType: "claim",
+            entityId: "c1",
+            keyVersion: "1",
+            hash: hashOf("x"),
+          }),
+        CHECK,
+        "audit_log_key_version_check",
       );
     });
 
@@ -667,6 +694,7 @@ describe("Postgres integrity rules", () => {
           action: "quote.saved",
           entityType: "quote",
           entityId: "q1",
+          keyVersion: "v1",
           hash: hashOf("first"),
         });
       await db().delete(users).where(eq(users.id, user.id));
