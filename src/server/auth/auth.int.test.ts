@@ -395,12 +395,18 @@ describe("Better Auth (4.4)", () => {
     it("the browser can't set two_factor_verified_at", async () => {
       const auth = makeAuth();
       const { user, cookie } = await signUpAndConfirm(auth);
-      await post(
+      const response = await post(
         auth,
         "/update-session",
         { twoFactorVerifiedAt: new Date().toISOString() },
         { cookie },
       );
+      // The endpoint exists and is reached with a valid session: it refuses with this exact message
+      // because input: false forbids the field (with input: true it answers 200)
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        message: "twoFactorVerifiedAt is not allowed to be set",
+      });
       const rows = await getOwnerDb().select().from(sessions).where(eq(sessions.userId, user.id));
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) expect(row.twoFactorVerifiedAt).toBeNull();

@@ -7,7 +7,9 @@ function decodeBase32(input: string): Uint8Array {
   let bits = 0;
   let value = 0;
   for (const char of input.replace(/=+$/, "").toUpperCase()) {
-    value = (value << 5) | BASE32.indexOf(char);
+    const index = BASE32.indexOf(char);
+    if (index < 0) throw new Error(`Not a base32 character: ${char}`);
+    value = (value << 5) | index;
     bits += 5;
     if (bits >= 8) {
       bits -= 8;
