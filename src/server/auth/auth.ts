@@ -23,6 +23,7 @@ import {
   removeUnverifiedPassword,
 } from "./linking";
 import { authUrls } from "./origins";
+import { TRUST_DEVICE_MAX_AGE_S } from "./two-factor-constants";
 import { recordSecurityEvent, userIdForEmail, type SecurityEventInput } from "./security-events";
 
 // Better Auth (4.4, plan/phases/04-data-auth/04-better-auth.md; plan/engineering.md section 7).
@@ -309,7 +310,11 @@ export function createAuth(deps: AuthDeps) {
     plugins: [
       // Passwordless accounts (Google only) can enable it without a password; the plugin's own
       // lockout stays. A trusted device skips the code for 30 days
-      twoFactor({ issuer: "Kerb", allowPasswordless: true, trustDeviceMaxAge: 30 * DAY }),
+      twoFactor({
+        issuer: "Kerb",
+        allowPasswordless: true,
+        trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_S,
+      }),
       ...(breach
         ? [breachedPasswordCheck(typeof breach === "object" ? { fetchFn: breach.fetchFn } : {})]
         : []),

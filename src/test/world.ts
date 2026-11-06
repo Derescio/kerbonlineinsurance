@@ -9,7 +9,8 @@ import { makeClaim, makeCustomer, makePolicy, makeReferral, makeStaff } from "./
 
 export async function buildWorld() {
   const db = getDb();
-  const actorFor = (userId: string) => resolveActor(db, userId);
+  const actorFor = (userId: string) =>
+    resolveActor(db, userId, { twoFactorVerifiedAt: new Date() });
 
   const customerA = await makeCustomer();
   const customerB = await makeCustomer();

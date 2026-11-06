@@ -41,6 +41,9 @@ describe("toPublicError", () => {
       403,
       "You can't work on your own policy, claim or quote. Ask a colleague.",
     ],
+    ["TWO_FACTOR_CHALLENGE", 401, "Enter your two-factor code to continue."],
+    ["TWO_FACTOR_REQUIRED", 403, "Staff accounts need two-factor. Set it up to continue."],
+    ["SESSION_NOT_FRESH", 403, "Confirm it's you to continue."],
   ] as const)("%s", (code, status, message) => {
     expect(toPublicError(new AuthzError(code))).toEqual({ status, code, message });
   });
@@ -168,6 +171,19 @@ describe("publicErrorAdapter round trip", () => {
     ]);
     expect(text).not.toContain("stack");
     expect(text).not.toContain("cause");
+  });
+
+  it("keeps TWO_FACTOR_CHALLENGE", async () => {
+    const { value } = await roundTrip({
+      error: new PublicError(new AuthzError("TWO_FACTOR_CHALLENGE")),
+    });
+    const error = value.error as PublicError;
+    expect(error).toBeInstanceOf(PublicError);
+    expect([error.code, error.status, error.message]).toEqual([
+      "TWO_FACTOR_CHALLENGE",
+      401,
+      "Enter your two-factor code to continue.",
+    ]);
   });
 
   it("sends a plain Error as an Error with only its message", async () => {

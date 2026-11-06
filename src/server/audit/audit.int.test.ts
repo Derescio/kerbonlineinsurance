@@ -92,7 +92,12 @@ describe("audit()", () => {
   });
 
   it("records actor_role", async () => {
-    const customer: Actor = { userId: "u-customer", customerId: "c1", staff: null };
+    const customer: Actor = {
+      userId: "u-customer",
+      customerId: "c1",
+      staff: null,
+      twoFactor: { enabled: false, verifiedAt: null },
+    };
     const staff: Actor = {
       userId: "u-staff",
       customerId: null,
@@ -101,6 +106,7 @@ describe("audit()", () => {
         roles: ["claims_handler", "admin"],
         permissions: new Set(),
       },
+      twoFactor: { enabled: false, verifiedAt: null },
     };
     await write(entry({ actor: null }));
     await write(entry({ actor: customer }));

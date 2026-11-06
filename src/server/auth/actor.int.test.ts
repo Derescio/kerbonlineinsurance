@@ -1,12 +1,13 @@
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
 import { staffRoles, users } from "#/server/db/schema";
-import { truncateAll } from "#/test/db";
+import { env, googleSession, makeAuth } from "#/test/auth";
+import { tamper, truncateAll } from "#/test/db";
 import { makeCustomer, makeStaff, makeUser } from "#/test/factories";
 
-import { resolveActor } from "./actor";
+import { getActor, resolveActor } from "./actor";
 import { permissionsFor } from "./permissions";
 
 // resolveActor against the test database (4.5): who is asking, from the user id alone.
@@ -21,7 +22,27 @@ describe("resolveActor", () => {
       userId: user.id,
       customerId: null,
       staff: null,
+      twoFactor: { enabled: false, verifiedAt: null },
     });
+  });
+
+  it("reads two_factor_enabled", async () => {
+    const on = await makeUser({ twoFactorEnabled: true });
+    const off = await makeUser();
+    expect((await resolveActor(getDb(), on.id))?.twoFactor.enabled).toBe(true);
+    expect((await resolveActor(getDb(), off.id))?.twoFactor.enabled).toBe(false);
+  });
+
+  it("takes verifiedAt from the session passed in", async () => {
+    const user = await makeUser({ twoFactorEnabled: true });
+    const stamp = new Date("2026-06-01T10:00:00Z");
+    expect((await resolveActor(getDb(), user.id))?.twoFactor.verifiedAt).toBeNull();
+    expect(
+      (await resolveActor(getDb(), user.id, { twoFactorVerifiedAt: stamp }))?.twoFactor.verifiedAt,
+    ).toEqual(stamp);
+    expect(
+      (await resolveActor(getDb(), user.id, { twoFactorVerifiedAt: null }))?.twoFactor.verifiedAt,
+    ).toBeNull();
   });
 
   it("carries the customer id", async () => {
@@ -84,5 +105,29 @@ describe("resolveActor", () => {
     const user = await makeUser();
     await getDb().delete(users).where(eq(users.id, user.id));
     expect(await resolveActor(getDb(), user.id)).toBeNull();
+  });
+});
+
+describe("getActor", () => {
+  // getAuth() reads the auth environment, which the integration project doesn't set. Give it the
+  // same values makeAuth() signs with, so the cookie verifies.
+  beforeEach(() => {
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("carries the session's stamp", async () => {
+    const user = await makeUser({ twoFactorEnabled: true });
+    const cookie = await googleSession(makeAuth(), user.id);
+    const stamp = new Date("2026-06-01T10:00:00.000Z");
+    await tamper("update sessions set two_factor_verified_at = $1 where user_id = $2", [
+      stamp,
+      user.id,
+    ]);
+    const actor = await getActor(new Headers({ cookie }));
+    expect(actor?.userId).toBe(user.id);
+    expect(actor?.twoFactor).toEqual({ enabled: true, verifiedAt: stamp });
   });
 });
