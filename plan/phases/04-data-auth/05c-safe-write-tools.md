@@ -1,6 +1,6 @@
 # 4.5c Safe write tools
 
-**Status:** approved (Damion, 5 Nov 2026)
+**Status:** built (approved 5 Nov 2026; branch `slice/4.5c-safe-write-tools`, not yet merged; staging check still to do)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -199,19 +199,19 @@ Nothing. There are no new environment variables or tables, and no Neon or Vercel
 ## Steps
 
 - [x] You approve this spec
-- [ ] `withTx`, the `Tx` move, the three callers, the source-scan test
-- [ ] `parseInput`, the zod error map, `fieldErrors` and `focusFirstError` moved, split and extended, the auth screens on the shared contract
-- [ ] `PublicCode`, `PublicError.from`, the adapter in `start.ts`, `actorMiddleware`
-- [ ] `limit()`, `rateLimitSubject()`, `RATE_LIMITED`
-- [ ] `toJson`, `canonicalJson` and `JsonValue` from `chain.ts`, `findReplay`, `withIdempotency`, `IDEMPOTENCY_CONFLICT`
-- [ ] `defineWrite`, `rejected`, the completeness check skipping writes
-- [ ] `useIdempotencyKey` and `writeOutcome`
-- [ ] Docs:
+- [x] `withTx`, the `Tx` move, the three callers, the source-scan test
+- [x] `parseInput`, the zod error map, `fieldErrors` and `focusFirstError` moved, split and extended, the auth screens on the shared contract
+- [x] `PublicCode`, `PublicError.from`, the adapter in `start.ts`, `actorMiddleware`
+- [x] `limit()`, `rateLimitSubject()`, `RATE_LIMITED`
+- [x] `toJson`, `canonicalJson` and `JsonValue` from `chain.ts`, `findReplay`, `withIdempotency`, `IDEMPOTENCY_CONFLICT`
+- [x] `defineWrite`, `rejected`, the completeness check skipping writes
+- [x] `useIdempotencyKey` and `writeOutcome`
+- [x] Docs:
   - engineering.md §8 (`withTx` timeouts, the source-scan rule, how idempotency works, rejections) and §10 (the limiter, guests by IP hash and IPv6 /64, the rules file)
   - the error contract, where engineering.md describes errors (`PublicError` crossing, `actorMiddleware`, no zod `inputValidator` on writes)
   - `phase.md` (4.5c)
   - `build-plan.md`
-- [ ] `vp check`, `vp test`, `vp build`
+- [x] `vp check`, `vp test`, `vp build`
 
 ## Tests
 
@@ -258,3 +258,29 @@ Nothing. There are no new environment variables or tables, and no Neon or Vercel
   - `src/start.ts`
   - `src/components/forms/`
 - **Libraries checked (5 Nov 2026):** `@tanstack/start-client-core` 1.170 (`getSerovalPlugins` puts adapters first; middleware `next()` rethrows handler errors; `execValidator` throws zod issues as an `Error`), `@tanstack/start-server-core` 1.169 (`resolveErrorStatus` reads `error.status`), `@tanstack/router-core` 1.171 (`ShallowErrorPlugin`, `createSerializationAdapter`), zod 4.6.7 (`ParseContext.error`).
+
+## Results (6 Nov 2026, before the PR)
+
+Changes from the spec:
+- **The server-function integration test became a unit middleware test plus a serialiser round trip** (plan Task 3). Start's compiler isn't loaded in Vitest, so `createServerFn` can't run there. The cost: the HTTP-status path (`resolveErrorStatus`) is checked only by reading Start's source. An end-to-end test in 5.6 would catch a regression.
+- **The round-trip test decodes with seroval's `fromCrossJSON`**, not `fromJSON`. `fromJSON` can't read what `toCrossJSONAsync` writes; `fromCrossJSON` is its pair and is what Start's client uses.
+- **`RateLimitError` and `IdempotencyConflictError` live in `src/server/auth/errors.ts`**, with the other public errors.
+- **`Rejected` lives in `src/lib/validation.ts`**, so the browser side can import it without touching server code.
+- **The completeness check's write filter is covered by a `kind` assertion in `define.int.test.ts`**, not by a test of the test. The existing completeness test already fails on a read with no case. The cost: a filter that skipped reads too would go unnoticed until a read lacks a case.
+- **The previous-window test uses a count of 1e9**, not the plan's 1000. With a one-day window, 1000 fails after about 23:57 UTC, because the previous window's share shrinks through the day. The spec pins no number.
+- **`ResendVerification.tsx` also moved its imports** to the shared validation module, so it compiles.
+- **`rateLimitIp` also strips IPv6 zone ids** (the `%eth0` part) before grouping by /64.
+- **The rate-limit refusal logs with `console.warn`** (the action name only). `fail()` doesn't log it again.
+- **`seroval` is a devDependency**, pinned to Start's version. A Dependabot bump of Start needs it to follow.
+
+What was built:
+- Server: `src/server/db/tx.ts` (`withTx`, `Tx`, timeouts of 10s and 5s, `Rejected` rolls back), `rate-limit.ts` (`limit()`, `rateLimitSubject()`, guests by keyed IP hash, IPv6 by /64), `idempotency.ts` (`findReplay`, `withIdempotency`, `toJson`, `JsonValue`; `canonicalJson` shared with `chain.ts`). `src/server/data/define.ts` has `defineWrite`. `src/server/auth/errors.ts` has `PublicCode`, `PublicError.from`, `RATE_LIMITED` and `IDEMPOTENCY_CONFLICT`; `middleware.ts` has `actorMiddleware`; `src/start.ts` has the serialisation adapter.
+- Callers moved to `withTx`: sign-in linking and the two staff reads.
+- Browser: `src/lib/validation.ts` (`parseInput`, the zod error map, `fieldErrors`, `focusFirstError`, `rejected`), `src/lib/writes.ts` (`useIdempotencyKey`, `writeOutcome`). The auth forms use the shared contract.
+- Docs: engineering.md §8, §9 and §10, `phase.md`, `build-plan.md`.
+- Tests: 797 passing (`vp test`): 323 unit, 318 integration, 156 component. Integration covers `withTx` rollback and timeouts, the source scan, `withIdempotency` and `findReplay` (replay, conflict, rollback, concurrency, expiry, per-user keys), `limit()` (concurrency, window proportion, refused attempts counting), and `defineWrite` order. Unit covers `parseInput`, `toPublicError`, the `PublicError` round trip, `rateLimitSubject` and the middleware. Component covers the shared field display and `useIdempotencyKey` / `writeOutcome`.
+
+Still to do:
+- The staging check: sign-in linking and the staff reads behave as before through `withTx`.
+- 5.6 writes its first `defineWrite` function and creates `rate-limit-rules.ts`.
+- Minor items from review are left open and listed in the SDD ledger (for example, no test shows a timeout firing; hex-form IPv4-mapped IPv6 shares a bucket).
