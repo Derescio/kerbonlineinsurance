@@ -24,7 +24,6 @@ function entry(extra: Partial<AuditEntry> = {}): AuditEntry {
   return {
     actor: null,
     action: "claim.viewed",
-    entityType: "claim",
     entityId: randomUUID(),
     ...extra,
   };

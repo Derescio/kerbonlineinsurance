@@ -1,5 +1,6 @@
 import type pg from "pg";
 
+import { AUDIT_ACTIONS } from "../src/server/audit/actions.ts";
 import {
   AUDIT_LOCK_KEY,
   assertChainable,
@@ -80,7 +81,7 @@ export async function makeAdmin(
       actorUserId: null,
       actorRole: null,
       action: "staff.added",
-      entityType: "user",
+      entityType: AUDIT_ACTIONS["staff.added"].entityType,
       entityId: user.id,
       changes: { roles: ["admin"] },
       reason: null,

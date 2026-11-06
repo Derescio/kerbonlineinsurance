@@ -1,5 +1,6 @@
 import { desc, sql } from "drizzle-orm";
 
+import { AUDIT_ACTIONS, type AuditAction } from "./actions";
 import {
   AUDIT_LOCK_KEY,
   assertChainable,
@@ -26,8 +27,7 @@ import { getAuditEnv } from "#/server/env";
 export interface AuditEntry {
   /** Null means the system */
   actor: Actor | null;
-  action: string;
-  entityType: string;
+  action: AuditAction;
   entityId: string;
   changes?: Record<string, AuditValue>;
   reason?: string;
@@ -69,7 +69,7 @@ export async function audit(
     actorUserId: entry.actor?.userId ?? null,
     actorRole: actorRoleOf(entry.actor),
     action: entry.action,
-    entityType: entry.entityType,
+    entityType: AUDIT_ACTIONS[entry.action].entityType,
     entityId: entry.entityId,
     changes: entry.changes ?? null,
     reason: entry.reason ?? null,

@@ -127,7 +127,7 @@ describe("makeAdmin", () => {
       },
     ]);
     await getDb().transaction((tx) =>
-      audit(tx, { actor: null, action: "claim.viewed", entityType: "claim", entityId: "c1" }),
+      audit(tx, { actor: null, action: "claim.viewed", entityId: "c1" }),
     );
     expect(await verifyAuditChain(getOwnerDb().$client, keys)).toMatchObject({
       ok: true,

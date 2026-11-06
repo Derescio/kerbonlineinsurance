@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AUDIT_ACTIONS > pins the list 1`] = `
+{
+  "claim.viewed": {
+    "description": "A staff member opened a claim",
+    "entityType": "claim",
+  },
+  "referral.viewed": {
+    "description": "A staff member opened a referral",
+    "entityType": "quote_item",
+  },
+  "sessions.revoked_all": {
+    "description": "Signed out everywhere",
+    "entityType": "user",
+  },
+  "staff.added": {
+    "description": "Someone was made staff",
+    "entityType": "user",
+  },
+  "two_factor.disabled": {
+    "description": "Two-factor was turned off",
+    "entityType": "user",
+  },
+  "two_factor.reset": {
+    "description": "Two-factor was reset by an admin script",
+    "entityType": "user",
+  },
+}
+`;
