@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 
 import pg from "pg";
 
+import { AuditKeyError, parseKeys } from "../src/server/audit/chain.ts";
 import { databaseHost } from "./database-host.ts";
 import { MakeAdminError, makeAdmin } from "./make-admin-core.ts";
 import type { MakeAdminReason } from "./make-admin-core.ts";
@@ -24,6 +25,17 @@ const { values, positionals } = parseArgs({
 // Locally the URL comes from .env.local (Neon `dev`), as in drizzle.config.ts. A DATABASE_URL already
 // set in the shell wins (loadEnvFile never overrides), so `prod` is an explicit choice.
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
+
+let keys;
+try {
+  keys = parseKeys(process.env.AUDIT_HMAC_KEYS, process.env.AUDIT_HMAC_ACTIVE_VERSION);
+} catch (error) {
+  if (!(error instanceof AuditKeyError)) throw error;
+  console.error(
+    `Audit keys are not set or invalid (${error.reason}): see .env.example, "Audit (4.5b)".`,
+  );
+  process.exit(1);
+}
 
 const email = positionals[0];
 const url = process.env.DATABASE_URL;
@@ -48,7 +60,7 @@ const client = new pg.Client({ connectionString: url });
 let code = 0;
 try {
   await client.connect();
-  const { staffCode } = await makeAdmin(client, email, values.name ?? "");
+  const { staffCode } = await makeAdmin(client, email, values.name ?? "", keys);
   console.log(`${email.trim().toLowerCase()} is now an admin (${staffCode})`);
 } catch (error) {
   code = 1;

@@ -37,7 +37,8 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 4.4 **Better Auth**: sign up (with a demo notice, Turnstile), email + password (breached-password check), Google sign-in, soft email verification (banner, not a blocker), sessions, rate limits, security events
 - [x] 4.4b **Hard email verification**: confirm before logging in, 6-hour links, no account enumeration on sign-up
 - [x] 4.5 **Authorization layer**: permissions instead of role names, several roles per staff member, server middleware, scoped customer and staff reads, conflict-of-interest rule, make-admin script, permission suite
-- [ ] 4.5b **Audit chain and write infrastructure**: HMAC-chained `audit()` and `verifyAuditChain()`, record-view events, non-owner app role, `withTx`, `withIdempotency`, shared rate limiter
+- [x] 4.5b **Audit integrity and database security**: HMAC-chained `audit()` and `verifyAuditChain()` with versioned keys, `claim.viewed` / `referral.viewed` / `staff.added`, non-owner app role `kerb_app`, `db:check-app-role` (built, not yet merged)
+- [ ] 4.5c **Safe write tools**: `withTx`, `withIdempotency`, shared `limit()` rate limiter, validation-error contract
 - [ ] 4.6 **2FA**: optional for customers, required for staff; sign out everywhere
 - [ ] 4.7 **Privacy page + delete account**
 - [ ] 4.8 **Reference data**: vehicle catalogue (make → model → year → variant) and rating tables v1

@@ -32,7 +32,7 @@ import {
   users,
   vehicles,
 } from "#/server/db/schema";
-import { TEST_DATABASE_URL, truncateAll } from "#/test/db";
+import { getOwnerDb, TEST_DATABASE_URL, truncateAll } from "#/test/db";
 import {
   makeClaim,
   makeCustomer,
@@ -54,6 +54,7 @@ const NOT_NULL = "23502";
 const RESTRICTED = "23001";
 // Raised by the 0002 refuse_change() trigger
 const APPEND_ONLY = "42501";
+const TRIGGER_MESSAGE = "is refused: its rows are append-only";
 
 async function expectRefused(query: PromiseLike<unknown>, code: string, constraint?: string) {
   const error = await Promise.resolve(query).then(
@@ -602,6 +603,7 @@ describe("Postgres integrity rules", () => {
           action: "claim.viewed",
           entityType: "claim",
           entityId: "c1",
+          keyVersion: "v1",
           hash: hashOf(label),
           prevHash: prevLabel === null ? null : hashOf(prevLabel),
         })
@@ -618,11 +620,30 @@ describe("Postgres integrity rules", () => {
       await expectRefused(db().delete(auditLog).where(eq(auditLog.id, row.id)), APPEND_ONLY);
     });
 
+    it("refuses even the owner an update or delete (the trigger, not only the grants)", async () => {
+      const row = await audit("owned");
+      const owner = getOwnerDb();
+      // A permission error is also 42501, so the message must say it was the trigger
+      const refusal = { code: "42501", message: expect.stringContaining(TRIGGER_MESSAGE) };
+      await expect(
+        owner.update(auditLog).set({ reason: "edited" }).where(eq(auditLog.id, row.id)),
+      ).rejects.toMatchObject({ cause: refusal });
+      await expect(owner.delete(auditLog).where(eq(auditLog.id, row.id))).rejects.toMatchObject({
+        cause: refusal,
+      });
+    });
+
     it("refuses an action not in area.verb form", async () => {
       await expectRefused(
         db()
           .insert(auditLog)
-          .values({ action: "viewed", entityType: "claim", entityId: "c1", hash: hashOf("x") }),
+          .values({
+            action: "viewed",
+            entityType: "claim",
+            entityId: "c1",
+            keyVersion: "v1",
+            hash: hashOf("x"),
+          }),
         CHECK,
         "audit_log_action_check",
       );
@@ -650,11 +671,31 @@ describe("Postgres integrity rules", () => {
 
     it("refuses a hash that isn't 64 hex characters", async () => {
       await expectRefused(
-        db()
-          .insert(auditLog)
-          .values({ action: "claim.viewed", entityType: "claim", entityId: "c1", hash: "h1" }),
+        db().insert(auditLog).values({
+          action: "claim.viewed",
+          entityType: "claim",
+          entityId: "c1",
+          keyVersion: "v1",
+          hash: "h1",
+        }),
         CHECK,
         "audit_log_hash_check",
+      );
+    });
+
+    it("refuses a key version that isn't v<number>", async () => {
+      await expectRefused(
+        db()
+          .insert(auditLog)
+          .values({
+            action: "claim.viewed",
+            entityType: "claim",
+            entityId: "c1",
+            keyVersion: "1",
+            hash: hashOf("x"),
+          }),
+        CHECK,
+        "audit_log_key_version_check",
       );
     });
 
@@ -667,6 +708,7 @@ describe("Postgres integrity rules", () => {
           action: "quote.saved",
           entityType: "quote",
           entityId: "q1",
+          keyVersion: "v1",
           hash: hashOf("first"),
         });
       await db().delete(users).where(eq(users.id, user.id));

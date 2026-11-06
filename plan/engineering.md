@@ -57,7 +57,11 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | Previews | no migrate | `dev` is already migrated locally by the slice author |
 
 - **Which builds migrate:** `scripts/db-deploy.ts` checks `VERCEL_TARGET_ENV` and only migrates for `production` and `staging`; previews, local builds and CI print "skipped". It fails the build if `DATABASE_URL_UNPOOLED` is missing. The Vercel Build Command is pinned to `pnpm run build` (an override, not the Vite preset's guess), so this step can't be skipped silently.
-- **Two connection strings per environment:** `DATABASE_URL` (Neon pooled, used by the app) and `DATABASE_URL_UNPOOLED` (direct, used by migrations: PgBouncer transaction mode doesn't keep the session lock `drizzle-kit migrate` takes). Both with `sslmode=verify-full`.
+- **Two connection strings per environment, two roles** (4.5b):
+  - `DATABASE_URL` (Neon pooled, used by the app) connects as `kerb_app`, a role that owns nothing and can't change `audit_log`.
+  - `DATABASE_URL_UNPOOLED` (direct) is the owner, used by migrations and the deploy step: PgBouncer transaction mode doesn't keep the session lock `drizzle-kit migrate` takes.
+  - Both with `sslmode=verify-full`.
+- **The app role:** `0010_app_role` creates `kerb_app` without login rights; a one-line `ALTER ROLE kerb_app WITH LOGIN PASSWORD '…'` in Neon's SQL editor turns it on (Neon's console would make the role a `neon_superuser` member, which can write every table). Default privileges give new tables `kerb_app`'s grants (`SELECT`, `INSERT`, `UPDATE`, `DELETE`), and `src/server/db/app-role.int.test.ts` lists every table's expected grants, so a table that needs tighter rules fails the test until it's listed. `vp run db:check-app-role` checks a branch (§7).
 
 - **Backward-compatible migrations (expand/contract):** add the column or table, backfill, switch the code over, and only drop the old part in a later release. Vercel keeps serving the old deployment while the new one builds.
 - **Reference data** (vehicle catalogue, rating tables) comes from an idempotent upsert script, versioned by `rating_version`.
@@ -254,17 +258,23 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
    - Staff functions are separate (`staff*`) and need an active `staff_members` row holding the right permission.
    - Someone else's record is `NOT_FOUND`, the same answer as an id that doesn't exist, so ids can't be probed. Staff functions answer `FORBIDDEN` to anyone without the permission.
-   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb` and the schema (except `schema/values`) can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/db/`, `scripts/` and tests, and `ROLE_PERMISSIONS` only inside `src/server/auth/permissions.ts`.
+   - Pages, Kerbie tools and uploads all use these functions, so there's one place the rules live. A lint rule keeps it that way: `getDb` and the schema (except `schema/values`) can't be imported outside `src/server/data/`, `src/server/auth/`, `src/server/audit/` (only to write `audit_log`), `src/server/db/`, `scripts/` and tests, and `ROLE_PERMISSIONS` only inside `src/server/auth/permissions.ts`.
 3. **Route guards** (`beforeLoad`): redirects for UX only. The server is the security boundary.
 4. **Audit log:** `audit_log` records:
    - staff actions: claim status, referral decisions, roles, review decisions
-   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions so no page can skip it (4.5b; the 4.5 functions do not write them yet)
+   - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions (`staffGetClaim`, `staffGetReferral`) so no page can skip it. A refused view (not found, conflict of interest) rolls back and writes nothing; only successful views are logged
+   - staff detail routes that call these audited reads must not run them from a hover-preloaded loader (the router's `defaultPreload: "intent"` would write `*.viewed` rows for views that never happened): set `preload: false` on those routes, or call the read from a user-triggered server function
    - sensitive customer actions: password, 2FA, "sign out everywhere", address and driver changes, account deletion
 
    **How it's kept honest:**
    - written by `audit()` inside the same transaction as the change, so the two commit or roll back together
    - append-only: a trigger refuses `UPDATE` and `DELETE`
-   - hash-chained: each row stores `sha256(prev_hash ‖ row)`; `verifyAuditChain()` finds the first altered or missing row, and `/admin/audit` (6.8) has a "Verify chain" button
+   - hash-chained with a keyed hash: each row stores an HMAC-SHA256 (hex) of `prev_hash` and the row's own fields, so someone with database access but no key can't rewrite history and recompute the chain. The input is a canonical JSON array of a format number, `prev_hash`, `key_version`, `created_at` (ISO, millisecond precision), actor, role, action, entity, `changes` (keys sorted at every depth), `reason`, `request_id` and `ip_hash`. The code is `src/server/audit/chain.ts`, which imports only `node:crypto`, so `auth:make-admin` signs `staff.added` with the same code
+   - `audit()` takes `pg_advisory_xact_lock` inside the caller's transaction, reads the latest row and sets `created_at` to the later of now and the previous row's time, so rows never go backwards. `changes` holds strings, booleans, null, safe integers, and arrays or objects of those; anything that wouldn't round-trip through `jsonb` is refused before the insert
+   - `verifyAuditChain()` (`src/server/audit/verify.ts`) reads in id order and names the first bad row: `bad_genesis`, `broken_link`, `unknown_key_version` or `hash_mismatch`. It returns `lastId` and `lastHash` for 4.11's anchor. `/admin/audit` (6.8) has a "Verify chain" button
+   - **Keys:** `AUDIT_HMAC_KEYS` (`v1:base64key[,v2:…]`, each key at least 32 bytes) and `AUDIT_HMAC_ACTIVE_VERSION`, one set per Neon branch: `dev` serves Staging, Preview and Development, `prod` serves Production only. Every row records the `key_version` that signed it. To rotate, add `vN` to the list, make it the active version and keep the old ones listed; old keys only verify, and no row is rewritten. A row whose version isn't listed fails as `unknown_key_version`
+   - **Fails closed:** if the keys are missing or invalid, `audit()` throws and the change it records rolls back with it. A staff member can't open a claim while auditing is broken
+   - **Limitation:** the chain can't show that the newest rows were deleted, or that the whole database was restored to an earlier point, because what's left is still a valid chain. Anchoring the latest hash outside the database (4.11, in R2) closes that gap
    - ids and changed field names/values only, no emails, addresses or chat text; an IP is stored only as a hash
    - no foreign keys on `actor_user_id` / `entity_id`: deleting an account keeps its audit rows (user id only) and the chain stays valid
 
@@ -272,7 +282,7 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - sign-ins, failed sign-ins, lockouts, resets, 2FA challenges and account links go to `security_events` (4.4), unchained, so bot traffic can't flood the chain; it feeds "Recent activity" in Settings
    - business history stays in its own append-only tables: `claim_events`, `underwriting_decisions`, `kerbie_actions`; policy history in `policy_versions` (6.3)
    - **not** a generic trigger copying every row change in every table: too much volume, and it copies personal data into a second place
-   - optional (8.9): the app connects as a Postgres role without `UPDATE`/`DELETE` on the audit tables
+   - the app connects as `kerb_app`, which has only `SELECT` and `INSERT` on `audit_log` and no `TRUNCATE` anywhere, and can't drop or replace the triggers. `vp run db:check-app-role` runs against a branch's `DATABASE_URL` and checks: connected as `kerb_app`; no superuser, `CREATEROLE`, `CREATEDB` or `BYPASSRLS`, and no `neon_superuser` or `pg_*_data` membership; `UPDATE`, `DELETE` and `TRUNCATE` on `audit_log` refused (read with privilege functions, so the check never runs one); the triggers present; and the chain verifies
 
 ### Tests
 
@@ -339,7 +349,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - Dependabot security alerts and a `pnpm audit --prod` step in CI.
   - GitHub secret scanning with push protection turned on (repo setting).
   - Secrets live only in Vercel, GitHub and `.env.local`.
-- **Errors and logs:** users see friendly messages. Logs carry ids, not personal data (no emails, addresses or chat text), and stack traces never reach the browser.
+- **Errors and logs:** users see friendly messages. Logs carry ids, not personal data (no emails, addresses or chat text), and stack traces never reach the browser. Audit keys and database URLs are never logged or put in an error message; an audit failure is logged by its error name only.
 - **Pre-launch review (8.9):** an OWASP-style checklist, a headers scan, a dependency audit, a secret-rotation dry run, and the permission tests (§7) green.
 
 ## 10. Rate limiting

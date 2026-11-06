@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { AuditKeyError, parseKeys, type AuditKeys } from "#/server/audit/chain";
+
 // Server-only environment, validated once at startup so a missing variable fails fast.
 // Later phases add: ANTHROPIC_API_KEY, OPENAI_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
 // R2_SECRET_ACCESS_KEY, R2_BUCKET, CRON_SECRET. Auth's variables are below (getAuthEnv).
@@ -58,4 +60,39 @@ export function getAuthEnv(source: Record<string, string | undefined> = process.
   }
   if (source === process.env) authEnv = result.data;
   return result.data;
+}
+
+// Audit HMAC keys (4.5b). Validated on first use, like getAuthEnv. Cached on the raw pair of
+// strings rather than on process.env identity, so a changed value (a rotation, or a test) is seen
+// and a missing key always throws.
+// Named so logSafeError records "AuditConfigError" rather than a bare "Error"
+export class AuditConfigError extends Error {
+  override name = "AuditConfigError";
+  constructor(reason: string) {
+    // The reason names a version or a setting, never key material
+    super(`Invalid audit environment (.env.example, "Audit (4.5b)"): ${reason}`);
+  }
+}
+
+let auditCache:
+  | { raw: string | undefined; active: string | undefined; keys: AuditKeys }
+  | undefined;
+
+export function getAuditEnv(source: Record<string, string | undefined> = process.env): AuditKeys {
+  const raw = source.AUDIT_HMAC_KEYS;
+  const active = source.AUDIT_HMAC_ACTIVE_VERSION;
+  if (auditCache && auditCache.raw === raw && auditCache.active === active) {
+    return auditCache.keys;
+  }
+  try {
+    const keys = parseKeys(raw, active);
+    auditCache = { raw, active, keys };
+    return keys;
+  } catch (error) {
+    if (error instanceof AuditKeyError) {
+      // The reason names a version or a setting, never key material
+      throw new AuditConfigError(error.reason);
+    }
+    throw error;
+  }
 }

@@ -24,6 +24,9 @@ export default async function setup(): Promise<void> {
     await client.query("drop schema if exists public cascade");
     await client.query("create schema public");
     await migrate(drizzle({ client }), { migrationsFolder: "drizzle" });
+    // The migration creates kerb_app without LOGIN (each Neon branch sets its password by hand).
+    // The password is public on purpose: the role exists only in the Docker and CI test databases.
+    await client.query("alter role kerb_app with login password 'kerb_app'");
   } finally {
     await client.end();
   }
