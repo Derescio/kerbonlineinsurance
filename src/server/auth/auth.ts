@@ -23,6 +23,7 @@ import {
   removeUnverifiedPassword,
 } from "./linking";
 import { authUrls } from "./origins";
+import { kerbTwoFactor } from "./two-factor";
 import { TRUST_DEVICE_MAX_AGE_S } from "./two-factor-constants";
 import { recordSecurityEvent, userIdForEmail, type SecurityEventInput } from "./security-events";
 
@@ -278,11 +279,10 @@ export function createAuth(deps: AuthDeps) {
       after: createAuthMiddleware(async (ctx) => {
         const headers = ctx.request?.headers;
         const body = ctx.body as Record<string, unknown> | undefined;
+        // A successful sign_in is recorded by kerbTwoFactor(), after twoFactor() has decided
+        // whether a code is owed (4.6, call 10)
         if (ctx.path === "/sign-in/email") {
-          const session = ctx.context.newSession;
-          if (session) {
-            await record({ type: "sign_in", userId: session.user.id, method: "password", headers });
-          } else if (isEmailNotVerified(ctx.context.returned)) {
+          if (isEmailNotVerified(ctx.context.returned)) {
             // Only reached with the right password: Better Auth checks it first (4.4b)
             const userId = await userIdForEmail(db, body?.email);
             await record({ type: "sign_in_unverified", userId, method: "password", headers });
@@ -315,6 +315,8 @@ export function createAuth(deps: AuthDeps) {
         allowPasswordless: true,
         trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_S,
       }),
+      // Straight after twoFactor(), so its hooks see what twoFactor()'s did (two-factor.ts)
+      kerbTwoFactor({ db, record }),
       ...(breach
         ? [breachedPasswordCheck(typeof breach === "object" ? { fetchFn: breach.fetchFn } : {})]
         : []),
