@@ -283,4 +283,8 @@ What was built:
 Still to do:
 - The staging check: sign-in linking and the staff reads behave as before through `withTx`.
 - 5.6 writes its first `defineWrite` function and creates `rate-limit-rules.ts`.
-- Minor items from review are left open and listed in the SDD ledger (for example, no test shows a timeout firing; hex-form IPv4-mapped IPv6 shares a bucket).
+- Known limits a later slice could trip on:
+  - A first request that holds its key row longer than `lock_timeout` (5s) makes the waiting retry fail with a generic "Something went wrong" (Postgres 55P03). The retry after that gets the stored answer.
+  - With `sessionStorage` blocked, `useIdempotencyKey` keeps the key per component instance, so a remount gets a new key.
+  - Hex-form IPv4-mapped IPv6 addresses (`::ffff:cb00:7107`) aren't unwrapped and share one guest bucket.
+  - `rateLimitSubject`'s default secret parses the whole auth env even for a signed-in actor.
