@@ -16,13 +16,15 @@ export const AUDIT_FORMAT = 1;
 // pg_advisory_xact_lock key shared by audit() and make-admin: 0x6b657262, "kerb"
 export const AUDIT_LOCK_KEY = 1801810530;
 
-export type AuditValue =
+export type JsonValue =
   | string
   | boolean
   | null
   | number
-  | AuditValue[]
-  | { [key: string]: AuditValue };
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type AuditValue = JsonValue;
 
 // The row as it is signed: everything except the id and the hash itself
 export interface ChainRow {
@@ -129,12 +131,13 @@ export function assertChainable(row: ChainRow): void {
 
 // Canonical JSON text with object keys in string order at every depth. Built as text because a
 // JS object reorders integer-like keys ("2" before "10") whatever order they were inserted in.
-function canonical(v: AuditValue): string {
-  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+// withIdempotency hashes its requests with it too.
+export function canonicalJson(v: JsonValue): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
   if (v !== null && typeof v === "object") {
     const members = Object.keys(v)
       .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonical(v[k] as AuditValue)}`);
+      .map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k] as JsonValue)}`);
     return `{${members.join(",")}}`;
   }
   return JSON.stringify(v);
@@ -154,7 +157,7 @@ export function canonicalPayload(row: ChainRow): string {
     row.entityId,
   ]).slice(0, -1);
   const tail = JSON.stringify([row.reason, row.requestId, row.ipHash]).slice(1);
-  const changes = row.changes === null ? "null" : canonical(row.changes);
+  const changes = row.changes === null ? "null" : canonicalJson(row.changes);
   return `${head},${changes},${tail}`;
 }
 

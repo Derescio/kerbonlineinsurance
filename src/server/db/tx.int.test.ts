@@ -1,6 +1,7 @@
 import { count, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { Rejected, rejected } from "#/lib/validation";
 import { closeDb, getDb } from "#/server/db/client";
 import { jobs, rateLimits } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
@@ -42,6 +43,17 @@ describe("withTx", () => {
       }),
     ).resolves.toBe(42);
     expect(await counts()).toEqual({ jobs: 1, rateLimits: 1 });
+  });
+
+  it("rolls back and returns a Rejected", async () => {
+    const no = rejected("No.");
+    const result = await withTx(getDb(), async (tx) => {
+      await insertBoth(tx);
+      return no;
+    });
+    expect(result).toBe(no);
+    expect(result).toBeInstanceOf(Rejected);
+    expect(await counts()).toEqual({ jobs: 0, rateLimits: 0 });
   });
 
   it("sets the timeouts for this transaction only", async () => {

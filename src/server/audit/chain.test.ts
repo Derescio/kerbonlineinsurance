@@ -6,6 +6,7 @@ import {
   AuditKeyError,
   AuditValueError,
   assertChainable,
+  canonicalJson,
   canonicalPayload,
   computeHash,
   nextCreatedAt,
@@ -35,6 +36,12 @@ describe("constants", () => {
   it("are fixed", () => {
     expect(AUDIT_FORMAT).toBe(1);
     expect(AUDIT_LOCK_KEY).toBe(1801810530);
+  });
+});
+
+describe("canonicalJson", () => {
+  it("sorts object keys at every depth and keeps array order", () => {
+    expect(canonicalJson({ b: 1, a: [true, null] })).toBe('{"a":[true,null],"b":1}');
   });
 });
 
