@@ -1,6 +1,6 @@
 # 4.5b Audit integrity and database security
 
-**Status:** done (built 5 Nov 2026, not yet merged)
+**Status:** done (merged as #56 on 5 Nov 2026; Neon `dev` set up and `db:check-app-role` 6/6 the same day)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -142,7 +142,7 @@ It never prints the URL or the keys. You run it once against `dev` and once agai
 - [x] `db:check-app-role`
 - [x] Docs: engineering.md §3 (two roles), §7 (the chain, keys, rotation, the limitation), §9; `phase.md` (4.5b and a new 4.5c row); `build-plan.md`; `.env.example`
 - [x] `vp check`, `vp test`, `vp build`
-- [ ] Your setup on `dev` (steps 1–4), then a run on staging
+- [x] Your setup on `dev` (steps 1–4), then a run on staging (Damion, 5 Nov 2026; staging deployed `72b8761` and its build found `0009` and `0010` already applied)
 
 ## Tests
 
@@ -161,9 +161,9 @@ It never prints the URL or the keys. You run it once against `dev` and once agai
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass; `ci` green on the PR.
-- [ ] The app runs on staging as `kerb_app`, and `db:check-app-role` passes on `dev`.
-- [ ] Opening a claim as staff on staging writes a `claim.viewed` row, and the chain verifies.
+- [x] `vp check`, `vp test` and `vp build` pass; `ci` green on #56 (merged 5 Nov 2026).
+- [x] The app runs on staging as `kerb_app`, and `db:check-app-role` passes on `dev` (6/6, through the `-pooler` endpoint).
+- [ ] Opening a claim as staff on staging writes a `claim.viewed` row, and the chain verifies. No page calls `staffGetClaim` until 6.10; until then `permissions.int.test.ts` proves it as `kerb_app`, and 6.10 ticks this on staging.
 
 ## Commit message
 
@@ -197,6 +197,7 @@ What was built:
 - Tests: 712 passing (`vp test`): 283 unit, 280 integration, 149 component. Unit: the canonical payload (sorted by string order, so `"10"` before `"2"`), `AuditConfigError` from `getAuditEnv()`, the HMAC for every field, key parsing (pasted-badly cases), `nextCreatedAt`, value refusals. Integration: `app-role.int.test.ts` (privilege refusals and the drift check against `EXPECTED_GRANTS`); `audit.int.test.ts` (rollback, chaining, clock skew, 20 concurrent writers, `jsonb` round trip, fail-closed, verification: `hash_mismatch`, `broken_link`, `unknown_key_version`, `bad_genesis`, a batch boundary; rotation); the staff views and `staff.added`; the 4.5 permission suite, now as `kerb_app`.
 
 Still to do:
-- Damion's setup on `dev` (steps 1–4 of "What you set up"): generate the key set, set it in Vercel for Staging, Preview and Development, run `ALTER ROLE kerb_app WITH LOGIN PASSWORD '…'` in Neon's SQL editor, build the pooled `DATABASE_URL` for `kerb_app`, then run `vp run db:check-app-role` against `dev`.
-- The staging check: opening a claim as staff writes a `claim.viewed` row, and the chain verifies.
+- ~~Damion's setup on `dev` (steps 1–4)~~ Done 5 Nov 2026. Both key sets are in Vercel, and the dev set is in `.env.local`. `0009` and `0010` were applied to `dev` with `vp run db:migrate`. `kerb_app` was given a password, and the pooled `DATABASE_URL` was switched to it. `db:check-app-role` passed 6/6 through the `-pooler` endpoint, so a SQL-created role works with Neon's pooler, which the docs didn't say.
+  - **Found during setup:** a key needs the `v1:` prefix and 32 bytes (`openssl rand -base64 32`, 44 characters). A `/`, `+` or `=` in the `kerb_app` password must be URL-encoded in `DATABASE_URL`, or the script reports "DATABASE_URL is not a valid URL."
+- The staging check (opening a claim as staff writes `claim.viewed`) waits for 6.10, the first page that calls `staffGetClaim`.
 - Production's steps (5) come at the Phase 4 release.
