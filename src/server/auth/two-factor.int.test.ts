@@ -2,11 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { securityEvents, sessions } from "#/server/db/schema";
+import { securityEvents, sessions, users } from "#/server/db/schema";
 import {
   enableTwoFactor,
   googleSession,
   makeAuth,
+  PASSWORD,
   post,
   requestHeaders,
   sent,
@@ -190,6 +191,9 @@ describe("kerbTwoFactor (4.6)", () => {
     }
     // Nothing changed behind the refusals
     expect((await sessionsFor(user.id)).length).toBeGreaterThan(1);
+    const [row] = await getDb().select().from(users).where(eq(users.id, user.id));
+    expect(row!.name).toBe("Maya Patel");
+    expect(row!.twoFactorEnabled).toBe(true);
 
     expect((await get(auth, "/get-session", cookie)).status).toBe(200);
     const other = await googleSession(auth, user.id);
@@ -302,6 +306,76 @@ describe("kerbTwoFactor (4.6)", () => {
       expect(response.status).toBe(401);
       expect(await response.json()).toMatchObject({ code: "TWO_FACTOR_CHALLENGE" });
     }
+  });
+
+  it("a backup code can't confirm setup, and stamps and records nothing", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await signUpAndConfirm(auth);
+    const enabled = await post(auth, "/two-factor/enable", { password: PASSWORD }, { cookie });
+    const { backupCodes } = (await enabled.json()) as { backupCodes: string[] };
+    const verify = await post(
+      auth,
+      "/two-factor/verify-backup-code",
+      { code: backupCodes[0] },
+      { cookie },
+    );
+    expect(verify.status).toBe(400);
+    expect(await verify.json()).toMatchObject({ code: "TWO_FACTOR_NOT_ENABLED" });
+    const rows = await sessionsFor(user.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.twoFactorVerifiedAt).toBeNull();
+    expect(await eventCount(user.id, "two_factor_passed")).toBe(0);
+    const [row] = await getDb().select().from(users).where(eq(users.id, user.id));
+    expect(row!.twoFactorEnabled).toBe(false);
+  });
+
+  it("refuses disableSession on the verify paths, and records nothing", async () => {
+    const auth = makeAuth();
+    const { user, backupCodes, secret } = await twoFactorUser(auth);
+    const signIn = await signInWithPassword(auth, EMAIL);
+    for (const [path, code] of [
+      ["/two-factor/verify-backup-code", backupCodes[0]!],
+      ["/two-factor/verify-totp", await totpNow(secret)],
+    ] as const) {
+      const response = await post(
+        auth,
+        path,
+        { code, disableSession: true },
+        { cookie: sessionCookie(signIn) },
+      );
+      expect([path, response.status]).toEqual([path, 400]);
+      expect(await response.json()).toMatchObject({ code: "DISABLE_SESSION_NOT_ALLOWED" });
+    }
+    expect(await eventCount(user.id, "sign_in")).toBe(0);
+    // Only the setup code's
+    expect(await eventCount(user.id, "two_factor_passed")).toBe(1);
+  });
+
+  it("a wrong code stamps nothing and records no two_factor_passed, in either mode", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    // A real code, but for 1970
+    const wrong = await totpNow(secret, new Date(0));
+
+    const signIn = await signInWithPassword(auth, EMAIL);
+    const signInMode = await post(
+      auth,
+      "/two-factor/verify-totp",
+      { code: wrong },
+      { cookie: sessionCookie(signIn) },
+    );
+    expect(signInMode.status).toBe(401);
+
+    const cookie = await googleSession(auth, user.id);
+    const signedIn = await post(auth, "/two-factor/verify-totp", { code: wrong }, { cookie });
+    expect(signedIn.status).toBe(401);
+
+    const unstamped = (await sessionsFor(user.id)).filter((r) => r.twoFactorVerifiedAt === null);
+    // The Google session only: the sign-in made no session
+    expect(unstamped).toHaveLength(1);
+    expect(await sessionsFor(user.id)).toHaveLength(2);
+    expect(await eventCount(user.id, "two_factor_passed")).toBe(1);
+    expect(await eventCount(user.id, "sign_in")).toBe(0);
   });
 
   it("kerbTrustDevice is false for staff and true for customers", async () => {

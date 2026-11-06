@@ -105,6 +105,14 @@ async function sessionFor(ctx: HookCtx) {
   return { session: await getSessionFromCtx(ctx), live: false };
 }
 
+/** Unexpected errors in our hooks: logged by name only, answered with a generic 500 */
+const GENERIC_FAILURE = "Something went wrong. Try again.";
+function failClosed(what: string, error: unknown): never {
+  if (isAPIError(error)) throw error;
+  console.error(`[auth] ${what} failed:`, logSafeError(error));
+  throw new APIError("INTERNAL_SERVER_ERROR", { message: GENERIC_FAILURE });
+}
+
 const handoff = (ctx: unknown): Kerb2fa => (ctx as { kerb2fa?: Kerb2fa }).kerb2fa ?? {};
 
 /** A response body, not an APIError (a wrong code throws, so it arrives here as one) */
@@ -122,7 +130,7 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
     } catch (error) {
       console.error("[auth] two-factor stamp not written:", logSafeError(error));
       // The session stays unstamped, so it's still challenged: this fails closed
-      throw new APIError("INTERNAL_SERVER_ERROR", { message: "Something went wrong. Try again." });
+      throw new APIError("INTERNAL_SERVER_ERROR", { message: GENERIC_FAILURE });
     }
   }
 
@@ -133,41 +141,10 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
         {
           matcher: () => true,
           handler: createAuthMiddleware(async (ctx) => {
-            if (VERIFY_PATHS.has(ctx.path)) {
-              // The endpoint reuses this lookup, so its idea of signed-in matches ours
-              const { session, live } = await sessionFor(ctx);
-              // Only a cached copy of a deleted session: nothing to stamp, nothing to record
-              if (session && !live) return;
-              if (session) {
-                const userId = session.user.id;
-                const kerb2fa: Kerb2fa = {
-                  mode: session.user.twoFactorEnabled ? "signed-in" : "setup",
-                  userId,
-                  sessionId: session.session.id,
-                  staff: await isStaff(db, userId),
-                };
-                return { context: { kerb2fa } };
-              }
-              const cookie = ctx.context.createAuthCookie(TWO_FACTOR_COOKIE);
-              const identifier = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
-              if (!identifier) return;
-              const challenge = await ctx.context.internalAdapter.findVerificationValue(identifier);
-              if (!challenge) return;
-              const kerb2fa: Kerb2fa = {
-                mode: "sign-in",
-                userId: challenge.value,
-                staff: await isStaff(db, challenge.value),
-              };
-              return { context: { kerb2fa } };
-            }
-
-            if (isAllowedWhileOwingCode(ctx.path)) return;
-            const { session } = await sessionFor(ctx);
-            if (session?.user.twoFactorEnabled && !session.session.twoFactorVerifiedAt) {
-              throw new APIError("UNAUTHORIZED", {
-                code: "TWO_FACTOR_CHALLENGE",
-                message: TWO_FACTOR_CHALLENGE_MESSAGE,
-              });
+            try {
+              return await before(ctx);
+            } catch (error) {
+              failClosed("two-factor before hook", error);
             }
           }),
         },
@@ -181,15 +158,11 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
             const headers = ctx.request?.headers;
             const method = ctx.path === VERIFY_TOTP ? "totp" : "backup_code";
             // The session that survives, never the returned token: in setup mode that token's
-            // session has just been deleted
-            const newSession = ctx.context.newSession;
-            const target =
-              mode === "signed-in"
-                ? sessionId
-                : mode === "setup"
-                  ? (newSession?.session.id ?? sessionId)
-                  : newSession?.session.id;
-            if (target) await stamp(target, userId);
+            // session has just been deleted. In setup and sign-in modes a code that passed
+            // without making a session proves nothing, so nothing is stamped or recorded
+            const target = mode === "signed-in" ? sessionId : ctx.context.newSession?.session.id;
+            if (!target) return;
+            await stamp(target, userId);
             if (mode === "sign-in") {
               // The password step recorded nothing: the code is what completes the sign-in
               await record({ type: "sign_in", userId, method: "password", headers });
@@ -207,7 +180,7 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
               await record({ type: "sign_in", userId, method: "password", headers });
               // twoFactor() let a 2FA user straight through, so they had a valid trusted-device
               // cookie. That counts as verified for customers, never for staff (call 8)
-              if (newSession.user.twoFactorEnabled && !(await isStaff(db, userId))) {
+              if (newSession.user.twoFactorEnabled && !(await staffOrUnknown(userId))) {
                 await stamp(newSession.session.id, userId);
               }
               return;
@@ -215,7 +188,7 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
             const returned = ctx.context.returned as { twoFactorRedirect?: unknown } | undefined;
             if (succeeded(returned) && returned?.twoFactorRedirect === true) {
               const email = (ctx.body as { email?: unknown } | undefined)?.email;
-              const staff = await isStaff(db, await userIdForEmail(db, email));
+              const staff = await staffOrUnknown(email, "email");
               // The form shows "Trust this device" only when this is true
               return ctx.json({ ...returned, kerbTrustDevice: !staff });
             }
@@ -224,4 +197,73 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
       ],
     },
   };
+
+  /**
+   * The /sign-in/email after hook's staff check. A failed lookup counts as staff (no stamp, no
+   * tick box), so the session stays challenged and the response still goes out
+   */
+  async function staffOrUnknown(key: unknown, by: "id" | "email" = "id"): Promise<boolean> {
+    try {
+      const userId = by === "email" ? await userIdForEmail(db, key) : (key as string);
+      return await isStaff(db, userId);
+    } catch (error) {
+      console.error("[auth] two-factor staff check failed:", logSafeError(error));
+      return true;
+    }
+  }
+
+  async function before(ctx: HookCtx & { path: string; body?: unknown }) {
+    if (VERIFY_PATHS.has(ctx.path)) {
+      // Kerb always wants the session that a passed code makes or keeps
+      if ((ctx.body as { disableSession?: unknown } | undefined)?.disableSession === true) {
+        throw new APIError("BAD_REQUEST", {
+          code: "DISABLE_SESSION_NOT_ALLOWED",
+          message: "This request isn't allowed.",
+        });
+      }
+      // The endpoint reuses this lookup, so its idea of signed-in matches ours
+      const { session, live } = await sessionFor(ctx);
+      // Only a cached copy of a deleted session: nothing to stamp, nothing to record
+      if (session && !live) return;
+      if (session) {
+        const userId = session.user.id;
+        const mode: TwoFactorMode = session.user.twoFactorEnabled ? "signed-in" : "setup";
+        // Setup is confirmed with the app's code. Better Auth would accept a backup code
+        // from the unconfirmed enrolment without turning 2FA on
+        if (mode === "setup" && ctx.path === VERIFY_BACKUP_CODE) {
+          throw new APIError("BAD_REQUEST", {
+            code: "TWO_FACTOR_NOT_ENABLED",
+            message: "Two-factor isn't on yet. Enter the code from your authenticator app.",
+          });
+        }
+        const kerb2fa: Kerb2fa = {
+          mode,
+          userId,
+          sessionId: session.session.id,
+          staff: await isStaff(db, userId),
+        };
+        return { context: { kerb2fa } };
+      }
+      const cookie = ctx.context.createAuthCookie(TWO_FACTOR_COOKIE);
+      const identifier = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
+      if (!identifier) return;
+      const challenge = await ctx.context.internalAdapter.findVerificationValue(identifier);
+      if (!challenge) return;
+      const kerb2fa: Kerb2fa = {
+        mode: "sign-in",
+        userId: challenge.value,
+        staff: await isStaff(db, challenge.value),
+      };
+      return { context: { kerb2fa } };
+    }
+
+    if (isAllowedWhileOwingCode(ctx.path)) return;
+    const { session } = await sessionFor(ctx);
+    if (session?.user.twoFactorEnabled && !session.session.twoFactorVerifiedAt) {
+      throw new APIError("UNAUTHORIZED", {
+        code: "TWO_FACTOR_CHALLENGE",
+        message: TWO_FACTOR_CHALLENGE_MESSAGE,
+      });
+    }
+  }
 }
