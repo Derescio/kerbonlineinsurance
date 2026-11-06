@@ -272,6 +272,8 @@ Changes from the spec:
 - **`rateLimitIp` also strips IPv6 zone ids** (the `%eth0` part) before grouping by /64.
 - **The rate-limit refusal logs with `console.warn`** (the action name only). `fail()` doesn't log it again.
 - **`seroval` is a devDependency**, pinned to Start's version. A Dependabot bump of Start needs it to follow.
+- **`fieldErrors` also returns `message` on failure** (the whole-form sentence, e.g. a root-level refine), so a form can show it when `errors` is empty.
+- **`useIdempotencyKey` follows scope changes.** A route component that stays mounted while its params change gets the new scope's key, and `rotate()` writes to the new scope's slot.
 
 What was built:
 - Server: `src/server/db/tx.ts` (`withTx`, `Tx`, timeouts of 10s and 5s, `Rejected` rolls back), `rate-limit.ts` (`limit()`, `rateLimitSubject()`, guests by keyed IP hash, IPv6 by /64), `idempotency.ts` (`findReplay`, `withIdempotency`, `toJson`, `JsonValue`; `canonicalJson` shared with `chain.ts`). `src/server/data/define.ts` has `defineWrite`. `src/server/auth/errors.ts` has `PublicCode`, `PublicError.from`, `RATE_LIMITED` and `IDEMPOTENCY_CONFLICT`; `middleware.ts` has `actorMiddleware`; `src/start.ts` has the serialisation adapter.
@@ -282,6 +284,7 @@ What was built:
 
 Still to do:
 - The staging check: sign-in linking and the staff reads behave as before through `withTx`.
+- The staging check that a thrown server error reaches the browser with its code: call a `userMiddleware`-backed server function signed out (or the first such function that exists) and confirm a 401 whose body decodes to a `PublicError` with code `UNAUTHENTICATED`.
 - 5.6 writes its first `defineWrite` function and creates `rate-limit-rules.ts`.
 - Known limits a later slice could trip on:
   - A first request that holds its key row longer than `lock_timeout` (5s) makes the waiting retry fail with a generic "Something went wrong" (Postgres 55P03). The retry after that gets the stored answer.

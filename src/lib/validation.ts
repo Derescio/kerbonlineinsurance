@@ -45,10 +45,17 @@ export type FieldErrors<T = unknown> = Partial<Record<(keyof T & string) | (stri
 export function fieldErrors<S extends z.ZodType>(
   schema: S,
   values: unknown,
-): { data: z.output<S>; errors: null } | { data: null; errors: FieldErrors<z.input<S>> } {
+):
+  | { data: z.output<S>; errors: null }
+  | { data: null; errors: FieldErrors<z.input<S>>; message: string } {
   const result = parseInput(schema, values);
   if (result.ok) return { data: result.data, errors: null };
-  return { data: null, errors: result.error.fields as FieldErrors<z.input<S>> };
+  // `message` is for a failure with no field to attach to, such as a root-level refine
+  return {
+    data: null,
+    errors: result.error.fields as FieldErrors<z.input<S>>,
+    message: result.error.message,
+  };
 }
 
 /** Moves focus to the first invalid field after React has rendered the errors */

@@ -84,9 +84,9 @@ export function defineWrite<P, O extends JsonValue>(
   ): Promise<WriteResult<O>> => {
     const known = requireUser(actor);
 
-    const parsed = parseInput(input, raw.input);
+    const parsed = parseInput(input, raw?.input);
     const keyed = options.idempotent
-      ? parseInput(keySchema, { idempotencyKey: raw.idempotencyKey })
+      ? parseInput(keySchema, { idempotencyKey: raw?.idempotencyKey })
       : null;
     if (!parsed.ok || (keyed && !keyed.ok)) {
       const failures = [parsed, keyed].flatMap((r) => (r && !r.ok ? [r.error] : []));

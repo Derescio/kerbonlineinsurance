@@ -110,6 +110,11 @@ describe("defineWrite", () => {
     expect(await rows(jobs)).toBe(0);
   });
 
+  it("fails, rather than throws, when the envelope is missing", async () => {
+    const result = await write(actor, undefined as never, ctx);
+    expect(result.ok).toBe(false);
+  });
+
   it("reports the input and the key together", async () => {
     const result = await write(actor, { input: { title: "" } }, ctx);
     expect(result.ok).toBe(false);

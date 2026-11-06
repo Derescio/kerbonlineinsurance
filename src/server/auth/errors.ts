@@ -59,6 +59,9 @@ export function toPublicError(error: unknown): {
   code: PublicCode;
   message: string;
 } {
+  if (error instanceof PublicError) {
+    return { status: error.status, code: error.code, message: error.message };
+  }
   if (error instanceof AuthzError) {
     return { status: error.status, code: error.code, message: MESSAGE[error.code] };
   }

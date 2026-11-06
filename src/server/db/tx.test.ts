@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { describe, expect, it } from "vite-plus/test";
 
@@ -8,9 +8,11 @@ describe("transactions", () => {
     const offenders = readdirSync("src", { recursive: true, encoding: "utf8" })
       .filter(
         (file) =>
-          /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file) && !file.startsWith(join("test", "")),
+          /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file) && !file.startsWith("test" + sep),
       )
-      .filter((file) => /\.transaction\(/.test(readFileSync(join("src", file), "utf8")));
+      .filter((file) =>
+        /\.transaction\s*(<[^>]*>)?\s*\(/.test(readFileSync(join("src", file), "utf8")),
+      );
     expect(offenders).toEqual([join("server", "db", "tx.ts")]);
   });
 });

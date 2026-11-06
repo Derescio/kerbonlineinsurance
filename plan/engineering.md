@@ -355,7 +355,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - Secrets live only in Vercel, GitHub and `.env.local`.
 - **Errors and logs:** users see friendly messages. Logs carry ids, not personal data (no emails, addresses or chat text), and stack traces never reach the browser. Audit keys and database URLs are never logged or put in an error message; an audit failure is logged by its error name only.
   - **`PublicError` crosses to the browser with its code.** A serialisation adapter in `src/start.ts` sends `code`, `status` and `message` and nothing else (no stack, no cause), so the browser can branch on the code. A plain `Error` still crosses as its message only.
-  - **Every server function uses `userMiddleware`, `permissionMiddleware` or `actorMiddleware`.** Access is decided there, before any input is read.
+  - **Every server function uses `userMiddleware`, `permissionMiddleware` or `actorMiddleware`, or must not throw.** Access is decided there, before any input is read. The session and staff-access reads (`getSessionUser`, `getAccountSummary`, `getStaffAccess`) use none, so they return a value for a guest instead of throwing.
   - **Writes use no zod `inputValidator`.** `defineWrite` validates after the access check and returns a `ValidationFailure` with per-field messages, so a guest gets `UNAUTHENTICATED` and not a validation error.
   - **Validation failures and rejections are returned, not thrown, and not logged.** They are normal outcomes. The rate-limit refusal is logged with `console.warn` (the action name only).
 - **Pre-launch review (8.9):** an OWASP-style checklist, a headers scan, a dependency audit, a secret-rotation dry run, and the permission tests (§7) green.

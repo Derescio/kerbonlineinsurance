@@ -82,6 +82,17 @@ describe("fieldErrors", () => {
       email: "Enter your email address.",
       password: "Enter your password.",
     });
+    expect(result.data === null && result.message).toBe(CHECK_FIELDS);
+  });
+
+  it("keeps the message of a root-only failure", () => {
+    const rootOnly = z
+      .object({ start: z.string() })
+      .refine((v) => v.start > "2030", { error: "Pick a start date after today." });
+    const result = fieldErrors(rootOnly, { start: "2020" });
+    expect(result.data).toBeNull();
+    expect(result.errors).toEqual({});
+    expect(result.data === null && result.message).toBe("Pick a start date after today.");
   });
 });
 

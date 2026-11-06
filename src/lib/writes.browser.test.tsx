@@ -28,6 +28,27 @@ describe("useIdempotencyKey", () => {
     expect(a.result.current.key).not.toBe(b.result.current.key);
   });
 
+  it("follows a scope change, and rotates only the new scope's slot", async () => {
+    const hook = await renderHook(
+      (props?: { scope: string }) => useIdempotencyKey(props?.scope ?? "a"),
+      {
+        initialProps: { scope: "a" },
+      },
+    );
+    const keyA = hook.result.current.key;
+    await hook.rerender({ scope: "b" });
+    const keyB = hook.result.current.key;
+    expect(keyB).toMatch(UUID);
+    expect(keyB).not.toBe(keyA);
+    expect(sessionStorage.getItem("kerb:idempotency:b")).toBe(keyB);
+    await hook.act(() => hook.result.current.rotate());
+    expect(hook.result.current.key).not.toBe(keyB);
+    expect(sessionStorage.getItem("kerb:idempotency:a")).toBe(keyA);
+    expect(sessionStorage.getItem("kerb:idempotency:b")).toBe(hook.result.current.key);
+    await hook.rerender({ scope: "a" });
+    expect(hook.result.current.key).toBe(keyA);
+  });
+
   it("rotates, and a remount reads the new key", async () => {
     const first = await renderHook(() => useIdempotencyKey("quote"));
     const old = first.result.current.key;

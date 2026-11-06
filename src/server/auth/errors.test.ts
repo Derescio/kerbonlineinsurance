@@ -25,6 +25,13 @@ describe("AuthzError", () => {
 });
 
 describe("toPublicError", () => {
+  it("passes a PublicError through unchanged", () => {
+    const pub = PublicError.from({ code: "FORBIDDEN", status: 403, message: "Nope." });
+    expect(toPublicError(pub)).toEqual({ status: 403, code: "FORBIDDEN", message: "Nope." });
+    const again = publicErrorFor(pub) as PublicError;
+    expect([again.code, again.status, again.message]).toEqual(["FORBIDDEN", 403, "Nope."]);
+  });
+
   it.each([
     ["UNAUTHENTICATED", 401, "Please log in to continue."],
     ["FORBIDDEN", 403, "You don't have access to this."],
