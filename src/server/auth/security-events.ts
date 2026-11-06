@@ -1,7 +1,12 @@
 import { eq } from "drizzle-orm";
 
 import type { Db } from "#/server/db/client";
-import { securityEvents, type SecurityEventType, users } from "#/server/db/schema";
+import {
+  SECURITY_EVENT_METHODS,
+  securityEvents,
+  type SecurityEventType,
+  users,
+} from "#/server/db/schema";
 
 import { clientIp, hashIp, summariseUserAgent } from "./request-info";
 import { logSafeError } from "./errors";
@@ -9,7 +14,7 @@ import { logSafeError } from "./errors";
 export interface SecurityEventInput {
   type: SecurityEventType;
   userId?: string | null;
-  method?: "password" | "google" | null;
+  method?: (typeof SECURITY_EVENT_METHODS)[number] | null;
   headers?: Headers;
 }
 

@@ -152,6 +152,10 @@ export function createAuth(deps: AuthDeps) {
       // Sliding: refreshed at most once a day of use
       updateAge: DAY,
       cookieCache: { enabled: true, maxAge: 5 * 60 },
+      // Stamped by the server when the second step passes (4.6); the browser can't set it
+      additionalFields: {
+        twoFactorVerifiedAt: { type: "date", required: false, input: false },
+      },
     },
 
     rateLimit: {
@@ -166,6 +170,9 @@ export function createAuth(deps: AuthDeps) {
         "/sign-up/email": { window: 15 * 60, max: 5 },
         "/request-password-reset": { window: 15 * 60, max: 3 },
         "/send-verification-email": { window: 15 * 60, max: 3 },
+        // 4.6: the code check is the guess surface, so it gets the sign-in limit
+        "/two-factor/verify-totp": { window: 15 * 60, max: 10 },
+        "/two-factor/verify-backup-code": { window: 15 * 60, max: 10 },
       },
     },
 
@@ -300,7 +307,9 @@ export function createAuth(deps: AuthDeps) {
     },
 
     plugins: [
-      twoFactor({ issuer: "Kerb" }),
+      // Passwordless accounts (Google only) can enable it without a password; the plugin's own
+      // lockout stays. A trusted device skips the code for 30 days
+      twoFactor({ issuer: "Kerb", allowPasswordless: true, trustDeviceMaxAge: 30 * DAY }),
       ...(breach
         ? [breachedPasswordCheck(typeof breach === "object" ? { fetchFn: breach.fetchFn } : {})]
         : []),

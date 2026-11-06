@@ -78,6 +78,13 @@
       "when": 1793914165720,
       "tag": "0010_app_role",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794001781310,
+      "tag": "0011_normal_quasimodo",
+      "breakpoints": true
     }
   ]
 }

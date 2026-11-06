@@ -1,8 +1,9 @@
+import { twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 // Better Auth's browser client (4.4). Same origin, so no baseURL: /api/auth on whichever host
 // served the page (production, staging, a preview or localhost).
-export const authClient = createAuthClient();
+export const authClient = createAuthClient({ plugins: [twoFactorClient()] });
 
 /** Turnstile's token goes in this header on sign-up and reset (Better Auth's captcha plugin) */
 export const captchaHeaders = (token: string) => ({ "x-captcha-response": token });
