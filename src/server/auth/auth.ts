@@ -24,7 +24,7 @@ import {
 } from "./linking";
 import { authUrls } from "./origins";
 import { kerbTwoFactor } from "./two-factor";
-import { TRUST_DEVICE_MAX_AGE_S } from "./two-factor-constants";
+import { LOCKOUT_AFTER, LOCKOUT_MS, TRUST_DEVICE_MAX_AGE_S } from "./two-factor-constants";
 import { recordSecurityEvent, userIdForEmail, type SecurityEventInput } from "./security-events";
 
 // Better Auth (4.4, plan/phases/04-data-auth/04-better-auth.md; plan/engineering.md section 7).
@@ -314,6 +314,8 @@ export function createAuth(deps: AuthDeps) {
         issuer: "Kerb",
         allowPasswordless: true,
         trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_S,
+        // The sign-in lockout; kerbTwoFactor() applies the same to signed-in checks (call 9)
+        accountLockout: { maxFailedAttempts: LOCKOUT_AFTER, durationSeconds: LOCKOUT_MS / 1000 },
       }),
       // Straight after twoFactor(), so its hooks see what twoFactor()'s did (two-factor.ts)
       kerbTwoFactor({ db, record }),

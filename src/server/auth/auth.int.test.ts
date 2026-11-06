@@ -339,6 +339,17 @@ describe("Better Auth (4.4)", () => {
       expect(blocked.headers.get("cache-control")).toBe("private, no-store");
       expect((await events()).filter(({ type }) => type === "rate_limited")).toHaveLength(1);
     });
+
+    it("the verify rate limit refuses the 11th try (4.6)", async () => {
+      const auth = makeAuth({ rateLimit: true });
+      const verify = (path: string) => post(auth, path, { code: "000000" });
+      for (let i = 0; i < 10; i++) {
+        expect((await verify("/two-factor/verify-totp")).status).not.toBe(429);
+      }
+      expect((await verify("/two-factor/verify-totp")).status).toBe(429);
+      // Counted per path: the backup-code path from the same IP still answers
+      expect((await verify("/two-factor/verify-backup-code")).status).not.toBe(429);
+    });
   });
 
   describe("Google and existing accounts (decision 2)", () => {

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { BetterAuthPlugin } from "better-auth";
 import {
   APIError,
@@ -7,15 +7,18 @@ import {
   getSessionFromCtx,
   isAPIError,
 } from "better-auth/api";
+import { TWO_FACTOR_ERROR_CODES } from "better-auth/plugins/two-factor";
 
 import type { Db } from "#/server/db/client";
-import { sessions } from "#/server/db/schema";
+import { sessions, twoFactors } from "#/server/db/schema";
 
 import { resolveActor } from "./actor";
 import { logSafeError } from "./errors";
 import { userIdForEmail, type SecurityEventInput } from "./security-events";
+import { LOCKOUT_AFTER, LOCKOUT_MS, PASSWORDLESS_FRESH_MS } from "./two-factor-constants";
 
-// Kerb's half of two-factor (4.6, plan/phases/04-data-auth/06-two-factor.md calls 4, 5, 8 and 10).
+// Kerb's half of two-factor (4.6, plan/phases/04-data-auth/06-two-factor.md calls 4, 5, 7, 8, 9
+// and 10).
 //
 // Why a plugin, registered straight after twoFactor(): Better Auth runs `hooks.before`/`hooks.after`
 // from the options FIRST, then plugin hooks in plugin order (api/dispatch.mjs, getHooks). Our after
@@ -33,6 +36,24 @@ import { userIdForEmail, type SecurityEventInput } from "./security-events";
 const VERIFY_TOTP = "/two-factor/verify-totp";
 const VERIFY_BACKUP_CODE = "/two-factor/verify-backup-code";
 const VERIFY_PATHS: ReadonlySet<string> = new Set([VERIFY_TOTP, VERIFY_BACKUP_CODE]);
+const DISABLE = "/two-factor/disable";
+
+/**
+ * The 2FA changes a user without a password makes on the strength of their session alone (call 7).
+ * The plugin asks a password user for the password on each; it asks a passwordless user nothing.
+ */
+const PASSWORDLESS_FRESH_PATHS: ReadonlySet<string> = new Set([
+  "/two-factor/enable",
+  DISABLE,
+  "/two-factor/generate-backup-codes",
+  "/two-factor/get-totp-uri",
+]);
+
+/** The plugin's answers to a wrong code; anything else (a used-up challenge, a lock) checked none */
+const WRONG_CODE: ReadonlySet<string> = new Set([
+  TWO_FACTOR_ERROR_CODES.INVALID_CODE.code,
+  TWO_FACTOR_ERROR_CODES.INVALID_BACKUP_CODE.code,
+]);
 
 /** Better Auth's signed cookie naming a pending sign-in challenge (plugins/two-factor/constant) */
 const TWO_FACTOR_COOKIE = "two_factor";
@@ -119,6 +140,12 @@ const handoff = (ctx: unknown): Kerb2fa => (ctx as { kerb2fa?: Kerb2fa }).kerb2f
 const succeeded = (returned: unknown) =>
   returned !== undefined && returned !== null && !isAPIError(returned);
 
+/** The plugin's 401 for a code that was checked and was wrong */
+const wrongCode = (returned: unknown) =>
+  isAPIError(returned) &&
+  returned.statusCode === 401 &&
+  WRONG_CODE.has((returned.body as { code?: string } | undefined)?.code ?? "");
+
 export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlugin {
   /** Marks one session as having passed the second step, now (call 4) */
   async function stamp(sessionId: string, userId: string) {
@@ -132,6 +159,64 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
       // The session stays unstamped, so it's still challenged: this fails closed
       throw new APIError("INTERNAL_SERVER_ERROR", { message: GENERIC_FAILURE });
     }
+  }
+
+  // The signed-in lockout (call 9). The same columns, limits and lazy expiry as the plugin's
+  // sign-in lockout (verify-two-factor.mjs), so wrong codes in either mode add up to one lock
+
+  /** Refuses while the account is locked; an expired lock starts the count again, as the plugin's */
+  async function assertNotLocked(userId: string) {
+    const [row] = await db
+      .select({
+        locked: sql<boolean>`${twoFactors.lockedUntil} > now()`,
+        expired: sql<boolean>`${twoFactors.lockedUntil} <= now()`,
+      })
+      .from(twoFactors)
+      .where(eq(twoFactors.userId, userId));
+    if (row?.locked) {
+      throw APIError.from("TOO_MANY_REQUESTS", TWO_FACTOR_ERROR_CODES.ACCOUNT_TEMPORARILY_LOCKED);
+    }
+    if (row?.expired) {
+      await db
+        .update(twoFactors)
+        .set({ failedVerificationCount: 0, lockedUntil: null })
+        .where(and(eq(twoFactors.userId, userId), sql`${twoFactors.lockedUntil} <= now()`));
+    }
+  }
+
+  /** One more wrong code, in one atomic statement; the tenth in a row locks the account */
+  async function countFailure(userId: string) {
+    const count = sql`coalesce(${twoFactors.failedVerificationCount}, 0) + 1`;
+    await db
+      .update(twoFactors)
+      .set({
+        failedVerificationCount: count,
+        lockedUntil: sql`case when ${count} >= ${LOCKOUT_AFTER}
+          then now() + make_interval(secs => ${LOCKOUT_MS / 1000}) end`,
+      })
+      .where(eq(twoFactors.userId, userId));
+  }
+
+  async function resetFailures(userId: string) {
+    await db
+      .update(twoFactors)
+      .set({ failedVerificationCount: 0, lockedUntil: null })
+      .where(eq(twoFactors.userId, userId));
+  }
+
+  /** An after-hook write that must not fail open or leak its error */
+  async function guarded(what: string, work: () => Promise<void>) {
+    try {
+      await work();
+    } catch (error) {
+      failClosed(what, error);
+    }
+  }
+
+  /** The plugin's own test for "needs the password" (utils/password.mjs, shouldRequirePassword) */
+  async function hasPassword(ctx: HookCtx, userId: string) {
+    const account = await ctx.context.internalAdapter.findCredentialAccount(userId);
+    return Boolean(account?.password);
   }
 
   return {
@@ -154,12 +239,23 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
           matcher: (ctx) => VERIFY_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
             const { mode, userId, sessionId } = handoff(ctx);
-            if (!mode || !userId || !succeeded(ctx.context.returned)) return;
+            if (!mode || !userId) return;
             const headers = ctx.request?.headers;
             const method = ctx.path === VERIFY_TOTP ? "totp" : "backup_code";
+            // The plugin counts sign-in mode's wrong codes itself and skips the others (call 9)
+            const ours = mode !== "sign-in";
+            if (wrongCode(ctx.context.returned)) {
+              if (ours) await guarded("two-factor failure count", () => countFailure(userId));
+              await record({ type: "two_factor_failed", userId, method, headers });
+              return;
+            }
+            if (!succeeded(ctx.context.returned)) return;
+            if (ours) await guarded("two-factor failure reset", () => resetFailures(userId));
             // The session that survives, never the returned token: in setup mode that token's
             // session has just been deleted. In setup and sign-in modes a code that passed
-            // without making a session proves nothing, so nothing is stamped or recorded
+            // without making a session proves nothing, so nothing is stamped or recorded. Nor
+            // does one that arrived on a cached copy of a deleted session (no sessionId)
+            if (ours && !sessionId) return;
             const target = mode === "signed-in" ? sessionId : ctx.context.newSession?.session.id;
             if (!target) return;
             await stamp(target, userId);
@@ -223,8 +319,6 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
       }
       // The endpoint reuses this lookup, so its idea of signed-in matches ours
       const { session, live } = await sessionFor(ctx);
-      // Only a cached copy of a deleted session: nothing to stamp, nothing to record
-      if (session && !live) return;
       if (session) {
         const userId = session.user.id;
         const mode: TwoFactorMode = session.user.twoFactorEnabled ? "signed-in" : "setup";
@@ -236,34 +330,69 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
             message: "Two-factor isn't on yet. Enter the code from your authenticator app.",
           });
         }
-        const kerb2fa: Kerb2fa = {
+        // The plugin skips its lockout when there's a session, so ours applies (call 9)
+        await assertNotLocked(userId);
+        return verifying(ctx, {
           mode,
           userId,
-          sessionId: session.session.id,
+          // Only a cached copy of a deleted session: still counted, but nothing to stamp
+          sessionId: live ? session.session.id : undefined,
           staff: await isStaff(db, userId),
-        };
-        return { context: { kerb2fa } };
+        });
       }
       const cookie = ctx.context.createAuthCookie(TWO_FACTOR_COOKIE);
       const identifier = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
       if (!identifier) return;
       const challenge = await ctx.context.internalAdapter.findVerificationValue(identifier);
       if (!challenge) return;
-      const kerb2fa: Kerb2fa = {
+      return verifying(ctx, {
         mode: "sign-in",
         userId: challenge.value,
         staff: await isStaff(db, challenge.value),
-      };
-      return { context: { kerb2fa } };
+      });
     }
 
     if (isAllowedWhileOwingCode(ctx.path)) return;
     const { session } = await sessionFor(ctx);
-    if (session?.user.twoFactorEnabled && !session.session.twoFactorVerifiedAt) {
+    if (!session) return;
+    if (session.user.twoFactorEnabled && !session.session.twoFactorVerifiedAt) {
       throw new APIError("UNAUTHORIZED", {
         code: "TWO_FACTOR_CHALLENGE",
         message: TWO_FACTOR_CHALLENGE_MESSAGE,
       });
     }
+    const userId = session.user.id;
+    // Staff can't turn two-factor off (call 8)
+    if (ctx.path === DISABLE && (await isStaff(db, userId))) {
+      throw new APIError("FORBIDDEN", {
+        code: "TWO_FACTOR_REQUIRED",
+        message: "Staff accounts need two-factor. Set it up to continue.",
+      });
+    }
+    // Without a password, a recent sign-in is the proof (call 7)
+    if (PASSWORDLESS_FRESH_PATHS.has(ctx.path) && !(await hasPassword(ctx, userId))) {
+      const age = Date.now() - new Date(session.session.createdAt).getTime();
+      // Written so an unreadable createdAt (NaN) fails closed
+      if (!(age <= PASSWORDLESS_FRESH_MS)) {
+        throw new APIError("FORBIDDEN", {
+          code: "SESSION_NOT_FRESH",
+          message: "Confirm it's you to continue.",
+        });
+      }
+    }
+  }
+
+  /**
+   * The verify hand-off. A staff member's `trustDevice` is turned off here, in the body the
+   * endpoint reads (dispatch merges `context.body` over the request's), so the plugin never sets
+   * the trust cookie or its trust-device-* row (call 8). `false`, not removed: the merge skips
+   * undefined
+   */
+  function verifying(ctx: { body?: unknown }, kerb2fa: Kerb2fa) {
+    const body = ctx.body as Record<string, unknown> | undefined;
+    if (kerb2fa.staff && body && body.trustDevice !== undefined) {
+      return { context: { kerb2fa, body: { ...body, trustDevice: false } } };
+    }
+    return { context: { kerb2fa } };
   }
 }

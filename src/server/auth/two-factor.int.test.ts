@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { securityEvents, sessions, users } from "#/server/db/schema";
+import { securityEvents, sessions, twoFactors, users, verifications } from "#/server/db/schema";
 import {
   enableTwoFactor,
+  env,
   googleSession,
   makeAuth,
   PASSWORD,
@@ -16,10 +17,11 @@ import {
   signUp,
   type TestAuth,
 } from "#/test/auth";
-import { truncateAll } from "#/test/db";
-import { makeStaff } from "#/test/factories";
+import { tamper, truncateAll } from "#/test/db";
+import { makeStaff, makeUser } from "#/test/factories";
 import { totpNow } from "#/test/totp";
 
+import { getActor, requirePermission } from "./actor";
 import { LOCAL_URL } from "./origins";
 import { TWO_FACTOR_ALLOWLIST } from "./two-factor";
 
@@ -27,6 +29,8 @@ import { TWO_FACTOR_ALLOWLIST } from "./two-factor";
 // session-owes-a-code allowlist, and sign_in recorded after the code instead of after the password.
 
 const EMAIL = "maya.patel@example.com";
+
+afterAll(closeDb);
 
 /** Sign up and open the confirmation link, as auth.int.test.ts does; returns the link's session */
 async function signUpAndConfirm(auth: TestAuth, email = EMAIL) {
@@ -55,7 +59,10 @@ function get(auth: TestAuth, path: string, cookie: string) {
 const sessionsFor = (userId: string) =>
   getDb().select().from(sessions).where(eq(sessions.userId, userId));
 
-const eventCount = async (userId: string, type: "sign_in" | "two_factor_passed") =>
+const eventCount = async (
+  userId: string,
+  type: "sign_in" | "two_factor_passed" | "two_factor_failed",
+) =>
   (
     await getDb()
       .select()
@@ -81,7 +88,6 @@ describe("kerbTwoFactor (4.6)", () => {
     await truncateAll();
     sent.length = 0;
   });
-  afterAll(closeDb);
 
   it("a sign-in code stamps the new session", async () => {
     const auth = makeAuth();
@@ -389,5 +395,291 @@ describe("kerbTwoFactor (4.6)", () => {
     await makeStaff({ userId: user.id });
     const staff = await signInWithPassword(auth, staffEmail);
     expect(await staff.json()).toMatchObject({ twoFactorRedirect: true, kerbTrustDevice: false });
+  });
+});
+
+// kerbTwoFactor() part 2 (4.6, calls 7, 8 and 9): staff rules, the passwordless freshness check and
+// the signed-in lockout.
+describe("kerbTwoFactor part 2 (4.6)", () => {
+  beforeEach(async () => {
+    await truncateAll();
+    sent.length = 0;
+  });
+
+  /** A real TOTP code, but for 1970 */
+  const wrongCode = (secret: string) => totpNow(secret, new Date(0));
+
+  const twoFactorRow = async (userId: string) =>
+    (await getDb().select().from(twoFactors).where(eq(twoFactors.userId, userId)))[0]!;
+
+  const trustRows = async () =>
+    (await getDb().select().from(verifications)).filter((row) =>
+      row.identifier.startsWith("trust-device-"),
+    );
+
+  const verifyTotp = (auth: TestAuth, code: string, cookie: string) =>
+    post(auth, "/two-factor/verify-totp", { code }, { cookie });
+
+  it("staff: trustDevice is stripped", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    await makeStaff({ userId: user.id });
+    const signIn = await signInWithPassword(auth, EMAIL);
+    const verify = await post(
+      auth,
+      "/two-factor/verify-totp",
+      { code: await totpNow(secret), trustDevice: true },
+      { cookie: sessionCookie(signIn) },
+    );
+    expect(verify.status).toBe(200);
+    // The sign-in itself still works and is stamped
+    const { token } = (await verify.json()) as { token: string };
+    const [row] = await getDb().select().from(sessions).where(eq(sessions.token, token));
+    expectRecent(row!.twoFactorVerifiedAt);
+    expect(pick(sessionCookie(verify), "trust_device")).toBe("");
+    expect(await trustRows()).toHaveLength(0);
+  });
+
+  it("staff: trustDevice is stripped from a backup code too", async () => {
+    const auth = makeAuth();
+    const { user, backupCodes } = await twoFactorUser(auth);
+    await makeStaff({ userId: user.id });
+    const signIn = await signInWithPassword(auth, EMAIL);
+    const verify = await post(
+      auth,
+      "/two-factor/verify-backup-code",
+      { code: backupCodes[0], trustDevice: true },
+      { cookie: sessionCookie(signIn) },
+    );
+    expect(verify.status).toBe(200);
+    expect(pick(sessionCookie(verify), "trust_device")).toBe("");
+    expect(await trustRows()).toHaveLength(0);
+  });
+
+  it("staff: disable is refused", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await twoFactorUser(auth);
+    await makeStaff({ userId: user.id });
+    const response = await post(auth, "/two-factor/disable", { password: PASSWORD }, { cookie });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      code: "TWO_FACTOR_REQUIRED",
+      message: "Staff accounts need two-factor. Set it up to continue.",
+    });
+    const [row] = await getDb().select().from(users).where(eq(users.id, user.id));
+    expect(row!.twoFactorEnabled).toBe(true);
+  });
+
+  describe("with the app's auth instance", () => {
+    beforeEach(() => {
+      for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("an old trust cookie still leads to a challenge for staff", async () => {
+      const auth = makeAuth();
+      const { user, secret } = await twoFactorUser(auth);
+      const signIn = await signInWithPassword(auth, EMAIL);
+      const verify = await post(
+        auth,
+        "/two-factor/verify-totp",
+        { code: await totpNow(secret), trustDevice: true },
+        { cookie: sessionCookie(signIn) },
+      );
+      const trust = pick(sessionCookie(verify), "trust_device");
+      expect(trust).not.toBe("");
+      // Trusted while still a customer, then made staff
+      await makeStaff({ userId: user.id });
+
+      const again = await post(
+        auth,
+        "/sign-in/email",
+        { email: EMAIL, password: PASSWORD },
+        { cookie: trust },
+      );
+      expect(again.status).toBe(200);
+      const { token } = (await again.json()) as { token: string };
+      const [row] = await getDb().select().from(sessions).where(eq(sessions.token, token));
+      expect(row!.twoFactorVerifiedAt).toBeNull();
+
+      const actor = await getActor(new Headers({ cookie: sessionCookie(again) }));
+      expect(actor?.userId).toBe(user.id);
+      expect(() => requirePermission(actor, "claims.read_all")).toThrow(
+        expect.objectContaining({ code: "TWO_FACTOR_CHALLENGE" }),
+      );
+    });
+  });
+
+  it("a Google-only user needs a session under 10 minutes old", async () => {
+    const auth = makeAuth();
+    const user = await makeUser({ emailVerified: true });
+    const cookie = await googleSession(auth, user.id);
+    const age = (minutes: number) =>
+      tamper(
+        `update sessions set created_at = now() - interval '${minutes} minutes' where user_id = $1`,
+        [user.id],
+      );
+    await age(11);
+    const stale = await post(auth, "/two-factor/enable", {}, { cookie });
+    expect(stale.status).toBe(403);
+    expect(await stale.json()).toEqual({
+      code: "SESSION_NOT_FRESH",
+      message: "Confirm it's you to continue.",
+    });
+    // The other passwordless 2FA changes are held to the same rule
+    for (const path of [
+      "/two-factor/get-totp-uri",
+      "/two-factor/generate-backup-codes",
+      "/two-factor/disable",
+    ]) {
+      const response = await post(auth, path, {}, { cookie });
+      expect([path, response.status]).toEqual([path, 403]);
+      expect(await response.json()).toMatchObject({ code: "SESSION_NOT_FRESH" });
+    }
+
+    await age(9);
+    const fresh = await post(auth, "/two-factor/enable", {}, { cookie });
+    expect(fresh.status).toBe(200);
+  });
+
+  it("a password user needs the password", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await signUpAndConfirm(auth);
+    // An old session: the password is what's checked, not the session's age
+    await tamper("update sessions set created_at = now() - interval '1 hour' where user_id = $1", [
+      user.id,
+    ]);
+    const without = await post(auth, "/two-factor/enable", {}, { cookie });
+    expect([400, 401]).toContain(without.status);
+    expect(await without.json()).not.toMatchObject({ code: "SESSION_NOT_FRESH" });
+    const withPassword = await post(auth, "/two-factor/enable", { password: PASSWORD }, { cookie });
+    expect(withPassword.status).toBe(200);
+  });
+
+  it("the sign-in challenge is used up after 5 wrong codes", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    const cookie = sessionCookie(await signInWithPassword(auth, EMAIL));
+    const wrong = await wrongCode(secret);
+    for (let i = 0; i < 5; i++) {
+      expect((await verifyTotp(auth, wrong, cookie)).status).toBe(401);
+    }
+    const sixth = await verifyTotp(auth, wrong, cookie);
+    expect(sixth.status).toBe(400);
+    expect(await sixth.json()).toMatchObject({ code: "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE" });
+    // Every wrong code is recorded; the used-up challenge checked no code
+    expect(await eventCount(user.id, "two_factor_failed")).toBe(5);
+  });
+
+  it("10 wrong codes in a row lock both modes for 15 minutes", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    const cookie = await googleSession(auth, user.id);
+    const wrong = await wrongCode(secret);
+    for (let i = 0; i < 10; i++) {
+      const response = await verifyTotp(auth, wrong, cookie);
+      expect([i, response.status]).toEqual([i, 401]);
+    }
+    const locked = await twoFactorRow(user.id);
+    expect(locked.failedVerificationCount).toBe(10);
+    const left = locked.lockedUntil!.getTime() - Date.now();
+    expect(left).toBeGreaterThan(14 * 60 * 1000);
+    expect(left).toBeLessThanOrEqual(15 * 60 * 1000 + 5000);
+
+    const right = await verifyTotp(auth, await totpNow(secret), cookie);
+    expect(right.status).toBe(429);
+    expect(await right.json()).toMatchObject({ code: "ACCOUNT_TEMPORARILY_LOCKED" });
+    // A backup code meets the same lock
+    const backup = await post(
+      auth,
+      "/two-factor/verify-backup-code",
+      { code: "nope-nope" },
+      { cookie },
+    );
+    expect(backup.status).toBe(429);
+
+    // So does a fresh sign-in challenge
+    const signIn = sessionCookie(await signInWithPassword(auth, EMAIL));
+    const signInMode = await verifyTotp(auth, await totpNow(secret), signIn);
+    expect(signInMode.status).toBe(429);
+    expect(await signInMode.json()).toMatchObject({ code: "ACCOUNT_TEMPORARILY_LOCKED" });
+    expect(await eventCount(user.id, "two_factor_failed")).toBe(10);
+
+    await tamper(
+      "update two_factors set locked_until = locked_until - interval '16 minutes' where user_id = $1",
+      [user.id],
+    );
+    const later = await verifyTotp(auth, await totpNow(secret), cookie);
+    expect(later.status).toBe(200);
+    const after = await twoFactorRow(user.id);
+    expect(after.failedVerificationCount).toBe(0);
+    expect(after.lockedUntil).toBeNull();
+  });
+
+  it("wrong codes in either mode add up to one lockout", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    const wrong = await wrongCode(secret);
+    // 5 at sign-in (all one challenge allows), then 5 signed in
+    const signIn = sessionCookie(await signInWithPassword(auth, EMAIL));
+    for (let i = 0; i < 5; i++) await verifyTotp(auth, wrong, signIn);
+    const cookie = await googleSession(auth, user.id);
+    for (let i = 0; i < 5; i++) await verifyTotp(auth, wrong, cookie);
+    expect((await twoFactorRow(user.id)).failedVerificationCount).toBe(10);
+    expect((await verifyTotp(auth, await totpNow(secret), cookie)).status).toBe(429);
+  });
+
+  it("an expired signed-in lock starts the count again", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    const cookie = await googleSession(auth, user.id);
+    const wrong = await wrongCode(secret);
+    for (let i = 0; i < 10; i++) await verifyTotp(auth, wrong, cookie);
+    await tamper(
+      "update two_factors set locked_until = locked_until - interval '16 minutes' where user_id = $1",
+      [user.id],
+    );
+    // A wrong code after the lock ran out is the first of a new run, not the 11th
+    expect((await verifyTotp(auth, wrong, cookie)).status).toBe(401);
+    const row = await twoFactorRow(user.id);
+    expect(row.failedVerificationCount).toBe(1);
+    expect(row.lockedUntil).toBeNull();
+  });
+
+  it("a good signed-in code resets the count", async () => {
+    const auth = makeAuth();
+    const { user, secret } = await twoFactorUser(auth);
+    const cookie = await googleSession(auth, user.id);
+    const wrong = await wrongCode(secret);
+    for (let i = 0; i < 3; i++) await verifyTotp(auth, wrong, cookie);
+    expect((await twoFactorRow(user.id)).failedVerificationCount).toBe(3);
+    expect((await verifyTotp(auth, await totpNow(secret), cookie)).status).toBe(200);
+    expect((await twoFactorRow(user.id)).failedVerificationCount).toBe(0);
+    const failed = await getDb()
+      .select()
+      .from(securityEvents)
+      .where(and(eq(securityEvents.userId, user.id), eq(securityEvents.type, "two_factor_failed")));
+    expect(failed.map((event) => event.method)).toEqual(["totp", "totp", "totp"]);
+  });
+
+  it("a wrong signed-in backup code counts and is recorded as backup_code", async () => {
+    const auth = makeAuth();
+    const { user } = await twoFactorUser(auth);
+    const cookie = await googleSession(auth, user.id);
+    const response = await post(
+      auth,
+      "/two-factor/verify-backup-code",
+      { code: "nope-nope" },
+      { cookie },
+    );
+    expect(response.status).toBe(401);
+    expect((await twoFactorRow(user.id)).failedVerificationCount).toBe(1);
+    const [event] = await getDb()
+      .select()
+      .from(securityEvents)
+      .where(and(eq(securityEvents.userId, user.id), eq(securityEvents.type, "two_factor_failed")));
+    expect(event!.method).toBe("backup_code");
   });
 });
