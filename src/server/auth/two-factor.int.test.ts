@@ -2,7 +2,17 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { securityEvents, sessions, twoFactors, users, verifications } from "#/server/db/schema";
+import {
+  auditLog,
+  securityEvents,
+  sessions,
+  twoFactors,
+  users,
+  verifications,
+  type SecurityEventType,
+} from "#/server/db/schema";
+import { verifyAuditChain } from "#/server/audit/verify";
+import { getAuditEnv } from "#/server/env";
 import {
   enableTwoFactor,
   env,
@@ -681,5 +691,164 @@ describe("kerbTwoFactor part 2 (4.6)", () => {
       .from(securityEvents)
       .where(and(eq(securityEvents.userId, user.id), eq(securityEvents.type, "two_factor_failed")));
     expect(event!.method).toBe("backup_code");
+  });
+});
+
+// Recording, the audit row on disable, and the password change (4.6, calls 10 and 11)
+describe("kerbTwoFactor part 3 (4.6)", () => {
+  beforeEach(async () => {
+    await truncateAll();
+    sent.length = 0;
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  const NEW_PASSWORD = "a different long password";
+
+  const eventsOf = (userId: string, type: SecurityEventType) =>
+    getDb()
+      .select()
+      .from(securityEvents)
+      .where(and(eq(securityEvents.userId, userId), eq(securityEvents.type, type)));
+
+  it("each 2FA event writes its security_events row", async () => {
+    const auth = makeAuth();
+    const { user, cookie, secret } = await twoFactorUser(auth);
+    const regenerate = await post(
+      auth,
+      "/two-factor/generate-backup-codes",
+      { password: PASSWORD },
+      { cookie },
+    );
+    expect(regenerate.status).toBe(200);
+    const wrong = await post(
+      auth,
+      "/two-factor/verify-totp",
+      { code: await totpNow(secret, new Date(0)) },
+      { cookie },
+    );
+    expect(wrong.status).toBe(401);
+    const disable = await post(auth, "/two-factor/disable", { password: PASSWORD }, { cookie });
+    expect(disable.status).toBe(200);
+
+    const expected = {
+      two_factor_enabled: null,
+      backup_codes_regenerated: null,
+      two_factor_passed: "totp",
+      two_factor_failed: "totp",
+      two_factor_disabled: null,
+    } as const;
+    const all = await getDb().select().from(securityEvents);
+    for (const [type, method] of Object.entries(expected)) {
+      const rows = await eventsOf(user.id, type as SecurityEventType);
+      expect(rows, type).toHaveLength(1);
+      expect(rows[0]!.method, type).toBe(method);
+    }
+    for (const row of all) {
+      expect(row.ipHash === null || /^[0-9a-f]{64}$/.test(row.ipHash)).toBe(true);
+      expect(JSON.stringify(row).toLowerCase()).not.toContain(EMAIL);
+    }
+  });
+
+  it("turning 2FA off writes two_factor.disabled and the chain verifies", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await twoFactorUser(auth);
+    const disable = await post(auth, "/two-factor/disable", { password: PASSWORD }, { cookie });
+    expect(disable.status).toBe(200);
+
+    const rows = await getDb().select().from(auditLog);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      action: "two_factor.disabled",
+      entityType: "user",
+      entityId: user.id,
+      actorUserId: user.id,
+      actorRole: "customer",
+    });
+    const result = await verifyAuditChain(getDb().$client, getAuditEnv());
+    expect(result.ok).toBe(true);
+  });
+
+  it("with bad audit keys, disable is refused and 2FA stays on", async () => {
+    vi.stubEnv("AUDIT_HMAC_KEYS", "garbage");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const auth = makeAuth();
+    const { user, cookie } = await twoFactorUser(auth);
+    const disable = await post(auth, "/two-factor/disable", { password: PASSWORD }, { cookie });
+    expect(disable.status).toBe(500);
+    expect(await disable.json()).toEqual({
+      code: "INTERNAL",
+      message: "Something went wrong. Please try again.",
+    });
+    const [row] = await getDb().select().from(users).where(eq(users.id, user.id));
+    expect(row!.twoFactorEnabled).toBe(true);
+    expect(
+      await getDb().select().from(twoFactors).where(eq(twoFactors.userId, user.id)),
+    ).toHaveLength(1);
+    expect(await eventsOf(user.id, "two_factor_disabled")).toHaveLength(0);
+    expect(await getDb().select().from(auditLog)).toHaveLength(0);
+  });
+
+  it("a password change ends other sessions and keeps the user signed in and verified", async () => {
+    const auth = makeAuth();
+    const { user, cookie: first, secret } = await twoFactorUser(auth);
+    await makeStaff({ userId: user.id });
+    const signIn = await signInWithPassword(auth, EMAIL);
+    const verify = await post(
+      auth,
+      "/two-factor/verify-totp",
+      { code: await totpNow(secret) },
+      { cookie: sessionCookie(signIn) },
+    );
+    expect(verify.status).toBe(200);
+    const second = sessionCookie(verify);
+    const old = await sessionsFor(user.id);
+    expect(old).toHaveLength(2);
+    for (const row of old) expectRecent(row.twoFactorVerifiedAt);
+    const { token } = (await verify.json()) as { token: string };
+    const current = old.find((row) => row.token === token)!;
+
+    const change = await post(
+      auth,
+      "/change-password",
+      { currentPassword: PASSWORD, newPassword: NEW_PASSWORD, revokeOtherSessions: false },
+      { cookie: second },
+    );
+    expect(change.status).toBe(200);
+
+    const now = await sessionsFor(user.id);
+    expect(now).toHaveLength(1);
+    expect(old.map((row) => row.id)).not.toContain(now[0]!.id);
+    expect(now[0]!.twoFactorVerifiedAt!.getTime()).toBe(current.twoFactorVerifiedAt!.getTime());
+    expect(await eventsOf(user.id, "sessions_revoked_on_password_change")).toHaveLength(1);
+
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+    const actor = await getActor(new Headers({ cookie: sessionCookie(change) }));
+    expect(actor?.userId).toBe(user.id);
+    expect(() => requirePermission(actor, "claims.read_all")).not.toThrow();
+    // The revoked sessions are gone for getActor, whatever the cookie cache says
+    expect(await getActor(new Headers({ cookie: first }))).toBeNull();
+    expect(await getActor(new Headers({ cookie: second }))).toBeNull();
+  });
+
+  it("a reset ends all sessions and records it", async () => {
+    const auth = makeAuth();
+    const { user } = await signUpAndConfirm(auth);
+    expect(await signInWithPassword(auth, EMAIL).then((r) => r.status)).toBe(200);
+    expect(await sessionsFor(user.id)).toHaveLength(2);
+    sent.length = 0;
+    const request = await post(auth, "/request-password-reset", {
+      email: EMAIL,
+      redirectTo: "/reset-password",
+    });
+    expect(request.status).toBe(200);
+    const token = /reset-password\/([^?\s]+)/.exec(sent[0]!.text)?.[1];
+    const reset = await post(auth, "/reset-password", { newPassword: NEW_PASSWORD, token });
+    expect(reset.status).toBe(200);
+    expect(await sessionsFor(user.id)).toHaveLength(0);
+    expect(await eventsOf(user.id, "password_reset")).toHaveLength(1);
+    expect(await eventsOf(user.id, "sessions_revoked_on_password_change")).toHaveLength(1);
   });
 });

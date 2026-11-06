@@ -111,7 +111,10 @@ export function createAuth(deps: AuthDeps) {
         deliver(user.email, resetPasswordEmail({ name: user.name, url }));
       },
       onPasswordReset: async ({ user }, request) => {
-        await record({ type: "password_reset", userId: user.id, headers: request?.headers });
+        const headers = request?.headers;
+        await record({ type: "password_reset", userId: user.id, headers });
+        // revokeSessionsOnPasswordReset has ended every session (4.6, call 11)
+        await record({ type: "sessions_revoked_on_password_change", userId: user.id, headers });
       },
     },
 

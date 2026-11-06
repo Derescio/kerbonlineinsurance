@@ -15,10 +15,11 @@ import { sessions, twoFactors } from "#/server/db/schema";
 import { resolveActor } from "./actor";
 import { logSafeError } from "./errors";
 import { userIdForEmail, type SecurityEventInput } from "./security-events";
+import { afterPasswordChange, assertAuditKeys, auditTwoFactorDisabled } from "./two-factor-events";
 import { LOCKOUT_AFTER, LOCKOUT_MS, PASSWORDLESS_FRESH_MS } from "./two-factor-constants";
 
-// Kerb's half of two-factor (4.6, plan/phases/04-data-auth/06-two-factor.md calls 4, 5, 7, 8, 9
-// and 10).
+// Kerb's half of two-factor (4.6, plan/phases/04-data-auth/06-two-factor.md calls 4, 5, 7, 8, 9,
+// 10 and 11).
 //
 // Why a plugin, registered straight after twoFactor(): Better Auth runs `hooks.before`/`hooks.after`
 // from the options FIRST, then plugin hooks in plugin order (api/dispatch.mjs, getHooks). Our after
@@ -37,6 +38,14 @@ const VERIFY_TOTP = "/two-factor/verify-totp";
 const VERIFY_BACKUP_CODE = "/two-factor/verify-backup-code";
 const VERIFY_PATHS: ReadonlySet<string> = new Set([VERIFY_TOTP, VERIFY_BACKUP_CODE]);
 const DISABLE = "/two-factor/disable";
+const GENERATE_BACKUP_CODES = "/two-factor/generate-backup-codes";
+const CHANGE_PASSWORD = "/change-password";
+/** The signed-in changes whose after hook records them (call 10) or carries the stamp (call 11) */
+const RECORDED_PATHS: ReadonlySet<string> = new Set([
+  DISABLE,
+  GENERATE_BACKUP_CODES,
+  CHANGE_PASSWORD,
+]);
 
 /**
  * The 2FA changes a user without a password makes on the strength of their session alone (call 7).
@@ -45,7 +54,7 @@ const DISABLE = "/two-factor/disable";
 const PASSWORDLESS_FRESH_PATHS: ReadonlySet<string> = new Set([
   "/two-factor/enable",
   DISABLE,
-  "/two-factor/generate-backup-codes",
+  GENERATE_BACKUP_CODES,
   "/two-factor/get-totp-uri",
 ]);
 
@@ -88,9 +97,9 @@ export const TWO_FACTOR_CHALLENGE_MESSAGE = "Enter your two-factor code to conti
 export type TwoFactorMode = "sign-in" | "signed-in" | "setup";
 
 /**
- * What our before hook hands our after hooks, as `ctx.kerb2fa`. Every field is optional so later
- * hooks can add their own (the /change-password stamp carry-over comes next); the verify fields
- * are set together on the two verify paths.
+ * What our before hook hands our after hooks, as `ctx.kerb2fa`. Every field is optional: the
+ * verify fields are set together on the two verify paths, `userId` alone on the recorded paths,
+ * and `carryStamp` on /change-password.
  */
 export interface Kerb2fa {
   mode?: TwoFactorMode;
@@ -98,6 +107,8 @@ export interface Kerb2fa {
   /** The session the request arrived with; absent in sign-in mode */
   sessionId?: string;
   staff?: boolean;
+  /** /change-password: the current session's two_factor_verified_at (ISO), for its replacement */
+  carryStamp?: string;
 }
 
 export interface KerbTwoFactorDeps {
@@ -259,11 +270,33 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
             const target = mode === "signed-in" ? sessionId : ctx.context.newSession?.session.id;
             if (!target) return;
             await stamp(target, userId);
+            if (mode === "setup") {
+              // The confirming code is what turns two-factor on
+              await record({ type: "two_factor_enabled", userId, headers });
+            }
             if (mode === "sign-in") {
               // The password step recorded nothing: the code is what completes the sign-in
               await record({ type: "sign_in", userId, method: "password", headers });
             }
             await record({ type: "two_factor_passed", userId, method, headers });
+          }),
+        },
+        {
+          matcher: (ctx) => RECORDED_PATHS.has(ctx.path ?? ""),
+          handler: createAuthMiddleware(async (ctx) => {
+            if (!succeeded(ctx.context.returned)) return;
+            const { userId, carryStamp } = handoff(ctx);
+            if (!userId) return;
+            const headers = ctx.request?.headers;
+            if (ctx.path === GENERATE_BACKUP_CODES) {
+              await record({ type: "backup_codes_regenerated", userId, headers });
+            } else if (ctx.path === DISABLE) {
+              await record({ type: "two_factor_disabled", userId, headers });
+              await auditTwoFactorDisabled(db, userId);
+            } else {
+              const newSessionId = ctx.context.newSession?.session.id;
+              await afterPasswordChange(db, record, { newSessionId, userId, carryStamp, headers });
+            }
           }),
         },
         {
@@ -309,6 +342,9 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
   }
 
   async function before(ctx: HookCtx & { path: string; body?: unknown }) {
+    // The audit row is written after Better Auth's change, so bad keys are refused first (call 10)
+    if (ctx.path === DISABLE) assertAuditKeys();
+
     if (VERIFY_PATHS.has(ctx.path)) {
       // Kerb always wants the session that a passed code makes or keeps
       if ((ctx.body as { disableSession?: unknown } | undefined)?.disableSession === true) {
@@ -353,8 +389,13 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
     }
 
     if (isAllowedWhileOwingCode(ctx.path)) return;
-    const { session } = await sessionFor(ctx);
-    if (!session) return;
+    const { session, live } = await sessionFor(ctx);
+    // Whatever the browser sent, a password change ends every other session (call 11)
+    const body =
+      ctx.path === CHANGE_PASSWORD
+        ? { ...(ctx.body as Record<string, unknown> | undefined), revokeOtherSessions: true }
+        : undefined;
+    if (!session) return body ? { context: { body } } : undefined;
     if (session.user.twoFactorEnabled && !session.session.twoFactorVerifiedAt) {
       throw new APIError("UNAUTHORIZED", {
         code: "TWO_FACTOR_CHALLENGE",
@@ -380,6 +421,12 @@ export function kerbTwoFactor({ db, record }: KerbTwoFactorDeps): BetterAuthPlug
         });
       }
     }
+    if (body) {
+      const verifiedAt = live ? session.session.twoFactorVerifiedAt : null;
+      const carryStamp = verifiedAt ? new Date(verifiedAt).toISOString() : undefined;
+      return { context: { kerb2fa: { userId, carryStamp } satisfies Kerb2fa, body } };
+    }
+    if (RECORDED_PATHS.has(ctx.path)) return { context: { kerb2fa: { userId } satisfies Kerb2fa } };
   }
 
   /**
