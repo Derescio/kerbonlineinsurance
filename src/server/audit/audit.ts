@@ -11,7 +11,7 @@ import {
 } from "./chain";
 
 import type { Actor } from "#/server/auth/actor";
-import type { Db } from "#/server/db/client";
+import type { Tx } from "#/server/db/tx";
 import { auditLog } from "#/server/db/schema";
 import { getAuditEnv } from "#/server/env";
 
@@ -22,8 +22,6 @@ import { getAuditEnv } from "#/server/env";
 // lock relies on the caller's transaction being READ COMMITTED: under REPEATABLE READ or
 // SERIALIZABLE a read before audit() fixes the snapshot, and the prev_hash unique constraint then
 // fails the transaction rather than forking the chain.
-
-export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export interface AuditEntry {
   /** Null means the system */

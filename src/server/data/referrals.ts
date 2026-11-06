@@ -5,6 +5,7 @@ import { audit } from "#/server/audit/audit";
 import { assertNoConflict } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import { quoteItems, quotes, underwritingDecisions } from "#/server/db/schema";
+import { withTx } from "#/server/db/tx";
 
 import { defineRead } from "./define";
 
@@ -76,7 +77,7 @@ export const staffGetReferral = defineRead(
   async (actor, { quoteItemId }, db): Promise<ReferralDetail> => {
     // One transaction, so the view is recorded only if the read succeeds and a refused read writes
     // nothing (4.5b)
-    return db.transaction(async (tx) => {
+    return withTx(db, async (tx) => {
       const [row] = await tx
         .select({
           ...summaryFields,
