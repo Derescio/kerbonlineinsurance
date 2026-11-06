@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { notFound, redirect } from "@tanstack/react-router";
+import { defaultSerovalPlugins, makeSerovalPlugin } from "@tanstack/react-router/ssr/client";
+import { fromCrossJSON, toCrossJSONAsync } from "seroval";
 
-import { AuthzError, logSafeError, publicErrorFor, toPublicError } from "./errors";
+import {
+  AuthzError,
+  IdempotencyConflictError,
+  logSafeError,
+  PublicError,
+  publicErrorAdapter,
+  publicErrorFor,
+  RateLimitError,
+  toPublicError,
+} from "./errors";
 
 describe("AuthzError", () => {
   it("maps each code to its status", () => {
@@ -97,5 +108,65 @@ describe("logSafeError", () => {
   it("ignores a code that is not a 5-character SQLSTATE", () => {
     const error = Object.assign(new Error("connect"), { code: "ECONNREFUSED" });
     expect(logSafeError(error)).toEqual({ name: "Error" });
+  });
+});
+
+describe("RateLimitError and IdempotencyConflictError", () => {
+  it("map to 429 and 409 with fixed sentences", () => {
+    expect(toPublicError(new RateLimitError("quote.price"))).toEqual({
+      status: 429,
+      code: "RATE_LIMITED",
+      message: "You're going a bit fast. Try again in a minute.",
+    });
+    expect(toPublicError(new IdempotencyConflictError())).toEqual({
+      status: 409,
+      code: "IDEMPOTENCY_CONFLICT",
+      message: "This form was already sent with different details. Refresh the page and try again.",
+    });
+  });
+
+  it("carries the action in the rate-limit message", () => {
+    const error = new RateLimitError("quote.price");
+    expect(error.action).toBe("quote.price");
+    expect(error.message).toBe("rate limited: quote.price");
+  });
+});
+
+describe("PublicError", () => {
+  it("from() builds one with the given fields", () => {
+    const error = PublicError.from({ code: "FORBIDDEN", status: 403, message: "x" });
+    expect(error).toBeInstanceOf(PublicError);
+    expect([error.code, error.status, error.message]).toEqual(["FORBIDDEN", 403, "x"]);
+  });
+});
+
+describe("publicErrorAdapter round trip", () => {
+  const plugins = [makeSerovalPlugin(publicErrorAdapter), ...defaultSerovalPlugins];
+  const roundTrip = async (value: unknown) => {
+    const json = await toCrossJSONAsync(value, { refs: new Map(), plugins });
+    return {
+      text: JSON.stringify(json),
+      value: fromCrossJSON(json, { refs: new Map(), plugins }) as { error: Error },
+    };
+  };
+
+  it("keeps the class, code, status and sentence, and no stack or cause", async () => {
+    const { text, value } = await roundTrip({ error: new PublicError(new RateLimitError("a")) });
+    expect(value.error).toBeInstanceOf(PublicError);
+    const error = value.error as PublicError;
+    expect([error.code, error.status, error.message]).toEqual([
+      "RATE_LIMITED",
+      429,
+      "You're going a bit fast. Try again in a minute.",
+    ]);
+    expect(text).not.toContain("stack");
+    expect(text).not.toContain("cause");
+  });
+
+  it("sends a plain Error as an Error with only its message", async () => {
+    const { value } = await roundTrip({ error: new Error("secret detail") });
+    expect(value.error).toBeInstanceOf(Error);
+    expect(value.error).not.toBeInstanceOf(PublicError);
+    expect(value.error.message).toBe("secret detail");
   });
 });

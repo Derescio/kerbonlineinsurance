@@ -2,7 +2,13 @@ import { createMiddleware } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
 import { getActor, requirePermission, requireUser, type Actor } from "./actor";
-import { AuthzError, logSafeError, publicErrorFor } from "./errors";
+import {
+  AuthzError,
+  IdempotencyConflictError,
+  logSafeError,
+  publicErrorFor,
+  RateLimitError,
+} from "./errors";
 import type { Permission } from "./permissions";
 
 // Server-function middleware (4.5): resolves the Actor from the session cookie and refuses the
@@ -18,7 +24,10 @@ function fail(error: unknown): never {
   const out = publicErrorFor(error);
   if (out !== error) {
     if (error instanceof AuthzError) console.error(`[authz] ${error.code}`);
-    else console.error("[server fn]", logSafeError(error));
+    // limit() logs its own refusal, and a conflict is a user outcome
+    else if (error instanceof RateLimitError || error instanceof IdempotencyConflictError) {
+      // not logged here
+    } else console.error("[server fn]", logSafeError(error));
   }
   throw out;
 }
@@ -27,6 +36,16 @@ function fail(error: unknown): never {
 export const userMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
   try {
     const actor: Actor = requireUser(await getActor(getRequestHeaders()));
+    return await next({ context: { actor } });
+  } catch (error) {
+    return fail(error);
+  }
+});
+
+/** Anyone, signed in or not: `actor` is null when signed out */
+export const actorMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  try {
+    const actor: Actor | null = await getActor(getRequestHeaders());
     return await next({ context: { actor } });
   } catch (error) {
     return fail(error);

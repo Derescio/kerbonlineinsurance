@@ -1,6 +1,7 @@
 import { createCsrfMiddleware, createMiddleware, createStart } from "@tanstack/react-start";
 
 import { posthogApiHost } from "#/lib/analytics";
+import { publicErrorAdapter } from "#/server/auth/errors";
 import { contentSecurityPolicy, createNonce } from "#/server/security-headers";
 
 // Gives each request a CSP nonce. getRouter() reads it from the global context, and the
@@ -26,4 +27,5 @@ const csrfMiddleware = createCsrfMiddleware({
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [csrfMiddleware, cspMiddleware],
+  serializationAdapters: [publicErrorAdapter],
 }));
