@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { RateLimitError } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
@@ -11,7 +11,12 @@ import { limit } from "./rate-limit";
 const DAY = { max: 3, windowSeconds: 86400 };
 
 describe("limit", () => {
-  beforeEach(truncateAll);
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(async () => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await truncateAll();
+  });
+  afterEach(() => warn.mockRestore());
   afterAll(closeDb);
 
   it("allows max calls and refuses the next", async () => {
@@ -40,7 +45,7 @@ describe("limit", () => {
   it("counts a busy previous window", async () => {
     await tamper(
       `insert into rate_limits (key, window_start, count)
-       values ('a:1', date_bin(make_interval(secs => 86400), now(), 'epoch'::timestamptz) - make_interval(secs => 86400), 1000)`,
+       values ('a:1', date_bin(make_interval(secs => 86400), now(), 'epoch'::timestamptz) - make_interval(secs => 86400), 1000000000)`,
     );
     await expect(limit("a:1", DAY)).rejects.toBeInstanceOf(RateLimitError);
   });
@@ -54,13 +59,8 @@ describe("limit", () => {
   });
 
   it("warns with the action only", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    try {
-      for (let i = 0; i < 4; i++) await limit("a:secret-subject", DAY).catch(() => undefined);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn).toHaveBeenCalledWith("[rate-limit]", "a");
-    } finally {
-      warn.mockRestore();
-    }
+    for (let i = 0; i < 4; i++) await limit("a:secret-subject", DAY).catch(() => undefined);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("[rate-limit]", "a");
   });
 });
