@@ -5,17 +5,10 @@ import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
 import { describedBy } from "#/components/forms/Field";
 import { Input } from "#/components/forms/Input";
+import { fieldErrors, focusFirstError } from "#/lib/validation";
 
 import { authClient, captchaHeaders } from "./auth-client";
-import {
-  fieldErrors,
-  focusFirstError,
-  formText,
-  ROBOT_CHECK_FAILED,
-  SOMETHING_WENT_WRONG,
-  TOO_FAST,
-  useHydrated,
-} from "./form";
+import { formText, ROBOT_CHECK_FAILED, SOMETHING_WENT_WRONG, TOO_FAST, useHydrated } from "./form";
 import { PasswordHint } from "./parts";
 import { forgotPasswordSchema, resetPasswordSchema } from "./schemas";
 import { BREACHED_PASSWORD_MESSAGE } from "./SignUpForm";

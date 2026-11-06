@@ -5,16 +5,10 @@ import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
 import { Checkbox } from "#/components/forms/Checkbox";
 import { Input } from "#/components/forms/Input";
+import { fieldErrors, focusFirstError, type FieldErrors } from "#/lib/validation";
 
 import { authClient } from "./auth-client";
-import {
-  fieldErrors,
-  focusFirstError,
-  formText,
-  SOMETHING_WENT_WRONG,
-  type FieldErrors,
-  useHydrated,
-} from "./form";
+import { formText, SOMETHING_WENT_WRONG, useHydrated } from "./form";
 import { AuthDivider, GoogleButton } from "./parts";
 import { ResendVerificationAlert } from "./ResendVerification";
 import { signInSchema, type SignInInput } from "./schemas";

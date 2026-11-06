@@ -5,18 +5,10 @@ import { Alert } from "#/components/feedback/Alert";
 import { Checkbox } from "#/components/forms/Checkbox";
 import { describedBy } from "#/components/forms/Field";
 import { Input } from "#/components/forms/Input";
+import { fieldErrors, focusFirstError, type FieldErrors } from "#/lib/validation";
 
 import { authClient, captchaHeaders } from "./auth-client";
-import {
-  fieldErrors,
-  focusFirstError,
-  formText,
-  ROBOT_CHECK_FAILED,
-  SOMETHING_WENT_WRONG,
-  TOO_FAST,
-  type FieldErrors,
-  useHydrated,
-} from "./form";
+import { formText, ROBOT_CHECK_FAILED, SOMETHING_WENT_WRONG, TOO_FAST, useHydrated } from "./form";
 import { AuthDivider, GoogleButton, PasswordHint } from "./parts";
 import { LINK_HOURS, ResendVerificationAlert } from "./ResendVerification";
 import { signUpSchema, type SignUpInput } from "./schemas";
