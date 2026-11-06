@@ -26,7 +26,7 @@ export const idempotencyKeys = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     key: text().notNull(),
     requestHash: text().notNull(),
-    // Null while the request is in flight
+    // Set in the same transaction as the write; never committed null
     response: jsonb(),
     createdAt: createdAt(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),

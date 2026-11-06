@@ -303,6 +303,8 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - submit claim → claim + first `claim_events` row + attach files
   - Kerbie action → change + `kerbie_actions` row
   - staff status change → claim + `claim_events` + `audit_log`
+
+  `withTx` sets `statement_timeout` to 10 seconds and `lock_timeout` to 5 seconds for the transaction only, so a stuck query or lock can't hold a serverless connection. A test fails if `.transaction(` appears anywhere in `src/` outside `tx.ts`. A write that returns a `rejected` result (a business-rule refusal) rolls back too, with the same effect as a throw, but the caller gets the refusal back instead of an error.
 - **Claim status rulebook** (`src/features/claims/status.ts`): only allowed moves, `draft → received` (submit), `received → assessing → approved | declined`, then `approved → settled`. It's enforced in code and covered by tests.
 - **Concurrent edits:** `claims` and `policies` carry a `version` column. An update with a stale version is refused ("This claim changed since you opened it"), so two staff can't overwrite each other.
 - **Immutable history:** quotes keep their price breakdown and `rating_version`; `claim_events` and `audit_log` are append-only.
@@ -318,8 +320,10 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - staff referral decisions
   - each Kerbie confirm card
 
-  The browser generates a UUID when the form or card opens.
-- **How it's stored:** `idempotency_keys` holds the user, key, request hash, the response, and a 24-hour expiry. `withIdempotency()` sees a repeat and **returns the first result** instead of writing twice. The same key with a different payload is refused.
+  The browser generates a UUID when the form or card opens (`useIdempotencyKey` in `src/lib/writes.ts`). It keeps the key in `sessionStorage` so a remount in the same tab reuses it, and `rotate()` gives a new one. `writeOutcome` rotates it after an `IDEMPOTENCY_CONFLICT` and keeps it for anything else, including a network failure, so a retry is a replay.
+- **How it's stored:** `idempotency_keys` holds the user, key, request hash, the response, and a 24-hour expiry. `withIdempotency()` sees a repeat and **returns the first result** instead of writing twice. The same key with a different payload or action is refused with `IDEMPOTENCY_CONFLICT` (HTTP 409): "This form was already sent with different details. Refresh the page and try again."
+- **Order:** `defineWrite` checks access, then validates, then looks for a replay, then applies the rate limit, then runs the write. Replay comes before the limit, so a retry of a committed write returns its stored response even when the limit is used up, and costs no count.
+- **The key row commits with the write**, in the same transaction. A throw or a `rejected` result leaves no key row, so the retry runs again. Two simultaneous calls with one key run once; the second waits for the first and gets its result.
 - **Belt and braces:** buttons disable while a request is in flight, and unique constraints (for example, one policy per quote) catch anything that slips through.
 - **Kerbie approvals are single-use:** a confirm card can execute once. A second tap shows "already done".
 - **Jobs and crons are safe to run twice** (§11).
@@ -350,6 +354,10 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - GitHub secret scanning with push protection turned on (repo setting).
   - Secrets live only in Vercel, GitHub and `.env.local`.
 - **Errors and logs:** users see friendly messages. Logs carry ids, not personal data (no emails, addresses or chat text), and stack traces never reach the browser. Audit keys and database URLs are never logged or put in an error message; an audit failure is logged by its error name only.
+  - **`PublicError` crosses to the browser with its code.** A serialisation adapter in `src/start.ts` sends `code`, `status` and `message` and nothing else (no stack, no cause), so the browser can branch on the code. A plain `Error` still crosses as its message only.
+  - **Every server function uses `userMiddleware`, `permissionMiddleware` or `actorMiddleware`, or must not throw.** Access is decided there, before any input is read. The session and staff-access reads (`getSessionUser`, `getAccountSummary`, `getStaffAccess`) use none, so they return a value for a guest instead of throwing.
+  - **Writes use no zod `inputValidator`.** `defineWrite` validates after the access check and returns a `ValidationFailure` with per-field messages, so a guest gets `UNAUTHENTICATED` and not a validation error.
+  - **Validation failures and rejections are returned, not thrown, and not logged.** They are normal outcomes. The rate-limit refusal is logged with `console.warn` (the action name only).
 - **Pre-launch review (8.9):** an OWASP-style checklist, a headers scan, a dependency audit, a secret-rotation dry run, and the permission tests (§7) green.
 
 ## 10. Rate limiting
@@ -358,7 +366,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
 |---|---|---|
 | Edge | Vercel Firewall rate-limit rules on `/api/*` **and the TanStack server-function path** (it's not under `/api`; confirm the exact prefix in 1.5), plus auth routes | 1.5 |
 | Auth | Better Auth limiter (DB-backed) on sign-in, sign-up, reset, 2FA | 4.4 |
-| App | One shared limiter, `limit(key, rule)` in `src/server/rate-limit.ts`, a Postgres sliding window in a `rate_limits` table. It returns a friendly 429 ("You're going a bit fast. Try again in a minute.") | 4.5 |
+| App | One shared limiter, `limit(key, rule)` in `src/server/db/rate-limit.ts`, a Postgres sliding window in a `rate_limits` table. It returns a friendly 429 ("You're going a bit fast. Try again in a minute."). Signed-in callers are keyed by user id; guests by a keyed hash of their IP (IPv6 addresses grouped by /64), never the IP itself. The first feature that needs a rule creates `src/server/db/rate-limit-rules.ts`, and every later rule goes in it | 4.5c |
 | Per feature | Quote saves, review posts, uploads (`createUpload`), Kerbie messages (+ the daily spend cap) | 5.6, 6.7, 4.10, 7.3 |
 | Bots | Turnstile on the riskiest forms (§9) | 4.4, 6.7, 7.2 |
 

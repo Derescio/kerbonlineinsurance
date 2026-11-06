@@ -2,6 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 
 import type { Db } from "#/server/db/client";
 import { accounts, sessions, users } from "#/server/db/schema";
+import { withTx } from "#/server/db/tx";
 
 // When a Google account may join an existing Kerb account (4.4, decision 2, agreed 4 Nov 2026).
 // Better Auth has already refused any Google email that Google itself hasn't verified (Google is
@@ -43,7 +44,7 @@ export async function decideGoogleLink(
 
 /** Removes the unproven password and signs out every session it opened (decision 2). */
 export async function removeUnverifiedPassword(db: Db, userId: string): Promise<void> {
-  await db.transaction(async (tx) => {
+  await withTx(db, async (tx) => {
     await tx
       .delete(accounts)
       .where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));

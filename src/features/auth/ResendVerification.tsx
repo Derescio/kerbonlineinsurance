@@ -3,9 +3,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
 import { Input } from "#/components/forms/Input";
+import { fieldErrors, focusFirstError } from "#/lib/validation";
 
 import { authClient } from "./auth-client";
-import { fieldErrors, focusFirstError, formText, TOO_FAST, useHydrated } from "./form";
+import { formText, TOO_FAST, useHydrated } from "./form";
 import { BackToLogIn } from "./PasswordResetForms";
 import { forgotPasswordSchema } from "./schemas";
 

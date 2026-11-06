@@ -5,6 +5,7 @@ import { audit } from "#/server/audit/audit";
 import { assertNoConflict } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import { claims } from "#/server/db/schema";
+import { withTx } from "#/server/db/tx";
 import { claimStatuses } from "#/server/db/schema/values";
 
 import { defineRead } from "./define";
@@ -129,7 +130,7 @@ export const staffGetClaim = defineRead(
   async (actor, { claimId }, db): Promise<StaffClaimDetail> => {
     // One transaction, so the view is recorded only if the read succeeds and a refused read writes
     // nothing (4.5b)
-    return db.transaction(async (tx) => {
+    return withTx(db, async (tx) => {
       const claim = await tx.query.claims.findFirst({
         columns: { ...claimDetailColumns, customerId: true, assignedHandlerId: true },
         where: eq(claims.id, claimId),

@@ -375,7 +375,10 @@ const modules = import.meta.glob(
 ) as Record<string, Record<string, unknown>>;
 const found = Object.entries(modules).flatMap(([file, exports]) =>
   Object.entries(exports)
-    .filter(([, value]) => typeof value === "function")
+    // Writes join the suite in 6.10 (decision 7)
+    .filter(
+      ([, value]) => typeof value === "function" && (value as { kind?: string }).kind !== "write",
+    )
     .map(([name, read]) => ({ label: `${file} ${name}`, name, read })),
 );
 const indexed = new Set(Object.values(data));
