@@ -7,6 +7,7 @@ import { Input } from "#/components/forms/Input";
 import { focusFirstError, type WriteResult } from "#/lib/validation";
 import { useIdempotencyKey, writeOutcome } from "#/lib/writes";
 import { CLOSURE_WINDOW_DAYS, PRIVACY_EMAIL, RETENTION } from "#/server/account/constants";
+import { PublicError } from "#/server/auth/errors";
 
 import { authClient } from "../auth/auth-client";
 import { AuthShell } from "../auth/AuthShell";
@@ -231,16 +232,16 @@ function ConfirmForm({
 
 function DeleteVersion({ data }: { data: Extract<ClosePageData, { kind: "delete" }> }) {
   const navigate = useNavigate();
-  // True once a delete call failed without an answer (a lost response). Only then can an
-  // UNAUTHENTICATED mean "the first try worked"; otherwise the session simply ended.
+  // True once a delete call failed without an answer from the app (a network failure or a lost
+  // response). Only then can an UNAUTHENTICATED mean "the first try worked"; otherwise the session
+  // simply ended. A PublicError is an answer (a 500, RATE_LIMITED and the rest), so it doesn't count.
   const lostResponse = useRef(false);
   const gone = () => void navigate({ to: "/account-deleted" });
   async function run(input: Fields) {
     try {
       return await deleteMyAccount({ data: { input } });
     } catch (thrown) {
-      const outcome = writeOutcome(thrown);
-      if (outcome.kind !== "sign_in") lostResponse.current = true;
+      if (!(thrown instanceof PublicError)) lostResponse.current = true;
       throw thrown;
     }
   }

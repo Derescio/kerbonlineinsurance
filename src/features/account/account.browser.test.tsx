@@ -261,4 +261,21 @@ describe("delete: an UNAUTHENTICATED answer", () => {
     await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
     await expect.poll(() => router.state.location.pathname).toBe("/account-deleted");
   });
+  it.each([
+    ["a server error (500)", "INTERNAL", 500, "Something went wrong. Please try again."],
+    ["RATE_LIMITED", "RATE_LIMITED", 429, "Too many attempts. Try again later."],
+  ] as const)(
+    "after %s, an answer, not a lost response: go to log in",
+    async (_label, code, status, message) => {
+      fns.deleteMyAccount
+        .mockRejectedValueOnce(PublicError.from({ code, status, message }))
+        .mockRejectedValueOnce(unauthenticated());
+      const { router } = await renderWithRouter(<ClosePage data={deleteData} />, "/account/close");
+      await userEvent.fill(page.getByLabelText("Password"), "correct horse");
+      await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
+      await expect.element(page.getByText(message)).toBeVisible();
+      await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
+      await expect.poll(() => router.state.location.pathname).toBe("/login");
+    },
+  );
 });
