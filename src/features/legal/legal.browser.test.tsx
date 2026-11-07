@@ -3,10 +3,12 @@ import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
 import { attachPosthog } from "#/lib/analytics";
-import { PRIVACY_EMAIL, RETENTION } from "#/server/account/constants";
+import { CLOSURE_WINDOW_DAYS, PRIVACY_EMAIL, RETENTION } from "#/server/account/constants";
 
 import { CookiesPage } from "./CookiesPage";
 import { COOKIES } from "./cookies";
+import { TRUST_DEVICE_MAX_AGE_S } from "#/server/auth/two-factor-constants";
+
 import { PrivacyNotice } from "./PrivacyNotice";
 
 describe("PrivacyNotice", () => {
@@ -43,6 +45,15 @@ describe("PrivacyNotice", () => {
     await expect.element(page.getByText(/illustrative/i).first()).toBeVisible();
   });
 
+  it("gives the closure window, what is kept, and that deletion of security events is not automatic yet", async () => {
+    await render(<PrivacyNotice />);
+    await expect
+      .element(page.getByText(`${CLOSURE_WINDOW_DAYS} days`, { exact: false }).first())
+      .toBeVisible();
+    await expect.element(page.getByText(/customer record/).first()).toBeVisible();
+    await expect.element(page.getByText(/Automatic deletion is not in place yet/)).toBeVisible();
+  });
+
   it("links to closing the account and to the cookies page, the ICO, and says when it changed", async () => {
     await render(<PrivacyNotice />);
     await expect
@@ -68,7 +79,9 @@ describe("CookiesPage", () => {
         .toBeVisible();
     }
     expect(table.getByRole("row").elements()).toHaveLength(COOKIES.length + 1);
-    await expect.element(table.getByText("30 days", { exact: false })).toBeVisible();
+    await expect
+      .element(table.getByText(`${TRUST_DEVICE_MAX_AGE_S / 86400} days`, { exact: false }))
+      .toBeVisible();
   });
 
   it("says when PostHog isn't running, in place of the button", async () => {

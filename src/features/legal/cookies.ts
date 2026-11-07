@@ -12,6 +12,9 @@ export interface CookieInfo {
   when: "always" | "after consent";
 }
 
+// Durations that aren't constants: 7 days and 5 minutes mirror `session.expiresIn` and
+// `session.cookieCache.maxAge` in src/server/auth/auth.ts; 10 minutes is Better Auth's two-factor
+// default (auth.ts doesn't set `twoFactorCookieMaxAge`). Change them together.
 const trustDays = TRUST_DEVICE_MAX_AGE_S / (24 * 60 * 60);
 
 export const COOKIES: CookieInfo[] = [
@@ -49,7 +52,8 @@ export const COOKIES: CookieInfo[] = [
   },
   {
     name: "ph_<project key>_posthog",
-    purpose: "PostHog's visitor ID and consent choice, used to understand how the site is used.",
+    purpose:
+      "PostHog's visitor ID and consent choice, used to understand how the site is used. PostHog keeps the same choice in your browser's local storage too.",
     duration: "1 year",
     when: "after consent",
   },

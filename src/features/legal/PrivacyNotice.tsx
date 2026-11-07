@@ -1,4 +1,4 @@
-import { PRIVACY_EMAIL, RETENTION } from "#/server/account/constants";
+import { CLOSURE_WINDOW_DAYS, PRIVACY_EMAIL, RETENTION } from "#/server/account/constants";
 
 // /privacy (4.7, spec "Screens"). Plain English, in the spec's order. It names a real business as
 // the controller, so check every statement here against the code before it changes. No user
@@ -56,17 +56,18 @@ export function PrivacyNotice() {
             service you asked for.
           </li>
           <li>
-            <strong>Security events.</strong> When you sign in, fail to sign in, change your
-            password or turn two-factor on or off, we record the event. We store a scrambled
-            (hashed) version of your IP address and a short summary of your browser, never the IP
-            address or full browser string itself. We use these to spot and stop attacks on
-            accounts. Our lawful basis is legitimate interests: keeping accounts safe.
+            <strong>Sign-in and account-security events.</strong> When you sign in, fail to sign in,
+            reset or change your password, turn two-factor on or off, link Google or end a session,
+            we record the event. We store a scrambled (hashed) version of your IP address and a
+            short summary of your browser, never the IP address or full browser string itself. We
+            use these to spot and stop attacks on accounts. Our lawful basis is legitimate
+            interests: keeping accounts safe.
           </li>
           <li>
             <strong>Analytics.</strong> We use PostHog to see how the site is used. Until you accept
             cookies it runs without cookies and counts visits anonymously. If you accept, it stores
-            a cookie that recognises you between visits and may record how you use pages. Our lawful
-            basis is your consent, and you can change your mind any time on the{" "}
+            a cookie and local storage that recognise you between visits and may record how you use
+            pages. Our lawful basis is your consent, and you can change your mind any time on the{" "}
             <a href="/cookies">cookies page</a>.
           </li>
           <li>
@@ -129,8 +130,11 @@ export function PrivacyNotice() {
               <td>{RETENTION.insuranceRecordsYears} years after your account closes</td>
             </tr>
             <tr>
-              <td>Security events</td>
-              <td>{RETENTION.securityEventsMonths} months</td>
+              <td>Sign-in and account-security events</td>
+              <td>
+                {RETENTION.securityEventsMonths} months is the period we aim for. Automatic deletion
+                is not in place yet, so these are kept until it is.
+              </td>
             </tr>
           </tbody>
         </table>
@@ -168,9 +172,15 @@ export function PrivacyNotice() {
             account and everything in it is deleted straight away.
           </li>
           <li>
-            <strong>Insurance records on file.</strong> We must keep those, so your account closes
-            after 30 days. You can change your mind any time before then. After that your online
-            access ends and we remove the personal details we do not need.
+            <strong>Insurance records on file.</strong> Your account closes after{" "}
+            {CLOSURE_WINDOW_DAYS} days, and you can change your mind any time before then. If you
+            have an open claim, the account closes once that claim is settled. When it closes, we
+            delete your sign-in details (password, Google link, sessions, two-factor and any reset
+            links), your notifications, your reviews, and any draft claims and quotes you never
+            bought. The login email and name on the account are replaced, so the account can&rsquo;t
+            be used again. We keep your customer record (name, address and date of birth), policies,
+            claims, payments, and the security and audit history for the periods in the table above,
+            because we must keep insurance records.
           </li>
         </ul>
       </section>
