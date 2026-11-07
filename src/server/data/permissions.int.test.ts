@@ -366,9 +366,10 @@ describe("audit of staff views (4.5b)", () => {
   });
 });
 
-// Every module in src/server/data/ except these, whether or not index.ts re-exports it
+// Every module in src/server/data/ except these, whether or not index.ts re-exports it. account.ts
+// holds plain helpers for the actor lookup and closure, not protected reads (4.7).
 const modules = import.meta.glob(
-  ["./*.ts", "!./*.test.ts", "!./index.ts", "!./define.ts", "!./summaries.ts"],
+  ["./*.ts", "!./*.test.ts", "!./index.ts", "!./define.ts", "!./summaries.ts", "!./account.ts"],
   {
     eager: true,
   },

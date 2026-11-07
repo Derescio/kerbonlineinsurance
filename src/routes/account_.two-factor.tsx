@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { ClosureBanner } from "#/features/account/ClosureBanner";
 import { safeRedirect } from "#/features/auth/auth-client";
 import { requireSignedIn } from "#/features/auth/guard";
 import { getTwoFactorSetup } from "#/features/auth/session";
@@ -33,5 +34,10 @@ export const Route = createFileRoute("/account_/two-factor")({
 function TwoFactorSetupPage() {
   const setup = Route.useLoaderData();
   const { redirect: to, step } = Route.useSearch();
-  return <SetupSteps setup={setup} redirect={to} step={step} />;
+  return (
+    <>
+      <ClosureBanner />
+      <SetupSteps setup={setup} redirect={to} step={step} />
+    </>
+  );
 }

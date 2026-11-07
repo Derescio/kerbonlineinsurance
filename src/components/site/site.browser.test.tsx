@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
@@ -7,6 +7,12 @@ import { NotFound } from "./NotFound";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { SiteLayout } from "./SiteLayout";
+
+// SiteLayout mounts the closure banner, whose server function the component project can't load
+vi.mock("#/features/account/closure", () => ({
+  getClosureBanner: vi.fn().mockResolvedValue(null),
+  keepMyAccount: vi.fn(),
+}));
 
 describe("SiteHeader", () => {
   it("links the wordmark home and names its links", async () => {

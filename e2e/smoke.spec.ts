@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { expectCdnCached } from "./cdn-cache";
+
 // Smoke test for the landing page on each deploy (3.4). Pages that aren't built yet reach the
 // site 404, so links are checked by path, not by a 200 (plan/phases/03-landing/phase.md).
 
@@ -23,18 +25,7 @@ test("landing loads and is CDN-cached, with no errors", async ({ page, request }
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
 
-  // Vercel's CDN uses s-maxage and strips it from what the browser gets (public, max-age=0), so on
-  // a deploy check the CDN served the next request from cache. Elsewhere (vp preview) there's no
-  // CDN in front, so check the origin's header.
-  if (response?.headers()["x-vercel-cache"]) {
-    await expect
-      .poll(async () => (await request.get("/")).headers()["x-vercel-cache"], { timeout: 15_000 })
-      .toMatch(/^(HIT|STALE)$/);
-  } else {
-    const cacheControl = response?.headers()["cache-control"] ?? "";
-    expect(cacheControl).toContain("s-maxage=");
-    expect(cacheControl).toContain("stale-while-revalidate=");
-  }
+  await expectCdnCached(request, "/", response);
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Insurance made simpler.");
   await page.waitForLoadState("networkidle");

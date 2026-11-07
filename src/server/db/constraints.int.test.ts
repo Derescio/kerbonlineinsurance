@@ -8,6 +8,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { closeDb, getDb } from "#/server/db/client";
 import { dataContract } from "#/server/db/data-contract";
 import {
+  accountClosures,
   auditLog,
   bundles,
   claimEvents,
@@ -149,6 +150,78 @@ describe("Postgres integrity rules", () => {
         CHECK,
         "security_events_type_check",
       );
+    });
+  });
+
+  describe("account closures (4.7)", () => {
+    const day = 24 * 60 * 60 * 1000;
+    async function closureFor(userId: string, overrides: Record<string, unknown> = {}) {
+      const requestedAt = new Date("2026-01-01T00:00:00Z");
+      const [row] = await db()
+        .insert(accountClosures)
+        .values({
+          userId,
+          requestedAt,
+          closesAt: new Date(requestedAt.getTime() + 30 * day),
+          ...overrides,
+        })
+        .returning();
+      return row!;
+    }
+
+    it("refuses a second open closure for one user", async () => {
+      const user = await makeUser();
+      await closureFor(user.id);
+      await expectRefused(closureFor(user.id), UNIQUE, "account_closures_open_unique");
+    });
+
+    it("allows a new closure once the earlier one is cancelled", async () => {
+      const user = await makeUser();
+      await closureFor(user.id, { cancelledAt: new Date("2026-01-02T00:00:00Z") });
+      await closureFor(user.id);
+    });
+
+    it("refuses a row that is both cancelled and closed", async () => {
+      const user = await makeUser();
+      await expectRefused(
+        closureFor(user.id, { cancelledAt: new Date(), closedAt: new Date() }),
+        CHECK,
+        "account_closures_one_ending_check",
+      );
+    });
+
+    it("refuses a window that is not 30 days", async () => {
+      const user = await makeUser();
+      await expectRefused(
+        closureFor(user.id, { closesAt: new Date("2026-01-20T00:00:00Z") }),
+        CHECK,
+        "account_closures_window_check",
+      );
+    });
+
+    it("writes a deleted_rows row when a closure is deleted", async () => {
+      const user = await makeUser();
+      const row = await closureFor(user.id);
+      await db().delete(accountClosures).where(eq(accountClosures.id, row.id));
+      const rows = await db()
+        .select()
+        .from(deletedRows)
+        .where(eq(deletedRows.tableName, "account_closures"));
+      expect(rows.map((r) => r.rowId)).toEqual([row.id]);
+    });
+
+    it("bumps updated_at on update", async () => {
+      const user = await makeUser();
+      const old = new Date("2020-01-01T00:00:00Z");
+      const row = await closureFor(user.id, { updatedAt: old });
+      await db().execute(
+        sql`update account_closures set hold_reason = 'x', held_since = now() where id = ${row.id}`,
+      );
+      const [after] = await db()
+        .select()
+        .from(accountClosures)
+        .where(eq(accountClosures.id, row.id));
+      expect(after!.updatedAt.getTime()).toBeGreaterThan(old.getTime());
     });
   });
 

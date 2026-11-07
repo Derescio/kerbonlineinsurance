@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "#/components/actions/Button";
 import { Wordmark } from "#/components/display/Wordmark";
 
+import { ClosureBanner } from "../account/ClosureBanner";
 import { authClient } from "./auth-client";
 import { DemoStrip, GoogleMark } from "./parts";
 import type { AccountSummary } from "./session";
@@ -76,12 +77,14 @@ export function AccountPage({
           </Button>
         </div>
       </header>
+      <ClosureBanner />
       <main id="main" tabIndex={-1} className="site-container account__body">
         <h1 className="account__title">
           {greeting}, {firstName}
         </h1>
         <WaysToLogIn providers={providers} />
         <TwoFactor enabled={summary.twoFactorEnabled} />
+        <CloseAccount />
         <section className="account__placeholder" aria-label="Your account">
           <p>Your policies, documents and claims will appear here.</p>
         </section>
@@ -149,6 +152,25 @@ function WaysToLogIn({ providers }: { providers: string[] }) {
           Connect Google
         </Button>
       ) : null}
+    </section>
+  );
+}
+
+/** Close your account (4.7): the choice between deleting and closing is made on the next page */
+function CloseAccount() {
+  return (
+    <section className="account__ways" aria-labelledby="close-title">
+      <div>
+        <h2 id="close-title" className="account__ways-title">
+          Close your account
+        </h2>
+        <p className="account__ways-text">
+          Delete your account, or close it if you have insurance records we must keep.
+        </p>
+      </div>
+      <Link to="/account/close" className="kb-btn kb-btn--secondary kb-btn--md">
+        <span>Close your account</span>
+      </Link>
     </section>
   );
 }

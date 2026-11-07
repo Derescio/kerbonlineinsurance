@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { staffRoles, users } from "#/server/db/schema";
+import { accountClosures, staffRoles, users } from "#/server/db/schema";
 import { env, googleSession, makeAuth } from "#/test/auth";
 import { tamper, truncateAll } from "#/test/db";
 import { makeCustomer, makeStaff, makeUser } from "#/test/factories";
@@ -24,6 +24,26 @@ describe("resolveActor", () => {
       staff: null,
       twoFactor: { enabled: false, verifiedAt: null },
     });
+  });
+
+  it("returns null for a closed account and an Actor for one in its window", async () => {
+    const now = Date.now();
+    const day = 86_400_000;
+    const closed = await makeUser();
+    const waiting = await makeUser();
+    await getDb()
+      .insert(accountClosures)
+      .values([
+        {
+          userId: closed.id,
+          requestedAt: new Date(now - 31 * day),
+          closesAt: new Date(now - day),
+          closedAt: new Date(),
+        },
+        { userId: waiting.id, requestedAt: new Date(now), closesAt: new Date(now + 30 * day) },
+      ]);
+    expect(await resolveActor(getDb(), closed.id)).toBeNull();
+    expect((await resolveActor(getDb(), waiting.id))?.userId).toBe(waiting.id);
   });
 
   it("reads two_factor_enabled", async () => {

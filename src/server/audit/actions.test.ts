@@ -7,6 +7,18 @@ describe("AUDIT_ACTIONS", () => {
     expect(AUDIT_ACTIONS).toMatchSnapshot();
   });
 
+  it("has the five account actions, each against a user", () => {
+    for (const name of [
+      "account.deleted",
+      "account.closure_requested",
+      "account.closure_cancelled",
+      "account.closure_held",
+      "account.closed",
+    ] as const) {
+      expect(AUDIT_ACTIONS[name].entityType).toBe("user");
+    }
+  });
+
   it("every name is area.verb", () => {
     // The same pattern as audit_log_action_check in 0001
     for (const name of Object.keys(AUDIT_ACTIONS)) {

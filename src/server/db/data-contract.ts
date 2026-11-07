@@ -131,6 +131,29 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
   },
 
   // --- People ---
+  account_closures: {
+    grain: "one request to close an account (4.7)",
+    primaryKey: ["id"],
+    changeColumn: "updated_at",
+    kind: "mutable",
+    copied: true,
+    columns: {
+      ...keep(
+        "id",
+        "user_id",
+        "requested_at",
+        "closes_at",
+        "cancelled_at",
+        "held_since",
+        "closed_at",
+        "retain_until",
+        "created_at",
+        "updated_at",
+      ),
+      // Carries a claim reference
+      hold_reason: "drop",
+    },
+  },
   customers: {
     grain: "one person who buys cover",
     primaryKey: ["id"],

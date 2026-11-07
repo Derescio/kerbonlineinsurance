@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { COOKIES } from "#/features/legal/cookies";
 import { closeDb, getDb } from "#/server/db/client";
 import { accounts, securityEvents, sessions, twoFactors, users } from "#/server/db/schema";
 import {
@@ -19,6 +20,7 @@ import {
   type TestAuth,
 } from "#/test/auth";
 import { getOwnerDb, truncateAll } from "#/test/db";
+import { totpNow } from "#/test/totp";
 
 import { BREACHED_PASSWORD_MESSAGE } from "./breached-password";
 import { handleAuthRequest } from "./handler";
@@ -455,6 +457,53 @@ describe("Better Auth (4.4)", () => {
         new Request(`${LOCAL_URL}/api/auth/get-session`, { headers: requestHeaders({ cookie }) }),
       );
       expect(((await response.json()) as { user: { id: string } }).user.id).toBe(user.id);
+    });
+  });
+
+  describe("cookies named on /cookies (4.7)", () => {
+    it("every Set-Cookie name the auth flow issues has a COOKIES entry", async () => {
+      const auth = makeAuth();
+      const names = new Set<string>();
+      const collect = (response: Response) => {
+        for (const line of response.headers.getSetCookie()) {
+          names.add(line.split("=")[0]!.replace(/^__Secure-/, ""));
+        }
+        return response;
+      };
+
+      const { cookie } = await signUpAndConfirm(auth);
+      const enabled = await enableTwoFactor(auth, cookie);
+      // A password sign-in that owes a code (two_factor), then the code with "trust this device"
+      const challenge = collect(await signInWithPassword(auth, "maya.patel@example.com"));
+      const verify = collect(
+        await post(
+          auth,
+          "/two-factor/verify-totp",
+          { code: await totpNow(enabled.secret), trustDevice: true },
+          { cookie: sessionCookie(challenge) },
+        ),
+      );
+      // Reading the session back refreshes the cache cookie
+      collect(
+        await auth.handler(
+          new Request(`${LOCAL_URL}/api/auth/get-session`, {
+            headers: requestHeaders({ cookie: sessionCookie(verify) }),
+          }),
+        ),
+      );
+      // "Remember me" unticked
+      collect(
+        await post(auth, "/sign-in/email", {
+          email: "maya.patel@example.com",
+          password: PASSWORD,
+          rememberMe: false,
+        }),
+      );
+      collect(await post(auth, "/sign-out", {}, { cookie: sessionCookie(verify) }));
+
+      expect([...names].sort()).toContain("better-auth.session_token");
+      const listed = COOKIES.map((entry) => entry.name);
+      for (const name of names) expect(listed, name).toContain(name);
     });
   });
 

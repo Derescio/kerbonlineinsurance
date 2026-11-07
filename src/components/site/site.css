@@ -310,3 +310,51 @@
     flex: 1;
   }
 }
+
+/* Privacy notice and cookies page (4.7) */
+.legal {
+  padding-block: var(--space-12);
+  max-width: 760px;
+}
+.legal h1,
+.legal h2 {
+  margin: 0 0 var(--space-3);
+}
+.legal h2 {
+  margin-top: var(--space-10);
+}
+.legal p,
+.legal li {
+  color: var(--fg-2);
+  line-height: 1.6;
+}
+.legal ul {
+  padding-left: var(--space-5);
+}
+.legal a {
+  color: var(--fg-brand);
+  text-decoration: underline;
+}
+.legal__updated,
+.legal__note {
+  color: var(--fg-3);
+}
+.legal__scroll {
+  overflow-x: auto;
+}
+.legal__table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.legal__table th,
+.legal__table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--stone-200, currentColor);
+  vertical-align: top;
+}
+.legal__caption {
+  padding-block: var(--space-2);
+  text-align: left;
+  font-weight: 600;
+}
