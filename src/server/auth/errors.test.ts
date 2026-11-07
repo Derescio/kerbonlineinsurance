@@ -44,6 +44,13 @@ describe("toPublicError", () => {
     ["TWO_FACTOR_CHALLENGE", 401, "Enter your two-factor code to continue."],
     ["TWO_FACTOR_REQUIRED", 403, "Staff accounts need two-factor. Set it up to continue."],
     ["SESSION_NOT_FRESH", 403, "Confirm it's you to continue."],
+    [
+      "STAFF_ACCOUNT",
+      403,
+      "Staff accounts are closed by an admin. Ask an admin to deactivate yours.",
+    ],
+    ["ACCOUNT_CLOSED", 403, "This account is closed."],
+    ["CLOSURE_NOT_OPEN", 404, "There's no account closure to cancel."],
   ] as const)("%s", (code, status, message) => {
     expect(toPublicError(new AuthzError(code))).toEqual({ status, code, message });
   });

@@ -10,6 +10,7 @@ const ALL: readonly Privilege[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
 // An explicit entry for every public table: a new table fails the drift check until someone
 // chooses its grants here (migration 0010 gives new tables all four by default).
 const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
+  account_closures: ALL,
   accounts: ALL,
   audit_log: ["INSERT", "SELECT"],
   auth_rate_limits: ALL,

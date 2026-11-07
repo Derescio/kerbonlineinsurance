@@ -10,7 +10,10 @@ export type AuthzCode =
   | "CONFLICT_OF_INTEREST"
   | "TWO_FACTOR_CHALLENGE"
   | "TWO_FACTOR_REQUIRED"
-  | "SESSION_NOT_FRESH";
+  | "SESSION_NOT_FRESH"
+  | "STAFF_ACCOUNT"
+  | "ACCOUNT_CLOSED"
+  | "CLOSURE_NOT_OPEN";
 
 const STATUS = {
   UNAUTHENTICATED: 401,
@@ -20,6 +23,9 @@ const STATUS = {
   TWO_FACTOR_CHALLENGE: 401,
   TWO_FACTOR_REQUIRED: 403,
   SESSION_NOT_FRESH: 403,
+  STAFF_ACCOUNT: 403,
+  ACCOUNT_CLOSED: 403,
+  CLOSURE_NOT_OPEN: 404,
 } as const satisfies Record<AuthzCode, 401 | 403 | 404>;
 
 const MESSAGE: Record<AuthzCode, string> = {
@@ -30,6 +36,9 @@ const MESSAGE: Record<AuthzCode, string> = {
   TWO_FACTOR_CHALLENGE: "Enter your two-factor code to continue.",
   TWO_FACTOR_REQUIRED: "Staff accounts need two-factor. Set it up to continue.",
   SESSION_NOT_FRESH: "Confirm it's you to continue.",
+  STAFF_ACCOUNT: "Staff accounts are closed by an admin. Ask an admin to deactivate yours.",
+  ACCOUNT_CLOSED: "This account is closed.",
+  CLOSURE_NOT_OPEN: "There's no account closure to cancel.",
 };
 
 export class AuthzError extends Error {
