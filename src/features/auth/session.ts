@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
+import { userMiddleware } from "#/server/auth/middleware";
+
 // The signed-in user, read on the server from the session cookie (4.4). Route guards use it for
 // UX only; the data layer (src/server/data/) checks the Actor from getActor.
 
@@ -47,6 +49,18 @@ export const getAccountSummary = createServerFn({ method: "GET" }).handler(
     };
   },
 );
+
+/**
+ * "Sign out everywhere" (4.6, call 11): ends every one of the user's sessions, this one included,
+ * in one audited transaction. 6.3 adds the button; nothing links to it yet. userMiddleware refuses
+ * a session that still owes a 2FA code, which can only sign out itself
+ */
+export const signOutEverywhereFn = createServerFn({ method: "POST" })
+  .middleware([userMiddleware])
+  .handler(async ({ context }): Promise<{ revoked: number }> => {
+    const { signOutEverywhereNow } = await import("#/server/auth/sessions");
+    return signOutEverywhereNow(context.actor, getRequestHeaders());
+  });
 
 export function greetingFor(now: Date): string {
   const hour = Number(

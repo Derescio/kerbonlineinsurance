@@ -10,6 +10,9 @@ import { staffAccessFor } from "./access";
 // What the /staff route guard decides (4.5), from the real actor resolution.
 
 beforeEach(truncateAll);
+
+const stamped = { twoFactorVerifiedAt: new Date() };
+const owing = { twoFactorVerifiedAt: null };
 afterAll(closeDb);
 
 describe("staffAccessFor", () => {
@@ -35,8 +38,25 @@ describe("staffAccessFor", () => {
     expect(staffAccessFor(await resolveActor(getDb(), userId))).toBe("customer");
   });
 
-  it("lets a handler in", async () => {
+  it("lets in a handler whose session has given a code", async () => {
     const { userId } = await makeStaff();
-    expect(staffAccessFor(await resolveActor(getDb(), userId))).toBe("staff");
+    expect(staffAccessFor(await resolveActor(getDb(), userId, stamped))).toBe("staff");
+  });
+
+  // 4.6, call 14
+  it("sends staff without 2FA to set it up", async () => {
+    const { userId } = await makeStaff({ twoFactor: false });
+    expect(staffAccessFor(await resolveActor(getDb(), userId, stamped))).toBe("needs_two_factor");
+  });
+
+  it("asks staff whose session owes a code for it", async () => {
+    const { userId } = await makeStaff();
+    expect(staffAccessFor(await resolveActor(getDb(), userId))).toBe("needs_code");
+    expect(staffAccessFor(await resolveActor(getDb(), userId, owing))).toBe("needs_code");
+  });
+
+  it("treats roleless staff owing a code as a customer (Review Focus 5)", async () => {
+    const { userId } = await makeStaff({ roles: [] });
+    expect(staffAccessFor(await resolveActor(getDb(), userId, owing))).toBe("customer");
   });
 });
