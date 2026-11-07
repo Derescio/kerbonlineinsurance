@@ -168,6 +168,10 @@ const config = defineConfig({
             "lucide-react",
             "vitest-browser-react",
           ],
+          // Server-only: reached through server-function modules (src/features/account/closure.ts)
+          // that every component test mocks. Pre-bundling it needs the Start plugin's virtual
+          // entries (#tanstack-router-entry), which this project doesn't load, and fails on a cold cache
+          exclude: ["@tanstack/react-start/server"],
         },
         test: {
           name: "component",
