@@ -131,7 +131,6 @@ export const staffGetReferral = defineRead(
       await audit(tx, {
         actor,
         action: "referral.viewed",
-        entityType: "quote_item",
         entityId: quoteItemId,
       });
 

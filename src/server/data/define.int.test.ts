@@ -33,8 +33,7 @@ const run = async (
   const jobId = job!.id;
   await audit(tx, {
     actor,
-    action: "test.written",
-    entityType: "job",
+    action: "claim.viewed",
     entityId: String(jobId),
   });
   return { jobId };

@@ -3,13 +3,23 @@ import { createSerializationAdapter, isNotFound, isRedirect } from "@tanstack/re
 // What a failed permission check looks like (4.5). The browser gets a code and a fixed sentence,
 // never the original message or a stack trace.
 
-export type AuthzCode = "UNAUTHENTICATED" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT_OF_INTEREST";
+export type AuthzCode =
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "CONFLICT_OF_INTEREST"
+  | "TWO_FACTOR_CHALLENGE"
+  | "TWO_FACTOR_REQUIRED"
+  | "SESSION_NOT_FRESH";
 
 const STATUS = {
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT_OF_INTEREST: 403,
+  TWO_FACTOR_CHALLENGE: 401,
+  TWO_FACTOR_REQUIRED: 403,
+  SESSION_NOT_FRESH: 403,
 } as const satisfies Record<AuthzCode, 401 | 403 | 404>;
 
 const MESSAGE: Record<AuthzCode, string> = {
@@ -17,6 +27,9 @@ const MESSAGE: Record<AuthzCode, string> = {
   FORBIDDEN: "You don't have access to this.",
   NOT_FOUND: "We couldn't find that.",
   CONFLICT_OF_INTEREST: "You can't work on your own policy, claim or quote. Ask a colleague.",
+  TWO_FACTOR_CHALLENGE: "Enter your two-factor code to continue.",
+  TWO_FACTOR_REQUIRED: "Staff accounts need two-factor. Set it up to continue.",
+  SESSION_NOT_FRESH: "Confirm it's you to continue.",
 };
 
 export class AuthzError extends Error {

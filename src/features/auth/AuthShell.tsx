@@ -16,15 +16,24 @@ export interface AuthTopBar {
   label: string;
 }
 
+/** A button in place of the link, such as the two-factor screens' "Not you? Log out" */
+export interface AuthTopBarAction {
+  text: string;
+  action: ReactNode;
+}
+
 export function AuthShell({
   topBar,
   title,
   subtitle,
+  icon,
   children,
 }: {
-  topBar: AuthTopBar;
+  topBar: AuthTopBar | AuthTopBarAction;
   title: string;
   subtitle?: ReactNode;
+  /** Above the title, such as frame 12's shield */
+  icon?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -40,14 +49,19 @@ export function AuthShell({
           </Link>
           <p className="auth__switch">
             <span className="auth__switch-text">{topBar.text}</span>
-            <Link to={topBar.to} className="kb-btn kb-btn--secondary kb-btn--sm">
-              <span>{topBar.label}</span>
-            </Link>
+            {"action" in topBar ? (
+              topBar.action
+            ) : (
+              <Link to={topBar.to} className="kb-btn kb-btn--secondary kb-btn--sm">
+                <span>{topBar.label}</span>
+              </Link>
+            )}
           </p>
         </header>
         <main id="main" tabIndex={-1} className="auth__body">
           <div className="auth__column">
-            <div className="auth__heading">
+            <div className={icon ? "auth__heading auth__heading--icon" : "auth__heading"}>
+              {icon}
               <h1 className="auth__title">{title}</h1>
               {subtitle ? <p className="auth__subtitle">{subtitle}</p> : null}
             </div>

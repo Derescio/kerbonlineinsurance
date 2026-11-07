@@ -21,7 +21,9 @@ import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-pass
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
+import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const AuthRoute = AuthRouteImport.update({
@@ -81,10 +83,20 @@ const StaffStaffRoute = StaffStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => StaffRoute,
 } as any)
+const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
+  id: '/account_/two-factor',
+  path: '/account/two-factor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
   path: '/api/stream-test',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLoginTwoFactorRoute = AuthLoginTwoFactorRouteImport.update({
+  id: '/login_/two-factor',
+  path: '/login/two-factor',
+  getParentRoute: () => AuthRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -102,7 +114,9 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
   '/staff': typeof StaffStaffRoute
+  '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
+  '/login/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -115,7 +129,9 @@ export interface FileRoutesByTo {
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
   '/staff': typeof StaffStaffRoute
+  '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
+  '/login/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -131,8 +147,10 @@ export interface FileRoutesById {
   '/_auth/reset-password': typeof AuthResetPasswordRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/_staff/staff': typeof StaffStaffRoute
+  '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/_site/': typeof SiteIndexRoute
+  '/_auth/login_/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -147,7 +165,9 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/staff'
+    | '/account/two-factor'
     | '/api/stream-test'
+    | '/login/two-factor'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -160,7 +180,9 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/staff'
+    | '/account/two-factor'
     | '/api/stream-test'
+    | '/login/two-factor'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -175,8 +197,10 @@ export interface FileRouteTypes {
     | '/_auth/reset-password'
     | '/_auth/signup'
     | '/_staff/staff'
+    | '/account_/two-factor'
     | '/api/stream-test'
     | '/_site/'
+    | '/_auth/login_/two-factor'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -186,6 +210,7 @@ export interface RootRouteChildren {
   StaffRoute: typeof StaffRouteWithChildren
   AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
+  AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -276,12 +301,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffStaffRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/account_/two-factor': {
+      id: '/account_/two-factor'
+      path: '/account/two-factor'
+      fullPath: '/account/two-factor'
+      preLoaderRoute: typeof AccountTwoFactorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stream-test': {
       id: '/api/stream-test'
       path: '/api/stream-test'
       fullPath: '/api/stream-test'
       preLoaderRoute: typeof ApiStreamTestRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/login_/two-factor': {
+      id: '/_auth/login_/two-factor'
+      path: '/login/two-factor'
+      fullPath: '/login/two-factor'
+      preLoaderRoute: typeof AuthLoginTwoFactorRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -299,6 +338,7 @@ interface AuthRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthSignupRoute: typeof AuthSignupRoute
+  AuthLoginTwoFactorRoute: typeof AuthLoginTwoFactorRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -307,6 +347,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthSignupRoute: AuthSignupRoute,
+  AuthLoginTwoFactorRoute: AuthLoginTwoFactorRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
@@ -337,6 +378,7 @@ const rootRouteChildren: RootRouteChildren = {
   StaffRoute: StaffRouteWithChildren,
   AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
+  AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

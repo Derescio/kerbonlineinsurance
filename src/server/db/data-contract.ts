@@ -81,6 +81,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
       token: "drop",
       ip_address: "drop",
       user_agent: "drop",
+      two_factor_verified_at: "drop",
     },
   },
   verifications: {

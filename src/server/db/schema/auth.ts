@@ -43,6 +43,8 @@ export const sessions = pgTable(
       .notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    // When this session last passed the second step (4.6); null until it has. Set by the server only
+    twoFactorVerifiedAt: timestamp("two_factor_verified_at", { withTimezone: true }),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),

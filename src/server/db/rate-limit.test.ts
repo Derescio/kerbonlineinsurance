@@ -51,7 +51,12 @@ describe("rateLimitIp", () => {
 
 describe("rateLimitSubject", () => {
   it("uses the user id for a signed-in actor", async () => {
-    const actor: Actor = { userId: "u1", customerId: null, staff: null };
+    const actor: Actor = {
+      userId: "u1",
+      customerId: null,
+      staff: null,
+      twoFactor: { enabled: false, verifiedAt: null },
+    };
     expect(await rateLimitSubject(actor, headersWith("203.0.113.7"), SECRET)).toBe("user:u1");
   });
 

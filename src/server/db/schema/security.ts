@@ -21,11 +21,19 @@ export const SECURITY_EVENT_TYPES = [
   "google_linked",
   "google_link_refused",
   "password_removed_on_link",
+  // Two-factor and sessions (4.6)
+  "two_factor_enabled",
+  "two_factor_disabled",
+  "backup_codes_regenerated",
+  "two_factor_passed",
+  "two_factor_failed",
+  "signed_out_everywhere",
+  "sessions_revoked_on_password_change",
 ] as const;
 
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 
-export const SECURITY_EVENT_METHODS = ["password", "google"] as const;
+export const SECURITY_EVENT_METHODS = ["password", "google", "totp", "backup_code"] as const;
 
 export const securityEvents = pgTable(
   "security_events",

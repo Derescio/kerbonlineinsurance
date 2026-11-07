@@ -5,6 +5,7 @@ import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/a
 import { captcha } from "better-auth/plugins/captcha";
 import { oAuthProxy } from "better-auth/plugins/oauth-proxy";
 import { twoFactor } from "better-auth/plugins/two-factor";
+import { generateRandomString } from "better-auth/crypto";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
 import { PASSWORD_MAX, PASSWORD_MIN } from "#/features/auth/schemas";
@@ -23,6 +24,8 @@ import {
   removeUnverifiedPassword,
 } from "./linking";
 import { authUrls } from "./origins";
+import { kerbTwoFactor } from "./two-factor";
+import { LOCKOUT_AFTER, LOCKOUT_MS, TRUST_DEVICE_MAX_AGE_S } from "./two-factor-constants";
 import { recordSecurityEvent, userIdForEmail, type SecurityEventInput } from "./security-events";
 
 // Better Auth (4.4, plan/phases/04-data-auth/04-better-auth.md; plan/engineering.md section 7).
@@ -109,7 +112,10 @@ export function createAuth(deps: AuthDeps) {
         deliver(user.email, resetPasswordEmail({ name: user.name, url }));
       },
       onPasswordReset: async ({ user }, request) => {
-        await record({ type: "password_reset", userId: user.id, headers: request?.headers });
+        const headers = request?.headers;
+        await record({ type: "password_reset", userId: user.id, headers });
+        // revokeSessionsOnPasswordReset has ended every session (4.6, call 11)
+        await record({ type: "sessions_revoked_on_password_change", userId: user.id, headers });
       },
     },
 
@@ -152,6 +158,10 @@ export function createAuth(deps: AuthDeps) {
       // Sliding: refreshed at most once a day of use
       updateAge: DAY,
       cookieCache: { enabled: true, maxAge: 5 * 60 },
+      // Stamped by the server when the second step passes (4.6); the browser can't set it
+      additionalFields: {
+        twoFactorVerifiedAt: { type: "date", required: false, input: false },
+      },
     },
 
     rateLimit: {
@@ -166,6 +176,9 @@ export function createAuth(deps: AuthDeps) {
         "/sign-up/email": { window: 15 * 60, max: 5 },
         "/request-password-reset": { window: 15 * 60, max: 3 },
         "/send-verification-email": { window: 15 * 60, max: 3 },
+        // 4.6: the code check is the guess surface, so it gets the sign-in limit
+        "/two-factor/verify-totp": { window: 15 * 60, max: 10 },
+        "/two-factor/verify-backup-code": { window: 15 * 60, max: 10 },
       },
     },
 
@@ -270,11 +283,10 @@ export function createAuth(deps: AuthDeps) {
       after: createAuthMiddleware(async (ctx) => {
         const headers = ctx.request?.headers;
         const body = ctx.body as Record<string, unknown> | undefined;
+        // A successful sign_in is recorded by kerbTwoFactor(), after twoFactor() has decided
+        // whether a code is owed (4.6, call 10)
         if (ctx.path === "/sign-in/email") {
-          const session = ctx.context.newSession;
-          if (session) {
-            await record({ type: "sign_in", userId: session.user.id, method: "password", headers });
-          } else if (isEmailNotVerified(ctx.context.returned)) {
+          if (isEmailNotVerified(ctx.context.returned)) {
             // Only reached with the right password: Better Auth checks it first (4.4b)
             const userId = await userIdForEmail(db, body?.email);
             await record({ type: "sign_in_unverified", userId, method: "password", headers });
@@ -300,7 +312,25 @@ export function createAuth(deps: AuthDeps) {
     },
 
     plugins: [
-      twoFactor({ issuer: "Kerb" }),
+      // Passwordless accounts (Google only) can enable it without a password; the plugin's own
+      // lockout stays. A trusted device skips the code for 30 days
+      twoFactor({
+        issuer: "Kerb",
+        allowPasswordless: true,
+        trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_S,
+        // The sign-in lockout; kerbTwoFactor() applies the same to signed-in checks (call 9)
+        accountLockout: { maxFailedAttempts: LOCKOUT_AFTER, durationSeconds: LOCKOUT_MS / 1000 },
+        // XXXXX-XXXXX in capitals and digits (frame 11c). The plugin's own mix cases, and it
+        // compares exactly, so the screens couldn't forgive a code typed in lower case
+        backupCodeOptions: {
+          customBackupCodesGenerate: () =>
+            Array.from({ length: 10 }, () => generateRandomString(10, "A-Z", "0-9")).map(
+              (code) => `${code.slice(0, 5)}-${code.slice(5)}`,
+            ),
+        },
+      }),
+      // Straight after twoFactor(), so its hooks see what twoFactor()'s did (two-factor.ts)
+      kerbTwoFactor({ db, record }),
       ...(breach
         ? [breachedPasswordCheck(typeof breach === "object" ? { fetchFn: breach.fetchFn } : {})]
         : []),

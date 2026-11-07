@@ -3,11 +3,23 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-
 
 import { closeDb, getDb } from "#/server/db/client";
 import { accounts, securityEvents, sessions, twoFactors, users } from "#/server/db/schema";
-import type { EmailMessage } from "#/server/email/send";
-import type { AuthEnv } from "#/server/env";
-import { truncateAll } from "#/test/db";
+import {
+  enableTwoFactor,
+  googleSession,
+  IP,
+  makeAuth,
+  PASSWORD,
+  post,
+  requestHeaders,
+  SECRET,
+  sent,
+  sessionCookie,
+  signInWithPassword,
+  signUp,
+  type TestAuth,
+} from "#/test/auth";
+import { getOwnerDb, truncateAll } from "#/test/db";
 
-import { createAuth, type AuthDeps } from "./auth";
 import { BREACHED_PASSWORD_MESSAGE } from "./breached-password";
 import { handleAuthRequest } from "./handler";
 import { decideGoogleLink, removeUnverifiedPassword } from "./linking";
@@ -17,74 +29,8 @@ import { recordSecurityEvent } from "./security-events";
 // Better Auth against the test database (4.4; the 4.2 review asked for sign up → sign in → 2FA,
 // since 4.2 changed the generated tables to timestamptz and NOT NULL booleans).
 
-const SECRET = "integration-secret-integration-secret-0123";
-const env: AuthEnv = {
-  BETTER_AUTH_SECRET: SECRET,
-  BETTER_AUTH_URL: LOCAL_URL,
-  GOOGLE_CLIENT_ID: "test-client",
-  GOOGLE_CLIENT_SECRET: "test-secret",
-  RESEND_API_KEY: "re_test",
-  EMAIL_FROM: "Kerb <hello@example.com>",
-  TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
-};
-
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
-const PASSWORD = "correct horse battery";
-const IP = "203.0.113.7";
-
-let sent: EmailMessage[] = [];
-
-function makeAuth(overrides: Partial<AuthDeps> = {}) {
-  return createAuth({
-    db: getDb(),
-    env,
-    sendEmail: async (message) => {
-      sent.push(message);
-    },
-    captcha: false,
-    breachCheck: false,
-    rateLimit: false,
-    ...overrides,
-  });
-}
-
-const requestHeaders = (extra: Record<string, string> = {}) =>
-  new Headers({ "x-forwarded-for": IP, "user-agent": UA, ...extra });
-
-async function post(auth: ReturnType<typeof makeAuth>, path: string, body: unknown, extra = {}) {
-  return auth.handler(
-    new Request(`${LOCAL_URL}/api/auth${path}`, {
-      method: "POST",
-      headers: requestHeaders({ "content-type": "application/json", origin: LOCAL_URL, ...extra }),
-      body: JSON.stringify(body),
-    }),
-  );
-}
-
-function sessionCookie(response: Response) {
-  return response.headers
-    .getSetCookie()
-    .map((cookie) => cookie.split(";")[0])
-    .join("; ");
-}
-
-async function signUp(auth: ReturnType<typeof makeAuth>, email = "maya.patel@example.com") {
-  const response = await post(auth, "/sign-up/email", {
-    name: "Maya Patel",
-    email,
-    password: PASSWORD,
-    acceptTerms: true,
-    // As SignUpForm sends it
-    callbackURL: "/email-confirmed",
-  });
-  expect(response.status).toBe(200);
-  const [user] = await getDb().select().from(users).where(eq(users.email, email));
-  return { user: user! };
-}
-
 /** Opens the latest verification link sent to an address; returns the redirect and the session */
-async function openVerificationLink(auth: ReturnType<typeof makeAuth>, email: string) {
+async function openVerificationLink(auth: TestAuth, email: string) {
   const message = sent
     .filter((mail) => mail.to === email && mail.subject === "Confirm your email for Kerb")
     .at(-1);
@@ -94,10 +40,7 @@ async function openVerificationLink(auth: ReturnType<typeof makeAuth>, email: st
 }
 
 /** Sign up and confirm (4.4b): the only way an email-and-password user gets a session */
-async function signUpAndConfirm(
-  auth: ReturnType<typeof makeAuth>,
-  email = "maya.patel@example.com",
-) {
+async function signUpAndConfirm(auth: TestAuth, email = "maya.patel@example.com") {
   const { user } = await signUp(auth, email);
   const { cookie } = await openVerificationLink(auth, email);
   return { user, cookie };
@@ -108,7 +51,7 @@ const events = () => getDb().select().from(securityEvents).orderBy(securityEvent
 describe("Better Auth (4.4)", () => {
   beforeEach(async () => {
     await truncateAll();
-    sent = [];
+    sent.length = 0;
   });
   afterAll(closeDb);
 
@@ -140,7 +83,7 @@ describe("Better Auth (4.4)", () => {
     it("answers a sign-up for an existing email like a new one, and tells the owner (4.4b)", async () => {
       const auth = makeAuth();
       const { user } = await signUp(auth);
-      sent = [];
+      sent.length = 0;
       const again = await post(auth, "/sign-up/email", {
         name: "Someone Else",
         email: "maya.patel@example.com",
@@ -264,7 +207,7 @@ describe("Better Auth (4.4)", () => {
     it("refuses to log in before the email is confirmed, records it and sends nothing", async () => {
       const auth = makeAuth();
       const { user } = await signUp(auth);
-      sent = [];
+      sent.length = 0;
       const signIn = await post(auth, "/sign-in/email", {
         email: "maya.patel@example.com",
         password: PASSWORD,
@@ -326,7 +269,7 @@ describe("Better Auth (4.4)", () => {
     it("a resend without a session gives the same answer for any address", async () => {
       const auth = makeAuth();
       await signUp(auth);
-      sent = [];
+      sent.length = 0;
       for (const email of ["maya.patel@example.com", "nobody@example.com"]) {
         const response = await post(auth, "/send-verification-email", {
           email,
@@ -346,7 +289,7 @@ describe("Better Auth (4.4)", () => {
       await post(auth, "/sign-in/email", { email: "maya.patel@example.com", password: PASSWORD });
       expect(await getDb().select().from(sessions)).toHaveLength(2);
 
-      sent = [];
+      sent.length = 0;
       const request = await post(auth, "/request-password-reset", {
         email: "maya.patel@example.com",
         redirectTo: "/reset-password",
@@ -395,6 +338,17 @@ describe("Better Auth (4.4)", () => {
       expect(blocked.status).toBe(429);
       expect(blocked.headers.get("cache-control")).toBe("private, no-store");
       expect((await events()).filter(({ type }) => type === "rate_limited")).toHaveLength(1);
+    });
+
+    it("the verify rate limit refuses the 11th try (4.6)", async () => {
+      const auth = makeAuth({ rateLimit: true });
+      const verify = (path: string) => post(auth, path, { code: "000000" });
+      for (let i = 0; i < 10; i++) {
+        expect((await verify("/two-factor/verify-totp")).status).not.toBe(429);
+      }
+      expect((await verify("/two-factor/verify-totp")).status).toBe(429);
+      // Counted per path: the backup-code path from the same IP still answers
+      expect((await verify("/two-factor/verify-backup-code")).status).not.toBe(429);
     });
   });
 
@@ -445,6 +399,62 @@ describe("Better Auth (4.4)", () => {
       expect(
         await decideGoogleLink(getDb(), { userId: user.id, signedInUserId: "someone-else" }),
       ).toBe("refuse");
+    });
+  });
+
+  describe("two-factor and sessions (4.6)", () => {
+    it("the browser can't set two_factor_verified_at", async () => {
+      const auth = makeAuth();
+      const { user, cookie } = await signUpAndConfirm(auth);
+      const response = await post(
+        auth,
+        "/update-session",
+        { twoFactorVerifiedAt: new Date().toISOString() },
+        { cookie },
+      );
+      // The endpoint exists and is reached with a valid session: it refuses with this exact message
+      // because input: false forbids the field (with input: true it answers 200)
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        message: "twoFactorVerifiedAt is not allowed to be set",
+      });
+      const rows = await getOwnerDb().select().from(sessions).where(eq(sessions.userId, user.id));
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(row.twoFactorVerifiedAt).toBeNull();
+    });
+
+    it("enableTwoFactor turns two-factor on and returns a working session", async () => {
+      const auth = makeAuth();
+      const { user, cookie } = await signUpAndConfirm(auth);
+      const enabled = await enableTwoFactor(auth, cookie);
+      expect(enabled.backupCodes.length).toBeGreaterThan(0);
+      const [row] = await getDb().select().from(users).where(eq(users.id, user.id));
+      expect(row!.twoFactorEnabled).toBe(true);
+      const session = await auth.handler(
+        new Request(`${LOCAL_URL}/api/auth/get-session`, {
+          headers: requestHeaders({ cookie: enabled.cookie }),
+        }),
+      );
+      expect(((await session.json()) as { user: { id: string } }).user.id).toBe(user.id);
+    });
+
+    it("a password sign-in after enableTwoFactor asks for the second step", async () => {
+      const auth = makeAuth();
+      const { cookie } = await signUpAndConfirm(auth);
+      await enableTwoFactor(auth, cookie);
+      const response = await signInWithPassword(auth, "maya.patel@example.com");
+      expect(await response.json()).toMatchObject({ twoFactorRedirect: true });
+    });
+
+    it("googleSession's cookie is a real signed session for that user", async () => {
+      const auth = makeAuth();
+      const { user } = await signUp(auth);
+      const cookie = await googleSession(auth, user.id);
+      expect(await getDb().select().from(sessions)).toHaveLength(1);
+      const response = await auth.handler(
+        new Request(`${LOCAL_URL}/api/auth/get-session`, { headers: requestHeaders({ cookie }) }),
+      );
+      expect(((await response.json()) as { user: { id: string } }).user.id).toBe(user.id);
     });
   });
 

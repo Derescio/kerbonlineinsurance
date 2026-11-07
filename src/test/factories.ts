@@ -68,8 +68,9 @@ export async function makeCustomer(overrides: Insert<typeof customers> = {}) {
 
 export async function makeStaff({
   roles = ["claims_handler"],
+  twoFactor = true,
   ...overrides
-}: Insert<typeof staffMembers> & { roles?: StaffRole[] } = {}) {
+}: Insert<typeof staffMembers> & { roles?: StaffRole[]; twoFactor?: boolean } = {}) {
   const userId = overrides.userId ?? (await makeUser()).id;
   const [staff] = await getDb()
     .insert(staffMembers)
@@ -80,6 +81,10 @@ export async function makeStaff({
       ...overrides,
     })
     .returning();
+  // Staff need 2FA to pass requirePermission (4.6). This sets the flag only, with no two_factors row
+  if (twoFactor) {
+    await getDb().update(users).set({ twoFactorEnabled: true }).where(eq(users.id, userId));
+  }
   if (roles.length > 0) {
     await getDb()
       .insert(staffRoles)

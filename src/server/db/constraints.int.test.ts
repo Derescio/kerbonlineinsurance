@@ -26,6 +26,7 @@ import {
   quoteItems,
   quotes,
   reviews,
+  securityEvents,
   sessions,
   staffRoles,
   underwritingDecisions,
@@ -118,6 +119,35 @@ describe("Postgres integrity rules", () => {
               values (${user.id}, 'A', 'B', '1990-01-01', '1 Street', 'Town')`,
         ),
         NOT_NULL,
+      );
+    });
+  });
+
+  describe("security events (4.6)", () => {
+    it("security_events accepts the 4.6 types and methods", async () => {
+      const user = await makeUser();
+      const types = [
+        "two_factor_enabled",
+        "two_factor_disabled",
+        "backup_codes_regenerated",
+        "two_factor_passed",
+        "two_factor_failed",
+        "signed_out_everywhere",
+        "sessions_revoked_on_password_change",
+      ] as const;
+      for (const type of types) {
+        await db().insert(securityEvents).values({ userId: user.id, type, method: "totp" });
+      }
+      await db()
+        .insert(securityEvents)
+        .values({ userId: user.id, type: "two_factor_passed", method: "backup_code" });
+      expect(await db().select().from(securityEvents)).toHaveLength(types.length + 1);
+      await expectRefused(
+        db().execute(
+          sql`insert into security_events (user_id, type) values (${user.id}, 'two_factor_maybe')`,
+        ),
+        CHECK,
+        "security_events_type_check",
       );
     });
   });

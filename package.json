@@ -16,6 +16,7 @@
     "db:deploy": "node scripts/db-deploy.ts",
     "db:check-app-role": "node scripts/check-app-role.ts",
     "auth:make-admin": "node scripts/make-admin.ts",
+    "auth:reset-two-factor": "node scripts/reset-two-factor.ts",
     "db:test:up": "docker compose up -d --wait",
     "db:test:down": "docker compose down"
   },
@@ -34,10 +35,12 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "resend": "^6.37.0",
+    "uqr": "^0.1.3",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
+    "@better-auth/utils": "0.5.1",
     "@playwright/test": "1.64.1",
     "@tanstack/router-cli": "^1.132.0",
     "@types/node": "^26.6.6",

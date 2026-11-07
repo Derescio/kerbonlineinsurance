@@ -152,7 +152,7 @@ export const staffGetClaim = defineRead(
       });
       if (!claim) throw new AuthzError("NOT_FOUND");
       assertNoConflict(actor, claim.customerId);
-      await audit(tx, { actor, action: "claim.viewed", entityType: "claim", entityId: claimId });
+      await audit(tx, { actor, action: "claim.viewed", entityId: claimId });
       return claim;
     });
   },

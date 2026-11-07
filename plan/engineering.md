@@ -203,15 +203,36 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
     - a Kerb account whose email was never verified is linked, and its password and sessions are removed (whoever set them never proved they own the address)
     - a Kerb account whose email is verified is never merged automatically: the Google sign-in is refused, and the owner logs in and presses **Connect Google** (`linkSocial`)
   - Google users are already verified, so no verification email is sent.
-- **2FA:** the `twoFactor` plugin (TOTP + backup codes). Optional for customers in Settings. **Required for staff** before any staff page loads.
+- **2FA:** the `twoFactor` plugin (TOTP + backup codes). Optional for customers (setup at `/account/two-factor`; Settings in 6.3). **Required for staff** before any staff page loads. How it's enforced: [Two-factor and sessions](#two-factor-and-sessions-46).
 - **Sessions:**
   - DB-stored, in `httpOnly`, `Secure`, `SameSite=Lax` cookies
-  - 7 days, refreshed with use, with a short cookie cache
-  - "sign out everywhere"; all sessions revoked on password change
-  - staff actions need a fresh session
+  - 7 days, refreshed with use, with a 5-minute cookie cache
+  - "sign out everywhere"; all other sessions revoked on password change
+  - staff actions need a fresh code (`requireFresh`)
 - **Rate limits:** Better Auth's limiter backed by the database (serverless has no shared memory) on sign-in, sign-up, reset and 2FA, plus the Vercel Firewall rules.
 - **Origins:** `trustedOrigins` per environment: the production URL; the staging URL; on Preview the deploy URL plus `https://kerbonlineinsurance-*-damion-wilsons-projects.vercel.app` (this project's previews only, never every `*.vercel.app`); `http://localhost:3000` locally.
 - **Env vars (per environment):** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (unset on Preview), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_PROXY_SECRET` (Staging and Preview, same value), `RESEND_API_KEY`, `EMAIL_FROM`, `VITE_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`.
+
+### Two-factor and sessions (4.6)
+
+- **The stamp:** `sessions.two_factor_verified_at` says a session passed the code. It's a Better Auth `additionalFields` entry with `input: false`, so `/update-session` can't set it. Only our hooks write it, after a code is accepted on `/two-factor/verify-totp` or `/two-factor/verify-backup-code`:
+  - a sign-in code or the setup code stamps the session that survives (`ctx.context.newSession`), never the returned token, whose session the setup step has just deleted
+  - a signed-in code (the Google challenge, the "Confirm it's you" dialog) stamps the same session
+  - a customer's trusted-device sign-in is stamped when it's created; a staff member's never is
+- **A session that owes a code** (2FA on, no stamp: a Google sign-in, a session from before 2FA was turned on, staff on an old trust cookie) can reach only an **allowlist** of Better Auth endpoints: the two verify paths, `/sign-out`, `/get-session`, `/sign-in/social`, `/oauth-proxy-callback` and `/callback/*`. Everything else answers `TWO_FACTOR_CHALLENGE` (401). It's an allowlist so an endpoint added in a Better Auth upgrade starts out refused; otherwise an owing session could read the TOTP secret, make new backup codes or turn 2FA off. The check reads the session from the database (cache off), and when the row is gone it also checks the cookie-cached copy, so signing out and replaying the old cookies doesn't get through.
+- **`kerbTwoFactor()`** (`src/server/auth/two-factor.ts`) holds all of this as a Better Auth plugin registered straight after `twoFactor()`. Better Auth runs `hooks.before`/`hooks.after` from the options before any plugin's, so a hook in `auth.ts` would run before `twoFactor()` had deleted the half-made session on a password sign-in that owes a code, and would record (or stamp) a session that's about to go. As a later plugin it sees what `twoFactor()` did. The before hook hands the after hooks what they need (the mode, the user, the session it arrived with) as `kerb2fa` on the endpoint context. Its own lookup errors fail closed (logged by name, generic 500).
+- **Our reads:** `Actor.twoFactor` is `{ enabled, verifiedAt }`. `requireUser` and `requirePermission` refuse an owing session with `TWO_FACTOR_CHALLENGE`, and `requirePermission` refuses staff with 2FA off with `TWO_FACTOR_REQUIRED` (403). Route guards (`requireSignedIn`, `_staff`'s `getStaffAccess`) send them to `/login/two-factor` (frame 09) or `/account/two-factor` (frame 12).
+- **Staff rules:** a staff verify has `trustDevice` forced off, so no trust cookie is set; `/two-factor/disable` is refused for staff (`TWO_FACTOR_REQUIRED`). "Staff" here means active with at least one role.
+- **Freshness:**
+  - `requireFresh(actor)` wants a code within 2 hours (`STAFF_FRESH_MS`), else `SESSION_NOT_FRESH` (403), which opens the "Confirm it's you" dialog (frame 13). 6.10 calls it from staff writes.
+  - Someone with no password (Google only) can turn 2FA on or off, read the setup secret or make new backup codes only with a session under 10 minutes old (`PASSWORDLESS_FRESH_MS`); a password user gives the password, as the plugin requires.
+- **Lockout:** a sign-in challenge allows 5 tries; 10 wrong codes in a row lock code checks for 15 minutes. The plugin does this only at sign-in, so our hooks apply the same rule to signed-in checks on the same `two_factors` columns (one lockout across both modes; a good code resets it). Both verify paths also have a rate limit of 10 per 15 minutes per IP. Every wrong code records `two_factor_failed`.
+- **Backup codes** are ten `XXXXX-XXXXX` from `A–Z0–9`, so the form can upper-case what's typed. A backup code can't confirm setup (`TWO_FACTOR_NOT_ENABLED`), and `disableSession` is refused on the verify paths.
+- **Recording:** `two_factor_enabled`, `two_factor_disabled`, `backup_codes_regenerated`, `two_factor_passed`, `two_factor_failed` (methods `totp`, `backup_code`) go to `security_events`. A password sign-in with 2FA records `sign_in` when the code is accepted, not at the password. Turning 2FA off also writes `two_factor.disabled` to `audit_log` in the after hook; Better Auth's write isn't in our transaction, so the before hook refuses the request if the audit keys don't parse, and a database failure between the two writes is the one accepted gap.
+- **Sign out everywhere** (`signOutEverywhere`, `src/server/auth/sessions.ts`) deletes the user's sessions and writes `sessions.revoked_all` in one `withTx`, so it fails closed; `signed_out_everywhere` is recorded after the commit. It doesn't call Better Auth's `/revoke-sessions`, which would delete outside the transaction. With no `secondaryStorage` and no session delete hook the two do the same thing; a unit test fails if either is added.
+- **Password change:** our before hook forces `revokeOtherSessions: true`. Better Auth then ends every session and signs the user in with a new one, and our after hook copies the old session's stamp onto it, so staff aren't asked for a code straight after. A reset ends every session (4.4). Both record `sessions_revoked_on_password_change`.
+- **The cookie cache:** Better Auth's cached `getSession` can show a revoked session as alive, or a just-stamped one as unstamped, for up to 5 minutes. Nothing decides access from it: `getActor` and the guards read with the cache off.
+- **Lost phone and backup codes:** `vp run auth:reset-two-factor <email>` turns 2FA off, clears trusted devices and sessions and writes `two_factor.reset`, in one transaction. The next staff page sends them to setup.
 
 ### Roles and permissions
 
@@ -252,7 +273,8 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 1. **Server middleware** (`src/server/auth/middleware.ts`) on every protected server function:
    - `requireUser`
-   - `requirePermission(actor, permission)`, which refuses anyone who isn't active staff holding that permission; 4.6 adds the 2FA and fresh-session checks inside it
+   - `requirePermission(actor, permission)`, which refuses anyone who isn't active staff holding that permission, and staff without 2FA or owing a code (4.6)
+   - `requireFresh(actor)` for staff actions that need a recent code (4.6)
    - there is no `requireRole`: nothing outside `permissions.ts` checks a role name
 2. **Scoped data access** (`src/server/data/*`):
    - Customer functions take the owner id **from the session only**, never from client input, and always filter by it.
@@ -265,6 +287,8 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - staff **views** of customer data: opening a claim, a claim file or a referral (`*.viewed`), written by the staff data functions (`staffGetClaim`, `staffGetReferral`) so no page can skip it. A refused view (not found, conflict of interest) rolls back and writes nothing; only successful views are logged
    - staff detail routes that call these audited reads must not run them from a hover-preloaded loader (the router's `defaultPreload: "intent"` would write `*.viewed` rows for views that never happened): set `preload: false` on those routes, or call the read from a user-triggered server function
    - sensitive customer actions: password, 2FA, "sign out everywhere", address and driver changes, account deletion
+
+   **The action list (4.6):** every action lives in one file, `src/server/audit/actions.ts` (`AUDIT_ACTIONS`: name → entity type and a plain-English description for 6.8's viewer). `audit()` takes `action: AuditAction` and gets the entity type from the list, so a typo is a type error and an action can't be paired with the wrong entity. The file imports nothing, so the scripts load it too. The database checks only the `area.verb` format, so adding an action is a line in that file and no migration; `verifyAuditChain` accepts any name, because history can hold retired ones. A snapshot test pins the list. Today: `claim.viewed`, `referral.viewed`, `staff.added`, `two_factor.disabled`, `sessions.revoked_all`, `two_factor.reset`.
 
    **How it's kept honest:**
    - written by `audit()` inside the same transaction as the change, so the two commit or roll back together

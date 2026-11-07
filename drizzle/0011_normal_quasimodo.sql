@@ -1,0 +1,5 @@
+ALTER TABLE "security_events" DROP CONSTRAINT "security_events_type_check";--> statement-breakpoint
+ALTER TABLE "security_events" DROP CONSTRAINT "security_events_method_check";--> statement-breakpoint
+ALTER TABLE "sessions" ADD COLUMN "two_factor_verified_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "security_events" ADD CONSTRAINT "security_events_type_check" CHECK ("security_events"."type" in ('sign_up', 'sign_in', 'sign_in_failed', 'sign_in_unverified', 'rate_limited', 'sign_out', 'password_reset_requested', 'password_reset', 'email_verified', 'google_linked', 'google_link_refused', 'password_removed_on_link', 'two_factor_enabled', 'two_factor_disabled', 'backup_codes_regenerated', 'two_factor_passed', 'two_factor_failed', 'signed_out_everywhere', 'sessions_revoked_on_password_change'));--> statement-breakpoint
+ALTER TABLE "security_events" ADD CONSTRAINT "security_events_method_check" CHECK ("security_events"."method" in ('password', 'google', 'totp', 'backup_code'));

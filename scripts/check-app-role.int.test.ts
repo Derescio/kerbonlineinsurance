@@ -26,7 +26,7 @@ async function runAs(url: string | undefined) {
 async function writeRows() {
   for (const entityId of ["a", "b"]) {
     await getDb().transaction((tx) =>
-      audit(tx, { actor: null, action: "claim.viewed", entityType: "claim", entityId }, keys),
+      audit(tx, { actor: null, action: "claim.viewed", entityId }, keys),
     );
   }
 }
