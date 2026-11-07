@@ -4,6 +4,7 @@ import { AuthzError } from "./errors";
 import { permissionsFor, type Permission } from "./permissions";
 import { STAFF_FRESH_MS } from "./two-factor-constants";
 
+import { getAccountState } from "#/server/data/account";
 import type { Db } from "#/server/db/client";
 import { users } from "#/server/db/schema";
 
@@ -43,6 +44,8 @@ export async function resolveActor(
     },
   });
   if (!user) return null;
+  // A closed account is gone as far as sign-in goes; one in its window still works
+  if ((await getAccountState(db, userId)).kind === "closed") return null;
 
   const member =
     user.staffMember && user.staffMember.deactivatedAt === null ? user.staffMember : null;
