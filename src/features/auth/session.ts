@@ -29,6 +29,8 @@ export interface AccountSummary {
   providers: string[];
   /** "Good morning" etc., worked out in UK time on the server so it matches after hydration */
   greeting: string;
+  /** Read with the cookie cache off, so it's right straight after setup (4.6) */
+  twoFactorEnabled: boolean;
 }
 
 export const getAccountSummary = createServerFn({ method: "GET" }).handler(
@@ -46,6 +48,31 @@ export const getAccountSummary = createServerFn({ method: "GET" }).handler(
       user: { id, name, email, emailVerified },
       providers: accounts.map((account) => account.providerId),
       greeting: greetingFor(new Date()),
+      twoFactorEnabled: session.user.twoFactorEnabled === true,
+    };
+  },
+);
+
+/**
+ * What /account/two-factor needs (4.6): how the user logs in (11a's password or Google version),
+ * whether they're staff (frame 12 first) and whether 2FA is on already. From getActor, which reads
+ * the session with the cookie cache off. Null when signed out
+ */
+export const getTwoFactorSetup = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ providers: string[]; staff: boolean; twoFactorEnabled: boolean } | null> => {
+    const [{ getAuth }, { getActor }] = await Promise.all([
+      import("#/server/auth/auth"),
+      import("#/server/auth/actor"),
+    ]);
+    const headers = getRequestHeaders();
+    const actor = await getActor(headers);
+    if (!actor) return null;
+    const accounts = await getAuth().api.listUserAccounts({ headers });
+    return {
+      providers: accounts.map((account) => account.providerId),
+      // Staff with no roles are treated as customers everywhere else (staffAccessFor)
+      staff: actor.staff !== null && actor.staff.permissions.size > 0,
+      twoFactorEnabled: actor.twoFactor.enabled,
     };
   },
 );

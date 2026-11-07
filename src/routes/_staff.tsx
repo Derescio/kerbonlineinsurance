@@ -5,7 +5,7 @@ import { getStaffAccess } from "#/features/staff/access";
 
 // Pathless layout for the staff area. UX only: the data layer decides who can read what. Staff need
 // 2FA on (frame 12, on /account/two-factor) and a session that has given its code (frame 09) (4.6,
-// call 14). Those two pages come in Task 9 and aren't in the route tree yet, hence `href`.
+// call 14).
 export const Route = createFileRoute("/_staff")({
   headers: () => ({ "Cache-Control": "private, no-store" }),
   beforeLoad: async ({ location }) => {

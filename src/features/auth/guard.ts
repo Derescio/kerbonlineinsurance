@@ -19,11 +19,11 @@ export const getSignInState = createServerFn({ method: "GET" }).handler(
   },
 );
 
-/** Frame 09, built in Task 9; not in the route tree yet, so it's an href rather than a typed `to` */
+/** Frame 09, /login/two-factor, as an href with its redirect */
 export const twoFactorChallengeHref = (redirectTo: string) =>
   `/login/two-factor?redirect=${encodeURIComponent(redirectTo)}`;
 
-/** Frame 12 for staff (Task 9), not in the route tree yet either */
+/** Frame 12 for staff, /account/two-factor, as an href with its redirect */
 export const accountTwoFactorHref = (redirectTo: string) =>
   `/account/two-factor?redirect=${encodeURIComponent(redirectTo)}`;
 

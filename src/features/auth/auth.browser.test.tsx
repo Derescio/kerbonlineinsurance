@@ -73,6 +73,23 @@ describe("LoginForm", () => {
     await expect.poll(() => router.state.location.pathname).toBe("/account");
   });
 
+  it("goes to the two-factor challenge when a code is owed (4.6, call 8)", async () => {
+    client.signIn.email.mockResolvedValue({
+      data: { twoFactorRedirect: true, kerbTrustDevice: true },
+      error: null,
+    });
+    const { router } = await renderWithRouter(<LoginForm redirectTo="/staff" />);
+    await userEvent.fill(page.getByLabelText("Email address"), "maya.patel@example.com");
+    await userEvent.fill(page.getByLabelText("Password"), "correct horse battery");
+    await userEvent.click(page.getByRole("button", { name: "Log in" }));
+    await expect.poll(() => router.state.location.pathname).toBe("/login/two-factor");
+    expect(router.state.location.search).toEqual({
+      redirect: "/staff",
+      via: "email",
+      trust: true,
+    });
+  });
+
   it("never says which half was wrong (02)", async () => {
     client.signIn.email.mockResolvedValue(fail(401, "INVALID_EMAIL_OR_PASSWORD"));
     await renderWithRouter(<LoginForm redirectTo="/account" />);

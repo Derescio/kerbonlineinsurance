@@ -39,11 +39,12 @@ export function noticeForError(error: string | undefined): Notice {
   };
 }
 
-const TOO_MANY_TRIES: Notice = {
+/** 02b; the two-factor screens show it too when code checks are locked (4.6, call 9) */
+export const TOO_MANY_TRIES = {
   tone: "warning",
   title: "Too many tries",
   message: "Wait 15 minutes and try again, or reset your password.",
-};
+} as const satisfies Notice;
 
 export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: string }) {
   const hydrated = useHydrated();
@@ -78,13 +79,23 @@ export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: s
     setBusy("email");
     setNotice(null);
     setUnconfirmed(null);
-    const { error: failure } = await authClient.signIn.email({
+    const { data: signedIn, error: failure } = await authClient.signIn.email({
       email: checked.data.email,
       password: checked.data.password,
       rememberMe: data.get("remember") === "on",
     });
     setBusy(null);
     if (!failure) {
+      // 2FA on: no session yet, only Better Auth's two_factor cookie. The server says whether the
+      // "Trust this device" box applies (customers only; 4.6, call 8)
+      const owed = signedIn as { twoFactorRedirect?: boolean; kerbTrustDevice?: boolean } | null;
+      if (owed?.twoFactorRedirect) {
+        await navigate({
+          to: "/login/two-factor",
+          search: { redirect: redirectTo, via: "email", trust: owed.kerbTrustDevice === true },
+        });
+        return;
+      }
       await navigate({ href: redirectTo });
       return;
     }

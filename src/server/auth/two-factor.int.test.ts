@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { normaliseBackupCode } from "#/features/auth/two-factor/codes";
 import { closeDb, getDb } from "#/server/db/client";
 import {
   auditLog,
@@ -144,6 +145,22 @@ describe("kerbTwoFactor (4.6)", () => {
     const [after] = await getDb().select().from(sessions).where(eq(sessions.id, owing.id));
     expect(after!.token).toBe(owing.token);
     expectRecent(after!.twoFactorVerifiedAt);
+  });
+
+  it("backup codes are ten XXXXX-XXXXX in capitals, so one typed in lower case works once normalised", async () => {
+    const auth = makeAuth();
+    const { backupCodes } = await twoFactorUser(auth);
+    expect(backupCodes).toHaveLength(10);
+    for (const code of backupCodes) expect(code).toMatch(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/);
+    const signIn = await signInWithPassword(auth, EMAIL);
+    const typed = backupCodes[0]!.toLowerCase().replace("-", " ");
+    const verify = await post(
+      auth,
+      "/two-factor/verify-backup-code",
+      { code: normaliseBackupCode(typed) },
+      { cookie: sessionCookie(signIn) },
+    );
+    expect(verify.status).toBe(200);
   });
 
   it("a backup code stamps too, with method backup_code", async () => {

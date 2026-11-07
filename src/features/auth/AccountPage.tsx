@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -81,11 +81,35 @@ export function AccountPage({
           {greeting}, {firstName}
         </h1>
         <WaysToLogIn providers={providers} />
+        <TwoFactor enabled={summary.twoFactorEnabled} />
         <section className="account__placeholder" aria-label="Your account">
           <p>Your policies, documents and claims will appear here.</p>
         </section>
       </main>
     </div>
+  );
+}
+
+/** Two-factor (4.6): a link to /account/two-factor until 6.3's Settings reuses the steps */
+function TwoFactor({ enabled }: { enabled: boolean }) {
+  return (
+    <section className="account__ways" aria-labelledby="two-factor-title">
+      <div>
+        <h2 id="two-factor-title" className="account__ways-title">
+          Two-factor
+        </h2>
+        <p className="account__ways-text">
+          {enabled
+            ? "On. You'll enter a code from your authenticator app when you log in."
+            : "Off. Add a code from an authenticator app when you log in."}
+        </p>
+      </div>
+      {enabled ? null : (
+        <Link to="/account/two-factor" className="kb-btn kb-btn--secondary kb-btn--md">
+          <span>Set up two-factor</span>
+        </Link>
+      )}
+    </section>
   );
 }
 

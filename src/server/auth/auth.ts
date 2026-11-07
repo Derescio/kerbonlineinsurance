@@ -5,6 +5,7 @@ import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/a
 import { captcha } from "better-auth/plugins/captcha";
 import { oAuthProxy } from "better-auth/plugins/oauth-proxy";
 import { twoFactor } from "better-auth/plugins/two-factor";
+import { generateRandomString } from "better-auth/crypto";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
 import { PASSWORD_MAX, PASSWORD_MIN } from "#/features/auth/schemas";
@@ -319,6 +320,14 @@ export function createAuth(deps: AuthDeps) {
         trustDeviceMaxAge: TRUST_DEVICE_MAX_AGE_S,
         // The sign-in lockout; kerbTwoFactor() applies the same to signed-in checks (call 9)
         accountLockout: { maxFailedAttempts: LOCKOUT_AFTER, durationSeconds: LOCKOUT_MS / 1000 },
+        // XXXXX-XXXXX in capitals and digits (frame 11c). The plugin's own mix cases, and it
+        // compares exactly, so the screens couldn't forgive a code typed in lower case
+        backupCodeOptions: {
+          customBackupCodesGenerate: () =>
+            Array.from({ length: 10 }, () => generateRandomString(10, "A-Z", "0-9")).map(
+              (code) => `${code.slice(0, 5)}-${code.slice(5)}`,
+            ),
+        },
       }),
       // Straight after twoFactor(), so its hooks see what twoFactor()'s did (two-factor.ts)
       kerbTwoFactor({ db, record }),
