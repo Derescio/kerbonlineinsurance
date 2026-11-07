@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
@@ -51,6 +51,18 @@ export function ConfirmDialog({
   } | null>(null);
   const [locked, setLocked] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Each opening starts clean: the TOTP input, empty, with no error, notice or lockout left over
+  // from last time (the parent may have closed it via `open` rather than through close()).
+  useEffect(() => {
+    if (!open) return;
+    setMode("totp");
+    setTotp("");
+    setBackup("");
+    setError(undefined);
+    setNotice(null);
+    setLocked(false);
+  }, [open]);
 
   function close() {
     setTotp("");

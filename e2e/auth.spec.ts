@@ -77,10 +77,10 @@ test("auth pages are never cached", async ({ request }) => {
   }
 });
 
-// 4.6, frame 12. Needs a staff account on the deploy's database (`dev` for previews and staging)
-// that has a confirmed email, a password and two-factor OFF, in the E2E_STAFF_EMAIL and
-// E2E_STAFF_PASSWORD Actions secrets. Made with `auth:make-admin`, or reset with
-// `auth:reset-two-factor` if someone turned 2FA on for it.
+// 4.6, frame 12. Needs a dedicated staff account on the deploy's database (`dev` for previews and
+// staging), in the E2E_STAFF_EMAIL and E2E_STAFF_PASSWORD Actions secrets. It signs up normally
+// (email and password) and confirms its email, then `auth:make-admin` makes it staff. Leave its 2FA
+// off: with 2FA on the test fails rather than skips (reset it with `auth:reset-two-factor`).
 const staffEmail = process.env.E2E_STAFF_EMAIL ?? "";
 const staffPassword = process.env.E2E_STAFF_PASSWORD ?? "";
 

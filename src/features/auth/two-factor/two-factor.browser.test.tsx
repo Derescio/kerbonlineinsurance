@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -403,4 +404,56 @@ describe("ConfirmDialog (13)", () => {
     expect(client.twoFactor.verifyBackupCode).toHaveBeenCalledWith({ code: "7KQ2M-X9PLD" });
     await expect.poll(() => onConfirmed.mock.calls.length).toBe(1);
   });
+  it("after a lockout, closing and opening again starts clean", async () => {
+    client.twoFactor.verifyTotp.mockResolvedValue(fail(429));
+    await renderWithRouter(<DialogHost />);
+    await userEvent.click(page.getByRole("button", { name: "Open" }));
+    await userEvent.fill(codeInput(), "482913");
+    await userEvent.click(page.getByRole("button", { name: "Confirm" }));
+    await expect.element(page.getByText("Too many tries")).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Confirm" })).toBeDisabled();
+    await userEvent.click(page.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(page.getByRole("button", { name: "Open" }));
+    await expect.element(page.getByRole("dialog", { name: "Confirm it's you" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Confirm" })).toBeEnabled();
+    await expect.element(page.getByText("Too many tries")).not.toBeInTheDocument();
+    await expect.element(codeInput()).toBeEnabled();
+    await expect.element(codeInput()).toHaveValue("");
+  });
+
+  it("after a backup-code confirm closes it via `open`, it opens again on the TOTP input, empty", async () => {
+    await renderWithRouter(<DialogHost />);
+    await userEvent.click(page.getByRole("button", { name: "Open" }));
+    await userEvent.click(page.getByRole("button", { name: "Use a backup code" }));
+    await userEvent.fill(page.getByLabelText("Backup code"), "7kq2mx9pld");
+    await userEvent.click(page.getByRole("button", { name: "Confirm" }));
+    await expect.element(page.getByText("Confirmed")).toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Open" }));
+    await expect.element(codeInput()).toBeVisible();
+    await expect.element(codeInput()).toHaveValue("");
+    await expect.element(page.getByLabelText("Backup code")).not.toBeInTheDocument();
+    await expect.element(page.getByRole("button", { name: "Use a backup code" })).toBeVisible();
+  });
 });
+
+/** A parent that opens the dialog and closes it through `open` on confirm or cancel */
+function DialogHost() {
+  const [open, setOpen] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open
+      </button>
+      {confirmed ? <p>Confirmed</p> : null}
+      <ConfirmDialog
+        open={open}
+        onConfirmed={() => {
+          setConfirmed(true);
+          setOpen(false);
+        }}
+        onCancel={() => setOpen(false)}
+      />
+    </>
+  );
+}
