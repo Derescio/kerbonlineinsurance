@@ -31,8 +31,14 @@ async function handle({ request }: { request: Request }): Promise<Response> {
   if (!sameSecret(request.headers.get("authorization"), secret)) {
     return Response.json({ error: "unauthorized" }, { status: 401, headers: noStore });
   }
-  const counts = await runClosures(accountDb(), new Date(), accountDeps());
-  return Response.json(counts, { headers: noStore });
+  try {
+    const counts = await runClosures(accountDb(), new Date(), accountDeps());
+    return Response.json(counts, { headers: noStore });
+  } catch (error) {
+    // Its name and SQLSTATE only: a raw message can carry an email
+    console.error("[cron] account-closures:", logSafeError(error));
+    return Response.json({ error: "failed" }, { status: 500, headers: noStore });
+  }
 }
 
 export const Route = createFileRoute("/api/cron/account-closures")({
