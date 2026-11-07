@@ -14,6 +14,7 @@ import { Route as SiteRouteImport } from './routes/_site'
 import { Route as StaffRouteImport } from './routes/_staff'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as SystemRouteImport } from './routes/system'
+import { Route as AuthAccountDeletedRouteImport } from './routes/_auth/account-deleted'
 import { Route as AuthEmailConfirmedRouteImport } from './routes/_auth/email-confirmed'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
@@ -21,6 +22,7 @@ import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-pass
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
@@ -48,6 +50,11 @@ const SystemRoute = SystemRouteImport.update({
   id: '/system',
   path: '/system',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthAccountDeletedRoute = AuthAccountDeletedRouteImport.update({
+  id: '/account-deleted',
+  path: '/account-deleted',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthEmailConfirmedRoute = AuthEmailConfirmedRouteImport.update({
   id: '/email-confirmed',
@@ -84,6 +91,11 @@ const StaffStaffRoute = StaffStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => StaffRoute,
 } as any)
+const AccountCloseRoute = AccountCloseRouteImport.update({
+  id: '/account_/close',
+  path: '/account/close',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
   id: '/account_/two-factor',
   path: '/account/two-factor',
@@ -114,12 +126,14 @@ export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
   '/account': typeof AccountRoute
   '/system': typeof SystemRoute
+  '/account-deleted': typeof AuthAccountDeletedRoute
   '/email-confirmed': typeof AuthEmailConfirmedRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
   '/staff': typeof StaffStaffRoute
+  '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -130,12 +144,14 @@ export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
   '/account': typeof AccountRoute
   '/system': typeof SystemRoute
+  '/account-deleted': typeof AuthAccountDeletedRoute
   '/email-confirmed': typeof AuthEmailConfirmedRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
   '/staff': typeof StaffStaffRoute
+  '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -149,12 +165,14 @@ export interface FileRoutesById {
   '/_staff': typeof StaffRouteWithChildren
   '/account': typeof AccountRoute
   '/system': typeof SystemRoute
+  '/_auth/account-deleted': typeof AuthAccountDeletedRoute
   '/_auth/email-confirmed': typeof AuthEmailConfirmedRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/_staff/staff': typeof StaffStaffRoute
+  '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/_site/': typeof SiteIndexRoute
@@ -168,12 +186,14 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/system'
+    | '/account-deleted'
     | '/email-confirmed'
     | '/forgot-password'
     | '/login'
     | '/reset-password'
     | '/signup'
     | '/staff'
+    | '/account/close'
     | '/account/two-factor'
     | '/api/stream-test'
     | '/login/two-factor'
@@ -184,12 +204,14 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/system'
+    | '/account-deleted'
     | '/email-confirmed'
     | '/forgot-password'
     | '/login'
     | '/reset-password'
     | '/signup'
     | '/staff'
+    | '/account/close'
     | '/account/two-factor'
     | '/api/stream-test'
     | '/login/two-factor'
@@ -202,12 +224,14 @@ export interface FileRouteTypes {
     | '/_staff'
     | '/account'
     | '/system'
+    | '/_auth/account-deleted'
     | '/_auth/email-confirmed'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/reset-password'
     | '/_auth/signup'
     | '/_staff/staff'
+    | '/account_/close'
     | '/account_/two-factor'
     | '/api/stream-test'
     | '/_site/'
@@ -222,6 +246,7 @@ export interface RootRouteChildren {
   StaffRoute: typeof StaffRouteWithChildren
   AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
+  AccountCloseRoute: typeof AccountCloseRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -264,6 +289,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/system'
       preLoaderRoute: typeof SystemRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/account-deleted': {
+      id: '/_auth/account-deleted'
+      path: '/account-deleted'
+      fullPath: '/account-deleted'
+      preLoaderRoute: typeof AuthAccountDeletedRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_auth/email-confirmed': {
       id: '/_auth/email-confirmed'
@@ -314,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffStaffRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/account_/close': {
+      id: '/account_/close'
+      path: '/account/close'
+      fullPath: '/account/close'
+      preLoaderRoute: typeof AccountCloseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account_/two-factor': {
       id: '/account_/two-factor'
       path: '/account/two-factor'
@@ -353,6 +392,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteChildren {
+  AuthAccountDeletedRoute: typeof AuthAccountDeletedRoute
   AuthEmailConfirmedRoute: typeof AuthEmailConfirmedRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -362,6 +402,7 @@ interface AuthRouteChildren {
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthAccountDeletedRoute: AuthAccountDeletedRoute,
   AuthEmailConfirmedRoute: AuthEmailConfirmedRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
@@ -398,6 +439,7 @@ const rootRouteChildren: RootRouteChildren = {
   StaffRoute: StaffRouteWithChildren,
   AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
+  AccountCloseRoute: AccountCloseRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

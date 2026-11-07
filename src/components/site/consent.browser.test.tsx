@@ -7,6 +7,12 @@ import { attachPosthog, type ConsentStatus } from "#/lib/analytics";
 import { ConsentBanner } from "./ConsentBanner";
 import { SiteLayout } from "./SiteLayout";
 
+// SiteLayout mounts the closure banner, whose server function the component project can't load
+vi.mock("#/features/account/closure", () => ({
+  getClosureBanner: vi.fn().mockResolvedValue(null),
+  keepMyAccount: vi.fn(),
+}));
+
 /** Just enough of a PostHog client for the consent calls, keeping the choice in memory. */
 function fakePosthog(initial: ConsentStatus) {
   let status = initial;
