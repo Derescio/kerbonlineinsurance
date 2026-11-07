@@ -5,24 +5,15 @@
 export * from "./claims";
 export * from "./policies";
 export * from "./referrals";
-// Not protected reads: the account state and the closure and delete queries (4.7), for callers
-// that already know who is asking. The suite's completeness scan skips this module. Named, so the
-// daily job's queries (closeAccountRows and the rest) stay in "#/server/data/account" only.
+// Not protected reads: the account state and what's on file (4.7), for callers that already know
+// who is asking. The suite's completeness scan skips this module. Named, so the raw writes behind
+// closure and delete (deleteUserRow, insertClosure, lockUser and the rest) stay in
+// "#/server/data/account", imported only by src/server/account.
 export {
-  cancelClosureRow,
-  deleteOtherSessions,
-  deleteUserRow,
   getAccountState,
-  hasAnyClosure,
   hasRecordsOnFile,
-  hasStaffRow,
-  insertClosure,
-  lockOpenClosure,
-  lockUser,
   openClaimReference,
   recordsOnFile,
-  userEmail,
-  withAccountTx,
   type AccountState,
   type RecordsOnFile,
 } from "./account";

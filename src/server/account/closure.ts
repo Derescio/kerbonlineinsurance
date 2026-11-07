@@ -16,7 +16,7 @@ import {
   lockUser,
   recordsOnFile,
   userEmail,
-} from "#/server/data";
+} from "#/server/data/account";
 import { defineWrite, type WriteEnvelope } from "#/server/data/define";
 import { closureCancelledEmail, closureRequestedEmail } from "#/server/email/templates";
 

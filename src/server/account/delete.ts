@@ -11,7 +11,7 @@ import {
   lockUser,
   recordsOnFile,
   withAccountTx,
-} from "#/server/data";
+} from "#/server/data/account";
 import type { WriteEnvelope } from "#/server/data/define";
 import { limit, rateLimitSubject } from "#/server/db/rate-limit";
 import { accountDeletedEmail } from "#/server/email/templates";
