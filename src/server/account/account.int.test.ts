@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-
 import { audit } from "#/server/audit/audit";
 import { verifyAuditChain } from "#/server/audit/verify";
 import { resolveActor, type Actor } from "#/server/auth/actor";
-import { AuthzError } from "#/server/auth/errors";
+import { AuthzError, RateLimitError } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
 import {
   accountClosures,
@@ -111,6 +111,17 @@ async function codeOf(call: Promise<unknown>) {
     await call;
   } catch (error) {
     if (error instanceof AuthzError) return error.code;
+    throw error;
+  }
+  return null;
+}
+
+/** RATE_LIMITED when the call throws the limiter's error (the middleware's public code) */
+async function limitedOf(call: Promise<unknown>) {
+  try {
+    await call;
+  } catch (error) {
+    if (error instanceof RateLimitError) return "RATE_LIMITED";
     throw error;
   }
   return null;
@@ -304,6 +315,21 @@ describe("deleteAccount", () => {
     expect(await userExists(user.id)).toBe(true);
     expect(await actionRows("account.deleted")).toHaveLength(0);
   });
+
+  it("counts wrong passwords: the sixth attempt in an hour is RATE_LIMITED, unchecked", async () => {
+    const auth = makeAuth();
+    const { user, cookie, actor } = await member(auth);
+    for (let i = 0; i < 5; i++) {
+      const result = await del(auth, actor, cookie, "not my password");
+      expect(!result.ok && result.error.fields).toEqual({ password: "That password isn't right." });
+    }
+    const verify = vi.spyOn(auth.api, "verifyPassword");
+    expect(await limitedOf(del(auth, actor, cookie, "not my password"))).toBe("RATE_LIMITED");
+    // Even the right password is refused now, and Better Auth is never asked
+    expect(await limitedOf(del(auth, actor, cookie))).toBe("RATE_LIMITED");
+    expect(verify).not.toHaveBeenCalled();
+    expect(await userExists(user.id)).toBe(true);
+  });
 });
 
 describe("requestClosure", () => {
@@ -417,6 +443,46 @@ describe("requestClosure", () => {
     );
     expect(!result.ok && result.error.fields).toEqual({ password: "That password isn't right." });
     expect(await closuresOf(user.id)).toHaveLength(0);
+  });
+
+  it("counts wrong passwords: the sixth attempt in an hour is RATE_LIMITED, unchecked", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await member(auth);
+    await withPolicy(user.id);
+    const actor = (await resolveActor(getDb(), user.id))!;
+    const attempt = (password: string) =>
+      requestClosure(
+        actor,
+        { input: { password }, idempotencyKey: randomUUID() },
+        headersFor(cookie),
+        deps,
+        auth as never,
+      );
+    for (let i = 0; i < 5; i++) {
+      const result = await attempt("nope nope nope");
+      expect(!result.ok && result.error.fields).toEqual({ password: "That password isn't right." });
+    }
+    const verify = vi.spyOn(auth.api, "verifyPassword");
+    expect(await limitedOf(attempt("nope nope nope"))).toBe("RATE_LIMITED");
+    expect(await limitedOf(attempt(PASSWORD))).toBe("RATE_LIMITED");
+    expect(verify).not.toHaveBeenCalled();
+    expect(await closuresOf(user.id)).toHaveLength(0);
+  });
+
+  it("a replay of a committed request is neither counted nor re-proved", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await member(auth);
+    await withPolicy(user.id);
+    const actor = (await resolveActor(getDb(), user.id))!;
+    const key = randomUUID();
+    const first = await request(auth, actor, cookie, key);
+    expect(first.ok).toBe(true);
+
+    const verify = vi.spyOn(auth.api, "verifyPassword");
+    // More replays than the limit allows attempts: each still gets the stored answer
+    for (let i = 0; i < 6; i++) expect(await request(auth, actor, cookie, key)).toEqual(first);
+    expect(verify).not.toHaveBeenCalled();
+    expect(await closuresOf(user.id)).toHaveLength(1);
   });
 });
 

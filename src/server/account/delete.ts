@@ -39,9 +39,11 @@ export async function deleteAccount(
   auth: Auth = getAuth(),
 ): Promise<WriteResult<{ deleted: true }>> {
   const known = requireUser(actor);
+  // Before the proof, so every attempt counts, a wrong password included: auth.api calls skip
+  // Better Auth's own rate limiter, so without this the password check would be unthrottled
+  await limit(`account.delete:${await rateLimitSubject(known, ctx.headers)}`, CLOSE_RULE);
   const proof = await proveIdentity(known, envelope?.input, ctx.headers, auth);
   if (!proof.ok) return proof;
-  await limit(`account.delete:${await rateLimitSubject(known, ctx.headers)}`, CLOSE_RULE);
 
   const userId = known.userId;
   const result = await withAccountTx(async (tx) => {

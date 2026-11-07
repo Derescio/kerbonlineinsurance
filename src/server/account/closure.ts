@@ -25,8 +25,11 @@ import { CLOSE_RULE } from "./delete";
 import { accountDeps, formatClosureDate, sendLater, type AccountDeps } from "./emails";
 
 // Requesting and cancelling a closure (4.7 decisions 2-3, calls 11, 12, 16). Both go through
-// defineWrite, so a double click acts once and the shared limit applies. Request proves identity
-// first (ruling R2); cancel is one click with no proof.
+// defineWrite, so a double click acts once and each has its own limit. Request proves identity
+// before its transaction (ruling R2), in defineWrite's `before` step: after the limit, so every
+// attempt is counted, a wrong password included (auth.api calls skip Better Auth's own rate
+// limiter), and after the replay lookup, so a replay is neither counted nor proved again. Cancel
+// is one click with no proof.
 //
 // defineWrite is built per call so `run` can carry this request's session id in, and say whether
 // it ran: a replayed key doesn't run it, and its email isn't sent twice. Its input schema is
@@ -47,11 +50,9 @@ export async function requestClosure(
   auth: Auth = getAuth(),
 ): Promise<WriteResult<{ closesAt: string }>> {
   const known = requireUser(actor);
-  const proof = await proveIdentity(known, envelope?.input, ctx.headers, auth);
-  if (!proof.ok) return proof;
 
-  // The session to keep: the one making the request
-  const keepSessionId = proof.sessionId;
+  // The session to keep: the one making the request, set by the proof
+  let keepSessionId = "";
 
   const done: { email?: string; closesAt?: Date } = {};
   const write = defineWrite(
@@ -59,6 +60,12 @@ export async function requestClosure(
     {
       limit: { action: "account.close", rule: CLOSE_RULE },
       idempotent: { action: "account.close" },
+      before: async (actor, raw, ctx) => {
+        const proof = await proveIdentity(actor, raw?.input, ctx.headers, auth);
+        if (!proof.ok) return proof.error;
+        keepSessionId = proof.sessionId;
+        return null;
+      },
     },
     async (actor, _input, tx) => {
       const userId = actor.userId;

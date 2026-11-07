@@ -50,6 +50,16 @@ export function defineRead<I, P, O>(
 export interface WriteOptions {
   limit?: { action: string; rule: RateRule };
   idempotent?: { action: string };
+  /**
+   * A check that runs after the limit and before the transaction, given the raw envelope: a
+   * failure ends the write without running it. A replay never reaches it. Used for the proof of
+   * identity before an account closure (4.7), so every wrong password is counted by the limit.
+   */
+  before?: (
+    actor: Actor,
+    raw: WriteEnvelope,
+    ctx: { headers: Headers },
+  ) => Promise<ValidationFailure | null>;
 }
 
 export interface WriteEnvelope {
@@ -67,10 +77,10 @@ const keySchema = z.object({ idempotencyKey: z.uuid() });
 
 /**
  * How every protected write is declared (4.5c, call 10): access, then validation (input and key
- * together), then the replay lookup, then the rate limit, then the transaction. A replay comes
- * before the limit so a retry of a committed write is never refused. A `Rejected` from `run` rolls
- * the transaction back and comes out as a failure; anything thrown is left for the server
- * function's middleware to convert.
+ * together), then the replay lookup, then the rate limit, then `before`, then the transaction. A
+ * replay comes before the limit so a retry of a committed write is never refused. A `Rejected`
+ * from `run` rolls the transaction back and comes out as a failure; anything thrown is left for
+ * the server function's middleware to convert.
  */
 export function defineWrite<P, O extends JsonValue>(
   input: z.ZodType<P>,
@@ -116,6 +126,11 @@ export function defineWrite<P, O extends JsonValue>(
     if (options.limit) {
       const subject = await rateLimitSubject(actor, ctx.headers);
       await limit(`${options.limit.action}:${subject}`, options.limit.rule);
+    }
+
+    if (options.before) {
+      const failure = await options.before(known, raw, ctx);
+      if (failure) return { ok: false, error: failure };
     }
 
     const result = idempotency
