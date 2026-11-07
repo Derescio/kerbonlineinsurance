@@ -230,9 +230,11 @@ Integration tests that need policies and claims insert them as fixtures directly
 ## Results (7 Nov 2026, before the PR)
 
 Changes from the spec:
-- **Proof is checked in exported wrappers, not inside `defineWrite`.** `deleteAccount` and `requestClosure` take `(actor, envelope, ctx)` and call `confirmIdentity(actor, input, ctx.headers)` first, because `run` doesn't get the request headers and call 12 wants proof before the write. A rejected proof comes back in the same shape `defineWrite` returns. Cost: a retry after commit checks the proof again, so a backup code could be spent twice. `requestClosure`'s idempotency hash covers an empty object, not the password, so no unsalted password hash is kept for 24 hours.
+- **Proof runs before the write, after the limit.** `deleteAccount` and `requestClosure` take `(actor, envelope, ctx)`, because `run` doesn't get the request headers and call 12 wants proof before the write. `deleteAccount` calls `limit()` and then `proveIdentity` before its transaction. `requestClosure` proves identity in a new `defineWrite` option, `before`, which runs after the replay lookup and the limit and before the transaction. So every attempt is counted once, a wrong password included (`auth.api` calls skip Better Auth's own rate limiter, so the proof was otherwise an unthrottled password check), and a replay of a committed request is neither counted nor proved again. A rejected proof comes back in the same shape `defineWrite` returns. `requestClosure`'s idempotency hash covers an empty object, not the password, so no unsalted password hash is kept for 24 hours.
+- **`RETENTION` lives in `src/server/account/constants.ts`,** beside the other closure numbers, not in the `retention.ts` that call 10 names.
+- **Three limit buckets, one rule.** Request, cancel and delete each count in their own bucket (`account.close`, `account.keep`, `account.delete`) under `CLOSE_LIMIT`, not one shared limit.
 - **`proveIdentity`** (in `confirm.ts`) also checks the session in the request belongs to the actor.
-- **`resolveActor` imports `getAccountState` from `data/account` directly,** never the `data` barrel, to avoid an import cycle through `define.ts`. The barrel exports only Task 4's named functions, so the job's queries aren't in it.
+- **`resolveActor` imports `getAccountState` from `data/account` directly,** never the `data` barrel, to avoid an import cycle through `define.ts`. `delete.ts` and `closure.ts` import their queries from `data/account` too; the barrel re-exports only `getAccountState`, `recordsOnFile`, `hasRecordsOnFile`, `openClaimReference` and their types, so the raw deletes, locks and closure writes aren't in it.
 - **A user with any closure row can't take the immediate path** (refused with the insurance-records message). `account_closures.user_id` stays `RESTRICT` (call 11). Not reachable today: closure needs records, and records block the delete.
 - **Delete screen and `UNAUTHENTICATED`.** The spec's "already deleted" reading would have told an expired session its account was gone. The screen goes to `/account-deleted` on `UNAUTHENTICATED` only after its own earlier delete call lost its response; a first try goes to `/login?redirect=/account/close`. The delete server function clears the Better Auth session cookies (`signOut`), so the browser is really signed out.
 - **The banner is also on `/account/two-factor`** and in `AccountPage` (which doesn't use `SiteLayout`); not on staff pages, because staff can't close.
@@ -240,7 +242,7 @@ Changes from the spec:
 - **Closure doesn't call `deleteUserFiles`.** Claim evidence must survive closure; which other files go is 4.10's call.
 - **`runClosures` locks the `users` row before the closure row,** so it can't deadlock with a cancel. `scripts/run-closures.ts` runs the real `runClosures` (no raw-SQL copy of the audit chaining). `NOW=` only selects due closures; `closed_at` uses the database clock.
 - **The privacy notice states the 12-month security-events period as an aim** and says plainly that automatic deletion isn't in place yet, because purging stays out of scope and a notice naming a real controller must not claim enforcement that doesn't exist.
-- **Files:** `vercel.json` (the daily cron), `src/routes/api/cron/account-closures.ts`, `getCronSecret` in `env.ts` (an unset secret answers 500).
+- **Files:** `vercel.json` (the daily cron), `src/routes/api/cron/account-closures.ts`, `getCronSecret` in `env.ts` (an unset secret answers 500). A run that throws is logged through `logSafeError` and answers a `no-store` 500. Vercel Cron only calls Production deployments, so on Staging and Preview the job is run by hand (`vp run account:run-closures`).
 - **E2E needs `E2E_DATABASE_URL`** (new optional Actions secret, passed through by `e2e.yml`). The run can't open the confirmation email, so the delete test marks the new address confirmed straight in the database and skips without the secret. `/privacy` and `/cookies` response checks (Review Focus 3, ruling R5) live there too, since no integration harness renders a route response.
 
 What was built:
@@ -256,9 +258,6 @@ Checks (7 Nov 2026):
 - E2E (`e2e/account-close.spec.ts`, 5 tests): 5 passed against a local `vp build` and `vp preview` with Cloudflare's Turnstile test keys and the local test Postgres (`kerb_test`). It hasn't run against a deploy or `dev`: `dev` doesn't have migrations 0012 and 0013 until the PR's deploy applies them (`/account/close` answered 500 against it).
 
 Known limits and follow-ups (all minor, deferred):
-- The `data` barrel's re-export list could be narrowed further to reads.
-- A purchase landing between `recordsOnFile` and the delete would hit `RESTRICT` as a 500 (no data loss); locking the `customers` row or mapping `23503` would close it.
-- The cron route doesn't catch errors outside its per-closure loop, so such an error reaches the framework logger rather than `logSafeError`.
 - The deleted session's cookie cache can stay usable for up to 5 minutes (same as sign out everywhere); the real session row is gone.
 - Closed sessions: a sign-in or cancel queued behind the job's user lock can insert a session or `rate_limits` row for a closed user (harmless: `resolveActor` is null).
 - The banner fetches once on mount, and also for anonymous visitors on public pages.
@@ -266,6 +265,9 @@ Known limits and follow-ups (all minor, deferred):
 - `CLOSE_RULE` is defined in `delete.ts` and imported by `closure.ts`; it belongs beside `CLOSE_LIMIT`.
 - 4.10: draft-claim evidence files need a closure-side cleanup.
 - Copy written by the implementers for Damion to read in the PR: the five emails, the `/account` section, the closing-version lead, the account-deleted subtitle, and the `/privacy` text. Processor locations for Resend and Google (United States) are assumed; PostHog's one-year cookie and Better Auth's 10-minute `two_factor` cookie are library defaults, not read from our config.
+
+Left for later slices:
+- Phase 5 (5.6, pay): the purchase transaction must lock the customer row or check `getAccountState`. A purchase landing between `recordsOnFile` and an immediate delete otherwise hits `RESTRICT` as a 500 (no data loss). Noted on the 5.6 row of `phase.md`.
 
 Still to do (Damion):
 - [ ] The `privacy@kerb.opsedsolutions.com` mailbox, `CRON_SECRET` in Vercel (Preview and Production), reading the notice, and `E2E_DATABASE_URL` in the Actions secrets.

@@ -7,7 +7,10 @@ export const CLOSURE_WINDOW_DAYS = 30;
 /** Illustrative retention periods, shown on /privacy. Not legal advice. */
 export const RETENTION = { insuranceRecordsYears: 7, securityEventsMonths: 12 } as const;
 
-/** Request, cancel and delete share this limit (seconds, then attempts) */
+/**
+ * The rule for request, cancel and delete (seconds, then attempts). Each action has its own bucket
+ * with this rule (account.close, account.keep, account.delete), so they don't share one count.
+ */
 export const CLOSE_LIMIT = { window: 60 * 60, max: 5 } as const;
 
 /** Claims in these statuses hold a closure. Drafts are discarded; settled and declined are over. */
