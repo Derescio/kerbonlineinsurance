@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { AuditConfigError, getAuditEnv } from "#/server/env";
+import { AuditConfigError, CronConfigError, getAuditEnv, getCronSecret } from "#/server/env";
 
 const key = Buffer.alloc(32, 7).toString("base64");
 
@@ -42,5 +42,16 @@ describe("getAuditEnv", () => {
     } catch (e) {
       expect((e as Error).message).not.toContain(key.slice(0, 20));
     }
+  });
+});
+
+describe("getCronSecret", () => {
+  it("returns the trimmed secret", () => {
+    expect(getCronSecret({ CRON_SECRET: " s3cret \t" })).toBe("s3cret");
+  });
+
+  it("throws CronConfigError when it's missing or blank, without a value in the message", () => {
+    expect(() => getCronSecret({})).toThrow(CronConfigError);
+    expect(() => getCronSecret({ CRON_SECRET: "  " })).toThrow(/CRON_SECRET is not set/);
   });
 });

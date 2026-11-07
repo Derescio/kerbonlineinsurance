@@ -4,7 +4,7 @@ import { AuditKeyError, parseKeys, type AuditKeys } from "#/server/audit/chain";
 
 // Server-only environment, validated once at startup so a missing variable fails fast.
 // Later phases add: ANTHROPIC_API_KEY, OPENAI_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
-// R2_SECRET_ACCESS_KEY, R2_BUCKET, CRON_SECRET. Auth's variables are below (getAuthEnv).
+// R2_SECRET_ACCESS_KEY, R2_BUCKET. Auth's variables are below (getAuthEnv), CRON_SECRET at the end.
 export const envSchema = z.object({
   PUBLIC_CACHE_SECONDS: z.coerce.number().int().nonnegative().default(300),
 });
@@ -95,4 +95,19 @@ export function getAuditEnv(source: Record<string, string | undefined> = process
     }
     throw error;
   }
+}
+
+// The Vercel Cron secret (4.7, call 14). Vercel sends it as `Authorization: Bearer <CRON_SECRET>`.
+// Read on use, like getAuthEnv, so only the cron route needs it. Named so logSafeError records it.
+export class CronConfigError extends Error {
+  override name = "CronConfigError";
+  constructor() {
+    super('CRON_SECRET is not set (.env.example, "Cron (4.7)")');
+  }
+}
+
+export function getCronSecret(source: Record<string, string | undefined> = process.env): string {
+  const secret = source.CRON_SECRET?.trim();
+  if (!secret) throw new CronConfigError();
+  return secret;
 }

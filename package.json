@@ -17,6 +17,7 @@
     "db:check-app-role": "node scripts/check-app-role.ts",
     "auth:make-admin": "node scripts/make-admin.ts",
     "auth:reset-two-factor": "node scripts/reset-two-factor.ts",
+    "account:run-closures": "node scripts/run-closures.ts",
     "db:test:up": "docker compose up -d --wait",
     "db:test:down": "docker compose down"
   },

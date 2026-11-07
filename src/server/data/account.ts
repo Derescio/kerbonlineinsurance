@@ -1,17 +1,37 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  notExists,
+  sql,
+} from "drizzle-orm";
 
-import { CLOSURE_WINDOW_DAYS, OPEN_CLAIM_STATUSES } from "#/server/account/constants";
+import { CLOSURE_WINDOW_DAYS, OPEN_CLAIM_STATUSES, RETENTION } from "#/server/account/constants";
 import { getDb, type Db } from "#/server/db/client";
 import {
   accountClosures,
+  accounts,
   bundles,
   claims,
   customers,
+  idempotencyKeys,
+  notifications,
   payments,
   policies,
+  quotes,
+  rateLimits,
+  reviews,
   sessions,
   staffMembers,
+  twoFactors,
   users,
+  verifications,
 } from "#/server/db/schema";
 import { withTx, type Tx } from "#/server/db/tx";
 
@@ -224,4 +244,145 @@ export async function deleteOtherSessions(
 export async function userEmail(tx: Tx, userId: string): Promise<string | null> {
   const [row] = await tx.select({ email: users.email }).from(users).where(eq(users.id, userId));
   return row?.email ?? null;
+}
+
+// The daily closure job (4.7 call 14). runClosures in src/server/account/ decides; these read and
+// write.
+
+export type { Db };
+
+/** The app's database, for the job's entry point (the cron route can't reach db/client) */
+export function accountDb(): Db {
+  return getDb();
+}
+
+export interface DueClosure {
+  id: string;
+  userId: string;
+}
+
+/** Open closures whose window has ended by `now`, oldest first. Read without locks */
+export async function dueClosures(db: Db, now: Date): Promise<DueClosure[]> {
+  return db
+    .select({ id: accountClosures.id, userId: accountClosures.userId })
+    .from(accountClosures)
+    .where(
+      and(
+        lte(accountClosures.closesAt, now),
+        isNull(accountClosures.cancelledAt),
+        isNull(accountClosures.closedAt),
+      ),
+    )
+    .orderBy(asc(accountClosures.closesAt));
+}
+
+/**
+ * The closure, locked FOR UPDATE SKIP LOCKED, if it's still open; null if it was cancelled or
+ * closed meanwhile, or another transaction holds it (a cancel in flight, or another run).
+ */
+export async function lockDueClosure(
+  tx: Tx,
+  closureId: string,
+): Promise<{ id: string; userId: string; heldSince: Date | null } | null> {
+  const [row] = await tx
+    .select({
+      id: accountClosures.id,
+      userId: accountClosures.userId,
+      heldSince: accountClosures.heldSince,
+    })
+    .from(accountClosures)
+    .where(
+      and(
+        eq(accountClosures.id, closureId),
+        isNull(accountClosures.cancelledAt),
+        isNull(accountClosures.closedAt),
+      ),
+    )
+    .for("update", { skipLocked: true });
+  return row ?? null;
+}
+
+/** Starts the hold; held_since is the transaction's now() */
+export async function holdClosureRow(tx: Tx, closureId: string, reason: string): Promise<void> {
+  await tx
+    .update(accountClosures)
+    .set({ heldSince: sql`now()`, holdReason: reason })
+    .where(eq(accountClosures.id, closureId));
+}
+
+/**
+ * Ends the closure. closed_at is the transaction's now() and retain_until is added to it in SQL,
+ * so retain_until = closed_at + the retention years exactly.
+ */
+export async function closeClosureRow(tx: Tx, closureId: string): Promise<{ retainUntil: Date }> {
+  const [row] = await tx
+    .update(accountClosures)
+    .set({
+      closedAt: sql`now()`,
+      retainUntil: sql`now() + make_interval(years => ${RETENTION.insuranceRecordsYears})`,
+    })
+    .where(eq(accountClosures.id, closureId))
+    .returning({ retainUntil: accountClosures.retainUntil });
+  return { retainUntil: row!.retainUntil! };
+}
+
+/**
+ * What a closed account keeps and loses (4.7 call 9). The users row, the customer row, policies,
+ * submitted claims, payments, bundles, the quotes behind them, security_events and audit_log are
+ * never touched here. Everything below is either a way back in (credentials, sessions, reset
+ * links, keys) or has no retention reason.
+ */
+export async function closeAccountRows(tx: Tx, userId: string): Promise<void> {
+  // Ways back in
+  await tx.delete(accounts).where(eq(accounts.userId, userId));
+  await tx.delete(sessions).where(eq(sessions.userId, userId));
+  await tx.delete(twoFactors).where(eq(twoFactors.userId, userId));
+  // Unused password-reset links (reset-password:<token>), whose value is the user id. Better
+  // Auth's reset would otherwise put a password back on the closed user.
+  await tx.delete(verifications).where(eq(verifications.value, userId));
+  await tx.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, userId));
+  // The app's limiter keys end in `:user:<id>` (rateLimitSubject); an exact suffix match, so an
+  // id is never read as a LIKE pattern
+  const suffix = `:user:${userId}`;
+  await tx.delete(rateLimits).where(sql`right(${rateLimits.key}, ${suffix.length}) = ${suffix}`);
+  await tx.delete(notifications).where(eq(notifications.userId, userId));
+
+  const customerId = await customerIdOf(tx, userId);
+  if (customerId) {
+    await tx.delete(reviews).where(eq(reviews.customerId, customerId));
+    // Never submitted, so not a record
+    await tx
+      .delete(claims)
+      .where(and(eq(claims.customerId, customerId), eq(claims.status, "draft")));
+    // Quotes that never became a policy and have no payment or bundle (their items, options,
+    // details and decisions cascade). A quote any of those point at is kept, so RESTRICT is
+    // never hit.
+    await tx
+      .delete(quotes)
+      .where(
+        and(
+          eq(quotes.customerId, customerId),
+          notExists(
+            tx.select({ id: policies.id }).from(policies).where(eq(policies.quoteId, quotes.id)),
+          ),
+          notExists(
+            tx.select({ id: payments.id }).from(payments).where(eq(payments.quoteId, quotes.id)),
+          ),
+          notExists(
+            tx.select({ id: bundles.id }).from(bundles).where(eq(bundles.quoteId, quotes.id)),
+          ),
+        ),
+      );
+  }
+
+  // The row stays (customers, audit_log and security_events point at it); the address is freed
+  await tx
+    .update(users)
+    .set({
+      email: `closed+${userId}@closed.invalid`,
+      name: "Closed account",
+      image: null,
+      emailVerified: false,
+    })
+    .where(eq(users.id, userId));
 }
