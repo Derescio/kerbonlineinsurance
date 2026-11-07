@@ -8,7 +8,7 @@ import { env, googleSession, makeAuth, requestHeaders, sessionCookie } from "#/t
 import { truncateAll } from "#/test/db";
 import { makeUser } from "#/test/factories";
 
-import { challengeRedirect } from "./guard";
+import { accountTwoFactorHref, challengeRedirect, twoFactorChallengeHref } from "./guard";
 import { readSignInState } from "./sign-in-state";
 
 // The signed-in guard (4.6, call 14): what getSignInState answers for a request's cookies, and
@@ -82,5 +82,16 @@ describe("challengeRedirect (Review Focus 2)", () => {
 
   it("keeps a session owing a code on the page", () => {
     expect(challengeRedirect("needs_code", "/staff")).toBeNull();
+  });
+});
+
+describe("the 2FA page hrefs", () => {
+  it("carry the redirect encoded", () => {
+    expect(twoFactorChallengeHref("/staff?q=a&b=1")).toBe(
+      "/login/two-factor?redirect=%2Fstaff%3Fq%3Da%26b%3D1",
+    );
+    expect(accountTwoFactorHref("/staff?q=a&b=1")).toBe(
+      "/account/two-factor?redirect=%2Fstaff%3Fq%3Da%26b%3D1",
+    );
   });
 });

@@ -5,7 +5,7 @@ import pg from "pg";
 
 import { AuditKeyError, parseKeys } from "../src/server/audit/chain.ts";
 import { databaseHost } from "./database-host.ts";
-import { ResetTwoFactorError, resetTwoFactor } from "./reset-two-factor-core.ts";
+import { failureLine, ResetTwoFactorError, resetTwoFactor } from "./reset-two-factor-core.ts";
 import type { ResetTwoFactorReason } from "./reset-two-factor-core.ts";
 
 // For a staff member who has lost their phone and their backup codes (4.6, call 12):
@@ -60,7 +60,8 @@ try {
 } catch (error) {
   code = 1;
   if (error instanceof ResetTwoFactorError) console.error(messages[error.reason]);
-  else console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+  // Name and SQLSTATE only: a message can carry the email
+  else console.error(failureLine(error));
 } finally {
   await client.end().catch(() => {});
 }

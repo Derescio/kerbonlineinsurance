@@ -23,6 +23,10 @@ export const getSignInState = createServerFn({ method: "GET" }).handler(
 export const twoFactorChallengeHref = (redirectTo: string) =>
   `/login/two-factor?redirect=${encodeURIComponent(redirectTo)}`;
 
+/** Frame 12 for staff (Task 9), not in the route tree yet either */
+export const accountTwoFactorHref = (redirectTo: string) =>
+  `/account/two-factor?redirect=${encodeURIComponent(redirectTo)}`;
+
 /**
  * For a signed-in page's `beforeLoad`: a guest goes to log in, and a session owing a code goes to
  * the challenge, each coming back to `location.href` after

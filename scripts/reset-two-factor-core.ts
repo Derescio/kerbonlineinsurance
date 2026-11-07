@@ -25,6 +25,24 @@ export class ResetTwoFactorError extends Error {
   }
 }
 
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+
+/**
+ * The line printed for an unexpected error: its name and, when it has one, its SQLSTATE, never its
+ * message, which can carry the email or other row data. The same rule as logSafeError in
+ * src/server/auth/errors.ts, inlined because that module can't load under plain node.
+ */
+export function failureLine(error: unknown): string {
+  if (!(error instanceof Error)) return "Failed: non-error";
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth++) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === "string" && SQLSTATE.test(code)) return `Failed: ${error.name} (${code})`;
+    current = current.cause;
+  }
+  return `Failed: ${error.name}`;
+}
+
 /**
  * In one transaction: 2FA off, the TOTP secret and backup codes gone, trusted devices gone, every
  * session ended, and one two_factor.reset row with a null actor (the script). The next staff page

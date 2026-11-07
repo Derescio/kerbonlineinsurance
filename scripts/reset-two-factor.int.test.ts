@@ -10,7 +10,7 @@ import { sessions, twoFactors, verifications } from "#/server/db/schema";
 import { getOwnerDb, truncateAll } from "#/test/db";
 import { makeStaff, makeUser } from "#/test/factories";
 
-import { ResetTwoFactorError, resetTwoFactor } from "./reset-two-factor-core.ts";
+import { failureLine, ResetTwoFactorError, resetTwoFactor } from "./reset-two-factor-core.ts";
 
 // auth:reset-two-factor (4.6, call 12): a staff member who lost their phone and backup codes.
 
@@ -169,5 +169,27 @@ describe("resetTwoFactor", () => {
     );
     expect(await stateOf(user.id)).toEqual(enrolledState);
     expect((await client.query("select 1 from audit_log")).rowCount).toBe(0);
+  });
+});
+
+describe("failureLine", () => {
+  it("prints a database error's name and SQLSTATE, never its message", async () => {
+    // Postgres quotes the bad value in its message: here, the email
+    const error = await client
+      .query("select $1::int", ["sam@example.com"])
+      .catch((e: unknown) => e);
+    expect((error as Error).message).toContain("sam@example.com");
+    const line = failureLine(error);
+    expect(line).toBe("Failed: error (22P02)");
+    expect(line).not.toContain("sam@example.com");
+  });
+
+  it("finds the SQLSTATE on a cause, and prints only the name without one", () => {
+    const wrapped = new Error("reset failed for sam@example.com", {
+      cause: Object.assign(new Error("sam@example.com"), { code: "23505" }),
+    });
+    expect(failureLine(wrapped)).toBe("Failed: Error (23505)");
+    expect(failureLine(new TypeError("sam@example.com"))).toBe("Failed: TypeError");
+    expect(failureLine("sam@example.com")).toBe("Failed: non-error");
   });
 });
