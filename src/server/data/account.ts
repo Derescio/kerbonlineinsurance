@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
-import { OPEN_CLAIM_STATUSES } from "#/server/account/constants";
-import type { Db } from "#/server/db/client";
+import { CLOSURE_WINDOW_DAYS, OPEN_CLAIM_STATUSES } from "#/server/account/constants";
+import { getDb, type Db } from "#/server/db/client";
 import {
   accountClosures,
   bundles,
@@ -9,8 +9,11 @@ import {
   customers,
   payments,
   policies,
+  sessions,
+  staffMembers,
+  users,
 } from "#/server/db/schema";
-import type { Tx } from "#/server/db/tx";
+import { withTx, type Tx } from "#/server/db/tx";
 
 // Where an account stands and what records it holds (4.7). Plain functions, not defineRead: they
 // serve the actor lookup, closure and delete, which already know who is asking. actor.ts imports
@@ -111,4 +114,114 @@ export async function openClaimReference(db: Db | Tx, userId: string): Promise<s
     .orderBy(asc(claims.createdAt))
     .limit(1);
   return row?.reference ?? null;
+}
+
+// The writes behind delete, request and cancel (4.7). Each takes the caller's transaction; the
+// orchestration in src/server/account/ decides the order and writes the audit rows.
+
+/** Runs `run` in one transaction on the app's database (src/server/account/ can't reach it) */
+export function withAccountTx<T>(run: (tx: Tx) => Promise<T>): Promise<T> {
+  return withTx(getDb(), run);
+}
+
+/**
+ * Locks the user's row and returns their email, or null if the user is gone. `delete` takes FOR
+ * UPDATE, which the delete needs; `write` takes FOR NO KEY UPDATE, which still serialises two
+ * requests but doesn't block a sign-in inserting a session (its foreign key check takes KEY SHARE).
+ */
+export async function lockUser(
+  tx: Tx,
+  userId: string,
+  mode: "delete" | "write",
+): Promise<{ email: string } | null> {
+  const query = tx.select({ email: users.email }).from(users).where(eq(users.id, userId));
+  const [row] = await (mode === "delete" ? query.for("update") : query.for("no key update"));
+  return row ?? null;
+}
+
+/** Any staff_members row, active or deactivated */
+export async function hasStaffRow(tx: Tx, userId: string): Promise<boolean> {
+  const rows = await tx
+    .select({ userId: staffMembers.userId })
+    .from(staffMembers)
+    .where(eq(staffMembers.userId, userId));
+  return rows.length > 0;
+}
+
+/** Any closure row at all, open, cancelled or closed */
+export async function hasAnyClosure(tx: Tx, userId: string): Promise<boolean> {
+  const rows = await tx
+    .select({ id: accountClosures.id })
+    .from(accountClosures)
+    .where(eq(accountClosures.userId, userId))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Deletes the user; the foreign keys cascade to the rest and record_delete tombstones them */
+export async function deleteUserRow(tx: Tx, userId: string): Promise<void> {
+  await tx.delete(users).where(eq(users.id, userId));
+}
+
+/** The user's open closure, locked FOR UPDATE (the daily job locks the same row), or null */
+export async function lockOpenClosure(
+  tx: Tx,
+  userId: string,
+): Promise<{ id: string; closesAt: Date } | null> {
+  const [row] = await tx
+    .select({ id: accountClosures.id, closesAt: accountClosures.closesAt })
+    .from(accountClosures)
+    .where(
+      and(
+        eq(accountClosures.userId, userId),
+        isNull(accountClosures.cancelledAt),
+        isNull(accountClosures.closedAt),
+      ),
+    )
+    .for("update");
+  return row ?? null;
+}
+
+/**
+ * Opens a closure. Both times come from the one transaction's now(), and the window is added in
+ * SQL, so closes_at is exactly what account_closures_window_check computes.
+ */
+export async function insertClosure(
+  tx: Tx,
+  userId: string,
+): Promise<{ id: string; closesAt: Date }> {
+  const [row] = await tx
+    .insert(accountClosures)
+    .values({
+      userId,
+      requestedAt: sql`now()`,
+      closesAt: sql`now() + make_interval(days => ${CLOSURE_WINDOW_DAYS})`,
+    })
+    .returning({ id: accountClosures.id, closesAt: accountClosures.closesAt });
+  return row!;
+}
+
+export async function cancelClosureRow(tx: Tx, closureId: string): Promise<void> {
+  await tx
+    .update(accountClosures)
+    .set({ cancelledAt: sql`now()` })
+    .where(eq(accountClosures.id, closureId));
+}
+
+/** Ends every session of the user's except `keepSessionId`; returns how many went */
+export async function deleteOtherSessions(
+  tx: Tx,
+  userId: string,
+  keepSessionId: string,
+): Promise<number> {
+  const deleted = await tx
+    .delete(sessions)
+    .where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)))
+    .returning({ id: sessions.id });
+  return deleted.length;
+}
+
+export async function userEmail(tx: Tx, userId: string): Promise<string | null> {
+  const [row] = await tx.select({ email: users.email }).from(users).where(eq(users.id, userId));
+  return row?.email ?? null;
 }

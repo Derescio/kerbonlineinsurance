@@ -5,7 +5,8 @@ import { normaliseBackupCode } from "#/features/auth/two-factor/codes";
 import { getAuth, type Auth } from "#/server/auth/auth";
 import type { Actor } from "#/server/auth/actor";
 import { PASSWORDLESS_FRESH_MS } from "#/server/auth/two-factor-constants";
-import { rejected, type Rejected } from "#/lib/validation";
+import { parseInput, rejected, type Rejected, type ValidationFailure } from "#/lib/validation";
+import { AuthzError } from "#/server/auth/errors";
 
 // Proof before an irreversible account action (4.7 call 12): the password if there is one (else a
 // recent Google sign-in), and a 2FA code if two-factor is on. Better Auth does the checking, so
@@ -71,4 +72,39 @@ export async function confirmIdentity(
     }
   }
   return null;
+}
+
+export type Proof = { ok: true; sessionId: string } | { ok: false; error: ValidationFailure };
+
+/**
+ * The proof step of an account write (ruling R2), before its transaction. Throws UNAUTHENTICATED
+ * unless the request's session belongs to `actor`: a second delete, whose session went with the
+ * first, gets that and never a proof failure or a 500. Then parses the envelope's input and runs
+ * confirmIdentity, returning a failure in the shape defineWrite returns. A two-factor challenge
+ * thrown by Better Auth's hook comes out as TWO_FACTOR_CHALLENGE. `sessionId` is the session
+ * making the request, which a closure request keeps.
+ */
+export async function proveIdentity(
+  actor: Actor,
+  raw: unknown,
+  headers: Headers,
+  auth: Auth = getAuth(),
+): Promise<Proof> {
+  const found = await auth.api.getSession({ headers, query: { disableCookieCache: true } });
+  if (!found || found.user.id !== actor.userId) throw new AuthzError("UNAUTHENTICATED");
+
+  const parsed = parseInput(confirmInput, raw);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  try {
+    const failure = await confirmIdentity(actor, parsed.data, headers, auth);
+    return failure
+      ? { ok: false, error: failure.error }
+      : { ok: true, sessionId: found.session.id };
+  } catch (error) {
+    if (isAPIError(error) && error.statusCode === 401) {
+      const code = (error.body as { code?: string } | undefined)?.code;
+      throw new AuthzError(code === "TWO_FACTOR_CHALLENGE" ? code : "UNAUTHENTICATED");
+    }
+    throw error;
+  }
 }

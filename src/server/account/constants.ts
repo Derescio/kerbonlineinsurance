@@ -12,3 +12,6 @@ export const CLOSE_LIMIT = { window: 60 * 60, max: 5 } as const;
 
 /** Claims in these statuses hold a closure. Drafts are discarded; settled and declined are over. */
 export const OPEN_CLAIM_STATUSES = ["received", "assessing", "approved"] as const;
+
+/** The controller's contact (decision 6), on /privacy and in the closure emails */
+export const PRIVACY_EMAIL = "privacy@kerb.opsedsolutions.com";

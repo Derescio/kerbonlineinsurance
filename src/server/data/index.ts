@@ -5,3 +5,6 @@
 export * from "./claims";
 export * from "./policies";
 export * from "./referrals";
+// Not protected reads: the account state and the closure and delete queries (4.7), for callers
+// that already know who is asking. The suite's completeness scan skips this module.
+export * from "./account";
