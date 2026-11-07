@@ -6,7 +6,8 @@ import { createdAt, id, oneOf } from "./columns";
 
 // Sign-ins, failures and resets (4.4), shown later as "Recent activity" in Settings (6.3). Not
 // hash-chained like audit_log, so bot traffic can't flood the chain; append-only (the 0004
-// trigger), and deleted with the account (4.7). Never an email, an IP or a raw user agent.
+// trigger). Deleted on an immediate account delete (4.7); kept with a closed account. Never an
+// email, an IP or a raw user agent.
 export const SECURITY_EVENT_TYPES = [
   "sign_up",
   "sign_in",

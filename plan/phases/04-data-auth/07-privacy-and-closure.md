@@ -1,6 +1,6 @@
 # 4.7 Privacy page and account closure
 
-**Status:** spec approved (Damion, 7 Nov 2026)
+**Status:** in review (built 7 Nov 2026)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -174,19 +174,19 @@ Anyone can leave Kerb, and Kerb never loses a record it has to keep.
 ## Steps
 
 - [x] You approve this spec
-- [ ] `account_closures` migration, the data contract and the trigger
-- [ ] `RETENTION`, `getAccountState`, the audit actions and the error codes
-- [ ] `deleteAccount` (immediate path) and its tests
-- [ ] `requestClosure` / `cancelClosure` and `runClosures`, and their tests
-- [ ] The cron route, `vercel.json` and `account:run-closures`
-- [ ] The screens, the banner and the emails
-- [ ] `/privacy` and `/cookies`
-- [ ] Docs:
+- [x] `account_closures` migration, the data contract and the trigger
+- [x] `RETENTION`, `getAccountState`, the audit actions and the error codes
+- [x] `deleteAccount` (immediate path) and its tests
+- [x] `requestClosure` / `cancelClosure` and `runClosures`, and their tests
+- [x] The cron route, `vercel.json` and `account:run-closures`
+- [x] The screens, the banner and the emails
+- [x] `/privacy` and `/cookies`
+- [x] Docs:
   - engineering.md §7 (account closure) and §6 (what delete account does to files)
   - the 4.2 decision 11 note
   - the `phase.md` 4.7 row and testing row
   - `build-plan.md`
-- [ ] `vp check`, `vp test`, `vp build`
+- [x] `vp check`, `vp test`, `vp build`
 - [ ] Your walkthrough on `dev`: delete a fresh sign-up, then close an account with fixture records (with `NOW=` 31 days on), then a staging run
 
 ## Tests
@@ -226,3 +226,47 @@ Integration tests that need policies and claims insert them as fixtures directly
 - engineering.md §3.4 note (CDN cache and CSP nonce), §6 (files on delete), §7, §13 (consent).
 - 3.1 footer links (`/privacy`, `/cookies`); 3.6 consent bar and `CookieSettings`.
 - Damion, 7 Nov 2026: the two paths, the 30-day window, open claims hold, no Figma, OpsEd Solutions as controller.
+
+## Results (7 Nov 2026, before the PR)
+
+Changes from the spec:
+- **Proof is checked in exported wrappers, not inside `defineWrite`.** `deleteAccount` and `requestClosure` take `(actor, envelope, ctx)` and call `confirmIdentity(actor, input, ctx.headers)` first, because `run` doesn't get the request headers and call 12 wants proof before the write. A rejected proof comes back in the same shape `defineWrite` returns. Cost: a retry after commit checks the proof again, so a backup code could be spent twice. `requestClosure`'s idempotency hash covers an empty object, not the password, so no unsalted password hash is kept for 24 hours.
+- **`proveIdentity`** (in `confirm.ts`) also checks the session in the request belongs to the actor.
+- **`resolveActor` imports `getAccountState` from `data/account` directly,** never the `data` barrel, to avoid an import cycle through `define.ts`. The barrel exports only Task 4's named functions, so the job's queries aren't in it.
+- **A user with any closure row can't take the immediate path** (refused with the insurance-records message). `account_closures.user_id` stays `RESTRICT` (call 11). Not reachable today: closure needs records, and records block the delete.
+- **Delete screen and `UNAUTHENTICATED`.** The spec's "already deleted" reading would have told an expired session its account was gone. The screen goes to `/account-deleted` on `UNAUTHENTICATED` only after its own earlier delete call lost its response; a first try goes to `/login?redirect=/account/close`. The delete server function clears the Better Auth session cookies (`signOut`), so the browser is really signed out.
+- **The banner is also on `/account/two-factor`** and in `AccountPage` (which doesn't use `SiteLayout`); not on staff pages, because staff can't close.
+- **`getClosePage` returns `closesOn`** for "keep your account any time before [date]", computed on the server so SSR and client agree.
+- **Closure doesn't call `deleteUserFiles`.** Claim evidence must survive closure; which other files go is 4.10's call.
+- **`runClosures` locks the `users` row before the closure row,** so it can't deadlock with a cancel. `scripts/run-closures.ts` runs the real `runClosures` (no raw-SQL copy of the audit chaining). `NOW=` only selects due closures; `closed_at` uses the database clock.
+- **The privacy notice states the 12-month security-events period as an aim** and says plainly that automatic deletion isn't in place yet, because purging stays out of scope and a notice naming a real controller must not claim enforcement that doesn't exist.
+- **Files:** `vercel.json` (the daily cron), `src/routes/api/cron/account-closures.ts`, `getCronSecret` in `env.ts` (an unset secret answers 500).
+- **E2E needs `E2E_DATABASE_URL`** (new optional Actions secret, passed through by `e2e.yml`). The run can't open the confirmation email, so the delete test marks the new address confirmed straight in the database and skips without the secret. `/privacy` and `/cookies` response checks (Review Focus 3, ruling R5) live there too, since no integration harness renders a route response.
+
+What was built:
+- Schema: `account_closures` (`drizzle/0012_serious_virginia_dare.sql`, `0013_account_closures_triggers.sql`), data-contract entry, `app-role` grants.
+- Server: `src/server/account/` (`constants`, `confirm`, `delete`, `closure`, `run-closures`, `emails`, `files`), `src/server/data/account.ts`, five audit actions, three error codes, five emails, the cron route, `vercel.json`, `vp run account:run-closures`.
+- Screens: `/account/close` (delete, close, closing and staff versions), `ClosureBanner`, `/account-deleted`, the "Close your account" section on `/account`, `/privacy`, `/cookies`.
+- Docs: engineering.md §7 (Account closure) and §6, 4.2 decision 11 marked superseded, `phase.md`, `build-plan.md`; the stale comment in `schema/security.ts`.
+
+Checks (7 Nov 2026):
+- `vp check`: clean.
+- `vp test`: 1040 passing (76 files): 377 unit, 445 integration, 218 component. The first full run had 58 integration failures in three files (`permissions`, `two-factor`, `sessions`) while two local preview servers from the E2E run were still pointed at the same test database; those three files passed alone (148 tests) and the full run passed once the servers were idle. (`analytics.test.ts` and the feedback Toaster test, the known flakes, didn't fail.)
+- `vp build`: succeeds.
+- E2E (`e2e/account-close.spec.ts`, 5 tests): 5 passed against a local `vp build` and `vp preview` with Cloudflare's Turnstile test keys and the local test Postgres (`kerb_test`). It hasn't run against a deploy or `dev`: `dev` doesn't have migrations 0012 and 0013 until the PR's deploy applies them (`/account/close` answered 500 against it).
+
+Known limits and follow-ups (all minor, deferred):
+- The `data` barrel's re-export list could be narrowed further to reads.
+- A purchase landing between `recordsOnFile` and the delete would hit `RESTRICT` as a 500 (no data loss); locking the `customers` row or mapping `23503` would close it.
+- The cron route doesn't catch errors outside its per-closure loop, so such an error reaches the framework logger rather than `logSafeError`.
+- The deleted session's cookie cache can stay usable for up to 5 minutes (same as sign out everywhere); the real session row is gone.
+- Closed sessions: a sign-in or cancel queued behind the job's user lock can insert a session or `rate_limits` row for a closed user (harmless: `resolveActor` is null).
+- The banner fetches once on mount, and also for anonymous visitors on public pages.
+- Policy and claim rows on `/account/close` show raw enum values.
+- `CLOSE_RULE` is defined in `delete.ts` and imported by `closure.ts`; it belongs beside `CLOSE_LIMIT`.
+- 4.10: draft-claim evidence files need a closure-side cleanup.
+- Copy written by the implementers for Damion to read in the PR: the five emails, the `/account` section, the closing-version lead, the account-deleted subtitle, and the `/privacy` text. Processor locations for Resend and Google (United States) are assumed; PostHog's one-year cookie and Better Auth's 10-minute `two_factor` cookie are library defaults, not read from our config.
+
+Still to do (Damion):
+- [ ] The `privacy@kerb.opsedsolutions.com` mailbox, `CRON_SECRET` in Vercel (Preview and Production), reading the notice, and `E2E_DATABASE_URL` in the Actions secrets.
+- [ ] The walkthrough on `dev`: delete a fresh sign-up, close a fixture account, `NOW=<+31d> vp run account:run-closures`, then check Neon and the five emails.
