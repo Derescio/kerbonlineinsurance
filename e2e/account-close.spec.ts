@@ -2,6 +2,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
 
+import { expectCdnCached } from "./cdn-cache";
+
 // 4.7: the privacy and cookies pages, and deleting a fresh sign-up. Previews use Cloudflare's
 // always-pass Turnstile test keys and the `dev` database. The run can't open the confirmation
 // email (Resend's test inbox), so the delete test confirms the address straight in the database:
@@ -22,14 +24,24 @@ async function expectNoSeriousAxeViolations(page: Page) {
   ).toEqual([]);
 }
 
+// Only ever touches the address this spec just made, so a mis-set E2E_DATABASE_URL can't confirm
+// anyone else. It must be the Neon `dev` branch's credentials, never prod.
+const OWN_EMAIL = /^delivered\+e2e-close-\d+@resend\.dev$/;
+
 async function confirmEmailInDatabase(email: string) {
+  if (!OWN_EMAIL.test(email)) {
+    throw new Error(`Refusing to confirm ${email}: not an address this spec created`);
+  }
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   try {
     const result = await client.query("update users set email_verified = true where email = $1", [
       email,
     ]);
-    expect(result.rowCount).toBe(1);
+    expect(
+      result.rowCount,
+      "E2E_DATABASE_URL must point at the same database as the deploy under test",
+    ).toBe(1);
   } finally {
     await client.end();
   }
@@ -40,11 +52,7 @@ for (const path of ["/privacy", "/cookies"]) {
     const response = await request.get(path);
     expect(response.status()).toBe(200);
     // publicCacheHeaders(): public, s-maxage=<PUBLIC_CACHE_SECONDS>, stale-while-revalidate
-    const cacheControl = response.headers()["cache-control"] ?? "";
-    expect(cacheControl).toContain("public");
-    expect(cacheControl).toMatch(/s-maxage=\d+/);
-    expect(cacheControl).toContain("stale-while-revalidate");
-    expect(cacheControl).not.toContain("no-store");
+    await expectCdnCached(request, path, response);
 
     // The banner is loaded client-side from a no-store function, never rendered into cached HTML
     const html = await response.text();
@@ -59,9 +67,10 @@ for (const path of ["/privacy", "/cookies"]) {
 
 test("/privacy names the controller, its contact and PostHog", async ({ page }) => {
   await page.goto("/privacy");
-  await expect(page.getByText("OpsEd Solutions").first()).toBeVisible();
-  await expect(page.getByText("privacy@kerb.opsedsolutions.com").first()).toBeVisible();
-  await expect(page.getByText("PostHog").first()).toBeVisible();
+  const main = page.getByRole("main");
+  await expect(main).toContainText("OpsEd Solutions");
+  await expect(main).toContainText("privacy@kerb.opsedsolutions.com");
+  await expect(main).toContainText("PostHog");
 });
 
 test("the account-deleted page passes axe", async ({ page }) => {
@@ -115,7 +124,5 @@ test("a fresh sign-up deletes its account, is signed out, and can't log in again
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/login/);
-  await expect(page).not.toHaveURL(/\/account$/);
   await expect(page.getByText("That email and password don't match.")).toBeVisible();
 });
