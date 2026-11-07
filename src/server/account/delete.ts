@@ -64,3 +64,16 @@ export async function deleteAccount(
   sendLater(deps, result.email, accountDeletedEmail());
   return { ok: true, data: { deleted: true } };
 }
+
+/**
+ * After a delete the browser still holds the session cookie and the 5-minute session-data cookie
+ * cache. Better Auth's own sign-out expires both (and, run through the server function, the
+ * tanstackStartCookies plugin forwards them). Returns the headers so a test can see the cookies.
+ */
+export async function clearSessionCookies(
+  headers: Headers,
+  auth: Auth = getAuth(),
+): Promise<Headers> {
+  const { headers: out } = await auth.api.signOut({ headers, returnHeaders: true });
+  return out;
+}

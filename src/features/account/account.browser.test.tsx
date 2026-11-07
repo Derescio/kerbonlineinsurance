@@ -92,16 +92,6 @@ describe("/account/close, delete version", () => {
     });
   });
 
-  it("goes to /account-deleted on UNAUTHENTICATED too (the account is already gone)", async () => {
-    fns.deleteMyAccount.mockRejectedValue(
-      PublicError.from({ code: "UNAUTHENTICATED", status: 401, message: "Please log in." }),
-    );
-    const { router } = await renderWithRouter(<ClosePage data={deleteData} />);
-    await userEvent.fill(page.getByLabelText("Password"), "correct horse");
-    await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
-    await expect.poll(() => router.state.location.pathname).toBe("/account-deleted");
-  });
-
   it("shows the server's field error and stays put", async () => {
     fns.deleteMyAccount.mockResolvedValue({
       ok: false,
@@ -244,5 +234,31 @@ describe("ClosureBanner", () => {
     const { screen } = await renderWithRouter(<ClosureBanner />);
     await expect.poll(() => fns.getClosureBanner.mock.calls.length).toBe(1);
     expect(screen.container.textContent).toBe("");
+  });
+});
+
+describe("delete: an UNAUTHENTICATED answer", () => {
+  const unauthenticated = () =>
+    PublicError.from({ code: "UNAUTHENTICATED", status: 401, message: "Please log in." });
+
+  it("on the first try means the session ended: go to log in, not /account-deleted", async () => {
+    fns.deleteMyAccount.mockRejectedValue(unauthenticated());
+    const { router } = await renderWithRouter(<ClosePage data={deleteData} />, "/account/close");
+    await userEvent.fill(page.getByLabelText("Password"), "correct horse");
+    await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
+    await expect.poll(() => router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toEqual({ redirect: "/account/close" });
+  });
+
+  it("after a lost response means the first try worked: go to /account-deleted", async () => {
+    fns.deleteMyAccount
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(unauthenticated());
+    const { router } = await renderWithRouter(<ClosePage data={deleteData} />, "/account/close");
+    await userEvent.fill(page.getByLabelText("Password"), "correct horse");
+    await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
+    await expect.element(page.getByText("Something went wrong. Please try again.")).toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
+    await expect.poll(() => router.state.location.pathname).toBe("/account-deleted");
   });
 });

@@ -37,7 +37,7 @@ import { tamper, truncateAll } from "#/test/db";
 import { makeCustomer, makePolicy, makeQuote, makeStaff } from "#/test/factories";
 
 import { cancelClosure, requestClosure } from "./closure";
-import { deleteAccount } from "./delete";
+import { clearSessionCookies, deleteAccount } from "./delete";
 import type { AccountDeps } from "./emails";
 import { filesHook } from "./files";
 
@@ -135,6 +135,16 @@ async function withPolicy(userId: string) {
 }
 
 describe("deleteAccount", () => {
+  it("expires the session cookies after the delete, even though the session row is gone", async () => {
+    const auth = makeAuth();
+    const { cookie, actor } = await member(auth);
+    expect((await del(auth, actor, cookie)).ok).toBe(true);
+    const out = await clearSessionCookies(requestHeaders({ cookie }), auth as never);
+    const set = out.getSetCookie().join(" | ");
+    expect(set).toMatch(/session_token=;.*?Max-Age=0/i);
+    expect(set).toMatch(/session_data=;.*?Max-Age=0/i);
+  });
+
   it("removes a fresh sign-up and its rows, and tombstones the copied ones", async () => {
     const auth = makeAuth();
     const { user, cookie, actor } = await member(auth);

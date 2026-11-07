@@ -231,7 +231,19 @@ function ConfirmForm({
 
 function DeleteVersion({ data }: { data: Extract<ClosePageData, { kind: "delete" }> }) {
   const navigate = useNavigate();
+  // True once a delete call failed without an answer (a lost response). Only then can an
+  // UNAUTHENTICATED mean "the first try worked"; otherwise the session simply ended.
+  const lostResponse = useRef(false);
   const gone = () => void navigate({ to: "/account-deleted" });
+  async function run(input: Fields) {
+    try {
+      return await deleteMyAccount({ data: { input } });
+    } catch (thrown) {
+      const outcome = writeOutcome(thrown);
+      if (outcome.kind !== "sign_in") lostResponse.current = true;
+      throw thrown;
+    }
+  }
   return (
     <AuthShell
       topBar={backToAccount}
@@ -243,10 +255,13 @@ function DeleteVersion({ data }: { data: Extract<ClosePageData, { kind: "delete"
         twoFactor={data.twoFactor}
         submitLabel="Delete my account"
         submitVariant="danger"
-        run={(input) => deleteMyAccount({ data: { input } })}
+        run={run}
         onDone={gone}
-        // The account is already gone: the second click of a delete lands here
-        onSignedOut={gone}
+        onSignedOut={() =>
+          lostResponse.current
+            ? gone()
+            : void navigate({ to: "/login", search: { redirect: "/account/close" } })
+        }
       />
     </AuthShell>
   );

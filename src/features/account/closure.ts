@@ -94,7 +94,14 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
   .validator(confirmEnvelope)
   .handler(async ({ context, data }): Promise<WriteResult<{ deleted: true }>> => {
     const { deleteAccount } = await import("#/server/account/delete");
-    return deleteAccount(context.actor, data, { headers: getRequestHeaders() });
+    const headers = getRequestHeaders();
+    const result = await deleteAccount(context.actor, data, { headers });
+    if (result.ok) {
+      const { clearSessionCookies } = await import("#/server/account/delete");
+      // The session row went with the user; this expires the browser's cookies
+      await clearSessionCookies(headers).catch(() => undefined);
+    }
+    return result;
   });
 
 export const requestMyClosure = createServerFn({ method: "POST" })
