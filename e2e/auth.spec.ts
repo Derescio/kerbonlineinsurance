@@ -76,3 +76,32 @@ test("auth pages are never cached", async ({ request }) => {
     expect(response.headers()["cache-control"], path).toContain("no-store");
   }
 });
+
+// 4.6, frame 12. Needs a staff account on the deploy's database (`dev` for previews and staging)
+// that has a confirmed email, a password and two-factor OFF, in the E2E_STAFF_EMAIL and
+// E2E_STAFF_PASSWORD Actions secrets. Made with `auth:make-admin`, or reset with
+// `auth:reset-two-factor` if someone turned 2FA on for it.
+const staffEmail = process.env.E2E_STAFF_EMAIL ?? "";
+const staffPassword = process.env.E2E_STAFF_PASSWORD ?? "";
+
+test("a staff account without 2FA is sent to set up before any staff page", async ({ page }) => {
+  test.skip(
+    !staffEmail || !staffPassword,
+    "E2E_STAFF_EMAIL and E2E_STAFF_PASSWORD aren't set, so there's no staff account to sign in as",
+  );
+
+  await page.goto("/login");
+  await page.getByLabel("Email address").fill(staffEmail);
+  await page.getByLabel("Password").fill(staffPassword);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await page.goto("/staff");
+  await expect(page).toHaveURL(/\/account\/two-factor\?redirect=%2Fstaff$/);
+  await expect(page.getByRole("heading", { name: "Staff need two-factor" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Set up two-factor" })).toBeVisible();
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectNoSeriousAxeViolations(page);
+  }
+});

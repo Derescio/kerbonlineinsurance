@@ -1,6 +1,6 @@
 # 4.6 Two-factor authentication and sessions
 
-**Status:** approved by Damion, 6 Nov 2026
+**Status:** built (approved 6 Nov 2026; branch `slice/4.6-two-factor`, not yet merged; manual and staging checks still to do)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -195,23 +195,23 @@ These calls were settled after a builder read the draft against Better Auth 1.7.
 
 - **Approve the three missing Figma states**, which are designed first (see Screens).
 - **After the slice lands on staging, set up 2FA on your own admin account.** `/staff` will send you there. Keep the backup codes somewhere safe, such as a password manager. Losing both your phone and your backup codes means running `auth:reset-two-factor` against that database.
-- **No new environment variables.**
+- **No new environment variables for the app.** For the E2E staff test: a staff account with a password and 2FA off on `dev`, in the `E2E_STAFF_EMAIL` and `E2E_STAFF_PASSWORD` Actions secrets. Without them that test is skipped.
 
 ## Steps
 
 - [x] You approve this spec
-- [ ] The three missing Figma states, designed and approved
-- [ ] The audit action list, and `audit()`, the scripts and the staff reads on it
-- [ ] The migration, the plugin options and the rate-limit rules
-- [ ] The hooks (calls 4, 5, 7–11)
-- [ ] `Actor`, `requireUser`, `requirePermission`, `requireFresh` and the error codes
-- [ ] The guards and the screens
-- [ ] "Sign out everywhere" and `auth:reset-two-factor`
-- [ ] Docs:
+- [x] The three missing Figma states, designed and approved
+- [x] The audit action list, and `audit()`, the scripts and the staff reads on it
+- [x] The migration, the plugin options and the rate-limit rules
+- [x] The hooks (calls 4, 5, 7–11)
+- [x] `Actor`, `requireUser`, `requirePermission`, `requireFresh` and the error codes
+- [x] The guards and the screens
+- [x] "Sign out everywhere" and `auth:reset-two-factor`
+- [x] Docs:
   - engineering.md §7 (2FA, sessions, the action list)
   - `phase.md`
   - `build-plan.md`
-- [ ] `vp check`, `vp test`, `vp build`
+- [x] `vp check`, `vp test`, `vp build`
 - [ ] Your 2FA on `dev`, then a run on staging
 
 ## Tests
@@ -236,7 +236,7 @@ These calls were settled after a builder read the draft against Better Auth 1.7.
 
 - [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
 - [ ] On staging, your admin can't reach `/staff` without 2FA, and a Google sign-in is asked for its code.
-- [ ] Every `audit()` call names an action from `AUDIT_ACTIONS`.
+- [x] Every `audit()` call names an action from `AUDIT_ACTIONS`.
 
 ## Commit message
 
@@ -255,3 +255,58 @@ These calls were settled after a builder read the draft against Better Auth 1.7.
   - `plugins/two-factor/{index,verify-two-factor,totp/index,backup-codes/index}.mjs`
   - `api/routes/{session,password,update-session}.mjs`
   - `api/dispatch.mjs`, for hook order (our hooks run before the plugin's)
+
+## Results (6 Nov 2026, before the PR)
+
+Changes from the spec:
+- **`sign_in` after a password moved into `kerbTwoFactor()`**, a Kerb plugin registered straight after `twoFactor()`, instead of `hooks.after`. Call 10 assumed `twoFactor()` had already deleted the half-made session when our hook ran. It hadn't: Better Auth runs `hooks.before`/`hooks.after` from the options first, then plugin hooks in plugin order (`api/dispatch.mjs`), so the hook in `auth.ts` saw the doomed session and would have recorded a `sign_in` for it. The Sources line below ("our hooks run before the plugin's") states the same fact; call 10 drew the wrong conclusion from it. All the 4.6 hooks live in the plugin, the `/change-password` one included, so the hand-off between them has one owner.
+- **The allowlist also admits `/oauth-proxy-callback`** (with `/sign-in/social` and `/callback/*`), because previews finish a Google sign-in through the OAuth proxy, and call 5 lets the user sign in again with Google.
+- **The allowlist check falls back to the cookie-cached session when the database row is gone.** Without it, a session owing a code could call `/sign-out` (allowed), keep its old cookies and replay them: our database lookup found nothing and let the request through, and the endpoint then served the cached copy (for up to 5 minutes), so `/list-sessions` answered 200. A cached-only copy is refused like a live one and its wrong codes count towards the lockout, but it's never stamped.
+- **Extra refusals in the before hook:**
+  - a backup code can't confirm setup: `400 TWO_FACTOR_NOT_ENABLED`. Better Auth would accept one from the unconfirmed enrolment and the session would be stamped without 2FA being on.
+  - `disableSession: true` on either verify path: `400 DISABLE_SESSION_NOT_ALLOWED`. Kerb always wants the session a code makes or keeps.
+  - an error in our own lookups fails closed: logged by name, generic 500. In the `/sign-in/email` after hook a failed staff lookup counts as staff (no stamp, no tick box).
+- **Backup codes are ten `XXXXX-XXXXX` from `[A-Z0-9]`** (`customBackupCodesGenerate`). Better Auth's default mixes case (`t5BmW-RpUjm`) and compares exactly, so the form's upper-casing would have refused nearly every real code. About 51 bits per code. No account had 2FA before 4.6, so no existing codes break.
+- **Files split out, and why:**
+  - `src/server/auth/two-factor-events.ts`: the audit-key check, the `two_factor.disabled` row and the password-change stamp copy, to keep `two-factor.ts` near 450 lines.
+  - `src/features/auth/sign-in-state.ts`: `readSignInState`. While it sat in `guard.ts`, a dynamic import in a plain function shipped `actor`, `auth`, `client` and `schema` chunks to the browser. The server function's handler now imports it, and Start strips that body from the client.
+  - `src/features/auth/two-factor/gate.ts`: who may stay on `/login/two-factor`. In sign-in mode there's no session yet, only Better Auth's `two_factor` cookie, so a guest coming from the log-in form (`via=email`) stays and any other guest goes to `/login`. The route file is `login_.two-factor.tsx`, not nested under `/login`, whose guard reads the cached session.
+  - `signOutEverywhereNow(actor, headers?)` wraps `signOutEverywhere(db, …)` with `getDb()`, because lint bans the db client from `src/features/`. `signOutEverywhere` also takes `keys` (default `getAuditEnv()`) so the rollback test can pass bad ones.
+- **Two dependencies:** `uqr` (0.1.3) draws the QR code as SVG. `@better-auth/utils` (0.5.1) is a pinned devDependency for the test TOTP helper (pnpm's strict layout hides Better Auth's copy); a Better Auth bump needs it to follow Better Auth's own version.
+- **The E2E staff test needs a staff account** with a password and 2FA off on `dev`, in the `E2E_STAFF_EMAIL` and `E2E_STAFF_PASSWORD` Actions secrets (`e2e.yml` passes them through). Without them the test is skipped with that reason. Signed out, `/login/two-factor` lands on `/login` and `/account/two-factor` on `/login?redirect=…`, so their axe checks run there; the staff gate (12) is checked signed in, in the staff test.
+- **Smaller ones:**
+  - the plugin's `accountLockout` reads the shared constants (equal to its defaults), so both halves of the lockout use one value
+  - every wrong code records `two_factor_failed`, sign-in mode included; a used-up challenge or a lock refusal checked no code and records nothing
+  - the setup code records `two_factor_enabled` and `two_factor_passed` (`totp`)
+  - "no password" for call 7 is the plugin's own test (no credential account, or one with a null password)
+  - `auth:reset-two-factor` prints `Failed: <name> (<SQLSTATE>)` for an unexpected error, never its message, which can hold the email
+  - frame 13 takes an optional `description` (6.10 passes its own) and has a "Use a backup code" link the frame doesn't show
+  - `/account` has a "Two-factor" panel (On / Off, with "Set up two-factor") in the "Ways to log in" style; it wasn't designed in Figma
+
+What was built:
+- Server: `src/server/auth/two-factor.ts` (`kerbTwoFactor()`: the stamp, the allowlist, staff rules, passwordless freshness, the signed-in lockout, recording, the forced `revokeOtherSessions`), `two-factor-events.ts`, `two-factor-constants.ts`, `sessions.ts` (`signOutEverywhere`). `actor.ts`: `Actor.twoFactor`, `requireUser` and `requirePermission` with `TWO_FACTOR_CHALLENGE` and `TWO_FACTOR_REQUIRED`, `requireFresh` with `SESSION_NOT_FRESH`. `auth.ts`: the plugin options, the verify rate limits, the backup-code format. `src/server/audit/actions.ts` (`AUDIT_ACTIONS`, `AuditAction`), with `audit()` taking its entity type from it.
+- Schema: `drizzle/0011_normal_quasimodo.sql` (`sessions.two_factor_verified_at`; the new `security_events` types and methods); the data contract marks the column `drop`.
+- Scripts: `vp run auth:reset-two-factor <email>` (`scripts/reset-two-factor{,-core}.ts`); `make-admin-core.ts` on the action list.
+- Guards: `getSignInState`, `requireSignedIn` and `challengeRedirect` (`src/features/auth/guard.ts`); `getStaffAccess` answers `needs_two_factor` and `needs_code`; `/account` uses `requireSignedIn`.
+- Screens: `/login/two-factor` (09, both 09b states, 10), `/account/two-factor` (12, both versions of 11a, 11b with the mobile link first, 11c), `ConfirmDialog` (13). `signOutEverywhereFn` is ready for 6.3's button.
+- Docs: engineering.md §7 (Two-factor and sessions; the action list), `phase.md`, `build-plan.md`.
+- E2E: the staff-gate test with axe at 390 and 1440 px; `/login/two-factor` and `/account/two-factor` in `a11y.spec.ts`.
+- Tests: 935 passing (`vp test`, 68 files): 362 unit, 383 integration, 190 component. Integration covers the stamp in all three modes and `/update-session` refusing it; the allowlist (eight refused endpoints, the replayed cached cookie); staff rules; both freshness rules; the lockout across modes and the verify rate limit; every recorded event, the two audit rows and the chain; bad audit keys refusing `disable`; sign out everywhere (rollback, and the equivalence with `/revoke-sessions`); the password change and reset; `auth:reset-two-factor`; the guards. Unit covers the action list, the auth config, `requireFresh`, the codes and the challenge gate. Component covers frames 09–13.
+
+Known limits:
+- **The `two_factor.disabled` gap** (call 10): a database failure between Better Auth's write and ours turns 2FA off with a `two_factor_disabled` event but no `audit_log` row, which `verifyAuditChain` can't see. Bad keys are refused first, so this needs the database to fail mid-request.
+- **Parallel signed-in guesses can race the lock check:** several verifies can all pass the before hook before any is counted. The per-IP limit (10 per 15 minutes on each verify path) bounds it. The plugin's sign-in lockout has the same race.
+- **The cookie cache shows a null stamp for up to 5 minutes** after a code, because the `session_data` cookie is written before our after hook stamps. Nothing gates on it: the guards and the data layer use `getActor`.
+- **`/login`'s guard still uses the cached session**, so for up to 5 minutes after "sign out everywhere" on another device, a browser can bounce between `/login` and `/account`.
+- **Staff with no roles, and deactivated staff, are customers to the 2FA rules:** they can tick "Trust this device", get a trusted-device stamp and turn 2FA off. They can't reach anything staff can, and `requirePermission` asks for 2FA again if roles come back.
+- **Turning 2FA off with only an unconfirmed enrolment** (2FA already off) still records `two_factor_disabled` and writes a `two_factor.disabled` row. Harmless, slightly noisy.
+
+Still to do:
+- **Damion's manual walk on `dev`:** sign up, set up 2FA, sign out, sign in, the challenge, a backup code, the staff gate, and the Google `step=scan` round trip and the 10-minute window, which so far are covered only by mocks and integration tests. `0011` has to be on `dev` first (`vp run db:migrate`, or staging's build).
+- **Then his own 2FA on `dev`, and the staging check:** `/staff` asks for a code, then lets him in, and a Google sign-in is asked for its code.
+- **The E2E staff account:** a staff account with a password on `dev` (`auth:make-admin`), 2FA left off, and `E2E_STAFF_EMAIL` / `E2E_STAFF_PASSWORD` in the repo's Actions secrets.
+- **Follow-ups:**
+  - `auth:make-admin` prints a raw `Failed: <message>` and the email on success (pre-existing, 4.5; ruling R11). It should print as `auth:reset-two-factor` does.
+  - `safeRedirect` accepts `/\evil.example`, which browsers read as protocol-relative (pre-existing).
+  - The deferred minors from the task reviews that the final review didn't fix, listed here after it:
+  - Final review: <to be filled>

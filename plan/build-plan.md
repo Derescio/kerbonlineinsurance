@@ -39,7 +39,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 4.5 **Authorization layer**: permissions instead of role names, several roles per staff member, server middleware, scoped customer and staff reads, conflict-of-interest rule, make-admin script, permission suite
 - [x] 4.5b **Audit integrity and database security**: HMAC-chained `audit()` and `verifyAuditChain()` with versioned keys, `claim.viewed` / `referral.viewed` / `staff.added`, non-owner app role `kerb_app`, `db:check-app-role` (built, not yet merged)
 - [x] 4.5c **Safe write tools**: `withTx`, `withIdempotency`, shared `limit()` rate limiter, validation-error contract, `defineWrite`, form helpers (built, not yet merged)
-- [ ] 4.6 **2FA**: optional for customers, required for staff; sign out everywhere
+- [x] 4.6 **2FA**: optional for customers, required for staff; the Google challenge, fresh-session checks, sign out everywhere, a typed list of audit actions (built, not yet merged)
 - [ ] 4.7 **Privacy page + delete account**
 - [ ] 4.8 **Reference data**: vehicle catalogue (make → model → year → variant) and rating tables v1
 - [ ] 4.9 **Seed script** (synthetic, idempotent, all three products and bundles; 12 months backdated; every data-contract table filled)
