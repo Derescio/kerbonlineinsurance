@@ -1,6 +1,6 @@
 # 4.6 Two-factor authentication and sessions
 
-**Status:** built (approved 6 Nov 2026; branch `slice/4.6-two-factor`, not yet merged; manual and staging checks still to do)
+**Status:** done (merged as #59 on 7 Nov 2026; the walkthrough on `dev` and the staging checks passed the same day)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -212,7 +212,7 @@ These calls were settled after a builder read the draft against Better Auth 1.7.
   - `phase.md`
   - `build-plan.md`
 - [x] `vp check`, `vp test`, `vp build`
-- [ ] Your 2FA on `dev`, then a run on staging
+- [x] Your 2FA on `dev`, then a run on staging (Damion, 7 Nov 2026)
 
 ## Tests
 
@@ -234,8 +234,8 @@ These calls were settled after a builder read the draft against Better Auth 1.7.
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] On staging, your admin can't reach `/staff` without 2FA, and a Google sign-in is asked for its code.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on #59 (merged 7 Nov 2026).
+- [x] On staging, your admin can't reach `/staff` without 2FA, and a Google sign-in is asked for its code. Staging: the staff account was asked for its code before `/staff`, and a Google-only account whose sign-in was 13 minutes old was sent back to "Confirm it's you" before the QR code. The Google sign-in challenge was checked in the `dev` walkthrough.
 - [x] Every `audit()` call names an action from `AUDIT_ACTIONS`.
 
 ## Commit message
@@ -305,10 +305,12 @@ Known limits:
 - **Turning 2FA off with only an unconfirmed enrolment** (2FA already off) still records `two_factor_disabled` and writes a `two_factor.disabled` row. Harmless, slightly noisy.
 
 Still to do:
-- **Damion's manual walk on `dev`:** sign up, set up 2FA, sign out, sign in, the challenge, a backup code, the staff gate, and the Google `step=scan` round trip and the 10-minute window, which so far are covered only by mocks and integration tests. `0011` has to be on `dev` first (`vp run db:migrate`, or staging's build).
-- **Then his own 2FA on `dev`, and the staging check:** `/staff` asks for a code, then lets him in, and a Google sign-in is asked for its code.
-- **The E2E staff account:** a dedicated account on `dev` that signs up normally with a password and confirms its email, then `auth:make-admin` makes it staff. Leave its 2FA off, or the test fails rather than skips. Then `E2E_STAFF_EMAIL` / `E2E_STAFF_PASSWORD` in the repo's Actions secrets. The staff-gate E2E skips until they exist.
-- **Before applying `0011` on staging and production,** run `select count(*) from users where two_factor_enabled` and confirm it's 0. The upper-case backup-code format assumes no earlier enrolments.
+- ~~Damion's manual walk on `dev`~~ Done 7 Nov 2026: sign-up, setup, sign-in, the challenge, a backup code, the staff gate, the Google round trip and the reset script.
+- ~~His own 2FA and the staging check~~ Done 7 Nov 2026. The code challenge guards `/staff`, and the 10-minute rule sends a stale Google sign-in back to "Confirm it's you".
+  - **Found on staging:** `BETTER_AUTH_SECRET` differed between `.env.local` and Vercel's Staging, while both use Neon `dev`. Better Auth encrypts each TOTP secret with it, so an authenticator set up locally failed on staging with `invalid tag` (a 500, "Something went wrong on our side"). Fixed by giving Preview and Staging the local value. Every environment that shares a database must share one `BETTER_AUTH_SECRET` (engineering.md §2, `.env.example`), and production's must never be rotated once real users have 2FA.
+  - **Also found:** the dashboard redeploy after that change built from `main`, and staging stopped loading `/login`. A CLI redeploy of the last staging build (`vercel redeploy <url> --target staging`) fixed it; check `Branch: staging` in the build log.
+- ~~The E2E staff account~~ Done 7 Nov 2026: a dedicated staff account on `dev` with 2FA off, and both Actions secrets set. The staff-gate test runs once the E2E workflow runs from `main`.
+- ~~The `two_factor_enabled` count before `0011`~~ Confirmed 0 (Damion, 7 Nov 2026).
 - **Follow-ups:**
   - `auth:make-admin` prints a raw `Failed: <message>` and the email on success (pre-existing, 4.5; ruling R11). It should print as `auth:reset-two-factor` does.
   - `auth:make-admin` and 6.8's role grants should delete the user's sessions in the same transaction, so a session stamped without a code can't carry the new roles.

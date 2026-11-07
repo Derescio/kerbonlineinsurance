@@ -43,6 +43,7 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 | Development | `vp dev` | localhost | `dev` | — |
 
 - **Env vars:** set per environment in Vercel. Local `.env.local` comes from `vercel env pull` and is never committed.
+  - `BETTER_AUTH_SECRET` follows the database, not the environment: Development, Preview and Staging share `dev`, so they share one value, and Production has its own. Better Auth encrypts TOTP secrets with it (4.6), so a mismatch fails 2FA with `invalid tag`, and rotating it disables every enrolled authenticator.
 - **Separate API keys** (Anthropic, OpenAI, Resend) for production and for everything else. Spend then shows per environment, and a leaked preview key can't drain production.
 - **Function region:** London (`lhr1`), next to the Neon database.
 
