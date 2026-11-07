@@ -21,6 +21,8 @@ import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
+import { Route as SiteCookiesRouteImport } from './routes/_site/cookies'
+import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
@@ -86,6 +88,16 @@ const SiteIndexRoute = SiteIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SiteRoute,
 } as any)
+const SiteCookiesRoute = SiteCookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SitePrivacyRoute = SitePrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => SiteRoute,
+} as any)
 const StaffStaffRoute = StaffStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
@@ -132,6 +144,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
+  '/cookies': typeof SiteCookiesRoute
+  '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
@@ -150,6 +164,8 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/reset-password': typeof AuthResetPasswordRoute
   '/signup': typeof AuthSignupRoute
+  '/cookies': typeof SiteCookiesRoute
+  '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
@@ -171,6 +187,8 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
   '/_auth/signup': typeof AuthSignupRoute
+  '/_site/cookies': typeof SiteCookiesRoute
+  '/_site/privacy': typeof SitePrivacyRoute
   '/_staff/staff': typeof StaffStaffRoute
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
@@ -192,6 +210,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/cookies'
+    | '/privacy'
     | '/staff'
     | '/account/close'
     | '/account/two-factor'
@@ -210,6 +230,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/cookies'
+    | '/privacy'
     | '/staff'
     | '/account/close'
     | '/account/two-factor'
@@ -230,6 +252,8 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/reset-password'
     | '/_auth/signup'
+    | '/_site/cookies'
+    | '/_site/privacy'
     | '/_staff/staff'
     | '/account_/close'
     | '/account_/two-factor'
@@ -339,6 +363,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteIndexRouteImport
       parentRoute: typeof SiteRoute
     }
+    '/_site/cookies': {
+      id: '/_site/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof SiteCookiesRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/privacy': {
+      id: '/_site/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof SitePrivacyRouteImport
+      parentRoute: typeof SiteRoute
+    }
     '/_staff/staff': {
       id: '/_staff/staff'
       path: '/staff'
@@ -414,10 +452,14 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface SiteRouteChildren {
+  SiteCookiesRoute: typeof SiteCookiesRoute
+  SitePrivacyRoute: typeof SitePrivacyRoute
   SiteIndexRoute: typeof SiteIndexRoute
 }
 
 const SiteRouteChildren: SiteRouteChildren = {
+  SiteCookiesRoute: SiteCookiesRoute,
+  SitePrivacyRoute: SitePrivacyRoute,
   SiteIndexRoute: SiteIndexRoute,
 }
 

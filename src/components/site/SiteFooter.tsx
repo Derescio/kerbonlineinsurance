@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 import { Wordmark } from "#/components/display/Wordmark";
 
@@ -46,14 +46,27 @@ function FooterGroup({ title, links }: { title: string; links: SiteLink[] }) {
 }
 
 /** Reopens the cookie choice bar (3.6). Only there while PostHog is running. */
-function CookieSettings() {
+export function CookieSettings() {
+  return <CookieSettingsButton>{(button) => <li>{button}</li>}</CookieSettingsButton>;
+}
+
+/**
+ * The "Cookie settings" button on its own, for /cookies. It renders nothing while PostHog isn't
+ * running (the page says so instead). `children` wraps it, so the footer can put it in a list item.
+ */
+export function CookieSettingsButton({
+  className = "site-footer__settings",
+  children,
+}: {
+  className?: string;
+  children?: (button: ReactNode) => ReactNode;
+}) {
   const consent = useConsent();
   if (!consent) return null;
-  return (
-    <li>
-      <button type="button" className="site-footer__settings" onClick={consent.reopen}>
-        Cookie settings
-      </button>
-    </li>
+  const button = (
+    <button type="button" className={className} onClick={consent.reopen}>
+      Cookie settings
+    </button>
   );
+  return children ? children(button) : button;
 }
