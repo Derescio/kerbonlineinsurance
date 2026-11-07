@@ -126,7 +126,10 @@ export function PrivacyNotice() {
               <td>Until you delete or close the account</td>
             </tr>
             <tr>
-              <td>Insurance records (policies, payments, claims)</td>
+              <td>
+                Insurance records (policies, claims, payments and bundles), and the customer details
+                attached to them
+              </td>
               <td>{RETENTION.insuranceRecordsYears} years after your account closes</td>
             </tr>
             <tr>
@@ -168,19 +171,22 @@ export function PrivacyNotice() {
         </p>
         <ul>
           <li>
-            <strong>Nothing on file.</strong> If you have no policies, payments or claims, your
-            account and everything in it is deleted straight away.
+            <strong>Nothing on file.</strong> If you have never had a policy, a payment or a bundle
+            with us, your account and everything in it is deleted straight away.
           </li>
           <li>
             <strong>Insurance records on file.</strong> Your account closes after{" "}
             {CLOSURE_WINDOW_DAYS} days, and you can change your mind any time before then. If you
             have an open claim, the account closes once that claim is settled. When it closes, we
             delete your sign-in details (password, Google link, sessions, two-factor and any reset
-            links), your notifications, your reviews, and any draft claims and quotes you never
-            bought. The login email and name on the account are replaced, so the account can&rsquo;t
-            be used again. We keep your customer record (name, address and date of birth), policies,
-            claims, payments, and the security and audit history for the periods in the table above,
-            because we must keep insurance records.
+            links), your notifications, your reviews, any draft claims, and any quotes you never
+            bought, unless a payment or a bundle is linked to the quote. The login email and name on
+            the account are replaced, so the account can&rsquo;t be used again. Because we must keep
+            insurance records, we keep your policies, claims, payments, bundles and the quotes they
+            belong to, and the customer details attached to them (name, address and date of birth)
+            for {RETENTION.insuranceRecordsYears} years after your account closes. Sign-in and
+            account-security events are kept as the table above says, and the audit history of
+            changes to your account and records is kept too.
           </li>
         </ul>
       </section>

@@ -50,8 +50,36 @@ describe("PrivacyNotice", () => {
     await expect
       .element(page.getByText(`${CLOSURE_WINDOW_DAYS} days`, { exact: false }).first())
       .toBeVisible();
-    await expect.element(page.getByText(/customer record/).first()).toBeVisible();
     await expect.element(page.getByText(/Automatic deletion is not in place yet/)).toBeVisible();
+  });
+
+  it("states the closure rules as they are: policy, payment or bundle, and which quotes stay", async () => {
+    await render(<PrivacyNotice />);
+    const closing = page.getByRole("region", { name: "Closing your account" });
+    // Records on file are a policy, a payment or a bundle (4.7 decision 2), not claims
+    await expect
+      .element(closing.getByText(/never had a policy, a payment or a bundle/))
+      .toBeVisible();
+    await expect
+      .element(closing.getByText(/no policies, payments or claims/))
+      .not.toBeInTheDocument();
+    // An unbought quote with a payment or a bundle is kept (call 9)
+    await expect
+      .element(closing.getByText(/quotes you never bought, unless a payment or a bundle/))
+      .toBeVisible();
+    // Insurance records and the customer details on them, for the insurance-records period
+    await expect
+      .element(
+        closing.getByText(
+          new RegExp(
+            `customer details attached to them \\(name, address and date of birth\\) for ${RETENTION.insuranceRecordsYears} years`,
+          ),
+        ),
+      )
+      .toBeVisible();
+    await expect
+      .element(closing.getByText(/for the periods in the table above/))
+      .not.toBeInTheDocument();
   });
 
   it("links to closing the account and to the cookies page, the ICO, and says when it changed", async () => {
