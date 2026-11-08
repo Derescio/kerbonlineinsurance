@@ -2,6 +2,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 
+import { emptyDatabase } from "../../scripts/reset-dev-core.ts";
+
 import { TEST_DATABASE_URL } from "./db";
 
 // Global setup for the `integration` project: every run starts from an empty database with all
@@ -20,9 +22,8 @@ export default async function setup(): Promise<void> {
     );
   }
   try {
-    await client.query("drop schema if exists drizzle cascade");
-    await client.query("drop schema if exists public cascade");
-    await client.query("create schema public");
+    // The same reset as `vp run db:reset-dev` (plan/dev-database.md), so that path runs every time
+    await emptyDatabase(client);
     await migrate(drizzle({ client }), { migrationsFolder: "drizzle" });
     // The migration creates kerb_app without LOGIN (each Neon branch sets its password by hand).
     // The password is public on purpose: the role exists only in the Docker and CI test databases.

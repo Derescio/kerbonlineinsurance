@@ -213,7 +213,7 @@ Integration tests that need policies and claims insert them as fixtures directly
 
 - [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#61, after the cold-cache fix in Results).
 - [x] On staging, a fresh sign-up deletes itself and the `account.deleted` row is there, and the audit chain verifies. Damion, 8 Nov 2026: `account.deleted` for the new user was the newest `audit_log` row on `dev`, `vp run db:check-app-role` passed every check including "audit chain verifies", and logging in again with that email gave "That email and password don't match."
-- [ ] A fixture account with a settled claim closes after `account:run-closures` with `NOW=` 31 days on; one with an open claim is held. **Moved to 4.9** (Damion, 8 Nov 2026): nothing can buy a policy until Phase 5, so no real account can reach day 30, and the logic is covered by the `runClosures` integration tests. 4.9's seed creates policies and claims in several states, so the check runs there against seeded accounts.
+- [x] A fixture account with a settled claim closes after `account:run-closures` with `NOW=` 31 days on; one with an open claim is held. **Moved to 4.9** (Damion, 8 Nov 2026): nothing can buy a policy until Phase 5, so no real account can reach day 30, and the logic is covered by the `runClosures` integration tests. 4.9's seed creates policies and claims in several states, so the check runs there against seeded accounts.
 - [x] `/privacy` names OpsEd Solutions, `privacy@`, and PostHog, and links to the cookie settings.
 
 ## Commit message
