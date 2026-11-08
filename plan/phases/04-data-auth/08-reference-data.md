@@ -1,6 +1,6 @@
 # 4.8 Reference data
 
-**Status:** spec, awaiting Damion's approval
+**Status:** approved (Damion, 8 Nov 2026); built on `feat/4.8-reference-data`, PR not yet opened
 **Phase:** 04-data-auth
 
 ## Goal
@@ -492,16 +492,16 @@ The bands in these rows (Leeds 5, Hackney 9 for car, and so on) are targets for 
 
 ## Steps
 
-- [ ] You approve this spec
-- [ ] Migration: the six tables, the two new columns, the contract entries, the triggers and the revokes; `db:check-app-role` updated
-- [ ] Rating sources v1 (car, home, business) with their Zod validation and `contentHash()`
-- [ ] Postcode bands for all 121 areas, each with its one-line reason
-- [ ] Catalogue sources, make by make, with the groups and new prices sourced; `expandCatalogue()` and its tests
-- [ ] `upsertReferenceData`, the readers, the memo cache and their tests
-- [ ] `db:reference` and the `db:deploy` change
-- [ ] `calibration.ts` with the example people
-- [ ] Docs
-- [ ] `vp check`, `vp test`, `vp build`
+- [x] You approve this spec
+- [x] Migration: the six tables, the two new columns, the contract entries, the triggers and the revokes; `db:check-app-role` updated
+- [x] Rating sources v1 (car, home, business) with their Zod validation and `contentHash()`
+- [x] Postcode bands for all 121 areas, each with its one-line reason
+- [x] Catalogue sources, make by make, with the groups and new prices sourced; `expandCatalogue()` and its tests
+- [x] `upsertReferenceData`, the readers, the memo cache and their tests
+- [x] `db:reference` and the `db:deploy` change
+- [x] `calibration.ts` with the example people
+- [x] Docs
+- [x] `vp check`, `vp test`, `vp build`
 - [ ] Staging: the build log shows the upsert; in Neon, `rating_versions` has three `active` v1 rows and `vehicle_catalogue` has its rows; a second deploy logs "no changes"
 
 ## Tests

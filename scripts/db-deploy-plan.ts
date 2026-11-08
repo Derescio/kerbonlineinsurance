@@ -22,5 +22,8 @@ export function planDeploy(env: Record<string, string | undefined>): DeployPlan 
       message: `db:deploy: DATABASE_URL_UNPOOLED is not set for ${target} (Neon's direct connection string)`,
     };
   }
-  return { action: "migrate", message: `db:deploy: applying migrations for ${target}` };
+  return {
+    action: "migrate",
+    message: `db:deploy: applying migrations and reference data for ${target}`,
+  };
 }

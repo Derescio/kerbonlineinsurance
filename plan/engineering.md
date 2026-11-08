@@ -65,7 +65,11 @@ hotfix/x ──PR──▶ main, then merge main back into staging
 - **The app role:** `0010_app_role` creates `kerb_app` without login rights; a one-line `ALTER ROLE kerb_app WITH LOGIN PASSWORD '…'` in Neon's SQL editor turns it on (Neon's console would make the role a `neon_superuser` member, which can write every table). Default privileges give new tables `kerb_app`'s grants (`SELECT`, `INSERT`, `UPDATE`, `DELETE`), and `src/server/db/app-role.int.test.ts` lists every table's expected grants, so a table that needs tighter rules fails the test until it's listed. `vp run db:check-app-role` checks a branch (§7).
 
 - **Backward-compatible migrations (expand/contract):** add the column or table, backfill, switch the code over, and only drop the old part in a later release. Vercel keeps serving the old deployment while the new one builds.
-- **Reference data** (vehicle catalogue, rating tables) comes from an idempotent upsert script, versioned by `rating_version`.
+- **Reference data** (vehicle catalogue, rating tables; 4.8): `scripts/reference-data.ts` (`vp run db:reference`) runs after a successful migrate on the same builds, as the owner. Sources are typed files under `src/server/reference/`, validated before anything is written; it's safe to run twice or from two builds at once (advisory lock).
+  - **A rating version never changes once in the database.** Each stores a `content_hash`; a deploy that finds the same version with different tables fails the build ("car v1 … add v2 instead"). A new version retires the active one in the same transaction.
+  - **Catalogue rows are corrected in place, never deleted.** A variant dropped from the source is set `is_active = false`, so quotes that link to it still join.
+  - **`kerb_app` can only read** the six reference tables (`0015`); `vp run db:check-app-role` checks it.
+  - Locally, run `vp run db:reference` after `vp run db:migrate`.
 - **Rollback:**
   - Code: Vercel Instant Rollback.
   - Data: Neon point-in-time restore on `prod`.
@@ -123,7 +127,7 @@ The aim: fast for every visitor, and cheap and stable under a spike from the vid
 | **Rendering** | SSR everywhere. Public pages with no user content (landing, privacy) are CDN-cached instead of prerendered: a prerendered file bakes in one CSP nonce and is served without the CSP header (3.4). Automatic route-level code splitting; intent preloading on links. | 3.x, 5.1 |
 | **CDN caching** | Public pages (landing, `/reviews`): `s-maxage` + `stale-while-revalidate`. The cache time comes from **one setting**, `PUBLIC_CACHE_SECONDS` (default `300` = 5 min); set it to `1800` in Vercel for 30 min and redeploy, with no code change. It's read only by `publicCacheHeaders()` in `src/server/cache.ts`. Vehicle catalogue and postcode APIs: long public cache. Account, quote and Kerbie: `private, no-store`. | 3.4, 5.2, 6.9 |
 | **Client data** | TanStack Query with `staleTime` per data type (reference data: never stale; account: short); optimistic updates in settings | 5.1, 6.3 |
-| **Server memory** | Vehicle catalogue and rating tables cached in module scope per function instance, keyed by `rating_version`. They're immutable, so never stale. | 4.8, 5.4 |
+| **Server memory** | Vehicle catalogue and rating tables cached in module scope per function instance (`src/server/data/reference.ts`): rating tables keyed by rating version id, which never changes; the catalogue loaded once, since it only changes in a deploy. Cached objects are frozen. The active version is looked up each time, so a new one takes effect at once. | 4.8, 5.4 |
 | **External calls** | postcodes.io results stored in a `postcode_areas` table, so each postcode is looked up once | 5.2 |
 | **Database** | Neon pooled connection + node-postgres pool (`attachDatabasePool`, Fluid compute); indexes on foreign keys and hot filters (`user_id`, `status`, `created_at`); paginated lists; relational queries (no N+1) | 4.1, 4.2 |
 | **Review photos** | Served via `/media/r/:fileId` with `public, max-age=31536000, immutable`; Vercel's CDN caches them, and R2 has no egress fees | 6.9 |

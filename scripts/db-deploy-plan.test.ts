@@ -6,9 +6,10 @@ const url = "postgres://user:pass@example.neon.tech/neondb";
 
 describe("planDeploy", () => {
   test.each(["production", "staging"])("migrates for %s", (target) => {
-    expect(planDeploy({ VERCEL_TARGET_ENV: target, DATABASE_URL_UNPOOLED: url }).action).toBe(
-      "migrate",
-    );
+    expect(planDeploy({ VERCEL_TARGET_ENV: target, DATABASE_URL_UNPOOLED: url })).toEqual({
+      action: "migrate",
+      message: `db:deploy: applying migrations and reference data for ${target}`,
+    });
   });
 
   test.each([["preview"], ["development"], [undefined]])("skips for %s", (target) => {
