@@ -61,6 +61,9 @@ try {
     for (const [table, n] of Object.entries(result.counts)) console.log(`  ${table} ${n}`);
     if (result.action === "seeded") {
       console.log(`Staff 2FA: add this to your authenticator app:\n  ${result.totpUri}`);
+      for (const [email, codes] of Object.entries(result.backupCodes)) {
+        console.log(`Backup codes for ${email}: ${codes.join(" ")}`);
+      }
     }
   } catch (error) {
     code = 1;

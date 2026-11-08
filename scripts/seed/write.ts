@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID } from "node:crypto";
 
 import { desc, getTableColumns, getTableName, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -25,7 +25,7 @@ import { RATING_SOURCES } from "#/server/reference/rating/index";
 
 import { generateSeed } from "./generate.ts";
 import type { SeedConfig } from "./guard.ts";
-import { Rng, SEED, SEED_FROM } from "./random.ts";
+import { SEED_FROM } from "./random.ts";
 import type { SeedContext, SeedPlan } from "./types.ts";
 
 // Writes a generated seed to the database as the owner (4.9, calls 11, 14, 15): all of it in one
@@ -35,7 +35,13 @@ import type { SeedContext, SeedPlan } from "./types.ts";
 
 export type SeedResult =
   | { action: "already_seeded"; counts: Record<string, number> }
-  | { action: "seeded"; counts: Record<string, number>; totpUri: string };
+  | {
+      action: "seeded";
+      counts: Record<string, number>;
+      totpUri: string;
+      /** Each staff member's backup codes, by email: nobody else can know them */
+      backupCodes: Record<string, string[]>;
+    };
 
 export class SeedNotReady extends Error {
   constructor() {
@@ -193,8 +199,10 @@ export async function seedDatabase(db: Db, opts: SeedOptions): Promise<SeedResul
       sql`select coalesce(max(substring(staff_code from 3)::int), 0) as n from staff_members`,
     );
     let code = Number(next.rows[0]!.n);
-    const codeRng = new Rng(SEED).fork("backup-codes");
+    const staffCodes: Record<string, string[]> = {};
     for (const u of staff) {
+      const codes = backupCodes();
+      staffCodes[u.email] = codes;
       await tx.insert(schema.staffMembers).values({
         userId: u.id,
         displayName: u.staff!.displayName,
@@ -210,8 +218,11 @@ export async function seedDatabase(db: Db, opts: SeedOptions): Promise<SeedResul
         id: randomUUID(),
         userId: u.id,
         secret: encryptedSecret,
-        // Plain JSON: Kerb's twoFactor() has no storeBackupCodes option, so that's how it reads them
-        backupCodes: JSON.stringify(backupCodes(codeRng)),
+        // Encrypted, as twoFactor() stores them by default (storeBackupCodes: "encrypted")
+        backupCodes: await symmetricEncrypt({
+          key: opts.config.authSecret,
+          data: JSON.stringify(codes),
+        }),
         verified: true,
       });
     }
@@ -237,6 +248,7 @@ export async function seedDatabase(db: Db, opts: SeedOptions): Promise<SeedResul
     return {
       action: "seeded",
       counts: await seedCounts(tx),
+      backupCodes: staffCodes,
       totpUri: `otpauth://totp/Kerb:${encodeURIComponent(handler.email)}?secret=${base32(opts.config.totpSecret)}&issuer=Kerb`,
     };
   });
@@ -307,11 +319,14 @@ async function writeAudit(
   for (const row of rows) await tx.insert(schema.auditLog).values(row);
 }
 
-/** Ten XXXXX-XXXXX codes, the form Kerb's twoFactor() makes (capitals and digits) */
-function backupCodes(rng: Rng): string[] {
+/**
+ * Ten XXXXX-XXXXX codes, the form Kerb's twoFactor() makes (capitals and digits). Truly random,
+ * not from the seed's PRNG: the seed is in the repo, and these are a second factor on staging.
+ */
+function backupCodes(): string[] {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: 10 }, () => {
-    const code = Array.from({ length: 10 }, () => rng.pick(chars.split(""))).join("");
+    const code = Array.from({ length: 10 }, () => chars[randomInt(chars.length)]).join("");
     return `${code.slice(0, 5)}-${code.slice(5)}`;
   });
 }

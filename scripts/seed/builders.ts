@@ -588,6 +588,11 @@ export class SeedBuilder {
     this.payments(rng, quote, at, plan);
 
     return quote.items.map((item) => {
+      // Bought after the start date the quote offered: cover starts the next day
+      if (item.startDate < at) {
+        item.startDate = addDays(at, 1);
+        Object.assign(item.row, { startDate: isoDate(item.startDate), updatedAt: at });
+      }
       const id = uuidv7At(at, rng);
       const excessPence = item.option.compulsoryExcessPence + item.voluntaryExcessPence;
       const row: SeedPlan["policies"][number] = {
@@ -732,7 +737,10 @@ export class SeedBuilder {
     const other = incidentType === "collision" && rng.chance(0.6);
     const claimed = opts.claimedAmountPence ?? CLAIM_AMOUNTS[incidentType]!(rng);
     Object.assign(row, {
-      incidentAt: addDays(at, -rng.int(1, 5)),
+      // Never before cover started
+      incidentAt: new Date(
+        Math.max(addDays(at, -rng.int(1, 5)).getTime(), policy.startsOn.getTime()),
+      ),
       incidentLocation: `${rng.pick(LOCATIONS)}, ${policy.customer.postcode.split(" ")[0]}`,
       description: opts.description ?? rng.pick(DESCRIPTIONS[incidentType]!),
       declarationAcceptedAt: at,

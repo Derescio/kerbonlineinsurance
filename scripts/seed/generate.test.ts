@@ -130,6 +130,19 @@ describe("generateSeed", () => {
     }
   });
 
+  it("keeps cause before effect at full size: bought before cover starts, cover before incidents", () => {
+    const full = generateSeed(context(2000));
+    const policyById = new Map(full.policies.map((p) => [p.id, p]));
+    for (const p of full.policies) {
+      expect(p.startsOn! >= p.createdAt!.toISOString().slice(0, 10), p.reference).toBe(true);
+    }
+    for (const c of full.claims) {
+      if (!c.incidentAt) continue;
+      const policy = policyById.get(c.policyId)!;
+      expect(c.incidentAt.toISOString().slice(0, 10) >= policy.startsOn!, c.reference).toBe(true);
+    }
+  });
+
   it("uses the 9-range references", () => {
     for (const q of plan.quotes) expect(q.reference).toMatch(/^KRB-Q-9[0-9]{4}$/);
     for (const p of plan.policies) expect(p.reference).toMatch(/^KRB-9[0-9]{5}$/);

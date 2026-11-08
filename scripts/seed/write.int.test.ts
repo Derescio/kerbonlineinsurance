@@ -74,14 +74,35 @@ describe("a seeded database", () => {
     expect(Number(rows[0]!.n)).toBe(0);
   });
 
-  it("stores the staff backup codes the way Better Auth reads them", async () => {
-    const rows = await getOwnerDb().select({ codes: twoFactors.backupCodes }).from(twoFactors);
-    expect(rows).toHaveLength(2);
-    for (const row of rows) {
-      const codes = JSON.parse(row.codes) as string[];
-      expect(codes).toHaveLength(10);
-      for (const code of codes) expect(code).toMatch(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/);
-    }
+  it("lets the handler sign in with one of the printed backup codes", async () => {
+    if (first.action !== "seeded") throw new Error("not seeded");
+    const email = castEmail(inbox, "handler");
+    const codes = first.backupCodes[email]!;
+    expect(codes).toHaveLength(10);
+    for (const code of codes) expect(code).toMatch(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/);
+    expect(await getOwnerDb().select().from(twoFactors)).toHaveLength(2);
+
+    const auth = makeAuth();
+    const signIn = await signInWithPassword(auth, email);
+    expect(await signIn.json()).toMatchObject({ twoFactorRedirect: true });
+    const verify = await post(
+      auth,
+      "/two-factor/verify-backup-code",
+      { code: codes[0] },
+      { cookie: sessionCookie(signIn) },
+    );
+    expect(verify.status).toBe(200);
+  });
+
+  it("still says already seeded after the closure walkthrough scrubs cast users", async () => {
+    // As 4.7's closeAccountRows leaves a closed user: is_synthetic stays, the rest is scrubbed
+    await getOwnerDb()
+      .update(users)
+      .set({ email: sql`'closed+' || ${users.id} || '@closed.invalid'`, name: "Closed account" })
+      .where(eq(users.email, castEmail(inbox, "closure-settled")));
+    const before = await seedCounts(getOwnerDb());
+    expect((await seedDatabase(getOwnerDb(), opts)).action).toBe("already_seeded");
+    expect(await seedCounts(getOwnerDb())).toEqual(before);
   });
 
   it("lets a cast customer sign in with SEED_PASSWORD", async () => {
