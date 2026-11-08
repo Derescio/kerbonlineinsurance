@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { expandCatalogue } from "../catalogue/expand";
+import { CATALOGUE_SOURCES } from "../catalogue/index";
 import { CALIBRATION_PEOPLE } from "./calibration";
 import { RATING_SOURCES } from "./index";
 import type { RatingSource } from "./types";
@@ -81,6 +83,28 @@ describe("CALIBRATION_PEOPLE", () => {
       const { minPence, maxPence, handPence } = person.expected;
       expect(handPence, person.id).toBeGreaterThanOrEqual(minPence);
       expect(handPence, person.id).toBeLessThanOrEqual(maxPence);
+    }
+  });
+
+  it("prices each car person on a real catalogue row with its stated group", () => {
+    const rows = expandCatalogue(CATALOGUE_SOURCES);
+    for (const person of CALIBRATION_PEOPLE.filter((p) => p.product === "car")) {
+      const vehicle = person.inputs.vehicle as {
+        make: string;
+        model: string;
+        year: number;
+        variant: string;
+        insuranceGroup: number;
+      };
+      const row = rows.find(
+        (r) =>
+          r.make === vehicle.make &&
+          r.model === vehicle.model &&
+          r.year === vehicle.year &&
+          r.variant === vehicle.variant,
+      );
+      expect(row, `${person.id} ${vehicle.make} ${vehicle.model} ${vehicle.variant}`).toBeDefined();
+      expect(row!.insuranceGroup, person.id).toBe(vehicle.insuranceGroup);
     }
   });
 });

@@ -96,7 +96,7 @@ Unique `(make, model, year, variant)`, which is also the upsert key, so ids neve
 
 - **Years:** 2012 to 2026, only for the years each variant was actually sold.
 - **Variants:** three to five real trims per model and generation, covering the engine and trim mix people actually buy.
-- **Expected size:** about 2,000–3,000 rows.
+- **Size:** 1,546 rows across 43 models (built 8 Nov 2026; the first estimate was 2,000–3,000).
 
 **Everyday models (41).** Chosen from SMMT's 2025 best-sellers and the DVLA/SMMT list of the most common cars on the road:
 
@@ -434,11 +434,11 @@ Prices include IPT. The hand calculations use the v1 numbers above. "Target" is 
 | # | Who | Hand calculation | Lands at | Target |
 |---|---|---|---|---|
 | C1 | Priya, 45, teacher (B), Leeds `LS` (band 5), 2019 Focus 1.0 EcoBoost Titanium (group 14), 12 years no claims, 8,000 miles, commuting, driveway, £250 voluntary excess, Comprehensive | 460 × 1.00 × 1.07 × 0.95 × 0.9785 × 0.97 × 0.95 = £421.6 | **£472** | £420–£650 |
-| C2 | Jordan, 19, student (D), Hackney `E` (band 9), 2018 Fiesta 1.1 Zetec (group 6), 0 no claims, licence 1 year, 6,000 miles, social, street, no voluntary excess | 460 × 2.00 × 1.55 × 1.08 × 0.8221 × 1.50 × 1.12 × 0.95 × 1.08 × 0.97 = £2,117 | **£2,371** | £1,900–£2,600 |
-| C3 | Margaret, 67, retired (A), Exeter `EX` (band 2), 2016 Yaris 1.33 Icon (group 9), 15 years no claims, 4,000 miles, social, garage, £250 voluntary excess | 460 × 0.84 × 0.90 × 0.92 × 0.8776 × 0.95 × 0.95 × 0.95 × 0.95 × 0.97 = £221.8 → minimum £225 | **£252** (at the floor) | £250–£400 |
-| C4 | Dev, 35, software developer (A), Bristol `BS` (band 5), 2023 Tesla Model Y Long Range (group 40), 8 years no claims, 12,000 miles, commuting, driveway, £250 voluntary excess | 460 × 1.06 × 1.07 × 0.92 × 1.7229 × 1.08 × 1.01 × 1.04 × 0.97 × 0.95 = £864.5 | **£968** | £800–£1,300 |
+| C2 | Jordan, 19, student (D), Hackney `E` (band 9), 2018 Fiesta 1.1 Zetec (group 5, published), 0 no claims, licence 1 year, 6,000 miles, social, street, no voluntary excess | 460 × 2.00 × 1.55 × 1.08 × 0.8044 × 1.50 × 1.12 × 0.95 × 1.08 × 0.97 = £2,071 | **£2,320** | £1,900–£2,600 |
+| C3 | Margaret, 67, retired (A), Exeter `EX` (band 2), 2016 Yaris 1.33 Icon (group 10, published), 15 years no claims, 4,000 miles, social, garage, £250 voluntary excess | 460 × 0.84 × 0.90 × 0.92 × 0.8969 × 0.95 × 0.95 × 0.95 × 0.95 × 0.97 = £226.7 | **£254** (just above the £225 minimum) | £250–£400 |
+| C4 | Dev, 35, software developer (A), Bristol `BS` (band 5), 2025 Tesla Model Y Long Range RWD (group 39 after Thatcham's 2025 reassessment), 8 years no claims, 12,000 miles, commuting, driveway, £250 voluntary excess | 460 × 1.06 × 1.07 × 0.92 × 1.6859 × 1.08 × 1.01 × 1.04 × 0.97 × 0.95 × 1.04 (vehicle age 1) = £879.8 | **£985** | £800–£1,300 |
 | C5 | Alex, 22, Manchester, 2021 BMW M3 Competition (group 50) | under 25 and group 40+ | **declined** | declined |
-| C6 | Sam, 52, Guildford, 2020 Porsche 911 Carrera (group 50, about £75k) | group 45+ | **referred** | referred |
+| C6 | Sam, 52, Guildford, 2020 Porsche 911 Carrera S PDK (group 50) | group 45+ | **referred** | referred |
 | H1 | 3-bed semi in Leeds, built 1965, rebuild £240k, contents £45k, multipoint locks, smoke alarm, no burglar alarm, Comprehensive; buildings band 4, contents band 6 | buildings 240 × 0.75 × 1.03 = £185.4; contents 45 × 1.90 × 1.15 × 0.95 = £93.4 | **£312** | £250–£400 |
 | H2 | 2-bed flat in Hackney, built 1990, rebuild £150k, contents £30k, alarm, multipoint; buildings band 6, contents band 9 | buildings 150 × 0.75 × 0.85 × 1.15 = £110.0; contents 30 × 1.90 × 1.55 × 0.95 × 0.95 × 0.95 (alarm, multipoint, 2 bedrooms) = £75.7 | **£208** | £180–£320 |
 | H3 | 4-bed detached near Shrewsbury, built 1890, rebuild £450k, contents £80k, standard locks; buildings band 7 (Severn flood), contents band 2 | buildings 450 × 0.75 × 1.05 × 1.25 × 1.25 = £553.7; contents 80 × 1.90 × 0.90 × 1.05 × 1.06 = £152.3 | **£790** | £600–£1,000 |

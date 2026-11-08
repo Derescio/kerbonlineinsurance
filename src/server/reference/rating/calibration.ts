@@ -61,7 +61,7 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
     id: "C2",
     product: "car",
     inputs: {
-      vehicle: vehicle("Ford", "Fiesta", 2018, "1.1 Zetec 5dr", 6),
+      vehicle: vehicle("Ford", "Fiesta", 2018, "1.1 Zetec 5dr", 5),
       driver: { age: 19, occupation: "student", licenceYears: 1, noClaimsYears: 0, pastClaims: 0 },
       postcodeArea: "E",
       annualMileage: 6_000,
@@ -71,14 +71,14 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
       coverLevel: "comprehensive",
     },
     lookupKeys: ["occupation:student", "postcode_area:E"],
-    // 460 × 2.00 × 1.55 × 1.08 × 0.8221 × 1.50 × 1.12 × 0.95 × 1.08 × 0.97 = £2,116.88, + IPT
-    expected: { outcome: "quoted", minPence: 190_000, maxPence: 260_000, handPence: 237_091 },
+    // 460 × 2.00 × 1.55 × 1.08 × 0.8044 × 1.50 × 1.12 × 0.95 × 1.08 × 0.97 = £2,071.30, + IPT
+    expected: { outcome: "quoted", minPence: 190_000, maxPence: 260_000, handPence: 231_986 },
   },
   {
     id: "C3",
     product: "car",
     inputs: {
-      vehicle: vehicle("Toyota", "Yaris", 2016, "1.33 VVT-i Icon 5dr", 9),
+      vehicle: vehicle("Toyota", "Yaris", 2016, "1.33 VVT-i Icon 5dr", 10),
       driver: {
         age: 67,
         occupation: "retired",
@@ -94,14 +94,14 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
       coverLevel: "comprehensive",
     },
     lookupKeys: ["occupation:retired", "postcode_area:EX"],
-    // 460 × 0.84 × 0.90 × 0.92 × 0.8776 × 0.95⁴ × 0.97 = £221.84, below the £225 minimum
-    expected: { outcome: "quoted", minPence: 25_000, maxPence: 40_000, handPence: 25_200 },
+    // 460 × 0.84 × 0.90 × 0.92 × 0.8969 × 0.95⁴ × 0.97 = £226.71, just above the £225 minimum
+    expected: { outcome: "quoted", minPence: 25_000, maxPence: 40_000, handPence: 25_392 },
   },
   {
     id: "C4",
     product: "car",
     inputs: {
-      vehicle: vehicle("Tesla", "Model Y", 2023, "Long Range AWD", 40),
+      vehicle: vehicle("Tesla", "Model Y", 2025, "Long Range RWD", 39),
       driver: {
         age: 35,
         occupation: "software_developer",
@@ -117,8 +117,9 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
       coverLevel: "comprehensive",
     },
     lookupKeys: ["occupation:software_developer", "postcode_area:BS"],
-    // 460 × 1.06 × 1.07 × 0.92 × 1.7229 × 1.08 × 1.01 × 1.04 × 0.97 × 0.95 = £864.51, + IPT
-    expected: { outcome: "quoted", minPence: 80_000, maxPence: 130_000, handPence: 96_825 },
+    // 460 × 1.06 × 1.07 × 0.92 × 1.6859 × 1.08 (electric) × 1.01 × 1.04 (mileage) × 0.97 × 0.95 ×
+    // 1.04 (vehicle age 1) = £879.78, + IPT
+    expected: { outcome: "quoted", minPence: 80_000, maxPence: 130_000, handPence: 98_535 },
   },
   {
     id: "C5",
@@ -147,7 +148,7 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
     id: "C6",
     product: "car",
     inputs: {
-      vehicle: vehicle("Porsche", "911", 2020, "Carrera S", 50),
+      vehicle: vehicle("Porsche", "911", 2020, "Carrera S PDK", 50),
       driver: {
         age: 52,
         occupation: "solicitor",
