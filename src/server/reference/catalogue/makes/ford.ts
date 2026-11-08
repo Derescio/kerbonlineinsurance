@@ -1,0 +1,120 @@
+import { PUBLISHED, v } from "../build";
+import type { MakeSource } from "../types";
+
+export const ford: MakeSource = {
+  make: "Ford",
+  generations: [
+    {
+      model: "Fiesta",
+      bodyStyle: "hatchback",
+      curve: "standard",
+      years: [2012, 2017],
+      groupSource: PUBLISHED("Fiesta Mk7 (2008–2017)"),
+      variants: [
+        v("1.25 Zetec 5dr", "petrol", "manual", 5, 1242, 81, 5, 13_500),
+        v("1.0 EcoBoost Zetec 5dr", "petrol", "manual", 5, 998, 100, 10, 15_000, [2013, 2017]),
+        v("1.6 TDCi Titanium 5dr", "diesel", "manual", 5, 1560, 95, 9, 17_000),
+        v("ST-2 3dr", "petrol", "manual", 3, 1596, 180, 29, 18_500, [2013, 2017]),
+      ],
+    },
+    {
+      model: "Fiesta",
+      bodyStyle: "hatchback",
+      curve: "standard",
+      years: [2018, 2023],
+      groupSource: PUBLISHED("Fiesta Mk8 (2017–2023)", "1.1 Zetec group 5 (Parkers, finder.com)"),
+      variants: [
+        v("1.1 Zetec 5dr", "petrol", "manual", 5, 1084, 85, 5, 15_500),
+        v("1.0 EcoBoost 125 Titanium 5dr", "petrol", "manual", 5, 998, 125, 13, 18_500),
+        v(
+          "1.0 EcoBoost Hybrid ST-Line 5dr",
+          "hybrid",
+          "manual",
+          5,
+          998,
+          125,
+          15,
+          20_000,
+          [2020, 2023],
+        ),
+        v("ST-3 3dr", "petrol", "manual", 3, 1497, 200, 32, 23_500),
+      ],
+    },
+    {
+      model: "Focus",
+      bodyStyle: "hatchback",
+      curve: "standard",
+      years: [2012, 2018],
+      groupSource: PUBLISHED("Focus Mk3 (2011–2018)"),
+      variants: [
+        v("1.0 EcoBoost Zetec 5dr", "petrol", "manual", 5, 998, 100, 12, 17_500),
+        v("1.6 Titanium 5dr", "petrol", "manual", 5, 1596, 125, 13, 19_000),
+        v("1.5 TDCi Titanium 5dr", "diesel", "manual", 5, 1499, 120, 14, 21_000, [2015, 2018]),
+        v("ST-2 2.0 EcoBoost 5dr", "petrol", "manual", 5, 1999, 250, 34, 25_000),
+      ],
+    },
+    {
+      model: "Focus",
+      bodyStyle: "hatchback",
+      curve: "standard",
+      years: [2019, 2025],
+      groupSource: PUBLISHED(
+        "Focus Mk4 (2018–2025)",
+        "1.0 EcoBoost 125 Titanium group 14 (Honest John)",
+      ),
+      variants: [
+        v("1.0 EcoBoost 125 Titanium 5dr", "petrol", "manual", 5, 998, 125, 14, 22_000),
+        v(
+          "1.0 EcoBoost Hybrid ST-Line 5dr",
+          "hybrid",
+          "manual",
+          5,
+          998,
+          155,
+          17,
+          26_000,
+          [2021, 2025],
+        ),
+        v("1.5 EcoBlue Titanium 5dr", "diesel", "manual", 5, 1499, 120, 15, 24_000, [2019, 2022]),
+        v("ST 2.3 EcoBoost 5dr", "petrol", "manual", 5, 2261, 280, 36, 33_000),
+      ],
+    },
+    {
+      model: "Puma",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2020, 2026],
+      groupSource: PUBLISHED("Puma (2019–)"),
+      variants: [
+        v("1.0 EcoBoost Hybrid Titanium", "hybrid", "manual", 5, 998, 125, 14, 23_000),
+        v("1.0 EcoBoost Hybrid 155 ST-Line", "hybrid", "manual", 5, 998, 155, 16, 25_500),
+        v("ST 1.5 EcoBoost", "petrol", "manual", 5, 1497, 200, 27, 31_000, [2021, 2026]),
+        v("Gen-E", "electric", "automatic", 5, null, 168, 25, 30_000, [2025, 2026]),
+      ],
+    },
+    {
+      model: "Kuga",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2013, 2019],
+      groupSource: PUBLISHED("Kuga Mk2 (2013–2019)"),
+      variants: [
+        v("1.5 EcoBoost Zetec", "petrol", "manual", 5, 1498, 150, 17, 23_000, [2015, 2019]),
+        v("2.0 TDCi Titanium", "diesel", "manual", 5, 1997, 150, 19, 27_000),
+        v("2.0 TDCi Titanium X AWD auto", "diesel", "automatic", 5, 1997, 180, 22, 31_000),
+      ],
+    },
+    {
+      model: "Kuga",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2020, 2026],
+      groupSource: PUBLISHED("Kuga Mk3 (2020–)"),
+      variants: [
+        v("1.5 EcoBoost ST-Line", "petrol", "manual", 5, 1497, 150, 17, 29_000),
+        v("2.5 FHEV Titanium AWD auto", "hybrid", "automatic", 5, 2488, 190, 21, 35_000),
+        v("2.5 PHEV ST-Line auto", "hybrid", "automatic", 5, 2488, 225, 22, 37_000),
+      ],
+    },
+  ],
+};

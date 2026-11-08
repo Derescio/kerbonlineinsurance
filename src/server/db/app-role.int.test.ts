@@ -10,6 +10,13 @@ const ALL: readonly Privilege[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
 // An explicit entry for every public table: a new table fails the drift check until someone
 // chooses its grants here (migration 0010 gives new tables all four by default).
 const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
+  // Reference data (4.8): written by the deploy as the owner, read by the app
+  rating_addons: ["SELECT"],
+  rating_factors: ["SELECT"],
+  rating_lookups: ["SELECT"],
+  rating_parameters: ["SELECT"],
+  rating_tiers: ["SELECT"],
+  vehicle_catalogue: ["SELECT"],
   account_closures: ALL,
   accounts: ALL,
   audit_log: ["INSERT", "SELECT"],

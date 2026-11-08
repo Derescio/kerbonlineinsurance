@@ -96,7 +96,8 @@ export async function makeStaff({
 export async function makeRatingVersion(overrides: Insert<typeof ratingVersions> = {}) {
   const [version] = await getDb()
     .insert(ratingVersions)
-    .values({ product: "car", version: next(), effectiveFrom: "2026-01-01", ...overrides })
+    // From 1000, so a factory version never clashes with the real v1 (4.8)
+    .values({ product: "car", version: 1000 + next(), effectiveFrom: "2026-01-01", ...overrides })
     .returning();
   return version!;
 }

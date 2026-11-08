@@ -16,6 +16,7 @@ import {
 
 import { createdAt, id, oneOf, pence, postcodeDistrictSql, updatedAt } from "./columns";
 import { quoteItems } from "./quotes";
+import { vehicleCatalogue } from "./reference";
 import {
   fuelTypes,
   lockTypes,
@@ -61,6 +62,9 @@ export const vehicles = pgTable(
     doors: smallint().notNull(),
     insuranceGroup: smallint().notNull(),
     valuePence: pence(),
+    // The catalogue row it was copied from (4.8), so it joins as a dimension. Nullable: a vehicle
+    // entered by hand has none. Catalogue rows are never deleted (RESTRICT).
+    catalogueVariantId: uuid().references(() => vehicleCatalogue.id, { onDelete: "restrict" }),
     registration: text(),
     // Odometer reading
     currentMileage: integer().notNull(),
@@ -82,6 +86,7 @@ export const vehicles = pgTable(
       check("vehicles_mileage_check", sql`${t.currentMileage} >= 0 and ${t.annualMileage} > 0`),
       check("vehicles_usage_check", oneOf(t.usage, vehicleUsages)),
       check("vehicles_overnight_location_check", oneOf(t.overnightLocation, overnightLocations)),
+      index().on(t.catalogueVariantId),
       index().on(t.updatedAt),
     ];
   },
