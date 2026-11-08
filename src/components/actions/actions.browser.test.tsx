@@ -57,6 +57,33 @@ describe("Button", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("stays at full colour while loading, so it reads as working, not switched off", async () => {
+    await render(
+      <>
+        <Button loading>Working</Button>
+        <Button disabled>Unavailable</Button>
+      </>,
+    );
+    const working = page.getByRole("button", { name: "Working" }).element();
+    const unavailable = page.getByRole("button", { name: "Unavailable" }).element();
+    expect(getComputedStyle(working).opacity).toBe("1");
+    expect(getComputedStyle(working).cursor).toBe("progress");
+    expect(Number(getComputedStyle(unavailable).opacity)).toBeLessThan(1);
+  });
+
+  it("says what it's doing with loadingLabel, and keeps the label otherwise", async () => {
+    const { rerender } = await render(
+      <Button loadingLabel="Requesting closure…">Request account closure</Button>,
+    );
+    await expect.element(page.getByRole("button")).toHaveTextContent("Request account closure");
+    await rerender(
+      <Button loading loadingLabel="Requesting closure…">
+        Request account closure
+      </Button>,
+    );
+    await expect.element(page.getByRole("button")).toHaveTextContent("Requesting closure…");
+  });
+
   it("renders the icons it is given", async () => {
     const { container } = await render(
       <Button iconLeft="plus" iconRight="arrow-right">

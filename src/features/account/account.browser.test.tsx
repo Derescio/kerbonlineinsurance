@@ -92,6 +92,16 @@ describe("/account/close, delete version", () => {
     });
   });
 
+  it("says it's deleting while the request is in flight", async () => {
+    fns.deleteMyAccount.mockReturnValue(new Promise(() => {}));
+    await renderWithRouter(<ClosePage data={deleteData} />);
+    await userEvent.fill(page.getByLabelText("Password"), "correct horse");
+    await userEvent.click(page.getByRole("button", { name: "Delete my account" }));
+    await expect
+      .element(page.getByRole("button", { name: "Deleting your account…" }))
+      .toBeVisible();
+  });
+
   it("shows the server's field error and stays put", async () => {
     fns.deleteMyAccount.mockResolvedValue({
       ok: false,
@@ -163,6 +173,16 @@ describe("/account/close, close version", () => {
     expect(data.input).toEqual({ password: "correct horse" });
     expect(data.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it("says it's requesting closure while the request is in flight (found in 4.9)", async () => {
+    fns.requestMyClosure.mockReturnValue(new Promise(() => {}));
+    await renderWithRouter(<ClosePage data={closeData} />);
+    await userEvent.fill(page.getByLabelText("Password"), "correct horse");
+    await userEvent.click(page.getByRole("button", { name: "Request account closure" }));
+    const busy = page.getByRole("button", { name: "Requesting closure…" });
+    await expect.element(busy).toBeVisible();
+    await expect.element(busy).toHaveAttribute("aria-busy", "true");
+  });
 });
 
 describe("/account/close, closing and staff", () => {
@@ -184,6 +204,15 @@ describe("/account/close, closing and staff", () => {
     await userEvent.click(page.getByRole("button", { name: "Keep my account" }));
     await expect.element(page.getByText("Your account will stay open")).toBeVisible();
     expect(fns.keepMyAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it's keeping the account while that request is in flight", async () => {
+    fns.keepMyAccount.mockReturnValue(new Promise(() => {}));
+    await renderWithRouter(
+      <ClosePage data={{ kind: "closing", closesAt: "2026-12-07T10:00:00.000Z", held: false }} />,
+    );
+    await userEvent.click(page.getByRole("button", { name: "Keep my account" }));
+    await expect.element(page.getByRole("button", { name: "Keeping your account…" })).toBeVisible();
   });
 });
 

@@ -14,8 +14,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Icon after the label (e.g. "arrow-right" for forward steps). */
   iconRight?: IconName;
   fullWidth?: boolean;
-  /** Swaps the left icon for a spinner and disables the button. The label stays, so the width holds. */
+  /**
+   * Swaps the left icon for a spinner and disables the button, at full colour: it reads as
+   * working, not switched off.
+   */
   loading?: boolean;
+  /** What the button says while loading, e.g. "Requesting closure…". Without it the label stays. */
+  loadingLabel?: ReactNode;
   children?: ReactNode;
 }
 
@@ -27,6 +32,7 @@ export function Button({
   iconRight,
   fullWidth = false,
   loading = false,
+  loadingLabel,
   disabled,
   type = "button",
   className,
@@ -53,7 +59,11 @@ export function Button({
       ) : iconLeft ? (
         <Icon name={iconLeft} size={iconSize} />
       ) : null}
-      {children != null ? <span>{children}</span> : null}
+      {loading && loadingLabel != null ? (
+        <span>{loadingLabel}</span>
+      ) : children != null ? (
+        <span>{children}</span>
+      ) : null}
       {iconRight && !loading ? <Icon name={iconRight} size={iconSize} /> : null}
     </button>
   );
