@@ -1,6 +1,6 @@
 # 4.8 Reference data
 
-**Status:** approved (Damion, 8 Nov 2026); built on `feat/4.8-reference-data`, PR not yet opened
+**Status:** done (merged as #65 on 8 Nov 2026; staging checks passed the same day; Damion's read of the v1 numbers is still open)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -502,7 +502,7 @@ The bands in these rows (Leeds 5, Hackney 9 for car, and so on) are targets for 
 - [x] `calibration.ts` with the example people
 - [x] Docs
 - [x] `vp check`, `vp test`, `vp build`
-- [ ] Staging: the build log shows the upsert; in Neon, `rating_versions` has three `active` v1 rows and `vehicle_catalogue` has its rows; a second deploy logs "no changes"
+- [x] Staging: the build log shows the upsert; in Neon, `rating_versions` has three `active` v1 rows and `vehicle_catalogue` has its rows; a second deploy logs "no changes"
 
 ## Tests
 
@@ -519,9 +519,9 @@ The factories keep making `draft` versions. Their version numbers start at 1000 
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] Staging's build log shows the upsert, and a redeploy shows no changes.
-- [ ] Neon `dev` has three active v1 rating versions and the catalogue, and `vp run db:check-app-role` passes.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#65).
+- [x] Staging's build log shows the upsert, and a redeploy shows no changes. 8 Nov 2026: the `6ce36ae` build logged `car v1`, `home v1`, `business v1: inserted` and `Catalogue: 1546 inserted`; a CLI redeploy of the same commit logged `Reference data: no changes`.
+- [x] Neon `dev` has three active v1 rating versions and the catalogue, and `vp run db:check-app-role` passes (8 Nov 2026: all seven checks, including "writes on reference tables refused").
 - [ ] Damion has read the v1 numbers and the example people.
 
 ## Commit message
