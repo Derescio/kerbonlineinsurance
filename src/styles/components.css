@@ -47,6 +47,11 @@
   cursor: not-allowed;
   opacity: 0.45;
 }
+/* Busy is disabled too, but must read as working, not switched off (found in 4.9) */
+.kb-btn[aria-busy="true"]:disabled {
+  cursor: progress;
+  opacity: 1;
+}
 .kb-btn--sm {
   height: 36px;
   padding: 0 14px;

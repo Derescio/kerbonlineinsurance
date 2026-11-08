@@ -136,10 +136,11 @@ All addresses are on `SEED_INBOX` (call 8). All passwords are `SEED_PASSWORD`.
 
 ## Found during the checks (8 Nov 2026)
 
-- **The close-account button showed no feedback** (Damion). It took about two seconds on localhost.
-  - The code shows a small spinner while it works (`Button loading`), but Damion saw nothing at all.
-  - Next: find out why the spinner didn't show, then make the wait obvious. Damion suggested an overlay.
-  - A separate small fix to the 4.7 screens, after this PR.
+- **The close-account button showed no feedback** (Damion). **Fixed** in `fix/close-account-feedback`.
+  - The spinner was there: a 16px ring beside an unchanged label.
+  - But a busy button is also disabled, and disabled buttons fade to 45%, so it read as "switched off", not "working".
+  - The fix: busy buttons now keep full colour with a progress cursor, everywhere in the app. `Button` gets a `loadingLabel`, so the close page says "Requesting closure…", "Deleting your account…" and "Keeping your account…".
+  - Checked live on localhost, with the request held and aborted so nothing was written.
 - **Staff land on `/account` after signing in.** That page offers "Close your account", which doesn't apply to staff, who are deactivated, never deleted (4.2).
   - The staff landing page belongs to 6.10, which builds the staff area. Noted in its row.
 - **Vite's dependency cache went stale while the dev server was running.** Running the full test suite and builds alongside `vp dev` caused it.
