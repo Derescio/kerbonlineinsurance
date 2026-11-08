@@ -16,6 +16,7 @@
     "db:deploy": "node scripts/db-deploy.ts",
     "db:reference": "node scripts/reference-data.ts",
     "db:seed": "node scripts/seed.ts",
+    "db:reset-dev": "node scripts/reset-dev.ts",
     "db:check-app-role": "node scripts/check-app-role.ts",
     "auth:make-admin": "node scripts/make-admin.ts",
     "auth:reset-two-factor": "node scripts/reset-two-factor.ts",

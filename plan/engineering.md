@@ -71,7 +71,7 @@ hotfix/x ──PR──▶ main, then merge main back into staging
   - **`kerb_app` can only read** the six reference tables (`0015`); `vp run db:check-app-role` checks it.
   - Locally, run `vp run db:reference` after `vp run db:migrate`.
 - **Seed data on `dev` (4.9):** `vp run db:seed` writes the synthetic cast (named accounts on `SEED_INBOX`, password `SEED_PASSWORD`, staff 2FA from `SEED_TOTP_SECRET`) and 12 months of synthetic customers, all `users.is_synthetic`. Run by hand from your machine; never in a Vercel build, and it refuses any host but `SEED_DATABASE_HOST`. One transaction; a second run prints "Already seeded" and changes nothing.
-  - **To reseed (to be settled, see 4.9 call 12):** "Reset from parent" in Neon copies `prod`'s rows into `dev`. That is only acceptable while `prod` holds no real customers, and `prod`'s audit rows are signed with production's `AUDIT_HMAC_KEYS`, so `dev`'s chain won't verify with `dev`'s keys afterwards. Until a method is chosen, don't reseed; the seed refuses to run twice anyway.
+  - **To rebuild `dev`:** `vp run db:reset-dev -- --confirm <dev host>` empties it and runs migrations, reference data, the seed and the app role check. Never use Neon's "Reset from parent" (it copies `prod`'s data). Step by step: [dev-database.md](dev-database.md).
 - **Rollback:**
   - Code: Vercel Instant Rollback.
   - Data: Neon point-in-time restore on `prod`.

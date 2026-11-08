@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { SeedConfigError, castEmail, readSeedConfig } from "./guard.ts";
+import { SeedConfigError, castEmail, readDevTarget, readSeedConfig } from "./guard.ts";
 import type { SeedConfigReason } from "./guard.ts";
 
 const valid = {
@@ -91,5 +91,25 @@ describe("castEmail", () => {
     expect(castEmail({ local: "DamionWilson", domain: "OpsEdSolutions.com" }, "customer-a")).toBe(
       "damionwilson+customer-a@opsedsolutions.com",
     );
+  });
+});
+
+describe("readDevTarget", () => {
+  it("needs only the URL and the dev host, not the seed's other values", () => {
+    expect(
+      readDevTarget({
+        DATABASE_URL_UNPOOLED: valid.DATABASE_URL_UNPOOLED,
+        SEED_DATABASE_HOST: valid.SEED_DATABASE_HOST,
+      }),
+    ).toEqual({ url: valid.DATABASE_URL_UNPOOLED, host: "ep-dev.neon.tech" });
+  });
+
+  it("refuses a Vercel build and any other host", () => {
+    expect(() => readDevTarget({ ...valid, VERCEL_TARGET_ENV: "production" })).toThrow(
+      SeedConfigError,
+    );
+    expect(() =>
+      readDevTarget({ ...valid, DATABASE_URL_UNPOOLED: "postgres://o:p@ep-prod.neon.tech/db" }),
+    ).toThrow(/only write to dev/);
   });
 });

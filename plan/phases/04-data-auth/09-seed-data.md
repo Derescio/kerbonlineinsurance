@@ -34,11 +34,16 @@ The app is being built brick by brick. 4.9 seeds the data model as it stands. Sc
    - **5.4's row gets a note:** "replace the 4.9 stand-in pricer with `priceQuote()` and reseed `dev`". Until then, seeded prices only need to be close to what 5.4 will produce. Each one must reconcile, though, because the 4.2 `CHECK` constraints demand it.
 10. **History is anchored to a fixed date, not to when the seed runs.** The 12 months run from 1 Nov 2025 to 31 Oct 2026, ending on 4.8's valuation date. A fixed random seed (a small PRNG such as mulberry32) makes every run produce exactly the same data. Ids are uuidv7 stamped with each row's backdated `created_at` (random bits from the same PRNG), so they stay time-ordered the way 4.2 intended. Cast policies are bought in the last few months, so they are still live in 2027.
 11. **A rerun does nothing.** The seed checks for its own users first. If they are there, it prints "already seeded" with the row counts and exits 0. If not, it writes everything in **one transaction**, so a failure leaves `dev` as it was. Changing nothing on a rerun is simpler and safer than upserting every row, because `audit_log` is an append-only hash chain and a second pass would extend it.
-12. **Reseeding is a Neon branch reset, not a delete script.** The steps are: "Reset from parent" on `dev`, then `vp run db:migrate`, `vp run db:reference`, `vp run db:seed`. Deleting synthetic users by script would fight the rules the app depends on: policies and claims are never deleted (4.7), the audit chain is append-only, and every delete leaves a tombstone. The reset also wipes any accounts made by hand on `dev`, and `auth:make-admin` brings an admin back. The spec documents this in `engineering.md §3`.
-    **Open (from the final review, 8 Nov 2026):**
-    - **Real data:** "Reset from parent" copies `prod`'s rows into `dev`. That's fine while `prod` has no real customers, but not after launch.
-    - **Audit chain:** `prod`'s audit rows are signed with production's keys, so `dev`'s chain stops verifying.
-    - **Damion to choose a reseed method before the first reseed.** Two candidates: a schema-only reset of `dev` followed by migrations from scratch, as CI does, or a fresh branch with no parent data.
+12. **Rebuilding `dev` empties it and migrates from scratch, never "Reset from parent"** (Damion, 8 Nov 2026, after the final review).
+    - **Why not a parent reset:** "Reset from parent" would copy `prod`'s rows into `dev`, which means real customers' data once Kerb is live. Those rows' audit entries are also signed with production's keys, so `dev`'s audit chain would stop verifying.
+    - **The command:** `vp run db:reset-dev -- --confirm <dev host>`.
+      - It drops the `public` and `drizzle` schemas, then runs migrations, reference data, the seed and `db:check-app-role`.
+      - It checks the host and the seed settings before deleting anything.
+      - It refuses without `--confirm` naming the host.
+    - **Why it's safe:** the integration test setup empties its database the same way on every run, so this path is exercised many times a day. The `kerb_app` role and its password survive, and migration `0010` grants it again.
+    - **Why not delete by script:** deleting synthetic users would fight the rules the app depends on. Policies and claims are never deleted (4.7), the audit chain is append-only, and every delete leaves a tombstone.
+    - **Accounts made by hand go too:** sign up again, then `auth:make-admin`.
+    - **Step by step:** [`plan/dev-database.md`](../../dev-database.md).
 13. **It refuses anything but `dev`.** The seed prints the database host and refuses to run unless that host equals `SEED_DATABASE_HOST` from `.env.local` (the `dev` branch's host), using the existing `databaseHost()`. It also refuses when `VERCEL_TARGET_ENV` is set, so a build can never run it. It connects as the owner on `DATABASE_URL_UNPOOLED`, like `db:reference`.
 14. **Auth rows are made the way Better Auth makes them.**
     - **Passwords:** hashed with Better Auth's own password hasher. All cast members share one password, `SEED_PASSWORD` from `.env.local`.

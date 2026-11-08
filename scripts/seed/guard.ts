@@ -32,7 +32,7 @@ const messages: Record<SeedConfigReason, string> = {
   bad_url: "DATABASE_URL_UNPOOLED is not a valid URL.",
   no_target_host: "SEED_DATABASE_HOST is not set: the dev branch's direct host, from .env.local.",
   wrong_host:
-    "SEED_DATABASE_HOST doesn't match DATABASE_URL_UNPOOLED's host: the seed only writes to dev.",
+    "SEED_DATABASE_HOST doesn't match DATABASE_URL_UNPOOLED's host: the seed and the reset only write to dev.",
   bad_inbox: "SEED_INBOX must be a plain address (name@domain, no +).",
   short_password: "SEED_PASSWORD must be at least 10 characters.",
   bad_totp_secret: "SEED_TOTP_SECRET must be 32 letters and digits.",
@@ -48,7 +48,11 @@ export class SeedConfigError extends Error {
   }
 }
 
-export function readSeedConfig(env: Record<string, string | undefined>): SeedConfig {
+/** The owner connection, only if it points at Neon `dev` (SEED_DATABASE_HOST) and not in a build */
+export function readDevTarget(env: Record<string, string | undefined>): {
+  url: string;
+  host: string;
+} {
   if (env.VERCEL_TARGET_ENV) throw new SeedConfigError("in_vercel_build");
 
   const url = env.DATABASE_URL_UNPOOLED;
@@ -57,6 +61,11 @@ export function readSeedConfig(env: Record<string, string | undefined>): SeedCon
   if (!host) throw new SeedConfigError("bad_url");
   if (!env.SEED_DATABASE_HOST) throw new SeedConfigError("no_target_host");
   if (host !== env.SEED_DATABASE_HOST) throw new SeedConfigError("wrong_host");
+  return { url, host };
+}
+
+export function readSeedConfig(env: Record<string, string | undefined>): SeedConfig {
+  const { url, host } = readDevTarget(env);
 
   const inbox = /^([^@\s+]+)@([^@\s]+\.[^@\s]+)$/.exec(env.SEED_INBOX ?? "");
   if (!inbox) throw new SeedConfigError("bad_inbox");
