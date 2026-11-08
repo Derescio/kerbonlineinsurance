@@ -25,11 +25,11 @@ Titles only; specced when the phase starts, against the code as it is then.
 | # | Slice | Status |
 |---|---|---|
 | 9.1 | `analytics` schema in Postgres: read-only views generated from the data contract (personal data dropped, hashed or bucketed); a read-only pipeline role that can see only that schema; check whether a Neon read replica fits the plan | todo |
-| 9.2 | Azure foundation: resource group, ADLS Gen2 (bronze/silver/gold containers), Key Vault for the Neon credentials, budget alerts. Infrastructure as code (Bicep or Terraform, decided then) | todo |
+| 9.2 | Azure foundation: resource group, ADLS Gen2 (bronze/silver/gold containers), a separate landing storage account for PostHog's batch export (9.6), Key Vault for the Neon and landing credentials, budget alerts. Infrastructure as code (Bicep or Terraform, decided then) | todo |
 | 9.3 | Ingestion: Azure Data Factory (or Databricks' Postgres connector, compared then) copies each view incrementally by watermark into bronze, plus `deleted_rows`; scheduled; reruns are idempotent. Timestamps are transaction start time, so a long transaction can commit behind the watermark: copy with an overlap window and dedupe, or use Neon's logical replication instead (4.2 review) | todo |
 | 9.4 | Databricks + Unity Catalog: bronze → silver (types, dedupe, deletes applied with `MERGE`) | todo |
 | 9.5 | Gold models: quote funnel, conversion by product and postcode district, factor impact on price, underwriting outcomes, claims lifecycle times, review ratings; synthetic vs real split | todo |
-| 9.6 | PostHog events joined via `events.anonymous_id` (PostHog export or API pull, checked then); account closure also deletes the PostHog person | todo |
+| 9.6 | PostHog events joined via `events.anonymous_id` (PostHog's Azure Blob batch export, loaded by Auto Loader or ADF, decided then); account closure also deletes the PostHog person | todo |
 | 9.7 | Data quality and erasure test: row counts reconcile with Postgres; a deleted account disappears from silver and gold | todo |
 | 9.8 | Dashboards for the data video (Databricks SQL or Power BI) | todo |
 
@@ -43,7 +43,15 @@ Talked through before Phase 9 starts, so the 9.1, 9.3 and 9.6 specs begin from t
   - Phase 5: `analytics.ts` gets `getDistinctId()`; the quote flow sends it with its server call and the server stores it in `events.anonymous_id` (format check only). `identify(user.id)` after sign-in or sign-up and `reset()` on sign-out, internal id only.
   - Cookieless visitors (rejected or not yet chosen) have a daily hash, not a stable id, so they join only in daily aggregates; row-level joins cover visitors who accepted. Say so in the 9.6 spec and the video.
   - Account closure should also delete the PostHog person (PostHog API, server-side key), so the erasure demo holds for PostHog data. Done in 9.6 (decided 7 Nov 2026); until then a closed account's PostHog person stays in PostHog.
-  - Getting the data out: PostHog batch export to Azure storage if the tier allows, else ADF pulls from PostHog's query API. Checked in 9.6.
+  - Getting the data out: PostHog's native Azure Blob Storage batch export (confirmed by PostHog, 7 Nov 2026), the query API is only the fallback. Two ways from the landing account into bronze, Damion decides in 9.6:
+    - **A. Databricks Auto Loader** reads the files straight into bronze; ADF stays for the Postgres copies only. One less moving part.
+    - **B. ADF** copies the files into bronze (a Blob Storage linked service and a copy activity, triggered after each export), so every source runs through one ADF pipeline for the data video. One more step to schedule and monitor.
+    - **Own landing storage account**, not the lakehouse one: PostHog connects with a connection string carrying the account key, which opens the whole account. Key in Key Vault. Check whether PostHog accepts a SAS scoped to one container.
+    - **Firewall:** the PostHog project is US, so allowlist 44.205.89.55, 52.4.194.122 and 44.208.188.173.
+    - **Scope:** only the events the gold models use, plus persons (anonymous → identified merge). Parquet, on the Postgres copies' schedule.
+    - **Personal data:** the export skips the Postgres data contract, so silver applies the same rules: drop `$ip`, location no finer than country, URLs stay masked, `distinct_id` and `user_id` kept as join keys.
+    - **Erasure:** deleting the PostHog person leaves files already exported. So closure calls PostHog's person-delete API, silver deletes the user's rows (driven by `deleted_rows`), and a lifecycle rule expires raw landing files after about 30 days.
+    - **Cost:** check PostHog's batch export pricing for Kerb's volume before turning it on (Damion's call).
 
 ## Recording notes
 
