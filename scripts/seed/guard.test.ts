@@ -63,6 +63,17 @@ describe("readSeedConfig", () => {
     ).toBe("wrong_host");
   });
 
+  it("says so when SEED_DATABASE_HOST is a whole connection string", () => {
+    const env = { ...valid, SEED_DATABASE_HOST: valid.DATABASE_URL_UNPOOLED };
+    expect(reasonOf(env)).toBe("target_is_url");
+    try {
+      readSeedConfig(env);
+    } catch (error) {
+      expect((error as Error).message).toContain("only the host");
+      expect((error as Error).message).not.toContain("s3cretpw");
+    }
+  });
+
   it("refuses a bad inbox", () => {
     expect(reasonOf({ ...valid, SEED_INBOX: "no-at-sign" })).toBe("bad_inbox");
     expect(reasonOf({ ...valid, SEED_INBOX: "a+b@example.com" })).toBe("bad_inbox");

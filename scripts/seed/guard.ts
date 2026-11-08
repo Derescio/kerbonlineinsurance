@@ -20,6 +20,7 @@ export type SeedConfigReason =
   | "no_url"
   | "bad_url"
   | "no_target_host"
+  | "target_is_url"
   | "wrong_host"
   | "bad_inbox"
   | "short_password"
@@ -31,6 +32,8 @@ const messages: Record<SeedConfigReason, string> = {
   no_url: "DATABASE_URL_UNPOOLED is not set (the owner connection to Neon dev).",
   bad_url: "DATABASE_URL_UNPOOLED is not a valid URL.",
   no_target_host: "SEED_DATABASE_HOST is not set: the dev branch's direct host, from .env.local.",
+  target_is_url:
+    "SEED_DATABASE_HOST must be only the host (the part between @ and /, e.g. ep-….neon.tech), not a connection string.",
   wrong_host:
     "SEED_DATABASE_HOST doesn't match DATABASE_URL_UNPOOLED's host: the seed and the reset only write to dev.",
   bad_inbox: "SEED_INBOX must be a plain address (name@domain, no +).",
@@ -60,6 +63,7 @@ export function readDevTarget(env: Record<string, string | undefined>): {
   const host = databaseHost(url);
   if (!host) throw new SeedConfigError("bad_url");
   if (!env.SEED_DATABASE_HOST) throw new SeedConfigError("no_target_host");
+  if (env.SEED_DATABASE_HOST.includes("://")) throw new SeedConfigError("target_is_url");
   if (host !== env.SEED_DATABASE_HOST) throw new SeedConfigError("wrong_host");
   return { url, host };
 }

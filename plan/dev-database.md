@@ -111,7 +111,8 @@ This uses the two closure cast members. Run it on a freshly seeded `dev`, becaus
 3. Check in the Neon console, on the `dev` branch:
    - **Closure, settled:** `account_closures.closed_at` is set. The user's email is `closed+…@closed.invalid`. The policy and claim are still there, and `audit_log` has `account.closed`.
    - **Closure, held:** `held_since` is set and the account is still open, because its claim is open.
-   - The matching emails arrive.
+   - The script prints `Emails not sent: 2`. That's by design: the manual run counts the "closed" and "held" emails and drops them. Only the daily cron in production sends them.
+   - `closed_at` shows the real time of the run, not the `NOW` you gave, because the database clock stamps it.
 
 ---
 
@@ -135,6 +136,7 @@ All addresses are `+role` variants of `SEED_INBOX`. Every customer's password is
 
 | You see | It means | Do |
 |---|---|---|
+| `SEED_DATABASE_HOST must be only the host …` | You pasted the whole connection string | Keep only the host, e.g. `ep-….neon.tech` |
 | `SEED_DATABASE_HOST doesn't match …` | `.env.local` points somewhere other than `dev` | Stop. Check `DATABASE_URL_UNPOOLED` and `SEED_DATABASE_HOST` |
 | `The seed never runs in a Vercel build` | `VERCEL_TARGET_ENV` is set in your shell | Open a fresh terminal |
 | `This deletes everything in …` | `db:reset-dev` without `--confirm` | Read the host. If it's `dev`, run the printed command |

@@ -1,6 +1,6 @@
 # 4.9 Seed data
 
-**Status:** approved (Damion, 8 Nov 2026)
+**Status:** done (checks passed on `dev` on 8 Nov 2026; PR to follow)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -89,7 +89,7 @@ All addresses are on `SEED_INBOX` (call 8). All passwords are `SEED_PASSWORD`.
 1. Seed `dev`.
 2. On staging, sign in as **Closure, settled**, request closure, and confirm with the password. Do the same for **Closure, held**. The "closure requested" emails arrive in Damion's inbox.
 3. Run `NOW=<31 days on> vp run account:run-closures` locally (it targets `dev`).
-4. In Neon: the settled account is closed (user scrubbed, email freed, policy and claims kept, `account.closed` in `audit_log`). The held account has `held_since` set and is still open. The matching emails arrive.
+4. In Neon: the settled account is closed (user scrubbed, email freed, policy and claims kept, `account.closed` in `audit_log`). The held account has `held_since` set and is still open. The manual run sends no emails (4.7: it counts them as "not sent"); the "closure requested" emails from step 2 do arrive.
 
 ## In scope
 
@@ -125,10 +125,26 @@ All addresses are on `SEED_INBOX` (call 8). All passwords are `SEED_PASSWORD`.
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] `vp run db:seed` on `dev` finishes and prints its row counts, and a second run prints "already seeded".
-- [ ] Customer A, the handler (with a code) and the admin can sign in on staging.
-- [ ] The closure check passes: settled closes, held is held, and the emails arrive.
+- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally on 8 Nov 2026: the full suite (1,245 tests) and the build passed. After the last guard change: check clean, and the unit and integration tests pass (1,025). `ci` runs everything on the PR.
+- [x] `vp run db:seed` on `dev` finishes and prints its row counts, and a second run prints "already seeded". Damion, 8 Nov 2026: 2,007 synthetic users, 5,524 quotes, 1,373 policies, 238 claims and 888 audit rows (before the closure check); the rerun printed "Already seeded" with the same counts.
+- [x] Cast members can sign in on the `dev` database. Damion, 8 Nov 2026, on localhost (same database as staging): the handler with a code from his phone's authenticator, and both closure customers with `SEED_PASSWORD`. The admin shares the handler's 2FA entry.
+- [x] The closure check passes. Damion, 8 Nov 2026:
+  - Both closures were requested on localhost, and both "Your account is closing" emails arrived in his inbox.
+  - `NOW=2026-12-09T12:00:00Z vp run account:run-closures` printed "Closed 1, held 1, failed 0. Emails not sent: 2". The manual run sends no emails, by design.
+  - In Neon, Tom Reed's account is closed and scrubbed (`closed+…@closed.invalid`), with `retain_until` set to 2033-11-08. Grace Lin's is held with `claim_open:KRB-C-90003`.
+  - This also closes the check carried over from 4.7.
+
+## Found during the checks (8 Nov 2026)
+
+- **The close-account button showed no feedback** (Damion). It took about two seconds on localhost.
+  - The code shows a small spinner while it works (`Button loading`), but Damion saw nothing at all.
+  - Next: find out why the spinner didn't show, then make the wait obvious. Damion suggested an overlay.
+  - A separate small fix to the 4.7 screens, after this PR.
+- **Staff land on `/account` after signing in.** That page offers "Close your account", which doesn't apply to staff, who are deactivated, never deleted (4.2).
+  - The staff landing page belongs to 6.10, which builds the staff area. Noted in its row.
+- **Vite's dependency cache went stale while the dev server was running.** Running the full test suite and builds alongside `vp dev` caused it.
+  - Symptoms: the page's JavaScript never loaded, so the login button stayed disabled and sign-out did nothing.
+  - Fix: restart with `vp dev --force`.
 
 ## Commit message
 
