@@ -11,6 +11,7 @@ import {
   vehicleCatalogue,
 } from "#/server/db/schema";
 import type { Product } from "#/server/db/schema/values";
+import { type Tx, withTx } from "#/server/db/tx";
 import { CatalogueError, expandCatalogue } from "#/server/reference/catalogue/expand";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import type { CatalogueRow, MakeSource } from "#/server/reference/catalogue/types";
@@ -23,8 +24,6 @@ import { validateRatingSource } from "#/server/reference/rating/validate";
 // owner with upsertReferenceData (kerb_app can't, call 18); the app reads it through the memoised
 // readers below. Not protected reads: the catalogue and rates are the same for everyone, so this
 // module is outside the permission suite, like account.ts.
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export class ReferenceDataConflict extends Error {
   override name = "ReferenceDataConflict";
@@ -44,9 +43,12 @@ interface Sources {
   catalogue: readonly MakeSource[];
 }
 
-// One deploy at a time per database: a quick redeploy waits, then finds nothing to do
-const lock = (tx: Tx) =>
-  tx.execute(sql`select pg_advisory_xact_lock(hashtext('kerb:reference-data'))`);
+// One deploy at a time per database: a quick redeploy waits for the first, then finds nothing to
+// do. withTx's 5s lock wait is for requests; a deploy can wait longer (local to this transaction).
+async function lock(tx: Tx) {
+  await tx.execute(sql`select set_config('lock_timeout', '60s', true)`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('kerb:reference-data'))`);
+}
 
 const BATCH = 500;
 
@@ -75,7 +77,7 @@ function validate(sources: Sources): CatalogueRow[] {
 }
 
 async function upsertCatalogue(db: Db, rows: CatalogueRow[]): Promise<UpsertResult["catalogue"]> {
-  return db.transaction(async (tx) => {
+  return withTx(db, async (tx) => {
     await lock(tx);
     let inserted = 0;
     let updated = 0;
@@ -140,7 +142,7 @@ async function upsertVersion(
 ): Promise<UpsertResult["versions"][number]> {
   const { product, version } = source;
   const hash = contentHash(source);
-  return db.transaction(async (tx) => {
+  return withTx(db, async (tx) => {
     await lock(tx);
     const [existing] = await tx
       .select({ contentHash: ratingVersions.contentHash })
