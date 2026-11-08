@@ -1,6 +1,6 @@
 # 4.7 Privacy page and account closure
 
-**Status:** in review (built 7 Nov 2026)
+**Status:** done (merged as #61 on 7 Nov 2026; the staging delete check passed on 8 Nov 2026; the 30-day closure check moves to 4.9, which seeds real fixture accounts)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -167,8 +167,8 @@ Anyone can leave Kerb, and Kerb never loses a record it has to keep.
 ## What you set up
 
 - [ ] **The `privacy@kerb.opsedsolutions.com` mailbox** or a forward to your inbox, before the privacy page goes to production.
-- [ ] **`CRON_SECRET`** in Vercel (Preview and Production) and `.env.local`. It's a random 32-byte value, and `.env.example` gets the name only.
-- [ ] **Read the privacy notice copy** in the PR before it merges. It names you as the business, so the wording is yours to approve. This spec isn't legal advice.
+- [x] **`CRON_SECRET`** in Vercel (Preview and Production) and `.env.local`. It's a random 32-byte value, and `.env.example` gets the name only.
+- [x] **Read the privacy notice copy** in the PR before it merges. It names you as the business, so the wording is yours to approve. This spec isn't legal advice.
 - [ ] *(Optional, not blocking)* **The ICO's data protection fee self-assessment** for OpsEd Solutions.
 
 ## Steps
@@ -187,7 +187,8 @@ Anyone can leave Kerb, and Kerb never loses a record it has to keep.
   - the `phase.md` 4.7 row and testing row
   - `build-plan.md`
 - [x] `vp check`, `vp test`, `vp build`
-- [ ] Your walkthrough on `dev`: delete a fresh sign-up, then close an account with fixture records (with `NOW=` 31 days on), then a staging run
+- [x] Your walkthrough: delete a fresh sign-up on staging (Damion, 8 Nov 2026)
+- [ ] Close an account with fixture records (with `NOW=` 31 days on): moved to 4.9, whose seed creates the policies and claims
 
 ## Tests
 
@@ -204,16 +205,16 @@ Anyone can leave Kerb, and Kerb never loses a record it has to keep.
 | Integration | Cron route: no or wrong `CRON_SECRET` → 401; right one runs `runClosures` | yes |
 | Component | `/account/close` both versions (records listed, open-claim line), the proof fields, the staff message; the banner (open and held); `/cookies` with and without PostHog | yes |
 | E2E | Sign up → `/account/close` → delete → signed out on `/account-deleted`, and signing in again fails; axe on `/privacy`, `/cookies`, `/account/close`, `/account-deleted` | yes |
-| Manual | On `dev`: close a fixture account, run `account:run-closures` with `NOW=` 31 days on, check the rows in Neon; the five emails arrive | yes |
+| Manual | On `dev`: close a fixture account, run `account:run-closures` with `NOW=` 31 days on, check the rows in Neon; the five emails arrive (moved to 4.9, see Results) | yes |
 
 Integration tests that need policies and claims insert them as fixtures directly, because the product can't create them until Phases 5 and 6.
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] On staging, a fresh sign-up deletes itself and the `account.deleted` row is there, and the audit chain verifies.
-- [ ] A fixture account with a settled claim closes after `account:run-closures` with `NOW=` 31 days on; one with an open claim is held.
-- [ ] `/privacy` names OpsEd Solutions, `privacy@`, and PostHog, and links to the cookie settings.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#61, after the cold-cache fix in Results).
+- [x] On staging, a fresh sign-up deletes itself and the `account.deleted` row is there, and the audit chain verifies. Damion, 8 Nov 2026: `account.deleted` for the new user was the newest `audit_log` row on `dev`, `vp run db:check-app-role` passed every check including "audit chain verifies", and logging in again with that email gave "That email and password don't match."
+- [ ] A fixture account with a settled claim closes after `account:run-closures` with `NOW=` 31 days on; one with an open claim is held. **Moved to 4.9** (Damion, 8 Nov 2026): nothing can buy a policy until Phase 5, so no real account can reach day 30, and the logic is covered by the `runClosures` integration tests. 4.9's seed creates policies and claims in several states, so the check runs there against seeded accounts.
+- [x] `/privacy` names OpsEd Solutions, `privacy@`, and PostHog, and links to the cookie settings.
 
 ## Commit message
 
@@ -269,6 +270,16 @@ Known limits and follow-ups (all minor, deferred):
 Left for later slices:
 - Phase 5 (5.6, pay): the purchase transaction must lock the customer row or check `getAccountState`. A purchase landing between `recordsOnFile` and an immediate delete otherwise hits `RESTRICT` as a 500 (no data loss). Noted on the 5.6 row of `phase.md`.
 
+After the PR (7–8 Nov 2026):
+- **CI failed on a cold dependency cache, now fixed.** The component project's pre-bundler followed `ClosePage` / `ClosureBanner` → `features/account/closure.ts` → `@tanstack/react-start/server` and couldn't resolve the Start plugin's virtual `#tanstack-router-entry` / `#tanstack-start-entry`, which that project doesn't load. Every component test mocks `closure.ts`, so the module is never loaded in the browser; `vite.config.ts` excludes it from that project's `optimizeDeps`. A warm local cache had hidden it. Reproduced locally with the cache moved aside, then 1047/1047 on a cold cache and `ci` green (`1a05d04`).
+- **Merged as #61** into `staging` on 7 Nov 2026.
+- **Staging delete check passed** (Damion, 8 Nov 2026): see Done when.
+- **Three stray E2E sign-ups** left on Neon `dev` by an early E2E attempt were deleted by hand (Damion, 8 Nov 2026).
+- **The 30-day closure check moves to 4.9** (Damion, 8 Nov 2026). It's added to the 4.9 row in `phase.md`.
+- **Found while testing, not caused by 4.7:** a fresh production build logs a CSP `script-src` eval violation on every page, from zod 4's `allowsEval` probe (route files build `z.object` at module scope for `validateSearch`). Nothing breaks, but `e2e/smoke.spec.ts` fails on it. A separate small fix follows: `z.config({ jitless: true })` in the browser entry only (Better Auth shares the server's zod instance).
+
 Still to do (Damion):
-- [ ] The `privacy@kerb.opsedsolutions.com` mailbox, `CRON_SECRET` in Vercel (Preview and Production), reading the notice, and `E2E_DATABASE_URL` in the Actions secrets.
-- [ ] The walkthrough on `dev`: delete a fresh sign-up, close a fixture account, `NOW=<+31d> vp run account:run-closures`, then check Neon and the five emails.
+- [ ] The `privacy@kerb.opsedsolutions.com` mailbox, before the privacy page reaches production.
+- [ ] `E2E_DATABASE_URL` in the Actions secrets: Staging's `DATABASE_URL` (Neon `dev`, `kerb_app`), never `prod`. Not urgent: the E2E workflow only runs from `main`'s copy, so it starts with the Phase 4 release.
+- [x] `CRON_SECRET` in Vercel; reading the notice.
+- [x] The staging delete walkthrough. The fixture-closure walkthrough moves to 4.9.
