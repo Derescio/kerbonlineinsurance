@@ -440,7 +440,7 @@ Prices include IPT. The hand calculations use the v1 numbers above. "Target" is 
 | C5 | Alex, 22, Manchester, 2021 BMW M3 Competition (group 50) | under 25 and group 40+ | **declined** | declined |
 | C6 | Sam, 52, Guildford, 2020 Porsche 911 Carrera (group 50, about £75k) | group 45+ | **referred** | referred |
 | H1 | 3-bed semi in Leeds, built 1965, rebuild £240k, contents £45k, multipoint locks, smoke alarm, no burglar alarm, Comprehensive; buildings band 4, contents band 6 | buildings 240 × 0.75 × 1.03 = £185.4; contents 45 × 1.90 × 1.15 × 0.95 = £93.4 | **£312** | £250–£400 |
-| H2 | 2-bed flat in Hackney, built 1990, rebuild £150k, contents £30k, alarm, multipoint; buildings band 6, contents band 9 | buildings 150 × 0.75 × 0.85 × 1.15 = £110.0; contents 30 × 1.90 × 1.55 × 0.95 × 0.95 = £79.7 | **£212** | £180–£320 |
+| H2 | 2-bed flat in Hackney, built 1990, rebuild £150k, contents £30k, alarm, multipoint; buildings band 6, contents band 9 | buildings 150 × 0.75 × 0.85 × 1.15 = £110.0; contents 30 × 1.90 × 1.55 × 0.95 × 0.95 × 0.95 (alarm, multipoint, 2 bedrooms) = £75.7 | **£208** | £180–£320 |
 | H3 | 4-bed detached near Shrewsbury, built 1890, rebuild £450k, contents £80k, standard locks; buildings band 7 (Severn flood), contents band 2 | buildings 450 × 0.75 × 1.05 × 1.25 × 1.25 = £553.7; contents 80 × 1.90 × 0.90 × 1.05 × 1.06 = £152.3 | **£790** | £600–£1,000 |
 | B1 | Sole-trader electrician, Derby (band 4), turnover £60k, no employees, Essential | 115 × 1.00 × 1.00 | **£129** | £80–£180 (Simply Business shows from £80) |
 | B2 | Mobile hairdresser, Nottingham (band 5), turnover £25k, no employees, Essential | 85 × 0.85 × 1.07 = £77.3 | **£87** | £70–£140 (Simply Business example £103) |
