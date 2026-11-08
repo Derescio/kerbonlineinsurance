@@ -59,6 +59,7 @@ function ConfirmForm({
   providers,
   twoFactor,
   submitLabel,
+  busyLabel,
   submitVariant,
   run,
   onDone,
@@ -68,6 +69,8 @@ function ConfirmForm({
   providers: string[];
   twoFactor: boolean;
   submitLabel: string;
+  /** What the button says while the request is in flight */
+  busyLabel: string;
   submitVariant: "danger" | "primary";
   run: (input: Fields) => Promise<WriteResult<unknown>>;
   onDone: () => void;
@@ -218,6 +221,7 @@ function ConfirmForm({
           size="lg"
           fullWidth
           loading={busy}
+          loadingLabel={busyLabel}
           disabled={!hydrated}
         >
           {submitLabel}
@@ -255,6 +259,7 @@ function DeleteVersion({ data }: { data: Extract<ClosePageData, { kind: "delete"
         providers={data.providers}
         twoFactor={data.twoFactor}
         submitLabel="Delete my account"
+        busyLabel="Deleting your account…"
         submitVariant="danger"
         run={run}
         onDone={gone}
@@ -322,6 +327,7 @@ function CloseVersion({ data }: { data: Extract<ClosePageData, { kind: "close" }
           providers={data.providers}
           twoFactor={data.twoFactor}
           submitLabel="Request account closure"
+          busyLabel="Requesting closure…"
           submitVariant="primary"
           run={(input) => requestMyClosure({ data: { input, idempotencyKey: key } })}
           rotate={rotate}
@@ -362,7 +368,14 @@ function ClosingVersion({ data }: { data: Extract<ClosePageData, { kind: "closin
               You can still sign in and keep your account until it closes. Your cover stays in force
               either way.
             </p>
-            <Button variant="primary" size="lg" fullWidth loading={busy} onClick={keep}>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={busy}
+              loadingLabel="Keeping your account…"
+              onClick={keep}
+            >
               Keep my account
             </Button>
           </>
