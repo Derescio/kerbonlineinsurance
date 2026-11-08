@@ -40,7 +40,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 4.5b **Audit integrity and database security**: HMAC-chained `audit()` and `verifyAuditChain()` with versioned keys, `claim.viewed` / `referral.viewed` / `staff.added`, non-owner app role `kerb_app`, `db:check-app-role` (merged as #56)
 - [x] 4.5c **Safe write tools**: `withTx`, `withIdempotency`, shared `limit()` rate limiter, validation-error contract, `defineWrite`, form helpers (merged as #58)
 - [x] 4.6 **2FA**: optional for customers, required for staff; the Google challenge, fresh-session checks, sign out everywhere, a typed list of audit actions (merged as #59)
-- [ ] 4.7 **Privacy page + account closure**: `/privacy` and `/cookies`; immediate delete for an account with nothing on file; a 30-day closure (daily cron, held while a claim is open) that keeps insurance records and audit history (in review)
+- [x] 4.7 **Privacy page + account closure**: `/privacy` and `/cookies`; immediate delete for an account with nothing on file; a 30-day closure (daily cron, held while a claim is open) that keeps insurance records and audit history (merged as #61)
 - [ ] 4.8 **Reference data**: vehicle catalogue (make → model → year → variant) and rating tables v1
 - [ ] 4.9 **Seed script** (synthetic, idempotent, all three products and bundles; 12 months backdated; every data-contract table filled)
 - [ ] 4.10 **Upload foundation**: R2 buckets `kerb-dev`/`kerb-prod`, `files` table, direct-to-R2 signed uploads, image resize + EXIF strip, cleanup cron
