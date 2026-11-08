@@ -41,6 +41,7 @@ describe("checkAppRole", () => {
       "not a member of neon_superuser or any pg_*_data role",
       "UPDATE, DELETE and TRUNCATE on audit_log refused",
       "audit_log triggers present",
+      "writes on reference tables refused",
       "audit chain verifies",
     ]);
     expect(results.filter((r) => !r.ok)).toEqual([]);
@@ -51,6 +52,7 @@ describe("checkAppRole", () => {
     expect(byName.get("connected as kerb_app")).toBe(false);
     expect(byName.get("no superuser, CREATEROLE, CREATEDB or BYPASSRLS")).toBe(false);
     expect(byName.get("UPDATE, DELETE and TRUNCATE on audit_log refused")).toBe(false);
+    expect(byName.get("writes on reference tables refused")).toBe(false);
   });
 
   it("fails the chain check after a row is tampered with", async () => {

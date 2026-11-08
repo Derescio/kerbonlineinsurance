@@ -63,6 +63,19 @@ export async function checkAppRole(client: Queryable, keys: AuditKeys): Promise<
   );
   results.push({ name: "audit_log triggers present", ok: triggers[0]?.ok === true });
 
+  // The reference tables are written only by the deploy, as the owner (4.8, call 18)
+  const { rows: reference } = await client.query<{ ok: boolean }>(
+    `select not bool_or(
+       has_table_privilege(current_user, 'public.' || t, 'INSERT')
+       or has_table_privilege(current_user, 'public.' || t, 'UPDATE')
+       or has_table_privilege(current_user, 'public.' || t, 'DELETE')
+       or has_table_privilege(current_user, 'public.' || t, 'TRUNCATE')
+     ) as ok
+       from unnest(array['vehicle_catalogue', 'rating_parameters', 'rating_tiers',
+                         'rating_addons', 'rating_factors', 'rating_lookups']) as t`,
+  );
+  results.push({ name: "writes on reference tables refused", ok: reference[0]?.ok === true });
+
   const chain = await verifyAuditChain(client, keys);
   results.push(
     chain.ok

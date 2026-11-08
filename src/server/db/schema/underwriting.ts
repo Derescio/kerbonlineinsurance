@@ -30,6 +30,9 @@ export const ratingVersions = pgTable(
     effectiveFrom: date().notNull(),
     effectiveTo: date(),
     notes: text(),
+    // SHA-256 of the version's tables (4.8, call 9): the deploy refuses to change a version whose
+    // stored hash differs. Null on the test factories' draft versions.
+    contentHash: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
