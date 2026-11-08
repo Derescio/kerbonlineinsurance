@@ -1,6 +1,6 @@
 # 4.9 Seed data
 
-**Status:** done (checks passed on `dev` on 8 Nov 2026; PR to follow)
+**Status:** done (merged as #68 on 8 Nov 2026; the seed, sign-in and closure checks passed on `dev` the same day)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -125,7 +125,7 @@ All addresses are on `SEED_INBOX` (call 8). All passwords are `SEED_PASSWORD`.
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally on 8 Nov 2026: the full suite (1,245 tests) and the build passed. After the last guard change: check clean, and the unit and integration tests pass (1,025). `ci` runs everything on the PR.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#68, 3 min 17 s; the Vercel preview deployed).
 - [x] `vp run db:seed` on `dev` finishes and prints its row counts, and a second run prints "already seeded". Damion, 8 Nov 2026: 2,007 synthetic users, 5,524 quotes, 1,373 policies, 238 claims and 888 audit rows (before the closure check); the rerun printed "Already seeded" with the same counts.
 - [x] Cast members can sign in on the `dev` database. Damion, 8 Nov 2026, on localhost (same database as staging): the handler with a code from his phone's authenticator, and both closure customers with `SEED_PASSWORD`. The admin shares the handler's 2FA entry.
 - [x] The closure check passes. Damion, 8 Nov 2026:
