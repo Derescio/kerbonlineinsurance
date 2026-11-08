@@ -367,9 +367,18 @@ describe("audit of staff views (4.5b)", () => {
 });
 
 // Every module in src/server/data/ except these, whether or not index.ts re-exports it. account.ts
-// holds plain helpers for the actor lookup and closure, not protected reads (4.7).
+// holds plain helpers for the actor lookup and closure, not protected reads (4.7); reference.ts is
+// the catalogue and rates, the same for everyone and written only by the deploy (4.8).
 const modules = import.meta.glob(
-  ["./*.ts", "!./*.test.ts", "!./index.ts", "!./define.ts", "!./summaries.ts", "!./account.ts"],
+  [
+    "./*.ts",
+    "!./*.test.ts",
+    "!./index.ts",
+    "!./define.ts",
+    "!./summaries.ts",
+    "!./account.ts",
+    "!./reference.ts",
+  ],
   {
     eager: true,
   },
