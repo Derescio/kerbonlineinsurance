@@ -207,6 +207,61 @@ describe("reference data", () => {
       expect(await count(ratingVersions)).toBe(3);
       expect(await count(vehicleCatalogue)).toBe(expandCatalogue(CATALOGUE_SOURCES).length);
     });
+
+    // Final review: withTx's 10s statement_timeout used to cancel the wait before the 60s lock
+    // timeout could apply, so a slow first deploy failed the second
+    it("waits longer than 10s for another deploy's lock", { timeout: 30_000 }, async () => {
+      const holder = await owner().$client.connect();
+      try {
+        await holder.query("begin");
+        await holder.query("select pg_advisory_xact_lock(hashtext('kerb:reference-data'))");
+        const run = upsertReferenceData(owner(), sources());
+        await new Promise((resolve) => setTimeout(resolve, 11_000));
+        await holder.query("commit");
+        await expect(run).resolves.toMatchObject({ catalogue: { deactivated: 0 } });
+      } finally {
+        await holder.query("rollback").catch(() => undefined);
+        holder.release();
+      }
+    });
+
+    // Final review: a conflict found per version used to leave the catalogue and earlier products
+    // committed
+    it("refuses an edited version before writing anything else", async () => {
+      await upsertReferenceData(owner(), sources());
+      const before = await catalogueRows();
+      const next = sources();
+      next.catalogue[0]!.generations[1]!.variants[0]!.insuranceGroup = 4;
+      next.rating[1]!.factors[0]!.multiplier = 9;
+      const v2 = { ...clone(RATING_SOURCES[0]!), version: 2, effectiveFrom: "2026-12-01" };
+      next.rating.push(v2);
+
+      await expect(upsertReferenceData(owner(), next)).rejects.toThrow(ReferenceDataConflict);
+      expect(await catalogueRows()).toEqual(before);
+      expect(await count(ratingVersions)).toBe(3);
+    });
+
+    it("refuses a new version that doesn't start after the active one, writing nothing", async () => {
+      await upsertReferenceData(owner(), sources());
+      const v2 = { ...clone(RATING_SOURCES[0]!), version: 2 };
+
+      // Listed with v1, the sources themselves are out of order
+      await expect(upsertReferenceData(owner(), sources([...RATING_SOURCES, v2]))).rejects.toThrow(
+        "car v2: effectiveFrom 2026-11-01 must be after v1's 2026-11-01",
+      );
+      // Listed alone, it's checked against the deployed active version
+      await expect(upsertReferenceData(owner(), sources([v2]))).rejects.toThrow(
+        "car v2: effectiveFrom 2026-11-01 must be after the active v1's 2026-11-01",
+      );
+      expect(await count(ratingVersions)).toBe(3);
+    });
+
+    it("refuses the same version listed twice", async () => {
+      await expect(
+        upsertReferenceData(owner(), sources([...RATING_SOURCES, RATING_SOURCES[0]!])),
+      ).rejects.toThrow("car v1 is listed twice");
+      expect(await count(ratingVersions)).toBe(0);
+    });
   });
 
   describe("readers", () => {

@@ -103,6 +103,22 @@ describe("validateRatingSource", () => {
       "addon breakdown_uk: unknown factor nope",
     ],
     ["a missing parameter", (s) => void delete s.parameters.ipt_rate, "missing parameter ipt_rate"],
+    // Final review: limits Postgres would only enforce after writes had started
+    [
+      "an add-on twice",
+      (s) => void s.addons.push({ ...s.addons[0]! }),
+      "addon breakdown_uk listed twice",
+    ],
+    [
+      "a multiplier too big for numeric(8,4)",
+      (s) => void (s.factors[2]!.multiplier = 10_000),
+      "multiplier must be below 10000",
+    ],
+    [
+      "a price too big for an integer column",
+      (s) => void (s.addons[0]!.annualPricePence = 2 ** 31),
+      "addon breakdown_uk: price too large",
+    ],
   ])("refuses %s", (_label, change, message) => {
     expect(problems(change).join("\n")).toContain(message);
   });

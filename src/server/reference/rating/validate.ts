@@ -66,8 +66,13 @@ export const REQUIRED_PARAMETERS: Readonly<Record<Product, readonly string[]>> =
 // silently, and the stored tables would no longer match the source or its hash
 const fourPlaces = (value: number) => Math.round(value * 1e4) / 1e4 === value;
 
+// The largest values the columns hold: numeric(8,4) and a Postgres integer
+const MAX_MULTIPLIER = 10_000;
+const MAX_INT = 2 ** 31 - 1;
+
 function checkMultiplier(where: string, value: number, problems: string[]) {
   if (!(value > 0)) problems.push(`${where}: multiplier must be > 0`);
+  else if (value >= MAX_MULTIPLIER) problems.push(`${where}: multiplier must be below 10000`);
   else if (!fourPlaces(value)) problems.push(`${where}: multiplier has more than 4 decimal places`);
 }
 
@@ -108,8 +113,11 @@ export function validateRatingSource(source: RatingSource): string[] {
   if (levels.join() !== [...coverLevels].sort().join()) {
     problems.push(`tiers: expected ${coverLevels.join(", ")}`);
   }
-  for (const tier of source.tiers)
+  for (const tier of source.tiers) {
     checkMultiplier(`tier ${tier.coverLevel}`, tier.multiplier, problems);
+    if (tier.compulsoryExcessPence > MAX_INT)
+      problems.push(`tier ${tier.coverLevel}: excess too large`);
+  }
 
   const byFactor = new Map<string, RatingFactor[]>();
   for (const row of source.factors) {
@@ -127,7 +135,11 @@ export function validateRatingSource(source: RatingSource): string[] {
     }
   }
 
+  const addons = new Set<string>();
   for (const addon of source.addons) {
+    if (addons.has(addon.addon)) problems.push(`addon ${addon.addon} listed twice`);
+    addons.add(addon.addon);
+    if (addon.annualPricePence > MAX_INT) problems.push(`addon ${addon.addon}: price too large`);
     for (const factor of addon.factors) {
       if (!byFactor.has(factor)) problems.push(`addon ${addon.addon}: unknown factor ${factor}`);
     }

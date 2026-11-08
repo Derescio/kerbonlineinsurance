@@ -44,9 +44,12 @@ interface Sources {
 }
 
 // One deploy at a time per database: a quick redeploy waits for the first, then finds nothing to
-// do. withTx's 5s lock wait is for requests; a deploy can wait longer (local to this transaction).
+// do. withTx's limits are for requests; a deploy can wait longer (local to this transaction). Both
+// limits: withTx's 10s statement_timeout would otherwise cancel the wait before lock_timeout applies.
 async function lock(tx: Tx) {
-  await tx.execute(sql`select set_config('lock_timeout', '60s', true)`);
+  await tx.execute(
+    sql`select set_config('statement_timeout', '60s', true), set_config('lock_timeout', '60s', true)`,
+  );
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('kerb:reference-data'))`);
 }
 
@@ -70,10 +73,69 @@ function validate(sources: Sources): CatalogueRow[] {
     if (!(error instanceof CatalogueError)) throw error;
     problems.push(`catalogue: ${error.message}`);
   }
+  // Across sources: each version once, and a product's versions start in order
+  const seen = new Set<string>();
+  for (const source of sources.rating) {
+    const name = `${source.product} v${source.version}`;
+    if (seen.has(name)) problems.push(`${name} is listed twice`);
+    seen.add(name);
+  }
+  const previous = new Map<string, RatingSource>();
+  for (const next of byVersion(sources.rating)) {
+    const prev = previous.get(next.product);
+    if (prev && prev.version !== next.version && next.effectiveFrom <= prev.effectiveFrom) {
+      problems.push(
+        `${next.product} v${next.version}: effectiveFrom ${next.effectiveFrom} must be after v${prev.version}'s ${prev.effectiveFrom}`,
+      );
+    }
+    previous.set(next.product, next);
+  }
+  invalidIf(problems);
+  return rows;
+}
+
+function invalidIf(problems: string[]) {
   if (problems.length > 0) {
     throw new ReferenceDataInvalid(`Reference data is invalid:\n- ${problems.join("\n- ")}`);
   }
-  return rows;
+}
+
+// Stable, so products keep their listed order within a version
+const byVersion = (rating: readonly RatingSource[]) =>
+  [...rating].sort((a, b) => a.version - b.version);
+
+// Before any write: a version already deployed must hash the same (call 9), and a new one must
+// start after the active one. upsertVersion checks again under the lock, as a backstop.
+async function preflight(db: Db, rating: readonly RatingSource[]) {
+  const existing = await db
+    .select({
+      product: ratingVersions.product,
+      version: ratingVersions.version,
+      status: ratingVersions.status,
+      contentHash: ratingVersions.contentHash,
+      effectiveFrom: ratingVersions.effectiveFrom,
+    })
+    .from(ratingVersions);
+  const problems: string[] = [];
+  for (const source of rating) {
+    const name = `${source.product} v${source.version}`;
+    const same = existing.find((v) => v.product === source.product && v.version === source.version);
+    if (same) {
+      if (same.contentHash !== contentHash(source)) {
+        throw new ReferenceDataConflict(
+          `${name} is already in the database with different tables; add v${source.version + 1} instead`,
+        );
+      }
+      continue;
+    }
+    const active = existing.find((v) => v.product === source.product && v.status === "active");
+    if (active && source.effectiveFrom <= active.effectiveFrom) {
+      problems.push(
+        `${name}: effectiveFrom ${source.effectiveFrom} must be after the active v${active.version}'s ${active.effectiveFrom}`,
+      );
+    }
+  }
+  invalidIf(problems);
 }
 
 async function upsertCatalogue(db: Db, rows: CatalogueRow[]): Promise<UpsertResult["catalogue"]> {
@@ -218,9 +280,11 @@ export async function upsertReferenceData(
   sources: Sources = { rating: RATING_SOURCES, catalogue: CATALOGUE_SOURCES },
 ): Promise<UpsertResult> {
   const rows = validate(sources);
+  await preflight(db, sources.rating);
   const catalogue = await upsertCatalogue(db, rows);
   const versions: UpsertResult["versions"] = [];
-  for (const source of sources.rating) versions.push(await upsertVersion(db, source));
+  // In version order, so a v2 listed before v1 can't end up the retired one
+  for (const source of byVersion(sources.rating)) versions.push(await upsertVersion(db, source));
   return { catalogue, versions };
 }
 

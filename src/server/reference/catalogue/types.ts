@@ -16,10 +16,15 @@ const variantSchema = z.object({
   fuelType: z.enum(fuelTypes),
   transmission: z.enum(transmissions),
   doors: z.number().int().min(2).max(7),
-  engineCc: z.number().int().positive().nullable(),
-  powerBhp: z.number().int().positive(),
+  // smallint columns
+  engineCc: z.number().int().positive().max(32_767).nullable(),
+  powerBhp: z.number().int().positive().max(32_767),
   insuranceGroup: z.number().int().min(1).max(50),
-  newPricePence: z.number().int().positive(),
+  newPricePence: z
+    .number()
+    .int()
+    .positive()
+    .max(2 ** 31 - 1),
   /** Narrows the generation's years */
   years: yearRange.optional(),
 });
