@@ -72,3 +72,12 @@ export const settlementStatuses = ["scheduled", "paid"] as const;
 export const reviewStatuses = ["pending", "published", "rejected"] as const;
 
 export const jobStatuses = ["queued", "running", "done", "failed", "dead"] as const;
+
+// Uploads (4.10). Kerbie's `kerbie_image` arrives with the chat tables in Phase 7.
+export const fileKinds = ["claim_photo", "claim_document", "review_photo"] as const;
+export type FileKind = (typeof fileKinds)[number];
+export const fileStatuses = ["pending", "ready", "rejected", "deleted"] as const;
+export type FileStatus = (typeof fileStatuses)[number];
+// What is stored: photos re-encoded in the browser (JPEG where the browser can't encode WebP), PDFs as uploaded
+export const fileMimes = ["image/webp", "image/jpeg", "application/pdf"] as const;
+export type FileMime = (typeof fileMimes)[number];
