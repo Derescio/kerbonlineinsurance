@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
+import { MAX_ATTEMPTS } from "#/server/jobs/backoff";
 
 export type { Db };
 import { idempotencyKeys, jobs, rateLimits } from "#/server/db/schema";
@@ -48,7 +49,8 @@ export async function claimJobById(db: Db, id: number, now: Date): Promise<JobRo
 
 /**
  * Takes the next due job: queued or failed with its time come, or running but not updated since
- * `staleBefore` (its function died). SKIP LOCKED, so two runners never take the same row.
+ * `staleBefore` (its function died) with attempts left. SKIP LOCKED, so two runners never take the
+ * same row. The attempts guard holds even when no runner has marked the stale job dead yet.
  */
 export async function claimNextJob(
   db: Db,
@@ -65,7 +67,8 @@ export async function claimNextJob(
         jobs.id,
         sql`(select id from jobs
              where ((status in ('queued', 'failed') and run_after <= ${now})
-                or (status = 'running' and updated_at < ${staleBefore}))
+                or (status = 'running' and updated_at < ${staleBefore}
+                    and attempts < ${MAX_ATTEMPTS}))
                ${skip}
              order by run_after, id
              limit 1
@@ -106,11 +109,15 @@ export async function markStaleJobsDead(
   return rows.length;
 }
 
-/** Records how an attempt ended. A finished job's payload is emptied (spec call 9) */
+/**
+ * Records how an attempt ended, at `at`. A finished job's payload is emptied (spec call 9). `at`
+ * must differ from the claim's `updated_at`: the jobs_set_updated_at trigger (0002) replaces an
+ * unchanged value with the database clock
+ */
 export async function finishJob(
   db: Db,
   id: number,
-  now: Date,
+  at: Date,
   outcome:
     | { status: "done"; lastError: string | null }
     | { status: "failed"; lastError: string; runAfter: Date }
@@ -118,7 +125,7 @@ export async function finishJob(
 ): Promise<void> {
   await db
     .update(jobs)
-    .set({ ...outcome, ...(outcome.status === "done" ? { payload: {} } : {}), updatedAt: now })
+    .set({ ...outcome, ...(outcome.status === "done" ? { payload: {} } : {}), updatedAt: at })
     .where(eq(jobs.id, id));
 }
 
