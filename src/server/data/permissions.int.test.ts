@@ -382,7 +382,8 @@ describe("audit of staff views (4.5b)", () => {
 // Every module in src/server/data/ except these, whether or not index.ts re-exports it. account.ts
 // holds plain helpers for the actor lookup and closure, not protected reads (4.7); reference.ts is
 // the catalogue and rates, the same for everyone and written only by the deploy (4.8); file-rows.ts
-// is the upload row helpers behind the account hooks and the cleanup (4.10).
+// is the upload row helpers behind the account hooks and the cleanup (4.10); job-rows.ts is the
+// jobs table's helpers behind the runner (4.11).
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -393,6 +394,7 @@ const modules = import.meta.glob(
     "!./account.ts",
     "!./reference.ts",
     "!./file-rows.ts",
+    "!./job-rows.ts",
   ],
   {
     eager: true,
