@@ -8,6 +8,7 @@ import {
   claims,
   customers,
   drivers,
+  files,
   payments,
   policies,
   properties,
@@ -16,13 +17,15 @@ import {
   quoteItems,
   quotes,
   ratingVersions,
+  reviews,
   staffMembers,
   staffRoles,
   underwritingDecisions,
   users,
   vehicles,
 } from "#/server/db/schema";
-import type { Product, StaffRole } from "#/server/db/schema/values";
+import type { FileKind, FileMime, Product, StaffRole } from "#/server/db/schema/values";
+import { objectKey, thumbKey } from "#/server/uploads/keys";
 
 // Test factories (4.2): each inserts one valid row, and its parents when they aren't given, with
 // any field overridable. 4.5's permission suite and later slices build on them. Integration tests
@@ -353,4 +356,81 @@ export async function makeReferral({ customerId }: { customerId?: string } = {})
     decidedBy: null,
   });
   return { quote, item: item! };
+}
+
+/** A pending review of a policy (a new policy unless `policyId` is given). */
+export async function makeReview(overrides: Insert<typeof reviews> = {}) {
+  let { policyId, customerId } = overrides;
+  if (!policyId) {
+    const policy = await makePolicy({ customerId });
+    policyId = policy.id;
+    customerId = policy.customerId;
+  }
+  const status = overrides.status ?? "pending";
+  const [review] = await getDb()
+    .insert(reviews)
+    .values({
+      rating: 5,
+      title: "Quick and clear",
+      body: "Sorted my claim in a week.",
+      publishedAt: status === "published" ? new Date() : null,
+      ...overrides,
+      status,
+      policyId,
+      customerId: customerId!,
+    })
+    .returning();
+  return review!;
+}
+
+/**
+ * A file's row (4.10): a ready claim photo unless told otherwise, owned by the parent's customer
+ * (a new claim's when neither parent is given). The keys are built the way createUpload builds
+ * them; no object is put in any store.
+ */
+export async function makeFile(overrides: Insert<typeof files> = {}) {
+  const db = getDb();
+  const kind = (overrides.kind ??
+    (overrides.reviewId ? "review_photo" : "claim_photo")) as FileKind;
+  const mime = (overrides.mime ??
+    (kind === "claim_document" ? "application/pdf" : "image/webp")) as FileMime;
+  let { claimId, reviewId, ownerUserId } = overrides;
+  if (!claimId && !reviewId) claimId = (await makeClaim()).id;
+  if (ownerUserId === undefined) {
+    const parent = claimId
+      ? db.select({ customerId: claims.customerId }).from(claims).where(eq(claims.id, claimId))
+      : db
+          .select({ customerId: reviews.customerId })
+          .from(reviews)
+          .where(eq(reviews.id, reviewId!));
+    const [row] = await parent;
+    const [customer] = await db
+      .select({ userId: customers.userId })
+      .from(customers)
+      .where(eq(customers.id, row!.customerId));
+    ownerUserId = customer!.userId;
+  }
+  const id = overrides.id ?? randomUUID();
+  const status = overrides.status ?? "ready";
+  const image = mime !== "application/pdf";
+  const [file] = await db
+    .insert(files)
+    .values({
+      kind,
+      mime,
+      sizeBytes: 120_000,
+      width: image ? 2048 : null,
+      height: image ? 1536 : null,
+      objectKey: objectKey(kind, ownerUserId ?? "nobody", id, mime),
+      thumbKey: image ? thumbKey(kind, ownerUserId ?? "nobody", id, mime) : null,
+      confirmedAt: status === "ready" ? new Date() : null,
+      ...overrides,
+      id,
+      status,
+      claimId: claimId ?? null,
+      reviewId: reviewId ?? null,
+      ownerUserId,
+    })
+    .returning();
+  return file!;
 }

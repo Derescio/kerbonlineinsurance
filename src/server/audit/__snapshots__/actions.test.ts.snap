@@ -26,6 +26,10 @@ exports[`AUDIT_ACTIONS > pins the list 1`] = `
     "description": "A staff member opened a claim",
     "entityType": "claim",
   },
+  "file.viewed": {
+    "description": "A staff member opened a claim file",
+    "entityType": "file",
+  },
   "referral.viewed": {
     "description": "A staff member opened a referral",
     "entityType": "quote_item",
