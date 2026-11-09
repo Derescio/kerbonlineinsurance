@@ -6,14 +6,15 @@ Built with [Vite+](https://viteplus.dev) and [TanStack Start](https://tanstack.c
 
 ## Status
 
-Live at https://kerbonlineinsurance.vercel.app. 18 of 63 slices done.
+Live at https://kerbonlineinsurance.vercel.app. 32 of 76 slices done.
 
-| Phase            |                                                                                         | Tag                |
-| ---------------- | --------------------------------------------------------------------------------------- | ------------------ |
-| 1. Setup         | done                                                                                    | `s1-setup`         |
-| 2. Design system | done                                                                                    | `s2-Design-System` |
-| 3. Landing       | done: landing page from Figma, cookie consent, PostHog analytics and the first A/B test | `s3-landing`       |
-| 4. Data and auth | next                                                                                    |                    |
+| Phase            |                                                                                                                          | Tag                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| 1. Setup         | done                                                                                                                     | `s1-setup`         |
+| 2. Design system | done                                                                                                                     | `s2-Design-System` |
+| 3. Landing       | done: landing page from Figma, cookie consent, PostHog analytics and the first A/B test                                  | `s3-landing`       |
+| 4. Data and auth | done: Postgres and migrations, accounts with Google and 2FA, permissions, an audit chain, uploads to R2, background jobs | `s4-Data-Auth`     |
+| 5. Quote         | next                                                                                                                     |                    |
 
 Progress per slice is in [plan/build-plan.md](plan/build-plan.md).
 
