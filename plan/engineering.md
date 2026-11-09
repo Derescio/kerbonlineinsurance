@@ -445,7 +445,7 @@ Built in 4.11 ([11-background-jobs.md](phases/04-data-auth/11-background-jobs.md
 - **The daily cron** (`/api/cron/daily`, 03:00 UTC) queues the day's jobs, keyed by the UTC date so a second call is a no-op, and runs them in order: `account.closures`, `uploads.cleanup`, `housekeeping.expired_rows`, `audit.anchor` (the audit log in §7).
 - **Housekeeping** deletes expired `idempotency_keys`, `rate_limits` windows over a day old, `done` jobs after 7 days and `dead` jobs after 30. A finished job's payload is emptied (`{}`), since an email job's holds an address and a sign-in link.
 - **Handlers are idempotent:** safe to run twice. An email job passes its key to Resend as the `Idempotency-Key`, so a job run twice within 24 hours sends one email.
-- **By hand:** Vercel Cron only calls Production, so `vp run jobs:run` and `vp run jobs:daily` do the same elsewhere (`NOW=` works). They drop emails unless `SEND_EMAILS=1`.
+- **By hand:** Vercel Cron only calls Production, so `vp run jobs:run` and `vp run jobs:daily` do the same elsewhere (`NOW=` works). Without `SEND_EMAILS=1` they leave email jobs queued (`holdEmails`), so a run never marks a waiting email done unsent.
 - **Jobs in place (4.11):**
   - `email.send`: every transactional email (verification, reset, existing account, and the closure and deletion emails), built from a template name when it's sent
   - `account.closures`, `uploads.cleanup`, `housekeeping.expired_rows`, `audit.anchor`

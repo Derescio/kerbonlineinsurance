@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
 
@@ -50,7 +50,13 @@ export async function claimJobById(db: Db, id: number, now: Date): Promise<JobRo
  * Takes the next due job: queued or failed with its time come, or running but not updated since
  * `staleBefore` (its function died). SKIP LOCKED, so two runners never take the same row.
  */
-export async function claimNextJob(db: Db, now: Date, staleBefore: Date): Promise<JobRow | null> {
+export async function claimNextJob(
+  db: Db,
+  now: Date,
+  staleBefore: Date,
+  skipTypes: string[] = [],
+): Promise<JobRow | null> {
+  const skip = skipTypes.length > 0 ? sql`and type not in ${skipTypes}` : sql``;
   const [row] = await db
     .update(jobs)
     .set(claimed(now))
@@ -58,8 +64,9 @@ export async function claimNextJob(db: Db, now: Date, staleBefore: Date): Promis
       eq(
         jobs.id,
         sql`(select id from jobs
-             where (status in ('queued', 'failed') and run_after <= ${now})
-                or (status = 'running' and updated_at < ${staleBefore})
+             where ((status in ('queued', 'failed') and run_after <= ${now})
+                or (status = 'running' and updated_at < ${staleBefore}))
+               ${skip}
              order by run_after, id
              limit 1
              for update skip locked)`,
@@ -67,6 +74,15 @@ export async function claimNextJob(db: Db, now: Date, staleBefore: Date): Promis
     )
     .returning();
   return row ?? null;
+}
+
+/** How many email jobs are waiting to be sent: queued, or failed with a retry to come */
+export async function countWaitingEmails(db: Db): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(jobs)
+    .where(and(eq(jobs.type, "email.send"), inArray(jobs.status, ["queued", "failed"])));
+  return row?.n ?? 0;
 }
 
 /** Running jobs that died with their function after their last attempt: dead, never run again */

@@ -88,7 +88,7 @@ export async function runDueJobs(
   counts.dead += await markStaleJobsDead(db, now, staleBefore, MAX_ATTEMPTS);
 
   while (counts.ran < max && Date.now() - startedAt < budgetMs) {
-    const job = await claimNextJob(db, now, staleBefore);
+    const job = await claimNextJob(db, now, staleBefore, deps.holdEmails ? ["email.send"] : []);
     if (!job) break;
     counts.ran++;
     counts[await execute(db, job, deps, now, handlers)]++;

@@ -6,7 +6,7 @@ import { jobs } from "#/server/db/schema";
 import type { EmailMessage } from "#/server/email/send";
 import { truncateAll } from "#/test/db";
 
-import { queueEmail } from "./email";
+import { queueEmail, runSoon } from "./email";
 import { runDueJobs, runJob } from "./runner";
 import type { JobDeps } from "./types";
 
@@ -94,5 +94,14 @@ describe("email.send", () => {
     await runJob(getDb(), id, deps, now);
     expect(sends).toHaveLength(2);
     expect(new Set(sends.map((s) => s.idempotencyKey)).size).toBe(1);
+  });
+
+  it("runSoon with holdEmails leaves the job queued for a run that sends", async () => {
+    const id = await reset(new Date(now.getTime() + HOUR));
+    const pending: Promise<unknown>[] = [];
+    runSoon(getDb(), id, { ...deps, holdEmails: true, defer: (work) => pending.push(work) });
+    await Promise.all(pending);
+    expect(sends).toHaveLength(0);
+    expect(await row(id)).toMatchObject({ status: "queued", attempts: 0 });
   });
 });

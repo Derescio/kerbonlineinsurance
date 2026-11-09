@@ -133,6 +133,16 @@ describe("runDueJobs", () => {
     expect(await row(next)).toMatchObject({ status: "done" });
   });
 
+  it("with holdEmails, leaves email jobs queued and runs the rest", async () => {
+    const email = await queue("email.send");
+    const other = await queue();
+    const handlers = { "email.send": counting(), "uploads.cleanup": counting() };
+    const held: JobDeps = { ...deps, holdEmails: true };
+    expect(await runDueJobs(db(), held, start, { handlers })).toMatchObject({ ran: 1, done: 1 });
+    expect(await row(email)).toMatchObject({ status: "queued", attempts: 0 });
+    expect(await row(other)).toMatchObject({ status: "done" });
+  });
+
   it("stops at max", async () => {
     await queue();
     await queue();

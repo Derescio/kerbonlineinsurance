@@ -10,10 +10,11 @@ import { failureLine } from "./reset-two-factor-core.ts";
 //   vp run jobs:run                                   (the 6-hourly retry run)
 //   vp run jobs:daily                                 (queue today's daily jobs, then run them)
 //   NOW=2026-12-08T03:00:00Z vp run jobs:daily        (a run "later": due closures, stale uploads)
-//   SEND_EMAILS=1 vp run jobs:run                     (really send email jobs through Resend)
+//   SEND_EMAILS=1 vp run jobs:run                     (send email jobs through Resend too)
 // It runs the app's own runner, loaded through Vite's module runner so the `#/` imports resolve.
-// Emails are counted and dropped unless SEND_EMAILS=1: the dev database is full of seeded
-// addresses. Prints the database host and counts, never an email or a key.
+// Without SEND_EMAILS=1 email jobs are left queued, never sent or marked done: the dev database
+// is full of seeded addresses, and a waiting email (a staging sign-up's, say) must not be lost.
+// Prints the database host and counts, never an email or a key.
 
 // Locally the URL comes from .env.local (Neon `dev`), as in drizzle.config.ts. A DATABASE_URL already
 // set in the shell wins (loadEnvFile never overrides), so `prod` is an explicit choice.
@@ -57,7 +58,9 @@ const sendEmails = process.env.SEND_EMAILS === "1";
 console.log(`Database: ${host}`);
 console.log(`Bucket: ${process.env.R2_BUCKET?.trim() || "(R2_BUCKET is not set)"}`);
 console.log(`Now: ${now.toISOString()}`);
-console.log(`Emails: ${sendEmails ? "sent through Resend" : "dropped (SEND_EMAILS=1 sends them)"}`);
+console.log(
+  `Emails: ${sendEmails ? "sent through Resend" : "left queued (SEND_EMAILS=1 sends them)"}`,
+);
 
 // One module runner, so the jobs and closeDb share the app's single pool
 const server = await createServer({
@@ -81,21 +84,30 @@ try {
   const daily = await runner.import<typeof import("../src/server/jobs/daily.ts")>(
     "/src/server/jobs/daily.ts",
   );
+  const rows = await runner.import<typeof import("../src/server/data/job-rows.ts")>(
+    "/src/server/data/job-rows.ts",
+  );
   closeDb = client.closeDb;
   const db = client.getDb();
 
-  let dropped = 0;
   const deferred: Promise<unknown>[] = [];
-  let sendEmail: import("../src/server/email/send.ts").SendEmail = async () => {
-    dropped++;
-  };
-  if (sendEmails) {
-    const deps = await runner.import<typeof import("../src/server/jobs/deps.ts")>(
-      "/src/server/jobs/deps.ts",
-    );
-    sendEmail = deps.jobDeps().sendEmail;
-  }
-  const deps = { sendEmail, defer: (work: Promise<unknown>) => void deferred.push(work) };
+  const defer = (work: Promise<unknown>) => void deferred.push(work);
+  const deps = sendEmails
+    ? {
+        ...(
+          await runner.import<typeof import("../src/server/jobs/deps.ts")>(
+            "/src/server/jobs/deps.ts",
+          )
+        ).jobDeps(),
+        defer,
+      }
+    : {
+        sendEmail: async () => {
+          throw new Error("Emails are held in this run");
+        },
+        defer,
+        holdEmails: true,
+      };
 
   if (mode === "daily") console.log(`Queued ${await daily.queueDailyJobs(db, now)} daily jobs.`);
   const result = await jobs.runDueJobs(db, deps, now);
@@ -103,7 +115,7 @@ try {
   while (deferred.length > 0) await Promise.all(deferred.splice(0));
 
   console.log(
-    `Ran ${result.ran}: done ${result.done}, failed ${result.failed}, dead ${result.dead}. Emails not sent: ${dropped}.`,
+    `Ran ${result.ran}: done ${result.done}, failed ${result.failed}, dead ${result.dead}. Emails waiting: ${await rows.countWaitingEmails(db)}.`,
   );
   if (result.failed + result.dead > 0) code = 1;
 } catch (error) {

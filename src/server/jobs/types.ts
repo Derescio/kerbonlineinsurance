@@ -18,6 +18,11 @@ export interface JobDeps {
   sendEmail: SendEmail;
   /** Keeps work alive after the response (Vercel's waitUntil); tests await it themselves */
   defer: (work: Promise<unknown>) => void;
+  /**
+   * Leave email jobs queued, for a run that really sends them: the dev scripts without
+   * SEND_EMAILS=1, so a run never marks someone's pending email done unsent
+   */
+  holdEmails?: boolean;
 }
 
 /** A skip ends the job `done`, with the reason in `last_error` (e.g. a link that has expired) */

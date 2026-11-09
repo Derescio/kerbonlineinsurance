@@ -49,6 +49,8 @@ export async function queueEmail(db: Db | Tx, email: EmailJob, now = new Date())
 
 /** Runs a queued job after the response (waitUntil); a failure is left for the cron's retry */
 export function runSoon(db: Db, id: number, deps: JobDeps): void {
+  // Every job runSoon is given is an email job
+  if (deps.holdEmails) return;
   deps.defer(
     runJob(db, id, deps).catch((error: unknown) => {
       console.error("[jobs] run failed:", id, logSafeError(error));
