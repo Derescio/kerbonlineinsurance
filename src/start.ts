@@ -13,7 +13,7 @@ const cspMiddleware = createMiddleware().server(async ({ next }) => {
   if (!import.meta.env.DEV) {
     result.response.headers.set(
       "Content-Security-Policy",
-      contentSecurityPolicy(nonce, posthogApiHost),
+      contentSecurityPolicy(nonce, posthogApiHost, process.env.R2_ACCOUNT_ID),
     );
   }
   return result;

@@ -2,7 +2,9 @@
 //
 // The static set goes on every response, including static files, via Nitro route rules in
 // vite.config.ts. The CSP needs a fresh nonce per request (TanStack injects inline hydration
-// scripts), so src/start.ts sets it in request middleware. Later phases add R2 (img-src).
+// scripts), so src/start.ts sets it in request middleware.
+
+import { r2Origin } from "./uploads/origin";
 
 export const staticSecurityHeaders = {
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
@@ -10,7 +12,7 @@ export const staticSecurityHeaders = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   // Legacy twin of frame-ancestors for old browsers
   "X-Frame-Options": "DENY",
-  // Camera opens up on the upload pages only, when they land
+  // Live camera access stays off: a phone's file picker still offers the camera without it (4.10)
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 } as const;
 
@@ -34,10 +36,16 @@ export function posthogOrigins(host: string | undefined): string[] {
 /** Cloudflare Turnstile on sign-up and reset (4.4): its script, and the widget's iframe */
 export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 
-export function contentSecurityPolicy(nonce: string, posthogHost?: string) {
+/**
+ * `r2AccountId` adds that environment's R2 endpoint (4.10): uploads PUT to it, and thumbnails and
+ * opened files load from it. Only the one account's origin, never a wildcard.
+ */
+export function contentSecurityPolicy(nonce: string, posthogHost?: string, r2AccountId?: string) {
   const posthogSource = posthogOrigins(posthogHost)
     .map((origin) => ` ${origin}`)
     .join("");
+  const r2 = r2Origin(r2AccountId);
+  const r2Source = r2 ? ` ${r2}` : "";
 
   return [
     "default-src 'self'",
@@ -46,9 +54,10 @@ export function contentSecurityPolicy(nonce: string, posthogHost?: string) {
     // React renders `style` props as attributes in server HTML. Attributes can't run script, and
     // img-src/font-src stop them loading anything off-site. <style> and stylesheets stay strict.
     "style-src-attr 'unsafe-inline'",
-    "img-src 'self' data:",
+    // blob: previews a picked photo before it uploads
+    `img-src 'self' data: blob:${r2Source}`,
     "font-src 'self'",
-    `connect-src 'self'${posthogSource}`,
+    `connect-src 'self'${posthogSource}${r2Source}`,
     `frame-src ${TURNSTILE_ORIGIN}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
