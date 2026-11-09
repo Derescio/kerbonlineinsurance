@@ -37,6 +37,39 @@ File: [Kerb Online Insurance](https://www.figma.com/design/ajpEaPwbWtwbsSmRheyDA
 | Claims – Mobile | `37:31506` | 6 |
 | Rating / 5 Stars (component) | `104:2502` | 6.9 reviews |
 
+## Quote · Phase 5 additions, Web (`222:6701`)
+
+Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey above. Web only: tablet and mobile adapt these with the existing `Quote & Policy – Tablet / Mobile` frames (Damion, 9 Nov 2026). The header in these frames is a placeholder; the build uses the live site header from 3.1, and Figma is updated to match later.
+
+| # | Screen | Node | Slice |
+|---|---|---|---|
+| 01 | Quote start: type picker + postcode from the link | `222:6702` | 5.1 |
+| 02 | Coming soon, with car and home offered instead | `222:6717` | 5.1 |
+| 03 | Home quote referred | `222:6732` | 5.5 |
+| 04 | Bundle partially declined (home declined, car buyable) | `222:6747` | 5.5 |
+| 05 | Home · Property | `222:6762` | 5.7 |
+| 06 | Home · Contents & security | `222:6777` | 5.7 |
+| 07 | Home · Past claims | `222:6792` | 5.7 |
+| 08 | Car · Enter registration | `226:624` | 5.2 |
+| 09 | Car · Manual vehicle picker (make → model → year → variant) | `226:639` | 5.2 |
+| 10 | Car · Vehicle not found | `226:654` | 5.2 |
+| 11 | Car · Licence & driving | `226:669` | 5.3 |
+| 12 | Car · Claims & convictions | `226:684` | 5.3 |
+| 13 | Cover cards & comparison (1440 wide) | `226:699` | 5.5 |
+| 14 | Before payment · Sign in | `226:714` | 5.6 |
+| 15 | Before payment · Create account | `226:729` | 5.6 |
+| 16 | Retrieve quote · Access (email link): **not built**, sign-in only (Damion, 9 Nov 2026) | `226:744` | — |
+| 17 | Retrieve quote · Saved quotes | `226:759` | 5.6 |
+| 18 | You're covered | `226:774` | 5.6 |
+| 19 | Car · Referred | `226:789` | 5.5 |
+| 20 | Car declined · Home available | `226:804` | 5.5 |
+| 21 | Start a car + home bundle | `230:1434` | 5.5 / 5.7 |
+| 22 | Home quote & choose cover (1440 wide) | `230:1449` | 5.7 |
+
+**Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
+
+**To update in Figma:** screens 21 and 22 say "no bundle discount", but bundles keep the 8% discount from rating tables v1 (Damion, 9 Nov 2026). Show the saving instead.
+
 ## Lo Fidelity Wireframes (`18:7822`)
 
 | Frame | Node |
@@ -96,5 +129,3 @@ All 20 local components (`../components/**`) have a matching Figma component set
 - Review UI (6.7)
 - Staff claims console (6.10)
 - Kerbie confirm cards (7.1); the panel and mark are designed
-- Quote start: type picker + postcode, and the "coming soon" panel (5.1)
-- Home quote steps (5.7), unless the `Quote & Policy` frames already have them (check first)

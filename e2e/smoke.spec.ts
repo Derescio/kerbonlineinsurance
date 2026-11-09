@@ -48,9 +48,10 @@ test("hero form sends a tidy postcode to the quote start", async ({ page }) => {
   await page.goto("/");
   await page.getByLabel("Your postcode").fill("e83rl");
   await page.getByRole("button", { name: "Get a quote" }).click();
-  await expect(page).toHaveURL(/\/quote\?postcode=E8\+3RL$/);
-  // Phase 5 builds /quote; until then it's the site 404. Flip this when it lands.
-  await expect(page.getByText("This page isn't built yet")).toBeVisible();
+  await expect(page).toHaveURL(/\/quote\?postcode=E8(\+|%20)3RL$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "What would you like to insure?",
+  );
 });
 
 test("quote links point at the right paths", async ({ page }) => {

@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { bigint, check, index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  check,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 import { areaVerb, createdAt, id } from "./columns";
 
@@ -44,5 +53,10 @@ export const events = pgTable(
     index().on(t.name, t.occurredAt),
     index().on(t.userId),
     index().on(t.createdAt),
+    // One quote.started per journey (5.1, plan P1): the browser's random journey id is the entity, so a
+    // repeat or a race between two calls writes nothing
+    uniqueIndex("events_quote_started_journey_unique")
+      .on(t.entityId)
+      .where(sql`${t.name} = 'quote.started'`),
   ],
 );

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "events_quote_started_journey_unique" ON "events" USING btree ("entity_id") WHERE "events"."name" = 'quote.started';

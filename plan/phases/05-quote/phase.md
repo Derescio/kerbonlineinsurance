@@ -16,6 +16,14 @@ The full quote journey from Figma, for car and home, saved to the database, pric
 - The search params are validated with `postcodeSchema` (`src/features/quote/postcode.ts`) and `isProductId` (`src/features/quote/products.ts`), the same rules the landing already uses.
 - The type picker lists all seven types. `buyableProducts` (car, home) continue into their steps; the rest show a "coming soon" panel that offers a car or home quote instead.
 
+## Decisions before the phase (9 Nov 2026)
+
+- **Designs.** The `Quote & Policy` journey plus the 22 Phase 5 screens in [figma.md](../../figma.md) ("Quote · Phase 5 additions", `222:6701`). They're web only; tablet and mobile adapt them with the existing tablet and mobile journey (Damion).
+- **Header.** The quote pages use the live site header from 3.1. The header drawn in the quote frames is a placeholder, and Figma is updated later (Damion).
+- **Retrieve a quote.** "Sign in to see your saved quotes", using the accounts Phase 4 built. No emailed sign-in link: screen 16 isn't built (Damion).
+- **Bundles keep their discount.** 8% off from rating tables v1 (`bundle_discount_rate`, 4.8 call 21). Screens 21 and 22 still say "no bundle discount" in Figma and are corrected there (Damion).
+- **A bundle starts from the car quote.** "Add home insurance to your car quote?" (screen 21) carries the postcode over and keeps the car quote. Each item is assessed on its own, so a referred or declined item never blocks the other.
+
 ## Payoff shot
 
 Complete a quote on a phone-width browser, pay (fake), land on 'You're covered', then show the policy row in Neon.
@@ -26,7 +34,7 @@ Specced in full when this phase starts.
 
 | # | Slice | Status |
 |---|---|---|
-| 5.1 | Quote start + flow shell + Stepper: `/quote` with the type picker and postcode field, prefilled from `?type` and `?postcode` (see Quote start); the hero's native submit becomes a router navigation. **Perf:** TanStack Query `staleTime` per data type; intent preloading on links | todo |
+| 5.1 | Quote start + flow shell + Stepper: `/quote` with the type picker and postcode field, prefilled from `?type` and `?postcode` (see Quote start); the hero's native submit becomes a router navigation. **Perf:** TanStack Query `staleTime` per data type; intent preloading on links | done (#78) |
 | 5.2 | Vehicle step: make → model → year → variant from the catalogue (`getCatalogue`, 4.8); a car that isn't listed gets a friendly message: Kerb is a demo with a limited list of cars, pick another, or email `hello@kerb.opsedsolutions.com` to ask for a make to be added (Damion, 8 Nov 2026; check that inbox receives mail first); plate lookup faked against demo plates; postcode checked with postcodes.io. **Perf:** catalogue API long public cache; postcode results stored in `postcode_areas` | todo |
 | 5.3 | Driving habits + driver steps with Zod validation; the occupation list comes from the active car version's `occupation` lookups (4.8), and its keys are what `drivers.occupation` stores | todo |
 | 5.4 | Rating engine `priceQuote()`: base rate × rating factors + fees + IPT, bundle discount; reads versioned rating tables; stores breakdown + rating version on each quote item; Vitest tests for all three products. **Eligibility** is separate pure functions beside it, returning `quoted` / `referred` / `declined` + a reason code per item (e.g. home declines a property type it doesn't cover; car refers a driver with 3+ past claims), never using sensitive personal characteristics; the outcome writes the first `underwriting_decisions` row. **Arithmetic:** factors multiplied exactly, rounded to whole pence once per line, IPT on the rounded premium; min/max premium per product in the rating version; rating config validated on load (a missing, non-positive or unknown factor throws, never defaults to 1). Expected values in tests are worked out by hand in a comment, never copied from the implementation's output. **Perf:** rating tables read from the in-memory cache by version. **From 4.9:** replace the stand-in pricer (`scripts/seed/pricer.ts`) with `priceQuote()` and reseed `dev`; generated references stay below the seed's 9 range (`KRB-Q-9xxxx`, `KRB-9xxxxx`, `KRB-C-9xxxx`; 4.9 call 19) | todo |

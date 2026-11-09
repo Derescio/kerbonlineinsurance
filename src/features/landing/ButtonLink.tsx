@@ -1,10 +1,13 @@
+import { Link } from "@tanstack/react-router";
 import type { MouseEventHandler, ReactNode } from "react";
 
 import { Icon } from "#/components/display/Icon";
+import type { ProductId } from "#/features/quote/products";
 import { cx } from "#/lib/cx";
 
 export interface ButtonLinkProps {
-  href: string;
+  /** `?type=` for the quote start; none opens it with nothing picked */
+  search?: { type?: ProductId };
   variant: "primary" | "accent";
   size: "sm" | "lg";
   className?: string;
@@ -13,18 +16,26 @@ export interface ButtonLinkProps {
 }
 
 /**
- * A link that looks like `Button` with an arrow, for the landing's quote CTAs. Plain <a>, like the
- * chrome links: /quote isn't a route until Phase 5 (src/components/site/links.ts).
+ * A link to the quote start that looks like `Button` with an arrow, for the landing's quote CTAs.
+ * A router <Link> since /quote landed (5.1), so it's preloaded on hover and opens without a reload.
  */
-export function ButtonLink({ href, variant, size, className, children, onClick }: ButtonLinkProps) {
+export function ButtonLink({
+  search,
+  variant,
+  size,
+  className,
+  children,
+  onClick,
+}: ButtonLinkProps) {
   return (
-    <a
-      href={href}
+    <Link
+      to="/quote"
+      search={search ?? {}}
       className={cx("kb-btn", `kb-btn--${variant}`, `kb-btn--${size}`, className)}
       onClick={onClick}
     >
       <span>{children}</span>
       <Icon name="arrow-right" size={size === "sm" ? 16 : 18} />
-    </a>
+    </Link>
   );
 }

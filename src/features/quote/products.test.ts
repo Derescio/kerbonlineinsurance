@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buyableProducts, isProductId, productIds, quoteHrefFor } from "./products";
+import { buyableProducts, isBuyable, isProductId, productIds, quoteTypes } from "./products";
 
 describe("isProductId", () => {
   it("accepts every listed type", () => {
@@ -14,16 +14,37 @@ describe("isProductId", () => {
   });
 });
 
-describe("quoteHrefFor", () => {
-  it("links to the quote start with the type set", () => {
-    expect(quoteHrefFor("car")).toBe("/quote?type=car");
-    expect(quoteHrefFor("landlord")).toBe("/quote?type=landlord");
-  });
-});
-
 describe("buyableProducts", () => {
   it("is car and home, both listed types", () => {
     expect(buyableProducts).toEqual(["car", "home"]);
     expect(buyableProducts.every(isProductId)).toBe(true);
+  });
+
+  it("isBuyable says which types have a journey", () => {
+    expect(productIds.filter(isBuyable)).toEqual(["car", "home"]);
+  });
+});
+
+describe("quoteTypes", () => {
+  it("lists every type once, in the order screen 01 draws them", () => {
+    expect(quoteTypes.map((t) => t.id)).toEqual([
+      "car",
+      "home",
+      "landlord",
+      "pet",
+      "condo",
+      "business",
+      "tenant",
+    ]);
+    expect(quoteTypes.map((t) => t.id).sort()).toEqual([...productIds].sort());
+    expect(quoteTypes.map((t) => t.label)).toEqual([
+      "Car",
+      "Home",
+      "Landlord",
+      "Pet",
+      "Condo",
+      "Business",
+      "Tenant",
+    ]);
   });
 });

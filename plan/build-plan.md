@@ -48,7 +48,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 5. Quote · `s5-quote` · [phase](phases/05-quote/phase.md)
 
-- [ ] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
+- [x] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
 - [ ] 5.2 **Vehicle step**: make → model → year → variant picker, faked plate lookup
 - [ ] 5.3 **Driving habits + driver steps**
 - [ ] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests

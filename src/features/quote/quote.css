@@ -1,0 +1,157 @@
+/* Quote start and journey (5.1): screen 01 (222:6702), screen 02 (222:6717) and the shells. Web
+   only in Figma; tablet and phone follow the existing mobile journey's stacked layout. */
+
+.quote-page {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: var(--space-10) var(--space-16);
+}
+
+.quote-heading {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-heading > * {
+  margin: 0;
+}
+.quote-heading__overline {
+  color: var(--green-700);
+  font: 500 13px/16px var(--font-mono);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+.quote-heading__intro {
+  color: var(--fg-2);
+  font: 400 var(--text-body)/var(--lh-body) var(--font-body);
+}
+
+/* Screen 01 */
+.quote-start {
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* The h1 asks the question; the legend repeats it for screen readers only */
+.quote-types > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.quote-types .kb-fieldset__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 1024px) {
+  .quote-types .kb-fieldset__options {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.quote-type {
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+}
+.quote-type:hover {
+  border-color: var(--border-strong);
+}
+.quote-type:has(input:checked) {
+  background: var(--bg-brand-subtle);
+  border-color: var(--action-primary);
+}
+.quote-type .kb-check__text {
+  gap: var(--space-3);
+}
+.quote-types > .kb-field__error {
+  margin-top: var(--space-3);
+}
+
+.quote-start__postcode {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+}
+.quote-start__why,
+.quote-start__note {
+  margin: 0;
+  color: var(--fg-2);
+  font: 400 var(--text-body-s)/var(--lh-body-s) var(--font-body);
+}
+
+.quote-start__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+@media (max-width: 479px) {
+  .quote-start__actions > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* Screen 02 */
+.quote-soon,
+.quote-offer {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+}
+.quote-soon > *,
+.quote-offer > *,
+.quote-offers__title {
+  margin: 0;
+}
+.quote-soon__body,
+.quote-offer__body {
+  color: var(--fg-2);
+}
+.quote-soon__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.quote-offers {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-offers__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+.quote-back {
+  justify-self: start;
+  color: var(--green-700);
+  font-weight: 600;
+}
+
+/* Journey shell: one Stepper per width (plan P9) */
+@media (max-width: 640px) {
+  .quote-progress--wide {
+    display: none;
+  }
+}
+@media (min-width: 641px) {
+  .quote-progress--narrow {
+    display: none;
+  }
+}
+.quote-heading__intro a {
+  color: var(--green-700);
+  font-weight: 600;
+}
+.quote-slot p {
+  margin: 0;
+  color: var(--fg-2);
+}

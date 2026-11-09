@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { normalisePostcode, postcodeError, postcodeSchema } from "./postcode";
+import { normalisePostcode, postcodeDistrict, postcodeError, postcodeSchema } from "./postcode";
 
 describe("normalisePostcode", () => {
   it("upper-cases and puts one space before the inward code", () => {
@@ -38,5 +38,13 @@ describe("postcodeSchema", () => {
     const result = postcodeSchema.safeParse("E8");
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.message).toBe(postcodeError);
+  });
+});
+
+describe("postcodeDistrict", () => {
+  it("is the outward code of a normalised postcode", () => {
+    expect(postcodeDistrict("E8 3RL")).toBe("E8");
+    expect(postcodeDistrict("SW1A 1AA")).toBe("SW1A");
+    expect(postcodeDistrict("DN55 1PT")).toBe("DN55");
   });
 });

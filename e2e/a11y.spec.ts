@@ -3,7 +3,17 @@ import { expect, test, type Page } from "@playwright/test";
 
 // axe on each key page (plan/engineering.md section 4). Fails on serious or critical violations.
 // Pages join the list as they ship.
-const pages = ["/", "/login", "/signup", "/forgot-password", "/reset-password"];
+const pages = [
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/quote",
+  "/quote?type=car&postcode=E8+3RL",
+  "/quote/coming-soon?type=landlord&postcode=E8+3RL",
+  "/quote/car?postcode=E8+3RL",
+];
 const widths = [390, 1440];
 
 // Signed-in pages redirect a signed-out visitor, so each is checked where it lands. The two-factor

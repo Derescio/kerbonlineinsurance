@@ -23,12 +23,17 @@ import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as SiteCookiesRouteImport } from './routes/_site/cookies'
 import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
+import { Route as SiteQuoteRouteImport } from './routes/_site/quote'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
+import { Route as SiteQuoteIndexRouteImport } from './routes/_site/quote.index'
+import { Route as SiteQuoteCarRouteImport } from './routes/_site/quote.car'
+import { Route as SiteQuoteComingSoonRouteImport } from './routes/_site/quote.coming-soon'
+import { Route as SiteQuoteHomeRouteImport } from './routes/_site/quote.home'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
@@ -100,6 +105,11 @@ const SitePrivacyRoute = SitePrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => SiteRoute,
 } as any)
+const SiteQuoteRoute = SiteQuoteRouteImport.update({
+  id: '/quote',
+  path: '/quote',
+  getParentRoute: () => SiteRoute,
+} as any)
 const StaffStaffRoute = StaffStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
@@ -130,6 +140,26 @@ const AuthLoginTwoFactorRoute = AuthLoginTwoFactorRouteImport.update({
   path: '/login/two-factor',
   getParentRoute: () => AuthRoute,
 } as any)
+const SiteQuoteIndexRoute = SiteQuoteIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SiteQuoteRoute,
+} as any)
+const SiteQuoteCarRoute = SiteQuoteCarRouteImport.update({
+  id: '/car',
+  path: '/car',
+  getParentRoute: () => SiteQuoteRoute,
+} as any)
+const SiteQuoteComingSoonRoute = SiteQuoteComingSoonRouteImport.update({
+  id: '/coming-soon',
+  path: '/coming-soon',
+  getParentRoute: () => SiteQuoteRoute,
+} as any)
+const SiteQuoteHomeRoute = SiteQuoteHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => SiteQuoteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -158,15 +188,20 @@ export interface FileRoutesByFullPath {
   '/signup': typeof AuthSignupRoute
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
+  '/quote': typeof SiteQuoteRouteWithChildren
   '/staff': typeof StaffStaffRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
+  '/quote/car': typeof SiteQuoteCarRoute
+  '/quote/coming-soon': typeof SiteQuoteComingSoonRoute
+  '/quote/home': typeof SiteQuoteHomeRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/quote/': typeof SiteQuoteIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
@@ -186,9 +221,13 @@ export interface FileRoutesByTo {
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
+  '/quote/car': typeof SiteQuoteCarRoute
+  '/quote/coming-soon': typeof SiteQuoteComingSoonRoute
+  '/quote/home': typeof SiteQuoteHomeRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/quote': typeof SiteQuoteIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -205,6 +244,7 @@ export interface FileRoutesById {
   '/_auth/signup': typeof AuthSignupRoute
   '/_site/cookies': typeof SiteCookiesRoute
   '/_site/privacy': typeof SitePrivacyRoute
+  '/_site/quote': typeof SiteQuoteRouteWithChildren
   '/_staff/staff': typeof StaffStaffRoute
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
@@ -212,9 +252,13 @@ export interface FileRoutesById {
   '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
   '/_auth/login_/two-factor': typeof AuthLoginTwoFactorRoute
+  '/_site/quote/car': typeof SiteQuoteCarRoute
+  '/_site/quote/coming-soon': typeof SiteQuoteComingSoonRoute
+  '/_site/quote/home': typeof SiteQuoteHomeRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/_site/quote/': typeof SiteQuoteIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -230,15 +274,20 @@ export interface FileRouteTypes {
     | '/signup'
     | '/cookies'
     | '/privacy'
+    | '/quote'
     | '/staff'
     | '/account/close'
     | '/account/two-factor'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
+    | '/quote/car'
+    | '/quote/coming-soon'
+    | '/quote/home'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/quote/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -258,9 +307,13 @@ export interface FileRouteTypes {
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
+    | '/quote/car'
+    | '/quote/coming-soon'
+    | '/quote/home'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/quote'
   id:
     | '__root__'
     | '/_auth'
@@ -276,6 +329,7 @@ export interface FileRouteTypes {
     | '/_auth/signup'
     | '/_site/cookies'
     | '/_site/privacy'
+    | '/_site/quote'
     | '/_staff/staff'
     | '/account_/close'
     | '/account_/two-factor'
@@ -283,9 +337,13 @@ export interface FileRouteTypes {
     | '/dev/uploads'
     | '/_site/'
     | '/_auth/login_/two-factor'
+    | '/_site/quote/car'
+    | '/_site/quote/coming-soon'
+    | '/_site/quote/home'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/_site/quote/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -403,6 +461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitePrivacyRouteImport
       parentRoute: typeof SiteRoute
     }
+    '/_site/quote': {
+      id: '/_site/quote'
+      path: '/quote'
+      fullPath: '/quote'
+      preLoaderRoute: typeof SiteQuoteRouteImport
+      parentRoute: typeof SiteRoute
+    }
     '/_staff/staff': {
       id: '/_staff/staff'
       path: '/staff'
@@ -444,6 +509,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/login/two-factor'
       preLoaderRoute: typeof AuthLoginTwoFactorRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_site/quote/': {
+      id: '/_site/quote/'
+      path: '/'
+      fullPath: '/quote/'
+      preLoaderRoute: typeof SiteQuoteIndexRouteImport
+      parentRoute: typeof SiteQuoteRoute
+    }
+    '/_site/quote/car': {
+      id: '/_site/quote/car'
+      path: '/car'
+      fullPath: '/quote/car'
+      preLoaderRoute: typeof SiteQuoteCarRouteImport
+      parentRoute: typeof SiteQuoteRoute
+    }
+    '/_site/quote/coming-soon': {
+      id: '/_site/quote/coming-soon'
+      path: '/coming-soon'
+      fullPath: '/quote/coming-soon'
+      preLoaderRoute: typeof SiteQuoteComingSoonRouteImport
+      parentRoute: typeof SiteQuoteRoute
+    }
+    '/_site/quote/home': {
+      id: '/_site/quote/home'
+      path: '/home'
+      fullPath: '/quote/home'
+      preLoaderRoute: typeof SiteQuoteHomeRouteImport
+      parentRoute: typeof SiteQuoteRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -491,15 +584,35 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface SiteQuoteRouteChildren {
+  SiteQuoteCarRoute: typeof SiteQuoteCarRoute
+  SiteQuoteComingSoonRoute: typeof SiteQuoteComingSoonRoute
+  SiteQuoteHomeRoute: typeof SiteQuoteHomeRoute
+  SiteQuoteIndexRoute: typeof SiteQuoteIndexRoute
+}
+
+const SiteQuoteRouteChildren: SiteQuoteRouteChildren = {
+  SiteQuoteCarRoute: SiteQuoteCarRoute,
+  SiteQuoteComingSoonRoute: SiteQuoteComingSoonRoute,
+  SiteQuoteHomeRoute: SiteQuoteHomeRoute,
+  SiteQuoteIndexRoute: SiteQuoteIndexRoute,
+}
+
+const SiteQuoteRouteWithChildren = SiteQuoteRoute._addFileChildren(
+  SiteQuoteRouteChildren,
+)
+
 interface SiteRouteChildren {
   SiteCookiesRoute: typeof SiteCookiesRoute
   SitePrivacyRoute: typeof SitePrivacyRoute
+  SiteQuoteRoute: typeof SiteQuoteRouteWithChildren
   SiteIndexRoute: typeof SiteIndexRoute
 }
 
 const SiteRouteChildren: SiteRouteChildren = {
   SiteCookiesRoute: SiteCookiesRoute,
   SitePrivacyRoute: SitePrivacyRoute,
+  SiteQuoteRoute: SiteQuoteRouteWithChildren,
   SiteIndexRoute: SiteIndexRoute,
 }
 

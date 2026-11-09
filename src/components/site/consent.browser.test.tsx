@@ -31,6 +31,7 @@ function fakePosthog(initial: ConsentStatus) {
     stopSessionRecording: vi.fn(),
     getFeatureFlag: vi.fn(),
     onFeatureFlags: vi.fn(() => () => {}),
+    get_distinct_id: () => "ph_distinct_1",
     capture: vi.fn(),
     captureException: vi.fn(),
   };

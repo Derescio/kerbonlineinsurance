@@ -63,3 +63,12 @@ export function permissionMiddleware(permission: Permission) {
     }
   });
 }
+
+/** Anyone, with no session lookup: for guest calls such as quote.started (5.1, plan P3) */
+export const publicMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  try {
+    return await next();
+  } catch (error) {
+    return fail(error);
+  }
+});

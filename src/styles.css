@@ -8,6 +8,7 @@
 @import "./components/site/site.css";
 @import "./features/landing/landing.css";
 @import "./features/auth/auth.css";
+@import "./features/quote/quote.css";
 
 * {
   box-sizing: border-box;
