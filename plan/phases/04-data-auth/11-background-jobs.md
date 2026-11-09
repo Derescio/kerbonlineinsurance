@@ -1,6 +1,6 @@
 # 4.11 Background jobs
 
-**Status:** approved (Damion, 9 Nov 2026). Plan in [11-background-jobs-plan.md](11-background-jobs-plan.md)
+**Status:** done (PR #74; checked on dev, `kerb-dev` and the PR preview on 9 Nov 2026). Plan in [11-background-jobs-plan.md](11-background-jobs-plan.md)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -139,9 +139,22 @@ Work that happens after a request, or on a schedule, goes through one place: the
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] The manual check above passes, and the results are recorded here before the PR is merged.
-- [ ] `vercel.json` has the two crons, and staging builds with them.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally the full suite (1,417) and the build passed; `ci` and the Vercel preview passed on #74.
+- [x] The manual check above passes, and the results are recorded here before the PR is merged (below).
+- [x] `vercel.json` has the two crons (`/api/cron/jobs` at `0 */6 * * *`, `/api/cron/daily` at `0 3 * * *`), and the PR's Vercel build accepted them. Staging builds the same on merge.
+
+## Checks (9 Nov 2026)
+
+On Neon `dev` and the `kerb-dev` bucket, after Damion added the `audit-anchors` lock rule to `kerb-dev` (365 days).
+
+| Check | Result |
+|---|---|
+| Sign up on the PR preview with a real address | Pass. The verification email arrived, sent by an `email.send` job that ended `done` with its payload emptied. A Google sign-up sends none, as before: Google has already confirmed the address |
+| An email job sent with a wrong Resend key | Pass. `failed` after 1 attempt, `last_error` `Error` (no message or address), retry 6 hours later, payload kept for the retry. The check's job was removed afterwards. Run as a script, since sign-up needs Turnstile |
+| `vp run jobs:daily` | Pass. "Queued 4 daily jobs. Ran 4: done 4, failed 0, dead 0. Emails waiting: 0." It wrote `audit-anchors/2026-11-09.json` with `lastId`, `lastHash`, `keyVersion`, `genesisHash` and `anchoredAt` |
+| Overwriting and deleting that anchor with the app's own R2 token | Pass. Both refused: `ObjectLockedByBucketPolicy` (HTTP 409); the anchor is unchanged |
+| `vp run audit:verify` | Pass. "Chain OK: 892 rows. Anchors OK: 1." |
+| `vp run jobs:run` | Pass. "Ran 0 … Emails waiting: 0." |
 
 ## Commit message
 
