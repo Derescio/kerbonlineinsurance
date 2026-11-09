@@ -238,3 +238,10 @@ Behaviour:
 - [ ] `vp check`, `vp test`, `vp build` all pass.
 - [ ] **The done markers in the PR** ([git-workflow.md](../../git-workflow.md) step 2): spec Status "done (PR #N)", the phase.md row, and the build-plan.md box. The manual staging check stays open for Damion.
 - [ ] Push, then `gh pr create --base staging` with the spec's commit message as the title and the template sections. Then check `ci`.
+
+## Corrections during the build
+
+- **Dropped keys are returned as `undefined`** (Task 1). TanStack merges a route's validated search over the raw search from the URL, so a parser that left a bad key out let it back in: `/quote?postcode=nope` showed "nope" with the link hint. Found by the E2E "bad links" test; a unit test now pins the keys.
+- **Back keeps the choice** (Task 4, Review Focus 5). The picked type lived only in component state, so Back from `/quote/car` returned to `/quote?postcode=…` with nothing checked. Continue now replaces the current history entry with `?type=…&postcode=…` before it navigates on. Found by the E2E hero test; the component test checks Back too.
+- **`insertQuoteStarted(row, db = getDb())`** (Task 3): the lint rule keeps `db/client` inside `src/server/data/`, so the database is the second, optional parameter.
+- **`tsr generate` drops the Start `Register` block** from `routeTree.gen.ts` (it only knows the router). Put the block back after running it, or let `vp dev` / `vp build` regenerate the file.

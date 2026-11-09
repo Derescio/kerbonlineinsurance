@@ -78,6 +78,11 @@ describe("QuoteStart (screen 01)", () => {
     await page.getByRole("button", { name: "Continue with car" }).click();
     await expect.poll(() => router.state.location.pathname).toBe("/quote/car");
     expect(router.state.location.search).toEqual({ postcode: "E8 3RL" });
+
+    // Back returns to the start with the choice kept in the URL
+    router.history.back();
+    await expect.poll(() => router.state.location.pathname).toBe("/quote");
+    expect(router.state.location.search).toEqual({ type: "car", postcode: "E8 3RL" });
   });
 
   it("sends a coming-soon type on without a postcode", async () => {

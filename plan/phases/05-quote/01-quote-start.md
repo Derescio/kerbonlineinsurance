@@ -61,7 +61,7 @@
    - **Starting position:** 5.1 shows step 1 as current. The steps after it aren't links yet.
 11. **`quote.started` goes into the `events` table** (engineering.md §13: the server-side funnel milestones).
     - **When:** a visitor reaches `/quote/car` or `/quote/home` from `/quote` or the coming-soon page.
-    - **What it holds:** the product, the postcode **district** only (`E8`, for Phase 9's conversion by district), and PostHog's distinct id as `anonymous_id` when the visitor accepted cookies. No full postcode, nothing else.
+    - **What it holds:** the product, the postcode **district** only (`E8`, for Phase 9's conversion by district), and PostHog's distinct id as `anonymous_id` when the visitor accepted cookies. No full postcode, nothing else. (Build: plus the tab's random journey id as `entity_type = 'quote_journey'`, `entity_id`, so a repeat writes nothing; [plan](01-quote-start-plan.md) P1.)
     - **Write limit:** it goes through a server function rate-limited by the 4.5c `limit()` (30 per IP per hour), so the funnel can't be flooded. Once per journey per tab, tracked in the `sessionStorage` object.
 12. **TanStack Query waits for 5.2.** The phase row puts "`staleTime` per data type" in 5.1, but 5.1 fetches nothing, and adding the library with no query would be untested setup. 5.2's catalogue is its first real use. Intent preloading is already on for the whole router (`defaultPreload: "intent"`, `src/router.tsx`), so the quote links get it once they're `<Link>`s.
 13. **The shells' slot reads "This step arrives in 5.2" (car) or "This step arrives in 5.7" (home).** Phase 5 reaches production only at its release, so no visitor sees the placeholder; staging does.

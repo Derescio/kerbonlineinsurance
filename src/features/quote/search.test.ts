@@ -35,6 +35,17 @@ describe("startSearch", () => {
     expect(startSearch({ postcode: 123, next: 1 })).toEqual({ postcode: "123", next: 1 });
   });
 
+  it("returns a dropped key as undefined, so the router can't merge the raw value back", () => {
+    const search = startSearch({ postcode: "nope", type: "van", next: 2 });
+    expect(Object.entries(search)).toEqual([
+      ["type", undefined],
+      ["postcode", undefined],
+      ["next", undefined],
+    ]);
+    expect(Object.keys(journeySearch({ postcode: "nope" }))).toEqual(["postcode"]);
+    expect(Object.keys(comingSoonSearch({}))).toEqual(["type", "postcode"]);
+  });
+
   it("drops any other next", () => {
     expect(startSearch({ next: 2 })).toEqual({});
     expect(startSearch({ next: "yes" })).toEqual({});

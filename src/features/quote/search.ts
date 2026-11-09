@@ -34,29 +34,27 @@ function linkType(value: unknown): ProductId | undefined {
   return isProductId(value) ? value : undefined;
 }
 
+// Each parser returns every key it owns, undefined when dropped: TanStack merges a route's
+// validated search over the raw one from the URL, so a key left out would bring the bad value back.
+
 /** /quote. After a `next=1` submit the postcode is kept as typed, so the error can sit next to it. */
 export function startSearch(raw: Record<string, unknown>): StartSearch {
   const next = raw.next === 1 || raw.next === "1";
-  const type = linkType(raw.type);
-  const postcode = next ? text(raw.postcode) : linkPostcode(raw.postcode);
   return {
-    ...(type && { type }),
-    ...(postcode !== undefined && { postcode }),
-    ...(next && { next: 1 as const }),
+    type: linkType(raw.type),
+    postcode: next ? text(raw.postcode) : linkPostcode(raw.postcode),
+    next: next ? 1 : undefined,
   };
 }
 
 /** /quote/car and /quote/home */
 export function journeySearch(raw: Record<string, unknown>): { postcode?: string } {
-  const postcode = linkPostcode(raw.postcode);
-  return postcode ? { postcode } : {};
+  return { postcode: linkPostcode(raw.postcode) };
 }
 
 /** /quote/coming-soon */
 export function comingSoonSearch(raw: Record<string, unknown>): ComingSoonSearch {
-  const type = linkType(raw.type);
-  const postcode = linkPostcode(raw.postcode);
-  return { ...(type && { type }), ...(postcode && { postcode }) };
+  return { type: linkType(raw.type), postcode: linkPostcode(raw.postcode) };
 }
 
 export type StartCheck =

@@ -43,7 +43,12 @@ export function QuoteStart({ search }: { search: StartSearch }) {
     e.preventDefault();
     const check = checkStart({ type, postcode });
     if (check.ok) {
-      void navigate({ to: check.to, search: check.search });
+      // Keep the choice in this page's history entry first, so Back shows it again
+      void navigate({
+        to: "/quote",
+        search: { type, postcode: check.search.postcode },
+        replace: true,
+      }).then(() => navigate({ to: check.to, search: check.search }));
       return;
     }
     setErrors(check.errors);
