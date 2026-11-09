@@ -22,7 +22,7 @@ It also has to show Opsed Solutions clients that Damion can take a product from 
 
 1. Landing page (split hero, responsive). Car and home are sold online at launch. The landing lists seven types (car, home, condo, tenant, landlord, pet, business), and each one links to the quote start with its type set; the others show "coming soon" there.
 2. Quote journey: a quote start that takes a postcode and an insurance type (either can arrive from the landing, both stay editable), then the product's steps. Car: vehicle → driving habits → driver → cover → summary → pay (fake) → policy. Home: property → contents and security → past claims → cover → summary → pay (fake) → policy.
-3. Real sign-up and sign-in: email + password or Google; soft email verification, password reset, optional 2FA, delete account. Roles: customer, claims handler, admin (see [engineering.md §7](engineering.md#7-authentication-and-authorization)).
+3. Real sign-up and sign-in: email + password or Google; email verification before the first log-in, password reset, optional 2FA, delete account. Roles: customer, claims handler, admin (see [engineering.md §7](engineering.md#7-authentication-and-authorization)).
 4. Account: dashboard, policy detail, settings (address, drivers).
 5. Claims: overview → incident → damage → review → submitted, with a tracker. Staff move claims through their statuses in a staff claims console.
 6. **Kerbie**, an AI assistant:
@@ -43,14 +43,15 @@ It also has to show Opsed Solutions clients that Damion can take a product from 
 
 Neon Postgres with Drizzle. **Multi-product from the start:** car, home and business, plus bundles. Car and home can be bought online at launch. Business has tables, rating factors and seed data, and its quote flow comes in a later phase. Condo, tenant, landlord and pet are listed on the landing and the quote start only; each needs a detail table, rating factors and seed data when its phase comes (decided 31 Oct 2026).
 
-**Schema shape:** shared core tables + one detail table per product. Adding a product means adding one detail table.
+**Schema shape:** shared core tables + one detail table per product. Adding a product means adding one detail table. The schema lives in `src/server/db/schema/` (one file per area); the integrity rules are in Postgres (checks, composite foreign keys, append-only triggers), and [4.2](phases/04-data-auth/02-schema.md) explains each decision.
 
 - **Core tables:** users and sessions (Better Auth), vehicles, drivers, quotes, policies, claims, claim_events.
 - **Reviews:** reviews (with moderation status and reason).
-- **Access:** user `role`, 2FA tables, `audit_log`.
+- **Access:** `staff_members` (role, display name, pseudonymous staff code, deactivation; customers are users without one), 2FA tables, `audit_log` (append-only, hash-chained), `security_events` (sign-ins and other account activity).
 - **Platform:** `idempotency_keys`, `rate_limits`, `jobs`.
 - **Files:** `files` (upload metadata only; the files themselves live in R2).
-- **Kerbie and analytics:** chat_threads, chat_messages, ai_usage, kerbie_actions, events (server-side funnel milestones for the data video; product analytics and A/B tests are in PostHog).
+- **Kerbie:** chat_threads, chat_messages, ai_usage, kerbie_actions (phase 7).
+- **Data side (4.2):** `events` (server-side funnel milestones; product analytics and A/B tests are in PostHog), `quote_item_factors` (the price breakdown as rows), `deleted_rows` (every delete, so the lakehouse can apply it), and a data contract (`src/server/db/data-contract.ts`) that a unit test keeps in sync with the schema. Phase 9 copies the data into Azure + Databricks.
 - A seed script adds about 12 months of synthetic history, flagged `is_synthetic`, for the data video.
 
 ## Pricing
@@ -65,7 +66,8 @@ A table-driven, versioned **rating engine**, a simplified version of what real i
 | Home | rebuild cost, contents value, property type and age, postcode flood/crime band, security, past claims |
 | Business | trade class, turnover, employees, cover sections chosen |
 
-- **Rating tables** live in the DB with a version number. Every quote stores its full breakdown and the rating version used.
+- **Rating tables** live in the DB with a version number (`rating_versions`: draft / active / retired, one active per product). Every quote item stores its full breakdown and the rating version used, so a later rate change never alters an issued quote.
+- **Underwriting is separate from price.** Eligibility rules give each quote item an outcome: quoted, referred (a claims handler reviews it in the staff console and approves with an optional loading, or declines) or declined (with a neutral reason). All rules and factors are fictional.
 - **Vehicles:** our own curated catalogue (about 40 popular UK models). The picker goes make → model → year → variant, and plate lookup is faked against demo plates. No paid lookup API.
 - **Postcodes:** checked with postcodes.io (free, no key). The postcode area maps to our own synthetic risk bands.
 
@@ -115,7 +117,7 @@ Plan for a launch spike from day one. A broken or paused demo while the video is
 |---|---|---|
 | **Vercel Pro** | Function and bandwidth usage beyond what Pro includes is billed. | Spend limit and alerts set in phase 1. Static assets and the landing page cached at the edge; server functions only where data is needed. |
 | **Neon** | Free plan limits. | Damion's call: he creates the Neon project and supplies the connection string (phase 4), and isn't worried about the free tier. Use the pooled connection string. Upgrade only if 8.6 shows a need. |
-| **Resend** | The free plan's monthly email cap (Damion's figure: 200/month) can run out during a spike. | Damion's call: hitting the cap means the promotion worked, so upgrade then. To keep the demo working meanwhile, **verification is soft**: new users can sign in and use the site straight away, with a "verify your email" banner. Only password reset needs the email. If sending fails, the user sees a friendly message instead of an error. |
+| **Resend** | The free plan's monthly email cap (Damion's figure: 200/month) can run out during a spike. | Damion's call: hitting the cap means the promotion worked, so upgrade then. **Verification is required** (4.4b, Damion, 4 Nov 2026; it was soft in 4.4): an email-and-password user can't log in until they confirm, so while the cap is hit or Resend is down, new email sign-ups can't get in. Google sign-in still works, and resends are limited to 3 per 15 minutes to save the allowance. If sending fails, the user sees a friendly message instead of an error. |
 | **AI (Anthropic/OpenAI)** | Every Kerbie message costs money, and a spike multiplies it. | Per-guest and per-user daily limits, a global daily spend cap with a canned fallback (phase 7), and provider-side spend limits in each console. |
 | **Cloudflare R2** | Storage and operation counts grow with uploads. Egress is free. | Images are resized to at most 2048 px WebP before upload, with per-kind count limits; a cleanup cron removes abandoned and old Kerbie images. Check the current free-tier limits in 8.6, and set a Cloudflare billing alert. |
 | **PostHog** | Event volume beyond the free tier during a spike. | Billing limit set in the PostHog dashboard; events sampled or autocapture trimmed if needed. Checked in 8.6. |
@@ -139,4 +141,4 @@ Check the limits in this table against each service's current pricing page in sl
 |---|---|
 | UI/UX design | Live demo link in the description |
 | Website creation | One recording per phase; git tags `s1-setup` … `s8-launch` as cut points; script written in phase 8 |
-| Data | Real and synthetic rows in Neon, chat and usage logs, funnel events |
+| Data | Real and synthetic rows in Neon, chat and usage logs, funnel events, copied into Azure + Databricks in Phase 9 (tag `s9-data`) |

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { ClosureBanner } from "#/features/account/ClosureBanner";
+
 import { demoNotice } from "./links";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
@@ -22,6 +24,8 @@ export function SiteLayout({ pathname, children }: SiteLayoutProps) {
         <p className="site-container">{demoNotice}</p>
       </section>
       <SiteHeader pathname={pathname} />
+      {/* Fetched in the browser after mount, never rendered here: this page may be served from a public cache */}
+      <ClosureBanner />
       <main id="main" tabIndex={-1} className="site-main">
         {children}
       </main>

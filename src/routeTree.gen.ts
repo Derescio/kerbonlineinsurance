@@ -9,13 +9,45 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as SiteRouteImport } from './routes/_site'
+import { Route as StaffRouteImport } from './routes/_staff'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as SystemRouteImport } from './routes/system'
+import { Route as AuthAccountDeletedRouteImport } from './routes/_auth/account-deleted'
+import { Route as AuthEmailConfirmedRouteImport } from './routes/_auth/email-confirmed'
+import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password'
+import { Route as AuthLoginRouteImport } from './routes/_auth/login'
+import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
+import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
+import { Route as SiteCookiesRouteImport } from './routes/_site/cookies'
+import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
+import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as AccountCloseRouteImport } from './routes/account_.close'
+import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
+import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
+import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
+import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SiteRoute = SiteRouteImport.update({
   id: '/_site',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffRoute = StaffRouteImport.update({
+  id: '/_staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SystemRoute = SystemRouteImport.update({
@@ -23,55 +55,282 @@ const SystemRoute = SystemRouteImport.update({
   path: '/system',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthAccountDeletedRoute = AuthAccountDeletedRouteImport.update({
+  id: '/account-deleted',
+  path: '/account-deleted',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthEmailConfirmedRoute = AuthEmailConfirmedRouteImport.update({
+  id: '/email-confirmed',
+  path: '/email-confirmed',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSignupRoute = AuthSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => AuthRoute,
+} as any)
 const SiteIndexRoute = SiteIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SiteRoute,
+} as any)
+const SiteCookiesRoute = SiteCookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SitePrivacyRoute = SitePrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => SiteRoute,
+} as any)
+const StaffStaffRoute = StaffStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => StaffRoute,
+} as any)
+const AccountCloseRoute = AccountCloseRouteImport.update({
+  id: '/account_/close',
+  path: '/account/close',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
+  id: '/account_/two-factor',
+  path: '/account/two-factor',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
   path: '/api/stream-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevUploadsRoute = DevUploadsRouteImport.update({
+  id: '/dev/uploads',
+  path: '/dev/uploads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLoginTwoFactorRoute = AuthLoginTwoFactorRouteImport.update({
+  id: '/login_/two-factor',
+  path: '/login/two-factor',
+  getParentRoute: () => AuthRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronDailyRoute = ApiCronDailyRouteImport.update({
+  id: '/api/cron/daily',
+  path: '/api/cron/daily',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronJobsRoute = ApiCronJobsRouteImport.update({
+  id: '/api/cron/jobs',
+  path: '/api/cron/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
+  '/account': typeof AccountRoute
   '/system': typeof SystemRoute
+  '/account-deleted': typeof AuthAccountDeletedRoute
+  '/email-confirmed': typeof AuthEmailConfirmedRoute
+  '/forgot-password': typeof AuthForgotPasswordRoute
+  '/login': typeof AuthLoginRoute
+  '/reset-password': typeof AuthResetPasswordRoute
+  '/signup': typeof AuthSignupRoute
+  '/cookies': typeof SiteCookiesRoute
+  '/privacy': typeof SitePrivacyRoute
+  '/staff': typeof StaffStaffRoute
+  '/account/close': typeof AccountCloseRoute
+  '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
+  '/dev/uploads': typeof DevUploadsRoute
+  '/login/two-factor': typeof AuthLoginTwoFactorRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cron/daily': typeof ApiCronDailyRoute
+  '/api/cron/jobs': typeof ApiCronJobsRoute
 }
 export interface FileRoutesByTo {
-  '/system': typeof SystemRoute
-  '/api/stream-test': typeof ApiStreamTestRoute
   '/': typeof SiteIndexRoute
+  '/account': typeof AccountRoute
+  '/system': typeof SystemRoute
+  '/account-deleted': typeof AuthAccountDeletedRoute
+  '/email-confirmed': typeof AuthEmailConfirmedRoute
+  '/forgot-password': typeof AuthForgotPasswordRoute
+  '/login': typeof AuthLoginRoute
+  '/reset-password': typeof AuthResetPasswordRoute
+  '/signup': typeof AuthSignupRoute
+  '/cookies': typeof SiteCookiesRoute
+  '/privacy': typeof SitePrivacyRoute
+  '/staff': typeof StaffStaffRoute
+  '/account/close': typeof AccountCloseRoute
+  '/account/two-factor': typeof AccountTwoFactorRoute
+  '/api/stream-test': typeof ApiStreamTestRoute
+  '/dev/uploads': typeof DevUploadsRoute
+  '/login/two-factor': typeof AuthLoginTwoFactorRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cron/daily': typeof ApiCronDailyRoute
+  '/api/cron/jobs': typeof ApiCronJobsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/_auth': typeof AuthRouteWithChildren
   '/_site': typeof SiteRouteWithChildren
+  '/_staff': typeof StaffRouteWithChildren
+  '/account': typeof AccountRoute
   '/system': typeof SystemRoute
+  '/_auth/account-deleted': typeof AuthAccountDeletedRoute
+  '/_auth/email-confirmed': typeof AuthEmailConfirmedRoute
+  '/_auth/forgot-password': typeof AuthForgotPasswordRoute
+  '/_auth/login': typeof AuthLoginRoute
+  '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_auth/signup': typeof AuthSignupRoute
+  '/_site/cookies': typeof SiteCookiesRoute
+  '/_site/privacy': typeof SitePrivacyRoute
+  '/_staff/staff': typeof StaffStaffRoute
+  '/account_/close': typeof AccountCloseRoute
+  '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/stream-test': typeof ApiStreamTestRoute
+  '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
+  '/_auth/login_/two-factor': typeof AuthLoginTwoFactorRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cron/daily': typeof ApiCronDailyRoute
+  '/api/cron/jobs': typeof ApiCronJobsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/system' | '/api/stream-test'
+  fullPaths:
+    | '/'
+    | '/account'
+    | '/system'
+    | '/account-deleted'
+    | '/email-confirmed'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/cookies'
+    | '/privacy'
+    | '/staff'
+    | '/account/close'
+    | '/account/two-factor'
+    | '/api/stream-test'
+    | '/dev/uploads'
+    | '/login/two-factor'
+    | '/api/auth/$'
+    | '/api/cron/daily'
+    | '/api/cron/jobs'
   fileRoutesByTo: FileRoutesByTo
-  to: '/system' | '/api/stream-test' | '/'
-  id: '__root__' | '/_site' | '/system' | '/api/stream-test' | '/_site/'
+  to:
+    | '/'
+    | '/account'
+    | '/system'
+    | '/account-deleted'
+    | '/email-confirmed'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/cookies'
+    | '/privacy'
+    | '/staff'
+    | '/account/close'
+    | '/account/two-factor'
+    | '/api/stream-test'
+    | '/dev/uploads'
+    | '/login/two-factor'
+    | '/api/auth/$'
+    | '/api/cron/daily'
+    | '/api/cron/jobs'
+  id:
+    | '__root__'
+    | '/_auth'
+    | '/_site'
+    | '/_staff'
+    | '/account'
+    | '/system'
+    | '/_auth/account-deleted'
+    | '/_auth/email-confirmed'
+    | '/_auth/forgot-password'
+    | '/_auth/login'
+    | '/_auth/reset-password'
+    | '/_auth/signup'
+    | '/_site/cookies'
+    | '/_site/privacy'
+    | '/_staff/staff'
+    | '/account_/close'
+    | '/account_/two-factor'
+    | '/api/stream-test'
+    | '/dev/uploads'
+    | '/_site/'
+    | '/_auth/login_/two-factor'
+    | '/api/auth/$'
+    | '/api/cron/daily'
+    | '/api/cron/jobs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  AuthRoute: typeof AuthRouteWithChildren
   SiteRoute: typeof SiteRouteWithChildren
+  StaffRoute: typeof StaffRouteWithChildren
+  AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
+  AccountCloseRoute: typeof AccountCloseRoute
+  AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
+  DevUploadsRoute: typeof DevUploadsRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiCronDailyRoute: typeof ApiCronDailyRoute
+  ApiCronJobsRoute: typeof ApiCronJobsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_site': {
       id: '/_site'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof SiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_staff': {
+      id: '/_staff'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof StaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/system': {
@@ -81,12 +340,89 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SystemRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/account-deleted': {
+      id: '/_auth/account-deleted'
+      path: '/account-deleted'
+      fullPath: '/account-deleted'
+      preLoaderRoute: typeof AuthAccountDeletedRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/email-confirmed': {
+      id: '/_auth/email-confirmed'
+      path: '/email-confirmed'
+      fullPath: '/email-confirmed'
+      preLoaderRoute: typeof AuthEmailConfirmedRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/forgot-password': {
+      id: '/_auth/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/reset-password': {
+      id: '/_auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/signup': {
+      id: '/_auth/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof AuthSignupRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_site/': {
       id: '/_site/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof SiteIndexRouteImport
       parentRoute: typeof SiteRoute
+    }
+    '/_site/cookies': {
+      id: '/_site/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof SiteCookiesRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/privacy': {
+      id: '/_site/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof SitePrivacyRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_staff/staff': {
+      id: '/_staff/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof StaffStaffRouteImport
+      parentRoute: typeof StaffRoute
+    }
+    '/account_/close': {
+      id: '/account_/close'
+      path: '/account/close'
+      fullPath: '/account/close'
+      preLoaderRoute: typeof AccountCloseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account_/two-factor': {
+      id: '/account_/two-factor'
+      path: '/account/two-factor'
+      fullPath: '/account/two-factor'
+      preLoaderRoute: typeof AccountTwoFactorRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
       id: '/api/stream-test'
@@ -95,23 +431,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStreamTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dev/uploads': {
+      id: '/dev/uploads'
+      path: '/dev/uploads'
+      fullPath: '/dev/uploads'
+      preLoaderRoute: typeof DevUploadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth/login_/two-factor': {
+      id: '/_auth/login_/two-factor'
+      path: '/login/two-factor'
+      fullPath: '/login/two-factor'
+      preLoaderRoute: typeof AuthLoginTwoFactorRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/daily': {
+      id: '/api/cron/daily'
+      path: '/api/cron/daily'
+      fullPath: '/api/cron/daily'
+      preLoaderRoute: typeof ApiCronDailyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/jobs': {
+      id: '/api/cron/jobs'
+      path: '/api/cron/jobs'
+      fullPath: '/api/cron/jobs'
+      preLoaderRoute: typeof ApiCronJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthRouteChildren {
+  AuthAccountDeletedRoute: typeof AuthAccountDeletedRoute
+  AuthEmailConfirmedRoute: typeof AuthEmailConfirmedRoute
+  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
+  AuthLoginRoute: typeof AuthLoginRoute
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+  AuthSignupRoute: typeof AuthSignupRoute
+  AuthLoginTwoFactorRoute: typeof AuthLoginTwoFactorRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthAccountDeletedRoute: AuthAccountDeletedRoute,
+  AuthEmailConfirmedRoute: AuthEmailConfirmedRoute,
+  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
+  AuthLoginRoute: AuthLoginRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
+  AuthSignupRoute: AuthSignupRoute,
+  AuthLoginTwoFactorRoute: AuthLoginTwoFactorRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 interface SiteRouteChildren {
+  SiteCookiesRoute: typeof SiteCookiesRoute
+  SitePrivacyRoute: typeof SitePrivacyRoute
   SiteIndexRoute: typeof SiteIndexRoute
 }
 
 const SiteRouteChildren: SiteRouteChildren = {
+  SiteCookiesRoute: SiteCookiesRoute,
+  SitePrivacyRoute: SitePrivacyRoute,
   SiteIndexRoute: SiteIndexRoute,
 }
 
 const SiteRouteWithChildren = SiteRoute._addFileChildren(SiteRouteChildren)
 
+interface StaffRouteChildren {
+  StaffStaffRoute: typeof StaffStaffRoute
+}
+
+const StaffRouteChildren: StaffRouteChildren = {
+  StaffStaffRoute: StaffStaffRoute,
+}
+
+const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
+  AuthRoute: AuthRouteWithChildren,
   SiteRoute: SiteRouteWithChildren,
+  StaffRoute: StaffRouteWithChildren,
+  AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
+  AccountCloseRoute: AccountCloseRoute,
+  AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
+  DevUploadsRoute: DevUploadsRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiCronDailyRoute: ApiCronDailyRoute,
+  ApiCronJobsRoute: ApiCronJobsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

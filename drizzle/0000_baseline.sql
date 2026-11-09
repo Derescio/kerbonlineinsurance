@@ -1,0 +1,2 @@
+-- Baseline (4.1): no tables yet. It gives the migration pipeline real files to run, so the
+-- Vercel deploy step, the CI drift check and the integration test setup all work before 4.2.

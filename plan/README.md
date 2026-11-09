@@ -30,6 +30,7 @@ This folder is how the Kerb website gets built: one **phase** per recording sess
 - [project-plan.md](project-plan.md): what we're building and why.
 - [build-plan.md](build-plan.md): the ordered checklist of every phase and slice.
 - [git-workflow.md](git-workflow.md): the rules and steps for getting a change from a branch to production.
+- [dev-database.md](dev-database.md): seeding Neon `dev` with demo data and rebuilding it from nothing, safely (4.9).
 - `phases/NN-name/phase.md`: the goal, payoff shot, testing plan and recording notes for one session.
 - `phases/NN-name/NN-slice.md`: the spec for one slice.
 - [engineering.md](engineering.md): git workflow, environments, migrations, CI, caching.

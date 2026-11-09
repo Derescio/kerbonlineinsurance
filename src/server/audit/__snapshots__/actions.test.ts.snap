@@ -1,0 +1,54 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AUDIT_ACTIONS > pins the list 1`] = `
+{
+  "account.closed": {
+    "description": "An account was closed",
+    "entityType": "user",
+  },
+  "account.closure_cancelled": {
+    "description": "A customer kept their account",
+    "entityType": "user",
+  },
+  "account.closure_held": {
+    "description": "A closure was held back by an open claim",
+    "entityType": "user",
+  },
+  "account.closure_requested": {
+    "description": "A customer asked to close their account",
+    "entityType": "user",
+  },
+  "account.deleted": {
+    "description": "An account was deleted by its owner",
+    "entityType": "user",
+  },
+  "claim.viewed": {
+    "description": "A staff member opened a claim",
+    "entityType": "claim",
+  },
+  "file.viewed": {
+    "description": "A staff member opened a claim file",
+    "entityType": "file",
+  },
+  "referral.viewed": {
+    "description": "A staff member opened a referral",
+    "entityType": "quote_item",
+  },
+  "sessions.revoked_all": {
+    "description": "Signed out everywhere",
+    "entityType": "user",
+  },
+  "staff.added": {
+    "description": "Someone was made staff",
+    "entityType": "user",
+  },
+  "two_factor.disabled": {
+    "description": "Two-factor was turned off",
+    "entityType": "user",
+  },
+  "two_factor.reset": {
+    "description": "Two-factor was reset by an admin script",
+    "entityType": "user",
+  },
+}
+`;

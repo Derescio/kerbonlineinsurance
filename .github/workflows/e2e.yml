@@ -60,6 +60,12 @@ jobs:
         env:
           BASE_URL: ${{ github.event.client_payload.url || inputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          # A staff account with 2FA off on the dev database (4.6); the staff test skips without it
+          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+          # The Neon `dev` branch's credentials (never prod), so the 4.7 delete test can confirm its own
+          # sign-up; it only ever touches delivered+e2e-close-*@resend.dev, and skips without this
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
           CI: "true"
         run: |
           if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then

@@ -1,0 +1,120 @@
+import { PUBLISHED, v } from "../build";
+import type { MakeSource } from "../types";
+
+export const peugeot: MakeSource = {
+  make: "Peugeot",
+  generations: [
+    {
+      model: "208",
+      bodyStyle: "hatchback",
+      curve: "standard",
+      years: [2012, 2019],
+      groupSource: PUBLISHED("208 Mk1 (2012–2019)"),
+      variants: [
+        v("1.2 PureTech 82 Active 5dr", "petrol", "manual", 5, 1199, 82, 8, 13_500),
+        v(
+          "1.2 PureTech 110 GT Line 5dr",
+          "petrol",
+          "manual",
+          5,
+          1199,
+          110,
+          15,
+          17_500,
+          [2015, 2019],
+        ),
+        v("1.6 BlueHDi 100 Allure 5dr", "diesel", "manual", 5, 1560, 100, 11, 17_000, [2015, 2019]),
+      ],
+    },
+    {
+      model: "208",
+      bodyStyle: "hatchback",
+      curve: "standard",
+      years: [2020, 2026],
+      groupSource: PUBLISHED("208 Mk2 (2019–)"),
+      variants: [
+        v("1.2 PureTech 75 Active 5dr", "petrol", "manual", 5, 1199, 75, 10, 17_500),
+        v("1.2 PureTech 100 Allure 5dr", "petrol", "manual", 5, 1199, 100, 17, 20_500),
+        v("1.2 PureTech 130 GT auto 5dr", "petrol", "automatic", 5, 1199, 130, 22, 25_500),
+      ],
+    },
+    {
+      model: "208",
+      bodyStyle: "hatchback",
+      curve: "electric",
+      years: [2020, 2026],
+      groupSource: PUBLISHED("e-208 (2019–)"),
+      variants: [v("e-208 GT", "electric", "automatic", 5, null, 136, 25, 33_000)],
+    },
+    {
+      model: "2008",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2013, 2019],
+      groupSource: PUBLISHED("2008 Mk1 (2013–2019)"),
+      variants: [
+        v("1.2 PureTech 82 Active", "petrol", "manual", 5, 1199, 82, 12, 15_000),
+        v("1.2 PureTech 130 GT Line", "petrol", "manual", 5, 1199, 130, 17, 20_000, [2016, 2019]),
+        v("1.6 BlueHDi 100 Allure", "diesel", "manual", 5, 1560, 100, 13, 19_000),
+      ],
+    },
+    {
+      model: "2008",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2020, 2026],
+      groupSource: PUBLISHED("2008 Mk2 (2019–)"),
+      variants: [
+        v("1.2 PureTech 100 Active", "petrol", "manual", 5, 1199, 100, 17, 22_000),
+        v("1.2 PureTech 130 GT auto", "petrol", "automatic", 5, 1199, 130, 22, 28_000),
+      ],
+    },
+    {
+      model: "2008",
+      bodyStyle: "suv",
+      curve: "electric",
+      years: [2020, 2026],
+      groupSource: PUBLISHED("e-2008 (2019–)"),
+      variants: [v("e-2008 Allure", "electric", "automatic", 5, null, 136, 25, 34_000)],
+    },
+    {
+      model: "3008",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2012, 2016],
+      groupSource: PUBLISHED("3008 Mk1 (2009–2016)"),
+      variants: [
+        v("1.6 VTi Access", "petrol", "manual", 5, 1598, 120, 14, 18_500),
+        v("1.6 HDi Active", "diesel", "manual", 5, 1560, 115, 15, 20_000),
+      ],
+    },
+    {
+      model: "3008",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2017, 2023],
+      groupSource: PUBLISHED("3008 Mk2 (2016–2023)"),
+      variants: [
+        v("1.2 PureTech 130 Active", "petrol", "manual", 5, 1199, 130, 15, 24_000),
+        v("1.5 BlueHDi 130 Allure", "diesel", "manual", 5, 1499, 130, 17, 28_000, [2018, 2023]),
+        v("1.6 Hybrid4 300 GT auto", "hybrid", "automatic", 5, 1598, 300, 33, 44_000, [2020, 2023]),
+      ],
+    },
+    {
+      model: "3008",
+      bodyStyle: "suv",
+      curve: "standard",
+      years: [2024, 2026],
+      groupSource: PUBLISHED("3008 Mk3 (2024–)"),
+      variants: [v("1.2 Hybrid 136 Allure auto", "hybrid", "automatic", 5, 1199, 136, 22, 35_000)],
+    },
+    {
+      model: "3008",
+      bodyStyle: "suv",
+      curve: "electric",
+      years: [2024, 2026],
+      groupSource: PUBLISHED("E-3008 (2024–)"),
+      variants: [v("E-3008 GT", "electric", "automatic", 5, null, 210, 30, 48_000)],
+    },
+  ],
+};

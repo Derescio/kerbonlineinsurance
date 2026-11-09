@@ -6,7 +6,6 @@ import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
 import { normalisePostcode, postcodeError } from "#/features/quote/postcode";
 import { getFlag, track } from "#/lib/analytics";
 
-import { ExcessCallout } from "./ExcessCallout";
 import { HeroImage } from "./HeroImage";
 
 // Hero CTA copy experiment (3.5): PostHog flag "hero-cta-copy". The server HTML is CDN-cached and the
@@ -22,8 +21,9 @@ function isCtaVariant(value: unknown): value is CtaVariant {
 
 /**
  * Split hero (Figma 54:1952 web, 88:2274 tablet, 88:2542 mobile): copy and the postcode quote
- * form, then the home-and-car photo with the excess callout over it (3.3). The form is a plain GET to /quote, so it works before
- * hydration; with JS it checks the postcode first and sends it normalised.
+ * form, then the home-and-car photo. The form is a plain GET to /quote, so it works before
+ * hydration; with JS it checks the postcode first and sends it normalised. The Phase 4 hero refresh
+ * brought the headline, the form heading and the framed photo, and dropped the 3.3 excess callout.
  */
 export function Hero() {
   const [error, setError] = useState<string>();
@@ -62,7 +62,7 @@ export function Hero() {
         <div className="hero__copy">
           <p className="hero__overline">Online insurance</p>
           <h1 className="hero__title" id="hero-title">
-            Kerb Online Insurance.
+            Insurance made <span className="hero__title-mark">simpler.</span>
           </h1>
           <p className="hero__intro">
             Get a price in about two minutes. Every term is explained as you go, so you know exactly
@@ -76,6 +76,7 @@ export function Hero() {
             noValidate
             onSubmit={onSubmit}
           >
+            <h2 className="hero__form-title">Let's get you covered.</h2>
             <div className="hero__row">
               <Input
                 ref={input}
@@ -112,10 +113,7 @@ export function Hero() {
           </form>
         </div>
 
-        <div className="hero__media">
-          <HeroImage className="hero__photo" />
-          <ExcessCallout className="hero__excess" />
-        </div>
+        <HeroImage className="hero__photo" />
       </div>
     </section>
   );

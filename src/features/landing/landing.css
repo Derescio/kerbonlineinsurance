@@ -36,6 +36,9 @@
   letter-spacing: var(--tracking-display);
   text-wrap: balance;
 }
+.hero__title-mark {
+  color: var(--marker-400);
+}
 .hero__intro {
   max-width: 520px;
   color: rgba(255, 255, 255, 0.78);
@@ -55,6 +58,12 @@
   background: var(--bg-surface);
   box-shadow: var(--shadow-3);
   color: var(--fg-1);
+}
+.hero__form-title {
+  margin: 0;
+  color: var(--fg-1);
+  font: 700 22px/28px var(--font-display);
+  letter-spacing: var(--tracking-heading);
 }
 .hero__row {
   display: grid;
@@ -94,14 +103,20 @@
   box-shadow: var(--focus-ring);
 }
 
-/* Photo: the <picture> is the box; the image fills and crops it */
+/* Photo: the <picture> is the box; the image fills and crops it. Side by side, it stretches to the
+   copy column, so its top and bottom line up with the overline and the form card. A light rim and a
+   deep shadow lift it off the green (--shadow-3 is tuned for light surfaces and barely shows here). */
 .hero__photo {
   display: block;
-  height: 440px;
+  box-sizing: border-box;
+  align-self: stretch;
+  min-height: 360px;
   min-width: 0;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-xl);
   background: var(--green-800);
+  box-shadow: 0 24px 56px -16px rgba(0, 0, 0, 0.5);
 }
 .hero__photo img {
   display: block;
@@ -115,9 +130,6 @@
   .hero__grid {
     gap: var(--space-6);
     padding-block: var(--space-12);
-  }
-  .hero__photo {
-    height: 360px;
   }
   .hero__note {
     flex-direction: column;
@@ -140,6 +152,7 @@
   }
   .hero__photo {
     height: 220px;
+    min-height: 0;
   }
 }
 
@@ -160,45 +173,6 @@
 }
 
 /* ---- 3.3: landing parts ---- */
-
-/* Excess callout over the hero photo (part 53:1945); web and tablet only */
-.hero__media {
-  position: relative;
-  min-width: 0;
-}
-.hero__excess {
-  position: absolute;
-  top: var(--space-6);
-  right: var(--space-6);
-}
-.excess {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  width: 220px;
-  padding: var(--space-4) 18px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-2);
-  color: var(--fg-1);
-}
-.excess p {
-  margin: 0;
-}
-.excess__label {
-  color: var(--stone-600);
-  font: 500 12px/16px var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.excess__amount {
-  font: 700 28px/32px var(--font-display);
-  letter-spacing: var(--tracking-heading);
-}
-.excess__text {
-  color: var(--stone-600);
-  font: 400 13px/18px var(--font-body);
-}
 
 /* Shared: white band with hairlines, and the overline + heading pair */
 .band {
@@ -591,9 +565,6 @@
 
 /* Mobile (88:2528) */
 @media (max-width: 767.98px) {
-  .hero__excess {
-    display: none;
-  }
   .trust {
     padding-block: var(--space-4);
   }

@@ -31,7 +31,10 @@ describe("Hero", () => {
     const { container } = await render(<Hero />);
     await expect
       .element(page.getByRole("heading", { level: 1 }))
-      .toHaveTextContent("Kerb Online Insurance.");
+      .toHaveTextContent("Insurance made simpler.");
+    await expect
+      .element(page.getByRole("heading", { level: 2, name: "Let's get you covered." }))
+      .toBeVisible();
     const form = container.querySelector("form")!;
     expect(form.getAttribute("method")).toBe("get");
     expect(form.getAttribute("action")).toBe("/quote");
