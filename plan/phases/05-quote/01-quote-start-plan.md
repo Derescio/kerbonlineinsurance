@@ -127,7 +127,7 @@
 - Create: `drizzle/0018_*.sql` (via `vp run db:generate`), `src/server/data/event-rows.ts`, `src/server/quote/start.ts`, `src/server/quote/start.int.test.ts`, `src/features/quote/server.ts`.
 
 **Interfaces (Produces):**
-- `insertQuoteStarted(db: Db, row: { product: BuyableProductId; district: string; journeyId: string; anonymousId: string | null }): Promise<boolean>`: true if a row was written. Insert with `onConflictDoNothing()`, `properties: { product, district }`.
+- `insertQuoteStarted(row: { product: BuyableProductId; district: string; journeyId: string; anonymousId: string | null }, db: Db = getDb()): Promise<boolean>`: true if a row was written. Insert with `onConflictDoNothing()`, `properties: { product, district }`.
 - `QUOTE_START_RULE = { max: 30, windowSeconds: 3600 }`
 - `startQuoteInput`: Zod `{ product: z.enum(["car","home"]), district: z.string().regex(/^[A-Z]{1,2}\d[A-Z\d]?$/), journeyId: z.uuid(), anonymousId: z.string().min(1).max(200).nullable() }`; `type StartQuoteInput`
 - `recordQuoteStart(raw: unknown, headers: Headers, secret?: string): Promise<{ recorded: boolean }>`: parse (bad input gives `{ recorded: false }` and writes nothing), then `limit("quote.started:" + await rateLimitSubject(null, headers, secret), QUOTE_START_RULE)` (throws `RateLimitError`), then insert.
