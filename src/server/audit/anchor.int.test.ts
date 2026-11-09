@@ -72,6 +72,11 @@ describe("audit.anchor", () => {
       lastId: Number(row.id),
       lastHash: row.hash,
       keyVersion: row.key_version,
+      genesisHash: (
+        await getDb().$client.query<{ hash: string }>(
+          "select hash from audit_log order by id asc limit 1",
+        )
+      ).rows[0]!.hash,
       anchoredAt: now.toISOString(),
     });
   });
@@ -110,7 +115,25 @@ describe("verifyAgainstAnchors", () => {
     await writeAuditRows(2);
     await anchorJob();
     await writeAuditRows(1);
-    expect(await verifyAgainstAnchors(getDb().$client, store)).toEqual({ ok: true, anchors: 1 });
+    expect(await verifyAgainstAnchors(getDb().$client, store)).toEqual({
+      ok: true,
+      anchors: 1,
+      otherChains: 0,
+    });
+  });
+
+  it("sets aside an anchor from a chain that was rebuilt, rather than failing on it", async () => {
+    await writeAuditRows(2);
+    await anchorJob();
+    // A dev rebuild, later: a new chain whose ids start again, with different hashes
+    await truncateAll();
+    vi.setSystemTime(new Date(now.getTime() + 60 * 60_000));
+    await writeAuditRows(3);
+    expect(await verifyAgainstAnchors(getDb().$client, store)).toEqual({
+      ok: true,
+      anchors: 0,
+      otherChains: 1,
+    });
   });
 
   it("names a missing anchored row: the newest rows were deleted", async () => {

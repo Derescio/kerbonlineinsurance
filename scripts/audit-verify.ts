@@ -63,7 +63,10 @@ try {
   } else {
     const checked = await anchors.verifyAgainstAnchors(db, store.getObjectStore());
     if (checked.ok) {
-      console.log(`Chain OK: ${chain.rows} rows. Anchors OK: ${checked.anchors}.`);
+      const earlier = checked.otherChains
+        ? ` ${checked.otherChains} from an earlier chain (a rebuilt database), set aside.`
+        : "";
+      console.log(`Chain OK: ${chain.rows} rows. Anchors OK: ${checked.anchors}.${earlier}`);
     } else {
       console.error(`Chain OK: ${chain.rows} rows. Anchor ${checked.anchor}: ${checked.reason}.`);
       code = 1;
