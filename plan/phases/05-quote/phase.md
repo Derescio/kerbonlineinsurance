@@ -16,6 +16,14 @@ The full quote journey from Figma, for car and home, saved to the database, pric
 - The search params are validated with `postcodeSchema` (`src/features/quote/postcode.ts`) and `isProductId` (`src/features/quote/products.ts`), the same rules the landing already uses.
 - The type picker lists all seven types. `buyableProducts` (car, home) continue into their steps; the rest show a "coming soon" panel that offers a car or home quote instead.
 
+## Decisions before the phase (9 Nov 2026)
+
+- **Designs.** The `Quote & Policy` journey plus the 22 Phase 5 screens in [figma.md](../../figma.md) ("Quote · Phase 5 additions", `222:6701`). They're web only; tablet and mobile adapt them with the existing tablet and mobile journey (Damion).
+- **Header.** The quote pages use the live site header from 3.1. The header drawn in the quote frames is a placeholder, and Figma is updated later (Damion).
+- **Retrieve a quote.** "Sign in to see your saved quotes", using the accounts Phase 4 built. No emailed sign-in link: screen 16 isn't built (Damion).
+- **Bundles keep their discount.** 8% off from rating tables v1 (`bundle_discount_rate`, 4.8 call 21). Screens 21 and 22 still say "no bundle discount" in Figma and are corrected there (Damion).
+- **A bundle starts from the car quote.** "Add home insurance to your car quote?" (screen 21) carries the postcode over and keeps the car quote. Each item is assessed on its own, so a referred or declined item never blocks the other.
+
 ## Payoff shot
 
 Complete a quote on a phone-width browser, pay (fake), land on 'You're covered', then show the policy row in Neon.
