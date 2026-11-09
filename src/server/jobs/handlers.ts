@@ -1,3 +1,4 @@
+import { cleanupHandler, closuresHandler, housekeepingHandler } from "./daily";
 import { emailHandler } from "./email";
 import type { Handlers } from "./runner";
 
@@ -7,4 +8,7 @@ import type { Handlers } from "./runner";
 
 export const HANDLERS: Handlers = {
   "email.send": emailHandler,
+  "account.closures": closuresHandler,
+  "uploads.cleanup": cleanupHandler,
+  "housekeeping.expired_rows": housekeepingHandler,
 };

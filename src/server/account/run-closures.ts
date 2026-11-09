@@ -15,7 +15,8 @@ import { queueEmail, runSoon } from "#/server/jobs/email";
 
 import type { AccountDeps } from "./emails";
 
-// The daily closure job (4.7 call 14), run by the cron route and `vp run account:run-closures`.
+// The daily closure job (4.7 call 14), run as the `account.closures` job (4.11) by the daily cron
+// and `vp run jobs:daily`.
 // Every open closure whose window has ended by `now` is held (an open claim) or closed (call 9),
 // each in its own transaction, so one failure doesn't stop the rest.
 //
