@@ -6,9 +6,13 @@ export type Detected = "image/jpeg" | "image/png" | "image/webp" | "application/
 /** How many bytes the server reads from the start of an uploaded object */
 export const MAGIC_BYTES = 16;
 
-const ascii = (bytes: Uint8Array, start: number, text: string) =>
-  bytes.length >= start + text.length &&
-  [...text].every((char, i) => bytes[start + i] === char.charCodeAt(0));
+function ascii(bytes: Uint8Array, start: number, text: string): boolean {
+  if (bytes.length < start + text.length) return false;
+  for (let i = 0; i < text.length; i++) {
+    if (bytes[start + i] !== text.charCodeAt(i)) return false;
+  }
+  return true;
+}
 
 export function detectType(bytes: Uint8Array): Detected {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {

@@ -10,7 +10,7 @@ import { detectType } from "./magic";
 const bytes = (...values: (number | string)[]) =>
   new Uint8Array(
     values.flatMap((value) =>
-      typeof value === "number" ? [value] : [...value].map((char) => char.charCodeAt(0)),
+      typeof value === "number" ? [value] : [...new TextEncoder().encode(value)],
     ),
   );
 

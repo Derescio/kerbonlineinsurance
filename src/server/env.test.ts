@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { AuditConfigError, CronConfigError, getAuditEnv, getCronSecret } from "#/server/env";
+import {
+  AuditConfigError,
+  CronConfigError,
+  getAuditEnv,
+  getCronSecret,
+  getR2Env,
+  R2ConfigError,
+} from "#/server/env";
 
 const key = Buffer.alloc(32, 7).toString("base64");
 
@@ -53,5 +60,36 @@ describe("getCronSecret", () => {
   it("throws CronConfigError when it's missing or blank, without a value in the message", () => {
     expect(() => getCronSecret({})).toThrow(CronConfigError);
     expect(() => getCronSecret({ CRON_SECRET: "  " })).toThrow(/CRON_SECRET is not set/);
+  });
+});
+
+describe("getR2Env", () => {
+  const valid = {
+    R2_ACCOUNT_ID: "a".repeat(32),
+    R2_ACCESS_KEY_ID: "access-key-id",
+    R2_SECRET_ACCESS_KEY: "secret-access-key-value",
+    R2_BUCKET: "kerb-dev",
+  };
+
+  it("returns the trimmed values", () => {
+    expect(getR2Env({ ...valid, R2_BUCKET: " kerb-dev\t" })).toEqual(valid);
+  });
+
+  it("names every missing variable and the .env.example section", () => {
+    expect(() => getR2Env({})).toThrow(R2ConfigError);
+    expect(() => getR2Env({})).toThrow(/R2_ACCOUNT_ID is not set.*R2_BUCKET is not set/);
+    expect(() => getR2Env({})).toThrow(/Uploads \(4\.10\)/);
+  });
+
+  it("refuses an account id that isn't 32 hex characters, without echoing values", () => {
+    let message = "";
+    try {
+      getR2Env({ ...valid, R2_ACCOUNT_ID: "not-an-account", R2_BUCKET: "" });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/R2_ACCOUNT_ID is not 32 hex characters/);
+    expect(message).not.toContain("not-an-account");
+    expect(message).not.toContain(valid.R2_SECRET_ACCESS_KEY);
   });
 });
