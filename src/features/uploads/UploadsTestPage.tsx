@@ -44,6 +44,7 @@ function formatSize(bytes: number): string {
 async function open(load: () => Promise<FileLink>, onError: (message: string) => void) {
   // Opened before the await, so a phone's popup blocker sees the tap
   const tab = window.open("", "_blank");
+  if (tab) tab.opener = null;
   try {
     const link = await load();
     if (tab) tab.location.href = link.url;
