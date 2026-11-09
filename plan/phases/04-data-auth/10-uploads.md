@@ -1,6 +1,6 @@
 # 4.10 Upload foundation
 
-**Status:** built and checked on staging from a laptop (8 Nov 2026), in review as #71; plan in [10-uploads-plan.md](10-uploads-plan.md). The phone check moves to the first check on production
+**Status:** built, and checked on staging from a laptop and a phone (8 Nov 2026); in review as #71. Plan in [10-uploads-plan.md](10-uploads-plan.md)
 **Phase:** 04-data-auth
 
 ## Goal
@@ -166,12 +166,12 @@ The real upload screens arrive with their features, designed in Figma first: the
 ## Done when
 
 - [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally the full suite (1,374) and the build passed; `ci` and the Vercel preview passed on #71.
-- [ ] The manual check above passes on staging, from a phone and from a laptop. **Laptop: passed** (below). **Phone: carried** to the first check on production, because the phone can't get past staging's Vercel protection.
+- [x] The manual check above passes on staging, from a phone and from a laptop (below). The phone reached staging through a Vercel share link.
 - [x] `vp run db:check-app-role` passes with the `files` table. Migrations 0016 and 0017 are applied to Neon `dev`.
 
 ## Checks on staging (8 Nov 2026)
 
-On `kerbonlineinsurance-staging.vercel.app/dev/uploads`, from a laptop, with the `kerb-dev` CORS rules and the `R2_*` values in place. Results were confirmed in the `files` table on `dev` and by fetching the stored object.
+On `kerbonlineinsurance-staging.vercel.app/dev/uploads`, from a laptop and a phone, with the `kerb-dev` CORS rules and the `R2_*` values in place. Results were confirmed in the `files` table on `dev` and by fetching the stored object.
 
 | Check | Result |
 |---|---|
@@ -185,7 +185,7 @@ On `kerbonlineinsurance-staging.vercel.app/dev/uploads`, from a laptop, with the
 | The object without a signature | Pass. HTTP 400 (`Authorization`) |
 | A signed link after its 5 minutes | Pass. HTTP 403 (`ExpiredRequest`) |
 | Bucket public access | Turned off on `kerb-dev` and `kerb-prod` during the check (it had been on for `kerb-dev`) |
-| From a phone (12 MB camera photo; library, camera and Files) | Carried to the first check on production |
+| From a phone, a photo taken with the camera from Choose file | Pass. Taken and uploaded in one go; stored as an upright 1536 × 2048 WebP (389 KB), the phone's rotation applied and then dropped with the rest of the EXIF: chunks `VP8X`, `ICCP`, `VP8 `, no Exif or GPS bytes |
 
 ## Commit message
 
