@@ -24,10 +24,10 @@ const anchorSchema = z.object({
 });
 
 // A function declaration: handlers.ts reads it through an import cycle (see jobs/handlers.ts)
-export async function anchorHandler(
-  _job: JobRow,
-  { db, now }: { db: Db; now: Date },
-): Promise<HandlerResult> {
+export async function anchorHandler(_job: JobRow, { db }: { db: Db }): Promise<HandlerResult> {
+  // The real clock, not the run's `now`: a run with NOW= set must never write (and lock for a
+  // year) a future day's anchor
+  const now = new Date();
   const { rows } = await db.$client.query<{ id: string; hash: string; key_version: string }>(
     "select id, hash, key_version from audit_log order by id desc limit 1",
   );

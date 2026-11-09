@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
 import { jobs } from "#/server/db/schema";
@@ -38,14 +38,14 @@ const newest = async () =>
     )
   ).rows[0]!;
 
-async function anchorJob(key = "audit.anchor:2026-11-09") {
+async function anchorJob(key = "audit.anchor:2026-11-09", runAt = now) {
   const id = (await enqueue(getDb(), {
     type: "audit.anchor",
     payload: {},
     idempotencyKey: key,
     runAfter: now,
   }))!;
-  await runJob(getDb(), id, deps, now);
+  await runJob(getDb(), id, deps, runAt);
   return (await getDb().select().from(jobs).where(eq(jobs.id, id)))[0]!;
 }
 
@@ -54,8 +54,13 @@ beforeEach(async () => {
   await truncateAll();
   store = new MemoryObjectStore();
   setObjectStore(store);
+  // The anchor goes by the real clock; Date only, so timers and the database still work
+  vi.useFakeTimers({ toFake: ["Date"], now });
 });
-afterEach(() => setObjectStore(null));
+afterEach(() => {
+  setObjectStore(null);
+  vi.useRealTimers();
+});
 
 describe("audit.anchor", () => {
   it("writes the newest row's id, hash and key version", async () => {
@@ -81,6 +86,14 @@ describe("audit.anchor", () => {
       lastError: "skipped: already anchored",
     });
     expect(await store.getText(KEY)).toBe(first);
+  });
+
+  it("goes by the real date when a run has NOW set, never writing a future day's anchor", async () => {
+    await writeAuditRows(1);
+    const job = await anchorJob("future", new Date("2026-12-08T03:00:00Z"));
+    expect(job).toMatchObject({ status: "done", lastError: null });
+    expect(await store.list(ANCHOR_PREFIX)).toEqual([KEY]);
+    expect(JSON.parse((await store.getText(KEY))!).anchoredAt).toBe(now.toISOString());
   });
 
   it("skips an empty chain", async () => {
