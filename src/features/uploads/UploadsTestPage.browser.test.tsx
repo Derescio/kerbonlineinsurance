@@ -50,7 +50,10 @@ describe("/dev/uploads", () => {
     const pdf = new File(["%PDF-1.7\n"], "estimate.pdf", { type: "application/pdf" });
     await userEvent.upload(page.getByTestId("file-input-KRB-C-90001"), pdf);
 
-    await expect.element(page.getByText("This claim already has 5 documents.")).toBeVisible();
+    const region = page.getByRole("region", { name: /KRB-C-90001/ });
+    await vi.waitFor(() =>
+      expect(region.element().textContent).toContain("This claim already has 5 documents."),
+    );
     expect(fns.createMyUpload).toHaveBeenCalledWith({
       data: {
         kind: "claim_document",

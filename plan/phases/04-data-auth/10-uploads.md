@@ -1,6 +1,6 @@
 # 4.10 Upload foundation
 
-**Status:** built (8 Nov 2026), plan in [10-uploads-plan.md](10-uploads-plan.md); component tests, `vp build` and the manual check on staging to go
+**Status:** built (8 Nov 2026), plan in [10-uploads-plan.md](10-uploads-plan.md); `vp check`, `vp test` and `vp build` pass locally; the manual check on staging to go
 **Phase:** 04-data-auth
 
 ## Goal
