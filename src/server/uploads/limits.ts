@@ -23,6 +23,7 @@ export const UPLOAD_COPY = {
   reviewClosed: "This review can't take new photos.",
   removeRefused: "Files can only be removed from a draft claim or a pending review.",
   notReceived: "We didn't receive that file. Please try again.",
+  uploadFailed: "The upload didn't finish. Please try again.",
   heic: "This photo's format isn't supported here. Try saving it as a JPEG.",
 } as const;
 
