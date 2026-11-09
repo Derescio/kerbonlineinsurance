@@ -11,7 +11,9 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { PASSWORD_MAX, PASSWORD_MIN } from "#/features/auth/schemas";
 import { getDb, type Db } from "#/server/db/client";
 import { resendSender, type SendEmail } from "#/server/email/send";
-import { existingAccountEmail, resetPasswordEmail, verifyEmail } from "#/server/email/templates";
+import type { EmailTemplate } from "#/server/email/registry";
+import { queueEmail } from "#/server/jobs/email";
+import { runJob } from "#/server/jobs/runner";
 import { getAuthEnv, type AuthEnv } from "#/server/env";
 
 import { logSafeError } from "./errors";
@@ -35,6 +37,10 @@ import { recordSecurityEvent, userIdForEmail, type SecurityEventInput } from "./
 export const TERMS_REQUIRED_MESSAGE = "Tick to agree to the terms of use.";
 
 const DAY = 24 * 60 * 60;
+/** How long a reset link works: one hour, as frame 06b says */
+const RESET_EXPIRES_IN = 60 * 60;
+/** How long a verification link works: 6 hours, as frame 07d says (4.4b) */
+const VERIFY_EXPIRES_IN = 6 * 60 * 60;
 
 /** Better Auth's answer to a correct password on an unconfirmed email (4.4b) */
 export const EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED";
@@ -64,12 +70,24 @@ export function createAuth(deps: AuthDeps) {
   const record = (event: SecurityEventInput) => recordSecurityEvent(db, secret, event);
 
   // Emails go after the response: awaiting the send would make "this email has an account"
-  // visible from how long the request takes. A failed send is logged, never shown as an error.
-  const deliver = (to: string, content: { subject: string; html: string; text: string }) => {
-    const work = deps.sendEmail({ to, ...content }).catch((error: unknown) => {
-      console.error("[auth] email not sent:", logSafeError(error));
-    });
-    if (deps.defer) deps.defer(work);
+  // visible from how long the request takes. Since 4.11 each is an email job, queued and run after
+  // the response too (spec call 8): Better Auth's own writes are outside our transactions, and an
+  // awaited insert would show the same difference. A failed send is retried by the jobs cron; one
+  // whose link has expired by then is skipped. Failures are logged, never shown as an error.
+  const defer = deps.defer ?? (() => {});
+  const deliver = (
+    to: string,
+    template: EmailTemplate,
+    params: Record<string, string>,
+    expiresInSeconds?: number,
+  ) => {
+    const expiresAt = expiresInSeconds ? new Date(Date.now() + expiresInSeconds * 1000) : undefined;
+    const work = queueEmail(db, { to, template, params, expiresAt })
+      .then((id) => runJob(db, id, { sendEmail: deps.sendEmail, defer }))
+      .catch((error: unknown) => {
+        console.error("[auth] email not queued:", logSafeError(error));
+      });
+    defer(work);
   };
 
   const breach = deps.breachCheck ?? true;
@@ -100,16 +118,15 @@ export function createAuth(deps: AuthDeps) {
       requireEmailVerification: true,
       autoSignIn: false,
       onExistingUserSignUp: async ({ user }) => {
-        deliver(
-          user.email,
-          existingAccountEmail({ name: user.name, url: `${urls.baseURL}/login` }),
-        );
+        deliver(user.email, "existing_account", {
+          name: user.name,
+          url: `${urls.baseURL}/login`,
+        });
       },
       revokeSessionsOnPasswordReset: true,
-      // One hour, as frame 06b says
-      resetPasswordTokenExpiresIn: 60 * 60,
+      resetPasswordTokenExpiresIn: RESET_EXPIRES_IN,
       sendResetPassword: async ({ user, url }) => {
-        deliver(user.email, resetPasswordEmail({ name: user.name, url }));
+        deliver(user.email, "reset_password", { name: user.name, url }, RESET_EXPIRES_IN);
       },
       onPasswordReset: async ({ user }, request) => {
         const headers = request?.headers;
@@ -124,10 +141,9 @@ export function createAuth(deps: AuthDeps) {
       // No sendOnSignIn: it would send an email on every login attempt (up to 10 per 15 minutes)
       // and use up Resend's allowance. Login offers a Resend button instead (3 per 15 minutes)
       autoSignInAfterVerification: true,
-      // 6 hours, as frame 07d says (4.4b)
-      expiresIn: 6 * 60 * 60,
+      expiresIn: VERIFY_EXPIRES_IN,
       sendVerificationEmail: async ({ user, url }) => {
-        deliver(user.email, verifyEmail({ name: user.name, url }));
+        deliver(user.email, "verify_email", { name: user.name, url }, VERIFY_EXPIRES_IN);
       },
       afterEmailVerification: async (user, request) => {
         await record({ type: "email_verified", userId: user.id, headers: request?.headers });

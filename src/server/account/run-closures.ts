@@ -11,9 +11,9 @@ import {
   type Db,
 } from "#/server/data/account";
 import { withTx } from "#/server/db/tx";
-import { accountClosedEmail, closureHeldEmail } from "#/server/email/templates";
+import { queueEmail, runSoon } from "#/server/jobs/email";
 
-import { sendLater, type AccountDeps } from "./emails";
+import type { AccountDeps } from "./emails";
 
 // The daily closure job (4.7 call 14), run by the cron route and `vp run account:run-closures`.
 // Every open closure whose window has ended by `now` is held (an open claim) or closed (call 9),
@@ -33,8 +33,8 @@ export interface ClosureRunResult {
 
 type Outcome =
   | { kind: "skipped" }
-  | { kind: "held"; email: string; claimReference: string }
-  | { kind: "closed"; email: string };
+  | { kind: "held"; emailJob: number }
+  | { kind: "closed"; emailJob: number };
 
 async function processClosure(db: Db, closureId: string, userId: string): Promise<Outcome> {
   return withTx(db, async (tx): Promise<Outcome> => {
@@ -55,7 +55,12 @@ async function processClosure(db: Db, closureId: string, userId: string): Promis
         entityId: userId,
         changes: { reason },
       });
-      return { kind: "held", email: user.email, claimReference };
+      const emailJob = await queueEmail(tx, {
+        to: user.email,
+        template: "closure_held",
+        params: { claimReference },
+      });
+      return { kind: "held", emailJob };
     }
 
     await closeAccountRows(tx, userId);
@@ -70,7 +75,8 @@ async function processClosure(db: Db, closureId: string, userId: string): Promis
       },
     });
     // The original address, read under the lock before the scrub replaced it
-    return { kind: "closed", email: user.email };
+    const emailJob = await queueEmail(tx, { to: user.email, template: "account_closed" });
+    return { kind: "closed", emailJob };
   });
 }
 
@@ -86,14 +92,10 @@ export async function runClosures(db: Db, now: Date, deps: AccountDeps): Promise
       console.error("[account] closure failed:", id, logSafeError(error));
       continue;
     }
+    if (outcome.kind === "skipped") continue;
+    result[outcome.kind]++;
     // After the commit, as every account email is sent
-    if (outcome.kind === "held") {
-      result.held++;
-      sendLater(deps, outcome.email, closureHeldEmail({ claimReference: outcome.claimReference }));
-    } else if (outcome.kind === "closed") {
-      result.closed++;
-      sendLater(deps, outcome.email, accountClosedEmail());
-    }
+    runSoon(db, outcome.emailJob, deps);
   }
   return result;
 }

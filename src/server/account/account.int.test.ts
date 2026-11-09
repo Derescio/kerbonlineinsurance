@@ -16,6 +16,7 @@ import {
   deletedRows,
   files,
   idempotencyKeys,
+  jobs,
   quotes,
   securityEvents,
   sessions,
@@ -465,12 +466,15 @@ describe("requestClosure", () => {
     expect(await actionRows("account.closure_requested")).toHaveLength(1);
     expect(sent).toHaveLength(1);
 
+    const jobsBefore = (await getDb().select().from(jobs)).length;
     const other = await request(auth, actor, cookie);
     expect(other).toEqual({
       ok: false,
       error: { code: "VALIDATION", message: ALREADY_CLOSING, fields: {} },
     });
     expect(await closuresOf(user.id)).toHaveLength(1);
+    // The refusal rolled back, and its email job with it (4.11)
+    expect(await getDb().select().from(jobs)).toHaveLength(jobsBefore);
   });
 
   it("refuses a user with nothing on file: they can delete instead", async () => {

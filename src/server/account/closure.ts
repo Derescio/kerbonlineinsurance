@@ -6,6 +6,7 @@ import { getAuth, type Auth } from "#/server/auth/auth";
 import { requireUser, type Actor } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import {
+  accountDb,
   cancelClosureRow,
   deleteOtherSessions,
   getAccountState,
@@ -18,11 +19,11 @@ import {
   userEmail,
 } from "#/server/data/account";
 import { defineWrite, type WriteEnvelope } from "#/server/data/define";
-import { closureCancelledEmail, closureRequestedEmail } from "#/server/email/templates";
+import { queueEmail, runSoon } from "#/server/jobs/email";
 
 import { proveIdentity } from "./confirm";
 import { CLOSE_RULE } from "./delete";
-import { accountDeps, formatClosureDate, sendLater, type AccountDeps } from "./emails";
+import { accountDeps, formatClosureDate, type AccountDeps } from "./emails";
 
 // Requesting and cancelling a closure (4.7 decisions 2-3, calls 11, 12, 16). Both go through
 // defineWrite, so a double click acts once and each has its own limit. Request proves identity
@@ -54,7 +55,7 @@ export async function requestClosure(
   // The session to keep: the one making the request, set by the proof
   let keepSessionId = "";
 
-  const done: { email?: string; closesAt?: Date } = {};
+  const done: { jobId?: number } = {};
   const write = defineWrite(
     noInput,
     {
@@ -88,20 +89,17 @@ export async function requestClosure(
       });
       // Only the sessions that exist now; a sign-in during the window keeps its session
       await deleteOtherSessions(tx, userId, keepSessionId);
-      done.email = user.email;
-      done.closesAt = closure.closesAt;
+      done.jobId = await queueEmail(tx, {
+        to: user.email,
+        template: "closure_requested",
+        params: { closesOn: formatClosureDate(closure.closesAt) },
+      });
       return { closesAt };
     },
   );
 
   const result = await write(known, envelope, ctx);
-  if (result.ok && done.email && done.closesAt) {
-    sendLater(
-      deps,
-      done.email,
-      closureRequestedEmail({ closesOn: formatClosureDate(done.closesAt) }),
-    );
-  }
+  if (result.ok && done.jobId) runSoon(accountDb(), done.jobId, deps);
   return result;
 }
 
@@ -111,7 +109,7 @@ export async function cancelClosure(
   ctx: { headers: Headers },
   deps: AccountDeps = accountDeps(),
 ): Promise<WriteResult<{ kept: true }>> {
-  const done: { email?: string } = {};
+  const done: { jobId?: number } = {};
   const write = defineWrite(
     noInput,
     {
@@ -128,12 +126,13 @@ export async function cancelClosure(
       }
       await cancelClosureRow(tx, open.id);
       await audit(tx, { actor, action: "account.closure_cancelled", entityId: userId });
-      done.email = (await userEmail(tx, userId)) ?? undefined;
+      const email = await userEmail(tx, userId);
+      if (email) done.jobId = await queueEmail(tx, { to: email, template: "closure_cancelled" });
       return { kept: true as const };
     },
   );
 
   const result = await write(actor, envelope, ctx);
-  if (result.ok && done.email) sendLater(deps, done.email, closureCancelledEmail());
+  if (result.ok && done.jobId) runSoon(accountDb(), done.jobId, deps);
   return result;
 }
