@@ -55,6 +55,24 @@ describe("contentSecurityPolicy", () => {
     expect(withPosthog).toContain(`connect-src 'self' ${posthog};`);
     expect(directive("connect-src")).toBe("connect-src 'self'");
   });
+
+  it("allows this environment's R2 origin for uploads and images when the account is set (4.10)", () => {
+    const account = "a".repeat(32);
+    const r2 = `https://${account}.r2.cloudflarestorage.com`;
+    const withR2 = contentSecurityPolicy("abc123", undefined, account);
+    expect(withR2).toContain(`connect-src 'self' ${r2};`);
+    expect(withR2).toContain(`img-src 'self' data: blob: ${r2};`);
+    expect(withR2).not.toContain("*.r2.cloudflarestorage.com");
+  });
+
+  it("previews picked photos from blob: but adds no R2 origin without a valid account", () => {
+    expect(directive("img-src")).toBe("img-src 'self' data: blob:");
+    for (const account of [undefined, "", "x", "*", "a".repeat(31)]) {
+      expect(contentSecurityPolicy("abc123", undefined, account)).not.toContain(
+        "r2.cloudflarestorage.com",
+      );
+    }
+  });
 });
 
 describe("posthogOrigins", () => {

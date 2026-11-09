@@ -752,6 +752,36 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     },
   },
 
+  // --- Uploads (4.10) ---
+  files: {
+    grain: "one uploaded file's metadata (4.10): a claim photo or document, or a review photo",
+    primaryKey: ["id"],
+    changeColumn: "updated_at",
+    kind: "mutable",
+    copied: true,
+    // Metadata only, a dataset for the data video. The bytes stay in R2 and the original filename
+    // is never stored. owner_user_id is kept like every user-id column (review H2), and the object
+    // keys hold nothing more than that id, the kind and the file's own id.
+    columns: keep(
+      "id",
+      "owner_user_id",
+      "kind",
+      "claim_id",
+      "review_id",
+      "status",
+      "object_key",
+      "thumb_key",
+      "mime",
+      "size_bytes",
+      "width",
+      "height",
+      "confirmed_at",
+      "purged_at",
+      "created_at",
+      "updated_at",
+    ),
+  },
+
   // --- Audit and data ---
   audit_log: {
     grain: "one audited action",

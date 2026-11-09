@@ -25,6 +25,7 @@ export const AUDIT_ACTIONS = {
     description: "A closure was held back by an open claim",
   },
   "account.closed": { entityType: "user", description: "An account was closed" },
+  "file.viewed": { entityType: "file", description: "A staff member opened a claim file" },
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

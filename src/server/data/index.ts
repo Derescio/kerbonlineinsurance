@@ -3,6 +3,8 @@
 // Every protected read. The permission suite iterates these exports, so a read left out of here is
 // a read left out of the suite.
 export * from "./claims";
+// Uploads (4.10): the four reads; the writes (createUpload and the rest) are `kind: "write"`
+export * from "./files";
 export * from "./policies";
 export * from "./referrals";
 // Not protected reads: the account state and what's on file (4.7), for callers that already know

@@ -19,6 +19,10 @@ describe("AUDIT_ACTIONS", () => {
     }
   });
 
+  it("records a staff member opening a file against the file (4.10)", () => {
+    expect(AUDIT_ACTIONS["file.viewed"].entityType).toBe("file");
+  });
+
   it("every name is area.verb", () => {
     // The same pattern as audit_log_action_check in 0001
     for (const name of Object.keys(AUDIT_ACTIONS)) {

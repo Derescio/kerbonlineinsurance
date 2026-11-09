@@ -12,6 +12,7 @@ import {
   auditLog,
   claims,
   customers,
+  files,
   idempotencyKeys,
   notifications,
   payments,
@@ -40,9 +41,11 @@ import { truncateAll } from "#/test/db";
 import {
   makeClaim,
   makeCustomer,
+  makeFile,
   makePayment,
   makePolicy,
   makeQuote,
+  makeReview,
   makeUser,
 } from "#/test/factories";
 
@@ -360,6 +363,35 @@ describe("runClosures", () => {
       held: 0,
       failed: 0,
     });
+  });
+
+  it("drops draft-claim and review files, and keeps submitted claims' evidence (4.10)", async () => {
+    const { userId, customer, policy } = await insured();
+    const settled = await makeClaim({
+      status: "settled",
+      policyId: policy.id,
+      customerId: customer.id,
+    });
+    const draft = await makeClaim({
+      status: "draft",
+      policyId: policy.id,
+      customerId: customer.id,
+    });
+    const review = await makeReview({ policyId: policy.id, customerId: customer.id });
+    const evidence = await makeFile({ claimId: settled.id });
+    const draftPhoto = await makeFile({ claimId: draft.id });
+    const reviewPhoto = await makeFile({ reviewId: review.id });
+    const closure = await openClosure(userId);
+
+    expect(await runClosures(getDb(), dueAt(closure), deps)).toMatchObject({ closed: 1 });
+    const after = await getDb().select().from(files).orderBy(files.createdAt);
+    expect(after.map((f) => [f.id, f.status, f.claimId, f.reviewId, f.ownerUserId])).toEqual([
+      [evidence.id, "ready", settled.id, null, userId],
+      [draftPhoto.id, "deleted", null, null, userId],
+      [reviewPhoto.id, "deleted", null, null, userId],
+    ]);
+    // Left for the daily cleanup
+    expect(after.every((f) => f.purgedAt === null)).toBe(true);
   });
 
   it("closes a user whose policies belong to a bundle (Review Focus 5)", async () => {

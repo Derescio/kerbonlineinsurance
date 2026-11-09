@@ -3,8 +3,8 @@ import { z } from "zod";
 import { AuditKeyError, parseKeys, type AuditKeys } from "#/server/audit/chain";
 
 // Server-only environment, validated once at startup so a missing variable fails fast.
-// Later phases add: ANTHROPIC_API_KEY, OPENAI_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
-// R2_SECRET_ACCESS_KEY, R2_BUCKET. Auth's variables are below (getAuthEnv), CRON_SECRET at the end.
+// Later phases add: ANTHROPIC_API_KEY, OPENAI_API_KEY. Auth's variables are below (getAuthEnv),
+// then CRON_SECRET and R2's (getR2Env).
 export const envSchema = z.object({
   PUBLIC_CACHE_SECONDS: z.coerce.number().int().nonnegative().default(300),
 });
@@ -110,4 +110,40 @@ export function getCronSecret(source: Record<string, string | undefined> = proce
   const secret = source.CRON_SECRET?.trim();
   if (!secret) throw new CronConfigError();
   return secret;
+}
+
+// Cloudflare R2 (4.10): one private bucket and one scoped token per environment. Read on use, like
+// getCronSecret, so only uploads need them. The message names variables, never their values.
+export class R2ConfigError extends Error {
+  override name = "R2ConfigError";
+  constructor(problems: string[]) {
+    super(`Invalid R2 environment (.env.example, "Uploads (4.10)"): ${problems.join(", ")}`);
+  }
+}
+
+export interface R2Env {
+  R2_ACCOUNT_ID: string;
+  R2_ACCESS_KEY_ID: string;
+  R2_SECRET_ACCESS_KEY: string;
+  R2_BUCKET: string;
+}
+
+const R2_ACCOUNT = /^[0-9a-f]{32}$/;
+
+export function getR2Env(source: Record<string, string | undefined> = process.env): R2Env {
+  const read = (name: keyof R2Env) => source[name]?.trim() ?? "";
+  const env: R2Env = {
+    R2_ACCOUNT_ID: read("R2_ACCOUNT_ID"),
+    R2_ACCESS_KEY_ID: read("R2_ACCESS_KEY_ID"),
+    R2_SECRET_ACCESS_KEY: read("R2_SECRET_ACCESS_KEY"),
+    R2_BUCKET: read("R2_BUCKET"),
+  };
+  const problems = (Object.keys(env) as (keyof R2Env)[])
+    .filter((name) => !env[name])
+    .map((name) => `${name} is not set`);
+  if (env.R2_ACCOUNT_ID && !R2_ACCOUNT.test(env.R2_ACCOUNT_ID)) {
+    problems.push("R2_ACCOUNT_ID is not 32 hex characters");
+  }
+  if (problems.length > 0) throw new R2ConfigError(problems);
+  return env;
 }

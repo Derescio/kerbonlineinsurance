@@ -32,6 +32,8 @@ const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
   deleted_rows: ALL,
   drivers: ALL,
   events: ALL,
+  // Uploads (4.10): the default grants (call 18)
+  files: ALL,
   idempotency_keys: ALL,
   jobs: ALL,
   notifications: ALL,

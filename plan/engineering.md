@@ -141,7 +141,7 @@ The aim: fast for every visitor, and cheap and stable under a spike from the vid
 
 ## 6. File storage (Cloudflare R2)
 
-Uploads in four places: claim damage photos, claim documents (PDF), review photos, and photos sent to Kerbie. One shared foundation (slice 4.10) does the work; feature slices just use it.
+Uploads in four places: claim damage photos, claim documents (PDF), review photos, and photos sent to Kerbie. One shared foundation (slice 4.10) does the work; feature slices just use it. 4.10 supports the first three; Kerbie's `kerbie_image` kind, its parent column and its 30-day expiry come with the chat tables in Phase 7.
 
 **Key constraint:** Vercel functions only accept request bodies of about 4.5 MB, so **files never pass through our server**. The browser uploads straight to R2 using a short-lived signed URL.
 
@@ -154,24 +154,31 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
 - **No public bucket and no `r2.dev` URL:** Cloudflare rate-limits `r2.dev` and doesn't support it for production traffic.
 - **Credentials:** one R2 API token per bucket, scoped to object read/write on that bucket only. Env vars per Vercel environment: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`.
-- **CORS:** `PUT`/`GET` only from that environment's origins (dev: localhost + `*.vercel.app`; prod: the production URL).
-- **Client:** `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (server-only).
+- **Placement:** both buckets in Western Europe as a location hint, with no EU jurisdiction, on the standard endpoint `https://<account-id>.r2.cloudflarestorage.com` (path-style URLs).
+- **CORS:** `PUT`/`GET`/`HEAD` only from that environment's origins (dev: localhost, staging and `*.vercel.app`; prod: the production URL). CORS isn't the security boundary: only the server issues upload links, each for one file of one type and size.
+- **Client:** `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (server-only), behind a small `ObjectStore` interface (`src/server/uploads/store.ts`) with an in-memory fake for the integration tests. Checksums only when required, or the SDK signs a CRC32 that a browser's plain `PUT` can't send.
+- **Checking the bucket:** `vp run uploads:check-r2` puts, heads, reads, signs a `GET` for and deletes one object in the bucket from `.env.local`.
 
 ### Upload flow
 
 1. **Prepare in the browser** (`src/features/uploads/client.ts`):
-   - **Images:** resize to at most 2048 px, re-encode as WebP, and make a 400 px thumbnail. Re-encoding **strips EXIF, including GPS**, which matters for privacy: damage photos are often taken at home. HEIC is converted where the browser can decode it.
+   - **Images:** resize to at most 2048 px, re-encode as WebP, and make a 400 px thumbnail. Re-encoding **strips EXIF, including GPS**, which matters for privacy: damage photos are often taken at home. HEIC is converted where the browser can decode it; where it can't, the page asks for a JPEG.
+   - **Safari:** its canvas can't encode WebP, so there the photo and thumbnail are JPEGs instead (canvas output drops EXIF just the same) and the key ends `.jpg`.
    - **PDFs:** uploaded as they are.
 2. **`createUpload`** (server function):
    - checks the session, the kind, parent ownership, per-kind limits, MIME type and size
    - writes a `files` row with status `pending`
-   - returns presigned `PUT` URLs (10 min) with content type and length signed in
+   - returns presigned `PUT` URLs (5 min) with content type and length signed in
+   - counts `pending` and `ready` files towards the limit, with the parent row locked, so two tabs can't sneak an extra one in
+   - goes through the shared rate limiter: 60 per user per hour
 3. **Upload:** the browser `PUT`s directly to R2, with a progress bar.
 4. **`confirmUpload`:**
    - `HEAD`s the object and checks the first bytes' magic number (JPEG/PNG/WebP or `%PDF`)
    - marks the row `ready`; on a mismatch, deletes the object and marks it `rejected`
 5. **View:**
-   - **Private files** (claims, Kerbie): `getFileUrl` checks ownership and returns a presigned `GET` (5 min).
+   - **Private files** (claims, Kerbie): `getMyFileUrl` checks ownership and returns a presigned `GET` (5 min). Staff with `claims.read_all` use `staffGetFileUrl`: claim files only, never on their own claim, and each view writes a `file.viewed` audit row.
+   - **Who may upload:** the claim's own customer while it's `draft`, `received`, `assessing` or `approved`; the review's own customer while it's `pending`. Anyone else's is `NOT_FOUND`.
+   - **Removing:** `deleteMyFile` works only on a draft claim or a pending review. A submitted claim's evidence is a record and stays.
    - **Published review photos:** served via `/media/r/:fileId`, which streams from R2 with `Cache-Control: public, max-age=31536000, immutable` and only serves photos whose review is published.
 
 ### Limits
@@ -188,15 +195,18 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 - **`files` table:**
   - identity and ownership: `id`, `owner_user_id`, `kind`, plus `claim_id` / `review_id` / `chat_thread_id` (nullable)
   - object: `object_key`, `thumb_key`, `mime`, `size_bytes`, `width`, `height`
-  - lifecycle: `status` (`pending` / `ready` / `rejected` / `deleted`), `created_at`, `confirmed_at`
+  - lifecycle: `status` (`pending` / `ready` / `rejected` / `deleted`), `created_at`, `confirmed_at`, `purged_at` (when the objects left R2)
 
-  It holds metadata only, which becomes a dataset for the data video.
-- **Object keys:** `users/{userId}/{kind}/{fileId}.webp|pdf` (+ `-thumb.webp`).
-- **Daily Vercel Cron** `/api/cron/uploads-cleanup` (protected by `CRON_SECRET`) deletes:
+  It holds metadata only, never the original filename, and becomes a dataset for the data video. Rows are never deleted. `owner_user_id`, `claim_id` and `review_id` are `ON DELETE SET NULL`, so a removed account or draft leaves a `deleted` row with no personal link.
+- **Object keys:** `{kind}/{userId}/{fileId}.webp|jpg|pdf` (+ `-thumb.webp|jpg`). Kind first, so R2's own expiry rules can work per kind (Phase 7 puts a 30-day rule on `kerbie_image/`).
+- **Daily Vercel Cron** `/api/cron/uploads-cleanup` at 03:30 UTC (protected by `CRON_SECRET`) deletes the objects of:
   - `pending` uploads older than 24 h
   - `rejected` uploads
-  - Kerbie images older than 30 days
-- **Delete account** (the immediate path of 4.7, for an account with no insurance records) removes every object and `files` row the user owns, through the `deleteUserFiles(tx, userId)` hook that runs inside the delete's transaction. It's a no-op until 4.10 fills it in. **Closing an account** (the 30-day path) doesn't call it: claim evidence must outlive the account, and which other files go at closure is 4.10's call. Draft-claim evidence needs a closure-side cleanup then.
+  - `deleted` files whose objects are still there (`purged_at` empty)
+
+  `vp run uploads:cleanup` runs it by hand (`NOW=` works), since Vercel Cron only calls Production. 4.11 moves it onto the jobs table.
+- **Delete account** (the immediate path of 4.7, for an account with no insurance records) goes through `deleteUserFiles(tx, userId)` inside the delete's transaction. The user's rows become `deleted`, and their objects are deleted **after** the commit, so a rollback never leaves rows pointing at missing files. If R2 is down then, the cleanup takes them.
+- **Closing an account** (the 30-day path) keeps the files of submitted claims for as long as the claim's records are kept. Files on draft claims and on reviews become `deleted` in `closeAccountRows`, because those drafts and reviews go; the next cleanup deletes their objects.
 
 ## 7. Authentication and authorization
 
@@ -383,7 +393,7 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
   - separate secrets per environment and login-protected previews (§2)
   - Kerbie scoped to the session user
 - **Security headers** (set in slice 1.5, tightened as features land):
-  - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile. PostHog goes through the same-origin `/ingest` proxy (§13), so it adds nothing to the CSP
+  - a strict `Content-Security-Policy`: self, plus R2 for uploads and Turnstile. R2 is that environment's `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com` only (never a wildcard), in `connect-src` and `img-src`. `img-src` also has `blob:`, so a picked photo can preview before it uploads. `Permissions-Policy: camera=()` stays: a phone's file picker still offers the camera. PostHog goes through the same-origin `/ingest` proxy (§13), so it adds nothing to the CSP
   - one deliberate exception, `style-src-attr 'unsafe-inline'` (2.5): React writes `style` props as attributes in server HTML, which a nonce can't cover. Style attributes can't run script and can't load off-site resources (`img-src`/`font-src 'self'`); scripts, `<style>` and stylesheets stay nonce/self-only
   - `Strict-Transport-Security`
   - `frame-ancestors 'none'`

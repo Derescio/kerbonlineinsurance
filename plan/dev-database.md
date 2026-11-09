@@ -116,6 +116,20 @@ This uses the two closure cast members. Run it on a freshly seeded `dev`, becaus
 
 ---
 
+## D. Uploads on dev (4.10)
+
+Files go to the `kerb-dev` bucket, set by the `R2_*` values in `.env.local` (and in Vercel's Development, Preview and Staging).
+
+- **Check the bucket:** `vp run uploads:check-r2` puts, heads, reads, signs a GET for and deletes one object. Every line should say `ok`.
+- **The test page:** `/dev/uploads`, locally or on staging, never in production.
+  - **Ben Okafor** (`+customer-b`): his claim KRB-C-90001 is being assessed, so it takes photos and PDFs.
+  - **Amelia Hart** (`+customer-a`): her claim KRB-C-90000 is settled, so it refuses new files.
+  - **The handler** (`+handler`): the staff box opens any claim's files, and each one opened writes a `file.viewed` audit row.
+- **Cleanup:** `vp run uploads:cleanup` deletes the objects of stale, rejected and deleted files. Add `NOW=<a day later>` to take an upload left pending.
+- **After a rebuild (B):** the database forgets its files, but the bucket keeps their objects. They're harmless. To clear them, empty `claim_photo/`, `claim_document/` and `review_photo/` in the Cloudflare dashboard.
+
+---
+
 ## The cast
 
 All addresses are `+role` variants of `SEED_INBOX`. Every customer's password is `SEED_PASSWORD`.

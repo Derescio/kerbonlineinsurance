@@ -6,6 +6,7 @@ export * from "./auth";
 export * from "./claims";
 export * from "./customers";
 export * from "./data";
+export * from "./files";
 export * from "./notifications";
 export * from "./platform";
 export * from "./policies";

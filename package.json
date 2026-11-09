@@ -21,10 +21,14 @@
     "auth:make-admin": "node scripts/make-admin.ts",
     "auth:reset-two-factor": "node scripts/reset-two-factor.ts",
     "account:run-closures": "node scripts/run-closures.ts",
+    "uploads:cleanup": "node scripts/uploads-cleanup.ts",
+    "uploads:check-r2": "node scripts/r2-check.ts",
     "db:test:up": "docker compose up -d --wait",
     "db:test:down": "docker compose down"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/s3-request-presigner": "^3.1164.0",
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/instrument-sans": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",

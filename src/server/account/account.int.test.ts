@@ -14,6 +14,7 @@ import {
   auditLog,
   customers,
   deletedRows,
+  files,
   idempotencyKeys,
   quotes,
   securityEvents,
@@ -34,7 +35,9 @@ import {
   type TestAuth,
 } from "#/test/auth";
 import { tamper, truncateAll } from "#/test/db";
-import { makeCustomer, makePolicy, makeQuote, makeStaff } from "#/test/factories";
+import { makeCustomer, makeFile, makePolicy, makeQuote, makeStaff } from "#/test/factories";
+import { setObjectStore } from "#/server/uploads/store";
+import { MemoryObjectStore } from "#/server/uploads/store-memory";
 
 import { cancelClosure, requestClosure } from "./closure";
 import { clearSessionCookies, deleteAccount } from "./delete";
@@ -225,6 +228,7 @@ describe("deleteAccount", () => {
     let seen: number | null = null;
     const spy = vi.spyOn(filesHook, "deleteUserFiles").mockImplementation(async (tx, userId) => {
       seen = (await tx.select().from(users).where(eq(users.id, userId))).length;
+      return [];
     });
 
     expect((await del(auth, actor, cookie)).ok).toBe(true);
@@ -246,6 +250,70 @@ describe("deleteAccount", () => {
     expect(await actionRows("account.deleted")).toHaveLength(0);
     expect(await getDb().select().from(deletedRows)).toHaveLength(0);
     expect(sent).toHaveLength(0);
+  });
+
+  describe("the user's files (4.10)", () => {
+    let store: MemoryObjectStore;
+    beforeEach(() => {
+      store = new MemoryObjectStore();
+      setObjectStore(store);
+    });
+    afterEach(() => setObjectStore(null));
+
+    /** A file the user owns. A deletable user has no claims, so it sits on someone else's */
+    async function ownedFile(userId: string) {
+      const file = await makeFile({ ownerUserId: userId });
+      store.put(file.objectKey, new Uint8Array([1]), file.mime);
+      store.put(file.thumbKey!, new Uint8Array([1]), file.mime);
+      return file;
+    }
+    const fileRow = async (id: string) =>
+      (await getDb().select().from(files).where(eq(files.id, id)))[0]!;
+
+    it("marks them deleted in the transaction and removes the objects after the commit", async () => {
+      const auth = makeAuth();
+      const { user, cookie, actor } = await member(auth);
+      const file = await ownedFile(user.id);
+
+      expect((await del(auth, actor, cookie)).ok).toBe(true);
+      // Handed to defer once the delete has committed
+      expect(pending).toHaveLength(2);
+      await flush();
+      expect(store.keys()).toEqual([]);
+      expect(await fileRow(file.id)).toMatchObject({ status: "deleted", ownerUserId: null });
+      expect((await fileRow(file.id)).purgedAt).not.toBeNull();
+    });
+
+    it("a rolled-back delete leaves the rows and the objects", async () => {
+      const auth = makeAuth();
+      const { user, cookie, actor } = await member(auth);
+      const file = await ownedFile(user.id);
+      const real = filesHook.deleteUserFiles;
+      vi.spyOn(filesHook, "deleteUserFiles").mockImplementation(async (tx, userId) => {
+        await real(tx, userId);
+        throw new Error("later step failed");
+      });
+
+      await expect(del(auth, actor, cookie)).rejects.toThrow("later step failed");
+      await flush();
+      expect(await fileRow(file.id)).toMatchObject({ status: "ready", ownerUserId: user.id });
+      expect(store.keys()).toHaveLength(2);
+    });
+
+    it("with R2 down, the delete still succeeds and the cleanup has the rows", async () => {
+      const auth = makeAuth();
+      const { user, cookie, actor } = await member(auth);
+      const file = await ownedFile(user.id);
+      store.failDeletes = true;
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect((await del(auth, actor, cookie)).ok).toBe(true);
+      await flush();
+      expect(await fileRow(file.id)).toMatchObject({ status: "deleted", purgedAt: null });
+      expect(logged).toHaveBeenCalledWith("[uploads] purge after delete failed:", {
+        name: "Error",
+      });
+    });
   });
 
   it("a second call after the first gets UNAUTHENTICATED, never a database error", async () => {
