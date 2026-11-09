@@ -85,7 +85,7 @@ export function createAuth(deps: AuthDeps) {
     const work = queueEmail(db, { to, template, params, expiresAt })
       .then((id) => runJob(db, id, { sendEmail: deps.sendEmail, defer }))
       .catch((error: unknown) => {
-        console.error("[auth] email not queued:", logSafeError(error));
+        console.error("[auth] email job error:", logSafeError(error));
       });
     defer(work);
   };

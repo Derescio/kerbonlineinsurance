@@ -293,6 +293,47 @@ describe("Better Auth (4.4)", () => {
     });
   });
 
+  describe("email jobs (4.11)", () => {
+    const HOUR = 60 * 60_000;
+    const down = () =>
+      makeAuth({
+        sendEmail: async () => {
+          throw new Error("Resend is down");
+        },
+      });
+    /** The newest email job, left failed by the sender above, so its payload is still there */
+    const newestJob = async () => {
+      const rows = await getDb().select().from(jobs).orderBy(jobs.id);
+      const job = rows.at(-1)!;
+      expect(job).toMatchObject({ type: "email.send", status: "failed" });
+      return job.payload as { template: string; expiresAt: string };
+    };
+    const hoursLeft = (expiresAt: string) => (new Date(expiresAt).getTime() - Date.now()) / HOUR;
+
+    it("a verification email carries its template and a link that lasts 6 hours", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await signUp(down());
+      const payload = await newestJob();
+      expect(payload.template).toBe("verify_email");
+      expect(hoursLeft(payload.expiresAt)).toBeGreaterThan(5.9);
+      expect(hoursLeft(payload.expiresAt)).toBeLessThanOrEqual(6);
+    });
+
+    it("a reset email carries its template and a link that lasts 1 hour", async () => {
+      await signUpAndConfirm(makeAuth());
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const response = await post(down(), "/request-password-reset", {
+        email: "maya.patel@example.com",
+        redirectTo: "/reset-password",
+      });
+      expect(response.status).toBe(200);
+      const payload = await newestJob();
+      expect(payload.template).toBe("reset_password");
+      expect(hoursLeft(payload.expiresAt)).toBeGreaterThan(0.9);
+      expect(hoursLeft(payload.expiresAt)).toBeLessThanOrEqual(1);
+    });
+  });
+
   describe("password reset", () => {
     it("emails a one-hour link, resets, signs out every session and records both steps", async () => {
       const auth = makeAuth();
