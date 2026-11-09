@@ -44,4 +44,19 @@ export class MemoryObjectStore implements ObjectStore {
     if (this.failDeletes) throw new Error("R2 is down");
     this.objects.delete(key);
   }
+
+  async putObject(key: string, body: string, contentType: string): Promise<void> {
+    this.put(key, new TextEncoder().encode(body), contentType);
+  }
+
+  async getText(key: string): Promise<string | null> {
+    const object = this.objects.get(key);
+    return object ? new TextDecoder().decode(object.bytes) : null;
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    return this.keys()
+      .filter((key) => key.startsWith(prefix))
+      .sort();
+  }
 }

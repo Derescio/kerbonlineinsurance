@@ -16,6 +16,12 @@ export interface ObjectStore {
   readFirstBytes(key: string, count: number): Promise<Uint8Array>;
   /** Deleting a missing object is fine */
   delete(key: string): Promise<void>;
+  /** A small object written by the server itself, e.g. the daily audit anchor (4.11) */
+  putObject(key: string, body: string, contentType: string): Promise<void>;
+  /** A whole object as text; null when there is no such object */
+  getText(key: string): Promise<string | null>;
+  /** Every key under a prefix */
+  list(prefix: string): Promise<string[]>;
 }
 
 let override: ObjectStore | null = null;

@@ -5,7 +5,7 @@
 //
 // Limitation (spec decision 6): the chain proves rows weren't altered, inserted or removed from
 // the middle. Deleting the newest rows, or rolling the whole database back, leaves a valid chain.
-// The external anchor of `lastHash` in 4.11 is what closes that gap.
+// The daily anchor in R2 (anchor.ts, 4.11) closes that gap: verifyAgainstAnchors checks it.
 import { computeHash, type AuditKeys, type AuditValue, type ChainRow } from "./chain.ts";
 
 // A pg Pool or Client satisfies this; app code passes getDb().$client

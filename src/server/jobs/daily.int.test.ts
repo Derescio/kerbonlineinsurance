@@ -97,13 +97,8 @@ describe("a daily run", () => {
     await runDueJobs(getDb(), deps, now);
     await Promise.all(pending.splice(0));
 
-    // audit.anchor is covered in Task 5's tests until its handler lands (4.11 plan)
-    const daily = (await allJobs()).filter(
-      (j) => j.type !== "email.send" && j.type !== "audit.anchor",
-    );
-    expect(daily.map((j) => [j.type, j.status])).toEqual(
-      DAILY_JOBS.filter((t) => t !== "audit.anchor").map((t) => [t, "done"]),
-    );
+    const daily = (await allJobs()).filter((j) => j.type !== "email.send");
+    expect(daily.map((j) => [j.type, j.status])).toEqual(DAILY_JOBS.map((t) => [t, "done"]));
     const [after] = await getDb()
       .select()
       .from(accountClosures)

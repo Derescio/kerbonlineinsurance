@@ -23,6 +23,7 @@
     "account:run-closures": "node scripts/run-closures.ts",
     "uploads:cleanup": "node scripts/uploads-cleanup.ts",
     "uploads:check-r2": "node scripts/r2-check.ts",
+    "audit:verify": "node scripts/audit-verify.ts",
     "db:test:up": "docker compose up -d --wait",
     "db:test:down": "docker compose down"
   },

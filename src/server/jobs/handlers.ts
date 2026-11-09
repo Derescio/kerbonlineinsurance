@@ -1,3 +1,5 @@
+import { anchorHandler } from "#/server/audit/anchor";
+
 import { cleanupHandler, closuresHandler, housekeepingHandler } from "./daily";
 import { emailHandler } from "./email";
 import type { Handlers } from "./runner";
@@ -11,4 +13,5 @@ export const HANDLERS: Handlers = {
   "account.closures": closuresHandler,
   "uploads.cleanup": cleanupHandler,
   "housekeeping.expired_rows": housekeepingHandler,
+  "audit.anchor": anchorHandler,
 };
