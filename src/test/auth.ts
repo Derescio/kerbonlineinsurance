@@ -33,12 +33,23 @@ export const IP = "203.0.113.7";
 /** Emails the test auth instances "sent"; tests empty it with `sent.length = 0` */
 export const sent: EmailMessage[] = [];
 
+/** Work the test auth instances deferred (their emails, 4.11); `post` waits for it */
+const deferred: Promise<unknown>[] = [];
+
+/** Waits for deferred work, as Vercel finishes waitUntil work after the response */
+export async function flushDeferred(): Promise<void> {
+  while (deferred.length > 0) await Promise.all(deferred.splice(0));
+}
+
 export function makeAuth(overrides: Partial<AuthDeps> = {}) {
   return createAuth({
     db: getDb(),
     env,
     sendEmail: async (message) => {
       sent.push(message);
+    },
+    defer: (work) => {
+      deferred.push(work);
     },
     captcha: false,
     breachCheck: false,
@@ -53,13 +64,15 @@ export const requestHeaders = (extra: Record<string, string> = {}) =>
   new Headers({ "x-forwarded-for": IP, "user-agent": UA, ...extra });
 
 export async function post(auth: TestAuth, path: string, body: unknown, extra = {}) {
-  return auth.handler(
+  const response = await auth.handler(
     new Request(`${LOCAL_URL}/api/auth${path}`, {
       method: "POST",
       headers: requestHeaders({ "content-type": "application/json", origin: LOCAL_URL, ...extra }),
       body: JSON.stringify(body),
     }),
   );
+  await flushDeferred();
+  return response;
 }
 
 /** The `Cookie` header value for the cookies a response set */

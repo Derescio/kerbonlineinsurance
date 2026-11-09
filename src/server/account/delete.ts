@@ -4,6 +4,7 @@ import { getAuth, type Auth } from "#/server/auth/auth";
 import { requireUser, type Actor } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import {
+  accountDb,
   deleteUserRow,
   hasAnyClosure,
   hasRecordsOnFile,
@@ -14,11 +15,11 @@ import {
 } from "#/server/data/account";
 import type { WriteEnvelope } from "#/server/data/define";
 import { limit, rateLimitSubject } from "#/server/db/rate-limit";
-import { accountDeletedEmail } from "#/server/email/templates";
+import { queueEmail, runSoon } from "#/server/jobs/email";
 
 import { proveIdentity } from "./confirm";
 import { CLOSE_LIMIT } from "./constants";
-import { accountDeps, sendLater, type AccountDeps } from "./emails";
+import { accountDeps, type AccountDeps } from "./emails";
 import { filesHook } from "./files";
 
 // The immediate delete, for an account with nothing on file (4.7 decision 2, call 17). Not
@@ -58,12 +59,14 @@ export async function deleteAccount(
     await audit(tx, { actor: known, action: "account.deleted", entityId: userId });
     const fileKeys = await filesHook.deleteUserFiles(tx, userId);
     await deleteUserRow(tx, userId);
-    return { email: user.email, fileKeys };
+    // To the address read before the delete; a job has no link to the user, so it outlives them
+    const emailJob = await queueEmail(tx, { to: user.email, template: "account_deleted" });
+    return { emailJob, fileKeys };
   });
   if (result instanceof Rejected) return { ok: false, error: result.error };
 
-  // After the commit, to the address read before the delete
-  sendLater(deps, result.email, accountDeletedEmail());
+  // After the commit
+  runSoon(accountDb(), result.emailJob, deps);
   // After the commit too, so a rollback never leaves rows pointing at missing objects
   if (result.fileKeys.length > 0) deps.defer(filesHook.purgeObjects(result.fileKeys));
   return { ok: true, data: { deleted: true } };

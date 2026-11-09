@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-
 
 import { COOKIES } from "#/features/legal/cookies";
 import { closeDb, getDb } from "#/server/db/client";
-import { accounts, securityEvents, sessions, twoFactors, users } from "#/server/db/schema";
+import { accounts, jobs, securityEvents, sessions, twoFactors, users } from "#/server/db/schema";
 import {
   enableTwoFactor,
   googleSession,
@@ -68,6 +68,15 @@ describe("Better Auth (4.4)", () => {
       expect(sent[0]!.subject).toBe("Confirm your email for Kerb");
       expect(sent[0]!.text).toContain(`${LOCAL_URL}/api/auth/verify-email?token=`);
       expect(sent[0]!.text).toContain("The link works for 6 hours.");
+      // Sent as an email job (4.11): done, its address and link cleared from the payload
+      expect(await getDb().select().from(jobs)).toEqual([
+        expect.objectContaining({
+          type: "email.send",
+          status: "done",
+          payload: {},
+          lastError: null,
+        }),
+      ]);
     });
 
     it("doesn't sign the new user in (4.4b)", async () => {

@@ -3,10 +3,11 @@ import { filesToPurge, markPurged, type Db } from "#/server/data/file-rows";
 
 import type { ObjectStore } from "./store";
 
-// The daily uploads cleanup (4.10 call 12), run by the cron route and `vp run uploads:cleanup`.
+// The daily uploads cleanup (4.10 call 12), run as the `uploads.cleanup` job (4.11) by the daily
+// cron and `vp run jobs:daily`.
 // It deletes the objects of uploads never confirmed within 24 hours, of rejected files, and of
 // deleted files whose objects are still there (an R2 failure at delete time, or a closure). Each
-// file on its own, so one failure doesn't stop the rest. 4.11 moves it onto the jobs table.
+// file on its own, so one failure doesn't stop the rest; any failure fails the job, so it's retried.
 
 export interface CleanupResult {
   purged: number;

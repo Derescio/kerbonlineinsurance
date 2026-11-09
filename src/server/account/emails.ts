@@ -1,35 +1,15 @@
-import { waitUntil } from "@vercel/functions";
+import { jobDeps } from "#/server/jobs/deps";
+import type { JobDeps } from "#/server/jobs/types";
 
-import { logSafeError } from "#/server/auth/errors";
-import { resendSender, type SendEmail } from "#/server/email/send";
-import type { EmailContent } from "#/server/email/templates";
-import { getAuthEnv } from "#/server/env";
+// How the account emails go out (4.7 call 18, moved onto jobs in 4.11): each is an email job
+// queued in the change's transaction, then run after the commit and the response (runSoon). A
+// failed send is retried by the jobs cron and logged by class name only, never shown.
 
-// How the account emails go out (4.7 call 18): after the commit and after the response, as the
-// auth emails do (auth.ts). A failed send is logged by class name only, never shown.
+export type AccountDeps = JobDeps;
 
-export interface AccountDeps {
-  sendEmail: SendEmail;
-  /** Keeps work alive after the response (Vercel's waitUntil); tests await it themselves */
-  defer: (work: Promise<unknown>) => void;
-}
-
-let deps: AccountDeps | undefined;
-
-/** Resend and waitUntil, built on first use so nothing reads the environment at import */
+/** Resend and waitUntil, the jobs' own (built on first use) */
 export function accountDeps(): AccountDeps {
-  if (deps) return deps;
-  const env = getAuthEnv();
-  deps = { sendEmail: resendSender(env.RESEND_API_KEY, env.EMAIL_FROM), defer: waitUntil };
-  return deps;
-}
-
-/** Hands the send to `defer`; the caller has already committed */
-export function sendLater(deps: AccountDeps, to: string, content: EmailContent): void {
-  const work = deps.sendEmail({ to, ...content }).catch((error: unknown) => {
-    console.error("[account] email not sent:", logSafeError(error));
-  });
-  deps.defer(work);
+  return jobDeps();
 }
 
 const DATE = new Intl.DateTimeFormat("en-GB", {

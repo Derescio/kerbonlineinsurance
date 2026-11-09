@@ -10,7 +10,13 @@ describe("withTimeout", () => {
   it("passes a send that finishes in time straight through", async () => {
     const send = vi.fn(async () => {});
     await expect(withTimeout(send)(message)).resolves.toBeUndefined();
-    expect(send).toHaveBeenCalledWith(message);
+    expect(send).toHaveBeenCalledWith(message, undefined);
+  });
+
+  it("passes the idempotency key on", async () => {
+    const send = vi.fn(async () => {});
+    await withTimeout(send)(message, { idempotencyKey: "email:1" });
+    expect(send).toHaveBeenCalledWith(message, { idempotencyKey: "email:1" });
   });
 
   it("gives up on a provider that hangs, after 10 seconds", async () => {

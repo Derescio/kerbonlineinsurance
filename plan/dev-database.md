@@ -105,13 +105,13 @@ This uses the two closure cast members. Run it on a freshly seeded `dev`, becaus
 2. Locally, act 31 days later:
 
    ```
-   NOW=<request time + 31 days, e.g. 2026-12-10T09:00:00Z> vp run account:run-closures
+   NOW=<request time + 31 days, e.g. 2026-12-10T09:00:00Z> vp run jobs:daily
    ```
 
 3. Check in the Neon console, on the `dev` branch:
    - **Closure, settled:** `account_closures.closed_at` is set. The user's email is `closed+…@closed.invalid`. The policy and claim are still there, and `audit_log` has `account.closed`.
    - **Closure, held:** `held_since` is set and the account is still open, because its claim is open.
-   - The script prints `Emails not sent: 2`. That's by design: the manual run counts the "closed" and "held" emails and drops them. Only the daily cron in production sends them.
+   - The script prints `Emails waiting: 2` (or more). That's by design: without `SEND_EMAILS=1` the "closed" and "held" emails stay queued. `SEND_EMAILS=1 vp run jobs:run` sends them; in production the daily cron does.
    - `closed_at` shows the real time of the run, not the `NOW` you gave, because the database clock stamps it.
 
 ---
@@ -125,7 +125,7 @@ Files go to the `kerb-dev` bucket, set by the `R2_*` values in `.env.local` (and
   - **Ben Okafor** (`+customer-b`): his claim KRB-C-90001 is being assessed, so it takes photos and PDFs.
   - **Amelia Hart** (`+customer-a`): her claim KRB-C-90000 is settled, so it refuses new files.
   - **The handler** (`+handler`): the staff box opens any claim's files, and each one opened writes a `file.viewed` audit row.
-- **Cleanup:** `vp run uploads:cleanup` deletes the objects of stale, rejected and deleted files. Add `NOW=<a day later>` to take an upload left pending.
+- **Cleanup:** `vp run jobs:daily` runs the daily jobs, the uploads cleanup among them, which deletes the objects of stale, rejected and deleted files. Add `NOW=<a day later>` to take an upload left pending.
 - **After a rebuild (B):** the database forgets its files, but the bucket keeps their objects. They're harmless. To clear them, empty `claim_photo/`, `claim_document/` and `review_photo/` in the Cloudflare dashboard.
 
 ---
@@ -159,3 +159,16 @@ All addresses are `+role` variants of `SEED_INBOX`. Every customer's password is
 | `Failed: … (23505)` from the seed | A cast address is already taken (someone signed up with it) | Rebuild (B) |
 | Handler's code fails on staging but works locally | Your local `BETTER_AUTH_SECRET` differs from Staging's | Set `SEED_BETTER_AUTH_SECRET` to Staging's value, then rebuild (B) |
 | `<step> failed. Fix it, then carry on from: …` | A rebuild stopped partway | Fix the cause, run the named command, then the remaining steps in B.3 by hand |
+
+---
+
+## E. Background jobs on dev (4.11)
+
+Vercel Cron only calls Production, so on dev the two crons are run by hand:
+
+- **`vp run jobs:run`:** the 6-hourly retry run. It runs every job whose time has come.
+- **`vp run jobs:daily`:** the daily run. It queues today's closures, uploads cleanup, housekeeping and audit anchor (once per UTC day), then runs them.
+- **`NOW=<ISO date>`:** runs either as if it were that time, for example a retry 6 hours on, or closures 31 days on.
+- **Emails:** left queued, never sent or marked done, and counted ("Emails waiting: N"), since `dev` is full of seeded addresses and a waiting email (a staging sign-up's, say) mustn't be lost. `SEND_EMAILS=1` sends them through Resend for real.
+- **Looking at jobs:** the `jobs` table in the Neon console or Drizzle Studio. A `failed` job shows its `run_after` and `last_error`, and a `dead` one stays for 30 days.
+- **The audit chain:** `vp run audit:verify` checks the chain and every anchor in `kerb-dev`, and prints `Chain OK: N rows. Anchors OK: M.`. Anchors are locked for 365 days by the bucket rule, so they outlive a database rebuild (B). After a rebuild, `audit:verify` sets the old anchors aside ("N from an earlier chain"): each anchor records its chain's first hash, and a rebuilt database starts a new chain.
