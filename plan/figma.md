@@ -66,6 +66,8 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 21 | Start a car + home bundle | `230:1434` | 5.5 / 5.7 |
 | 22 | Home quote & choose cover (1440 wide) | `230:1449` | 5.7 |
 
+**Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
+
 **To update in Figma:** screens 21 and 22 say "no bundle discount", but bundles keep the 8% discount from rating tables v1 (Damion, 9 Nov 2026). Show the saving instead.
 
 ## Lo Fidelity Wireframes (`18:7822`)
