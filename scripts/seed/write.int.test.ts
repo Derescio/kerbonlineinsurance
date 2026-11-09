@@ -48,7 +48,9 @@ describe("a seeded database", () => {
   it("seeds, and fills every copied table in the data contract", async () => {
     expect(first.action).toBe("seeded");
     for (const [table, contract] of Object.entries(dataContract)) {
-      if (!contract.copied) continue;
+      // Uploads (4.10) are real objects in R2, and a row without its object would be a broken
+      // file on a cast member's claim, so the seed writes none
+      if (!contract.copied || table === "files") continue;
       const { rows } = await getOwnerDb().execute<{ n: string }>(
         sql.raw(`select count(*) as n from "${table}"`),
       );
