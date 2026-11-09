@@ -56,14 +56,16 @@ export async function deleteAccount(
       return rejected(INSURANCE_RECORDS);
     }
     await audit(tx, { actor: known, action: "account.deleted", entityId: userId });
-    await filesHook.deleteUserFiles(tx, userId);
+    const fileKeys = await filesHook.deleteUserFiles(tx, userId);
     await deleteUserRow(tx, userId);
-    return { email: user.email };
+    return { email: user.email, fileKeys };
   });
   if (result instanceof Rejected) return { ok: false, error: result.error };
 
   // After the commit, to the address read before the delete
   sendLater(deps, result.email, accountDeletedEmail());
+  // After the commit too, so a rollback never leaves rows pointing at missing objects
+  if (result.fileKeys.length > 0) deps.defer(filesHook.purgeObjects(result.fileKeys));
   return { ok: true, data: { deleted: true } };
 }
 

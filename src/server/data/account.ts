@@ -35,6 +35,8 @@ import {
 } from "#/server/db/schema";
 import { withTx, type Tx } from "#/server/db/tx";
 
+import { markClosureFiles } from "./file-rows";
+
 // Where an account stands and what records it holds (4.7). Plain functions, not defineRead: they
 // serve the actor lookup, closure and delete, which already know who is asking. actor.ts imports
 // this file directly (never the data index), which would otherwise be a cycle through define.ts.
@@ -349,6 +351,8 @@ export async function closeAccountRows(tx: Tx, userId: string): Promise<void> {
 
   const customerId = await customerIdOf(tx, userId);
   if (customerId) {
+    // Their files first (4.10): draft-claim and review files go, submitted claims' evidence stays
+    await markClosureFiles(tx, customerId);
     await tx.delete(reviews).where(eq(reviews.customerId, customerId));
     // Never submitted, so not a record
     await tx
