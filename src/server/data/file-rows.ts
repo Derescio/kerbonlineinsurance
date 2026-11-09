@@ -1,6 +1,8 @@
 import { and, asc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
+
+export type { Db };
 import { claims, files, reviews } from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
 import type { FileStatus } from "#/server/db/schema/values";

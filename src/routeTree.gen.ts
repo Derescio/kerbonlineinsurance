@@ -30,6 +30,7 @@ import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronAccountClosuresRouteImport } from './routes/api/cron/account-closures'
+import { Route as ApiCronUploadsCleanupRouteImport } from './routes/api/cron/uploads-cleanup'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -133,6 +134,11 @@ const ApiCronAccountClosuresRoute = ApiCronAccountClosuresRouteImport.update({
   path: '/api/cron/account-closures',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronUploadsCleanupRoute = ApiCronUploadsCleanupRouteImport.update({
+  id: '/api/cron/uploads-cleanup',
+  path: '/api/cron/uploads-cleanup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/account-closures': typeof ApiCronAccountClosuresRoute
+  '/api/cron/uploads-cleanup': typeof ApiCronUploadsCleanupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/account-closures': typeof ApiCronAccountClosuresRoute
+  '/api/cron/uploads-cleanup': typeof ApiCronUploadsCleanupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/_auth/login_/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/account-closures': typeof ApiCronAccountClosuresRoute
+  '/api/cron/uploads-cleanup': typeof ApiCronUploadsCleanupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -219,6 +228,7 @@ export interface FileRouteTypes {
     | '/login/two-factor'
     | '/api/auth/$'
     | '/api/cron/account-closures'
+    | '/api/cron/uploads-cleanup'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/login/two-factor'
     | '/api/auth/$'
     | '/api/cron/account-closures'
+    | '/api/cron/uploads-cleanup'
   id:
     | '__root__'
     | '/_auth'
@@ -262,6 +273,7 @@ export interface FileRouteTypes {
     | '/_auth/login_/two-factor'
     | '/api/auth/$'
     | '/api/cron/account-closures'
+    | '/api/cron/uploads-cleanup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -275,6 +287,7 @@ export interface RootRouteChildren {
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCronAccountClosuresRoute: typeof ApiCronAccountClosuresRoute
+  ApiCronUploadsCleanupRoute: typeof ApiCronUploadsCleanupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -426,6 +439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronAccountClosuresRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/uploads-cleanup': {
+      id: '/api/cron/uploads-cleanup'
+      path: '/api/cron/uploads-cleanup'
+      fullPath: '/api/cron/uploads-cleanup'
+      preLoaderRoute: typeof ApiCronUploadsCleanupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -486,6 +506,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStreamTestRoute: ApiStreamTestRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCronAccountClosuresRoute: ApiCronAccountClosuresRoute,
+  ApiCronUploadsCleanupRoute: ApiCronUploadsCleanupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,10 +1,9 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-
 import { createFileRoute } from "@tanstack/react-router";
 
 import { accountDeps } from "#/server/account/emails";
 import { runClosures } from "#/server/account/run-closures";
 import { logSafeError } from "#/server/auth/errors";
+import { isCronAuthorized } from "#/server/cron-auth";
 import { accountDb } from "#/server/data/account";
 import { getCronSecret } from "#/server/env";
 
@@ -14,12 +13,6 @@ import { getCronSecret } from "#/server/env";
 
 const noStore = { "Cache-Control": "no-store" };
 
-/** Compares hashes, so the check takes the same time whatever the header's length or content */
-function sameSecret(header: string | null, secret: string): boolean {
-  const digest = (value: string) => createHash("sha256").update(value).digest();
-  return timingSafeEqual(digest(header ?? ""), digest(`Bearer ${secret}`));
-}
-
 async function handle({ request }: { request: Request }): Promise<Response> {
   let secret: string;
   try {
@@ -28,7 +21,7 @@ async function handle({ request }: { request: Request }): Promise<Response> {
     console.error("[cron] account-closures:", logSafeError(error));
     return Response.json({ error: "not configured" }, { status: 500, headers: noStore });
   }
-  if (!sameSecret(request.headers.get("authorization"), secret)) {
+  if (!isCronAuthorized(request.headers.get("authorization"), secret)) {
     return Response.json({ error: "unauthorized" }, { status: 401, headers: noStore });
   }
   try {
