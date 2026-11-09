@@ -1,6 +1,6 @@
 # 4.10 Upload foundation
 
-**Status:** built (8 Nov 2026), plan in [10-uploads-plan.md](10-uploads-plan.md); `vp check`, `vp test` and `vp build` pass locally; the manual check on staging to go
+**Status:** built and checked on staging from a laptop (8 Nov 2026), in review as #71; plan in [10-uploads-plan.md](10-uploads-plan.md). The phone check moves to the first check on production
 **Phase:** 04-data-auth
 
 ## Goal
@@ -165,9 +165,27 @@ The real upload screens arrive with their features, designed in Figma first: the
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] The manual check above passes on staging, from a phone and from a laptop.
-- [ ] `vp run db:check-app-role` passes with the `files` table.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally the full suite (1,374) and the build passed; `ci` and the Vercel preview passed on #71.
+- [ ] The manual check above passes on staging, from a phone and from a laptop. **Laptop: passed** (below). **Phone: carried** to the first check on production, because the phone can't get past staging's Vercel protection.
+- [x] `vp run db:check-app-role` passes with the `files` table. Migrations 0016 and 0017 are applied to Neon `dev`.
+
+## Checks on staging (8 Nov 2026)
+
+On `kerbonlineinsurance-staging.vercel.app/dev/uploads`, from a laptop, with the `kerb-dev` CORS rules and the `R2_*` values in place. Results were confirmed in the `files` table on `dev` and by fetching the stored object.
+
+| Check | Result |
+|---|---|
+| The R2 store against the real bucket (`vp run uploads:check-r2`) | Pass. Put, head, first bytes, signed GET and delete all `ok`. A PUT of another content type than the one signed is refused |
+| Upload as Ben Okafor to KRB-C-90001 | Pass. Two photos `ready` with thumbnails shown |
+| The upload goes to R2, not Vercel (Network tab) | Pass. A CORS preflight (`OPTIONS`, 204, allowing only the staging origin), then a `PUT` for the photo and one for the thumbnail, both to `<account>.r2.cloudflarestorage.com/kerb-dev/claim_photo/…`, with `content-length;content-type;host` signed. Under 1 kB went to Vercel |
+| Photo shrunk to ≤ 2048 px, no location | Pass. The larger photo is stored as a 2048 × 1366 WebP whose chunks are `VP8X`, `ICCP` (colour profile) and `VP8 `: no `EXIF` chunk, and no Exif or GPS bytes. A 436 × 504 photo was not enlarged |
+| A renamed `.exe` (`…setup.pdf`, 5.1 MB) | Pass. Uploaded, then "That file isn't a PDF." from the first-bytes check; the row is `rejected` and its object deleted (`purged_at` set) |
+| A file over 10 MB | Pass. "That file is too big. The limit is 10 MB." in the browser; no row and no upload |
+| Signed in as Amelia Hart | Pass. Only her settled KRB-C-90000, which says "This claim can't take new files"; none of Ben's files |
+| The object without a signature | Pass. HTTP 400 (`Authorization`) |
+| A signed link after its 5 minutes | Pass. HTTP 403 (`ExpiredRequest`) |
+| Bucket public access | Turned off on `kerb-dev` and `kerb-prod` during the check (it had been on for `kerb-dev`) |
+| From a phone (12 MB camera photo; library, camera and Files) | Carried to the first check on production |
 
 ## Commit message
 
