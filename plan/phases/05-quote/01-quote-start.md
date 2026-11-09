@@ -1,6 +1,6 @@
 # 5.1 Quote start and flow shell
 
-**Status:** approved (Damion, 9 Nov 2026), in build. Plan in [01-quote-start-plan.md](01-quote-start-plan.md)
+**Status:** done (PR #78; the manual staging check below is still open). Plan in [01-quote-start-plan.md](01-quote-start-plan.md)
 **Phase:** 05-quote
 
 ## Goal
