@@ -1,6 +1,6 @@
 # 4.5c Safe write tools
 
-**Status:** built (approved 5 Nov 2026; branch `slice/4.5c-safe-write-tools`, not yet merged; staging check still to do)
+**Status:** done (approved 5 Nov 2026; merged as #58 on 6 Nov 2026)
 **Phase:** 04-data-auth
 
 ## Goal
