@@ -1,7 +1,4 @@
-import { waitUntil } from "@vercel/functions";
-
-import { resendSender } from "#/server/email/send";
-import { getAuthEnv } from "#/server/env";
+import { jobDeps } from "#/server/jobs/deps";
 import type { JobDeps } from "#/server/jobs/types";
 
 // How the account emails go out (4.7 call 18, moved onto jobs in 4.11): each is an email job
@@ -10,14 +7,9 @@ import type { JobDeps } from "#/server/jobs/types";
 
 export type AccountDeps = JobDeps;
 
-let deps: AccountDeps | undefined;
-
-/** Resend and waitUntil, built on first use so nothing reads the environment at import */
+/** Resend and waitUntil, the jobs' own (built on first use) */
 export function accountDeps(): AccountDeps {
-  if (deps) return deps;
-  const env = getAuthEnv();
-  deps = { sendEmail: resendSender(env.RESEND_API_KEY, env.EMAIL_FROM), defer: waitUntil };
-  return deps;
+  return jobDeps();
 }
 
 const DATE = new Intl.DateTimeFormat("en-GB", {

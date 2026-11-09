@@ -30,8 +30,8 @@ import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ApiCronAccountClosuresRouteImport } from './routes/api/cron/account-closures'
-import { Route as ApiCronUploadsCleanupRouteImport } from './routes/api/cron/uploads-cleanup'
+import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
+import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -135,14 +135,14 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCronAccountClosuresRoute = ApiCronAccountClosuresRouteImport.update({
-  id: '/api/cron/account-closures',
-  path: '/api/cron/account-closures',
+const ApiCronDailyRoute = ApiCronDailyRouteImport.update({
+  id: '/api/cron/daily',
+  path: '/api/cron/daily',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCronUploadsCleanupRoute = ApiCronUploadsCleanupRouteImport.update({
-  id: '/api/cron/uploads-cleanup',
-  path: '/api/cron/uploads-cleanup',
+const ApiCronJobsRoute = ApiCronJobsRouteImport.update({
+  id: '/api/cron/jobs',
+  path: '/api/cron/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -165,8 +165,8 @@ export interface FileRoutesByFullPath {
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cron/account-closures': typeof ApiCronAccountClosuresRoute
-  '/api/cron/uploads-cleanup': typeof ApiCronUploadsCleanupRoute
+  '/api/cron/daily': typeof ApiCronDailyRoute
+  '/api/cron/jobs': typeof ApiCronJobsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
@@ -187,8 +187,8 @@ export interface FileRoutesByTo {
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cron/account-closures': typeof ApiCronAccountClosuresRoute
-  '/api/cron/uploads-cleanup': typeof ApiCronUploadsCleanupRoute
+  '/api/cron/daily': typeof ApiCronDailyRoute
+  '/api/cron/jobs': typeof ApiCronJobsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -213,8 +213,8 @@ export interface FileRoutesById {
   '/_site/': typeof SiteIndexRoute
   '/_auth/login_/two-factor': typeof AuthLoginTwoFactorRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cron/account-closures': typeof ApiCronAccountClosuresRoute
-  '/api/cron/uploads-cleanup': typeof ApiCronUploadsCleanupRoute
+  '/api/cron/daily': typeof ApiCronDailyRoute
+  '/api/cron/jobs': typeof ApiCronJobsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -237,8 +237,8 @@ export interface FileRouteTypes {
     | '/dev/uploads'
     | '/login/two-factor'
     | '/api/auth/$'
-    | '/api/cron/account-closures'
-    | '/api/cron/uploads-cleanup'
+    | '/api/cron/daily'
+    | '/api/cron/jobs'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -259,8 +259,8 @@ export interface FileRouteTypes {
     | '/dev/uploads'
     | '/login/two-factor'
     | '/api/auth/$'
-    | '/api/cron/account-closures'
-    | '/api/cron/uploads-cleanup'
+    | '/api/cron/daily'
+    | '/api/cron/jobs'
   id:
     | '__root__'
     | '/_auth'
@@ -284,8 +284,8 @@ export interface FileRouteTypes {
     | '/_site/'
     | '/_auth/login_/two-factor'
     | '/api/auth/$'
-    | '/api/cron/account-closures'
-    | '/api/cron/uploads-cleanup'
+    | '/api/cron/daily'
+    | '/api/cron/jobs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -299,8 +299,8 @@ export interface RootRouteChildren {
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiCronAccountClosuresRoute: typeof ApiCronAccountClosuresRoute
-  ApiCronUploadsCleanupRoute: typeof ApiCronUploadsCleanupRoute
+  ApiCronDailyRoute: typeof ApiCronDailyRoute
+  ApiCronJobsRoute: typeof ApiCronJobsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -452,18 +452,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cron/account-closures': {
-      id: '/api/cron/account-closures'
-      path: '/api/cron/account-closures'
-      fullPath: '/api/cron/account-closures'
-      preLoaderRoute: typeof ApiCronAccountClosuresRouteImport
+    '/api/cron/daily': {
+      id: '/api/cron/daily'
+      path: '/api/cron/daily'
+      fullPath: '/api/cron/daily'
+      preLoaderRoute: typeof ApiCronDailyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cron/uploads-cleanup': {
-      id: '/api/cron/uploads-cleanup'
-      path: '/api/cron/uploads-cleanup'
-      fullPath: '/api/cron/uploads-cleanup'
-      preLoaderRoute: typeof ApiCronUploadsCleanupRouteImport
+    '/api/cron/jobs': {
+      id: '/api/cron/jobs'
+      path: '/api/cron/jobs'
+      fullPath: '/api/cron/jobs'
+      preLoaderRoute: typeof ApiCronJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -526,8 +526,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiCronAccountClosuresRoute: ApiCronAccountClosuresRoute,
-  ApiCronUploadsCleanupRoute: ApiCronUploadsCleanupRoute,
+  ApiCronDailyRoute: ApiCronDailyRoute,
+  ApiCronJobsRoute: ApiCronJobsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
