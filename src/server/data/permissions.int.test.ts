@@ -10,6 +10,8 @@ import { parseKeys } from "#/server/audit/chain";
 import { verifyAuditChain } from "#/server/audit/verify";
 import { auditLog, quoteItems, underwritingDecisions } from "#/server/db/schema";
 import { AuditConfigError } from "#/server/env";
+import { setObjectStore } from "#/server/uploads/store";
+import { MemoryObjectStore } from "#/server/uploads/store-memory";
 import { getOwnerDb, truncateAll } from "#/test/db";
 import { makeQuote } from "#/test/factories";
 import { buildWorld, type World } from "#/test/world";
@@ -44,6 +46,14 @@ const cases: Case[] = [
     input: (w) => ({ quoteItemId: w.records.referralA.item.id }),
     owner: "A",
   },
+  { read: data.listMyClaimFiles, input: (w) => ({ claimId: w.records.claimA.id }), owner: "A" },
+  { read: data.getMyFileUrl, input: (w) => ({ fileId: w.records.fileA.id }), owner: "A" },
+  {
+    read: data.staffListClaimFiles,
+    input: (w) => ({ reference: w.records.claimA.reference }),
+    owner: "A",
+  },
+  { read: data.staffGetFileUrl, input: (w) => ({ fileId: w.records.fileA.id }), owner: "A" },
 ];
 
 const actorNames = [
@@ -60,11 +70,14 @@ const actorNames = [
 
 let world: World;
 beforeEach(async () => {
+  // The file reads sign links (4.10); the fake store signs them without R2
+  setObjectStore(new MemoryObjectStore());
   await truncateAll();
   world = await buildWorld();
 });
 afterAll(closeDb);
 afterEach(() => {
+  setObjectStore(null);
   vi.unstubAllEnvs();
 });
 
@@ -368,7 +381,8 @@ describe("audit of staff views (4.5b)", () => {
 
 // Every module in src/server/data/ except these, whether or not index.ts re-exports it. account.ts
 // holds plain helpers for the actor lookup and closure, not protected reads (4.7); reference.ts is
-// the catalogue and rates, the same for everyone and written only by the deploy (4.8).
+// the catalogue and rates, the same for everyone and written only by the deploy (4.8); file-rows.ts
+// is the upload row helpers behind the account hooks and the cleanup (4.10).
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -378,6 +392,7 @@ const modules = import.meta.glob(
     "!./summaries.ts",
     "!./account.ts",
     "!./reference.ts",
+    "!./file-rows.ts",
   ],
   {
     eager: true,

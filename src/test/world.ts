@@ -2,7 +2,14 @@ import { resolveActor } from "#/server/auth/actor";
 import { getDb } from "#/server/db/client";
 import { claimEvents } from "#/server/db/schema";
 
-import { makeClaim, makeCustomer, makePolicy, makeReferral, makeStaff } from "./factories";
+import {
+  makeClaim,
+  makeCustomer,
+  makeFile,
+  makePolicy,
+  makeReferral,
+  makeStaff,
+} from "./factories";
 
 // The people and records the permission suite attacks every read with (4.5). Integration tests only:
 // it writes through getDb(). Call it after truncateAll().
@@ -40,6 +47,8 @@ export async function buildWorld() {
     { claimId: claimA.id, type: "note", visibility: "internal", note: "Staff only" },
   ]);
   const referralA = await makeReferral({ customerId: customerA.id });
+  // A ready photo on A's claim (4.10)
+  const fileA = await makeFile({ claimId: claimA.id });
 
   const policyB = await makePolicy({ customerId: customerB.id });
   const claimB = await makeClaim({ customerId: customerB.id, policyId: policyB.id });
@@ -62,6 +71,7 @@ export async function buildWorld() {
       claimA,
       draftClaimA,
       referralA,
+      fileA,
       policyB,
       claimB,
       adminClaim,
