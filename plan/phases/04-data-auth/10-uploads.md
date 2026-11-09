@@ -1,6 +1,6 @@
 # 4.10 Upload foundation
 
-**Status:** built, and checked on staging from a laptop and a phone (8 Nov 2026); in review as #71. Plan in [10-uploads-plan.md](10-uploads-plan.md)
+**Status:** done (merged as #71 on 8 Nov 2026; checked on staging from a laptop and a phone the same day). Plan in [10-uploads-plan.md](10-uploads-plan.md)
 **Phase:** 04-data-auth
 
 ## Goal
