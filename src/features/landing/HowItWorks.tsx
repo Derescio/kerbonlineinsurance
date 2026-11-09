@@ -1,6 +1,5 @@
 import photo from "#/assets/how-it-works-laptop.jpg?w=480;768;1120&format=avif;webp;jpg&as=picture";
 import { Icon } from "#/components/display/Icon";
-import { quoteHref } from "#/components/site/links";
 
 import { ButtonLink } from "./ButtonLink";
 import { ResponsiveImage } from "./ResponsiveImage";
@@ -43,7 +42,7 @@ export function HowItWorks() {
               </li>
             ))}
           </ol>
-          <ButtonLink href={quoteHref} variant="primary" size="sm" className="how__cta">
+          <ButtonLink variant="primary" size="sm" className="how__cta">
             Get a quote
           </ButtonLink>
         </div>

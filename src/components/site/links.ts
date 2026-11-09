@@ -1,7 +1,8 @@
 // Every header, menu and footer link, in one place. Most of these pages aren't built yet and reach
 // the site 404 until their phase lands (plan/phases/03-landing/phase.md, "Decisions"). They're
 // plain hrefs, because TanStack <Link to> only type-checks routes that exist; switch a link to
-// <Link> when its route lands.
+// <Link> when its route lands. The quote start landed in 5.1: the landing's quote buttons are
+// <Link>s (ButtonLink), and the hero form's action stays this href for the no-JS submit.
 
 export interface SiteLink {
   label: string;

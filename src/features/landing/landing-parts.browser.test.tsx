@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
-import { render } from "vitest-browser-react";
+import type { ReactNode } from "react";
 
 import { productIds } from "#/features/quote/products";
+import { renderWithRouter } from "#/test/router";
 
 import { ClosingCta } from "./ClosingCta";
 import { Hero } from "./Hero";
@@ -11,6 +12,9 @@ import { InsuranceTypes } from "./InsuranceTypes";
 import { LandingPage } from "./LandingPage";
 import { QuickActions } from "./QuickActions";
 import { TrustStrip } from "./TrustStrip";
+
+// The landing's quote buttons are router <Link>s (5.1), so each part renders in a router
+const render = async (ui: ReactNode) => (await renderWithRouter(ui)).screen;
 
 describe("TrustStrip", () => {
   it("has three stats, with the rating slot waiting for real reviews", async () => {

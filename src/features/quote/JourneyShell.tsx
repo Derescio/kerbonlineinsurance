@@ -1,0 +1,81 @@
+import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+
+import { Card } from "#/components/display/Card";
+import { Stepper } from "#/components/navigation/Stepper";
+import { anonymousId } from "#/lib/analytics";
+
+import { beginJourney, markStartRecorded } from "./journey-store";
+import { postcodeDistrict } from "./postcode";
+import type { BuyableProductId } from "./products";
+import { startQuote } from "./server";
+
+/** One Stepper for car and home (5.1, decision 3). Home's property, contents and claims are the
+ * three parts of "Your details". */
+export const JOURNEY_STEPS = ["Your details", "Your quote", "Choose cover", "Buy"];
+
+const titles: Record<BuyableProductId, string> = { car: "Car quote", home: "Home quote" };
+
+// What fills each shell's slot, and when (5.1, call 13). Staging only: Phase 5 reaches production
+// at its release.
+const arrives: Record<BuyableProductId, string> = {
+  car: "This step arrives in 5.2",
+  home: "This step arrives in 5.7",
+};
+
+/**
+ * The car and home journey shell: where the visitor is, their postcode, and the slot 5.2 (car) and
+ * 5.7 (home) fill. On mount it starts or resumes the tab's journey and records `quote.started`
+ * once per journey; a failure there is never shown, because the funnel mustn't block a quote.
+ */
+export function JourneyShell({
+  product,
+  postcode,
+}: {
+  product: BuyableProductId;
+  postcode: string;
+}) {
+  useEffect(() => {
+    const journey = beginJourney(product, postcode);
+    if (journey.startRecorded) return;
+    startQuote({
+      data: {
+        product,
+        district: postcodeDistrict(postcode),
+        journeyId: journey.journeyId,
+        anonymousId: anonymousId(),
+      },
+    })
+      .then(() => markStartRecorded(product))
+      .catch(() => {
+        // Rate-limited or offline: the next visit to the shell tries again
+      });
+  }, [product, postcode]);
+
+  return (
+    <div className="quote-page">
+      {/* default on web and tablet, bar at phone width (call 10); the hidden one is display: none */}
+      <div className="quote-progress quote-progress--wide">
+        <Stepper steps={JOURNEY_STEPS} current={0} label="Quote progress" />
+      </div>
+      <div className="quote-progress quote-progress--narrow">
+        <Stepper steps={JOURNEY_STEPS} current={0} label="Quote progress" variant="bar" />
+      </div>
+
+      <header className="quote-heading">
+        <p className="quote-heading__overline">{titles[product]}</p>
+        <h1 className="kb-h1 quote-heading__title">Your details</h1>
+        <p className="quote-heading__intro">
+          Postcode: {postcode}.{" "}
+          <Link to="/quote" search={{ type: product, postcode }}>
+            Change<span className="kb-sr-only"> postcode</span>
+          </Link>
+        </p>
+      </header>
+
+      <Card padding="lg" className="quote-slot">
+        <p>{arrives[product]}</p>
+      </Card>
+    </div>
+  );
+}

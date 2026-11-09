@@ -1,5 +1,3 @@
-import { quoteHref } from "#/components/site/links";
-
 /** Every insurance type Kerb lists. The landing accordion links each one to the quote start. */
 export const productIds = [
   "car",
@@ -35,8 +33,3 @@ export const quoteTypes: readonly { id: ProductId; label: string }[] = [
   { id: "business", label: "Business" },
   { id: "tenant", label: "Tenant" },
 ];
-
-/** "/quote?type=home": the quote start with the type picked, so the user only adds a postcode. */
-export function quoteHrefFor(type: ProductId): string {
-  return `${quoteHref}?type=${type}`;
-}

@@ -23,6 +23,7 @@ function fakeClient(consent: "granted" | "denied" | "pending" = "pending") {
     stopSessionRecording: vi.fn(),
     getFeatureFlag: vi.fn(),
     onFeatureFlags: vi.fn((_callback: () => void) => () => {}),
+    get_distinct_id: () => "ph_distinct_1",
   };
 }
 
@@ -132,5 +133,18 @@ describe("PostHog imports", () => {
       .filter((file) => /\.tsx?$/.test(file) && !file.startsWith(join("lib", "")))
       .filter((file) => valueImport.test(readFileSync(join("src", file), "utf8")));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("anonymousId", () => {
+  it("is PostHog's distinct id only once the visitor has accepted cookies", async () => {
+    const analytics = await loadAnalytics(true);
+    expect(analytics.anonymousId()).toBeNull();
+    analytics.attachPosthog(fakeClient("pending"));
+    expect(analytics.anonymousId()).toBeNull();
+    analytics.attachPosthog(fakeClient("denied"));
+    expect(analytics.anonymousId()).toBeNull();
+    analytics.attachPosthog(fakeClient("granted"));
+    expect(analytics.anonymousId()).toBe("ph_distinct_1");
   });
 });

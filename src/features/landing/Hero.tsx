@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -22,13 +23,15 @@ function isCtaVariant(value: unknown): value is CtaVariant {
 /**
  * Split hero (Figma 54:1952 web, 88:2274 tablet, 88:2542 mobile): copy and the postcode quote
  * form, then the home-and-car photo. The form is a plain GET to /quote, so it works before
- * hydration; with JS it checks the postcode first and sends it normalised. The Phase 4 hero refresh
+ * hydration; with JS it checks the postcode first and navigates inside the app with it normalised
+ * (5.1, call 8), to the same URL. The Phase 4 hero refresh
  * brought the headline, the form heading and the framed photo, and dropped the 3.3 excess callout.
  */
 export function Hero() {
   const [error, setError] = useState<string>();
   const [cta, setCta] = useState<CtaVariant>("control");
   const input = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let current = true;
@@ -41,19 +44,18 @@ export function Hero() {
   }, []);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     const field = input.current;
     if (!field) return;
     const postcode = normalisePostcode(field.value);
     if (postcode === null) {
       track("quote_start_blocked", { entry_point: "hero_postcode_form" });
-      e.preventDefault();
       setError(postcodeError);
       field.focus();
       return;
     }
-    // Let the browser submit, with the tidy value. Phase 5 swaps this for a router navigation.
-    field.value = postcode;
     track("quote_started", { entry_point: "hero_postcode_form" });
+    void navigate({ to: "/quote", search: { postcode } });
   }
 
   return (

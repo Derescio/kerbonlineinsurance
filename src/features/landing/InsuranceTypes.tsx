@@ -1,6 +1,6 @@
 import { Icon } from "#/components/display/Icon";
 import type { IconName } from "#/components/display/icons";
-import { quoteHrefFor, type ProductId } from "#/features/quote/products";
+import type { ProductId } from "#/features/quote/products";
 import { track } from "#/lib/analytics";
 
 import { ButtonLink } from "./ButtonLink";
@@ -103,7 +103,7 @@ function InsuranceItem({ type }: { type: InsuranceType }) {
       <div className="kinds__body">
         <p>{type.description}</p>
         <ButtonLink
-          href={quoteHrefFor(type.id)}
+          search={{ type: type.id }}
           variant="accent"
           size="sm"
           onClick={() => track("quote_type_selected", { product_type: type.id })}
