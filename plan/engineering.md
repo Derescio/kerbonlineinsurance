@@ -9,7 +9,7 @@ This page covers the git workflow, environments, database migrations, CI, and th
 - no Redis at the start
 - public page cache time set by one env var
 - uploads stored in private Cloudflare R2 buckets (§6)
-- background jobs in a Postgres `jobs` table run by Vercel `waitUntil` + a per-minute Cron (§11); bot protection with Cloudflare Turnstile (§9); nightly database export to R2 (§12)
+- background jobs in a Postgres `jobs` table run by Vercel `waitUntil`, retried by a 6-hourly Cron (§11); bot protection with Cloudflare Turnstile (§9); nightly database export to R2 (§12)
 - sign-in with email + password and Google; roles customer, claims handler and admin; 2FA required for staff, optional for customers (§7)
 - PostHog for product analytics and A/B tests, installed with the wizard and fixed up for the CSP, cached landing page and consent (§13)
 
@@ -199,12 +199,12 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
 
   It holds metadata only, never the original filename, and becomes a dataset for the data video. Rows are never deleted. `owner_user_id`, `claim_id` and `review_id` are `ON DELETE SET NULL`, so a removed account or draft leaves a `deleted` row with no personal link.
 - **Object keys:** `{kind}/{userId}/{fileId}.webp|jpg|pdf` (+ `-thumb.webp|jpg`). Kind first, so R2's own expiry rules can work per kind (Phase 7 puts a 30-day rule on `kerbie_image/`).
-- **Daily Vercel Cron** `/api/cron/uploads-cleanup` at 03:30 UTC (protected by `CRON_SECRET`) deletes the objects of:
+- **A daily cleanup** (the `uploads.cleanup` job, run by the daily cron in §11) deletes the objects of:
   - `pending` uploads older than 24 h
   - `rejected` uploads
   - `deleted` files whose objects are still there (`purged_at` empty)
 
-  `vp run uploads:cleanup` runs it by hand (`NOW=` works), since Vercel Cron only calls Production. 4.11 moves it onto the jobs table.
+  `vp run jobs:daily` runs it by hand (`NOW=` works), since Vercel Cron only calls Production. If any file's objects can't be deleted, the job fails and is retried.
 - **Delete account** (the immediate path of 4.7, for an account with no insurance records) goes through `deleteUserFiles(tx, userId)` inside the delete's transaction. The user's rows become `deleted`, and their objects are deleted **after** the commit, so a rollback never leaves rows pointing at missing files. If R2 is down then, the cleanup takes them.
 - **Closing an account** (the 30-day path) keeps the files of submitted claims for as long as the claim's records are kept. Files on draft claims and on reviews become `deleted` in `closeAccountRows`, because those drafts and reviews go; the next cleanup deletes their objects.
 
@@ -257,14 +257,14 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
   - **Nothing on file: immediate delete** (`deleteAccount`, `src/server/account/delete.ts`). One transaction locks the `users` row, writes `account.deleted`, calls `deleteUserFiles`, then deletes the user; the cascades remove the rest and `record_delete` tombstones every copied row. Any throw rolls everything back. It skips `withIdempotency` (its key row would cascade away with the user): a second request finds the user gone and gets `UNAUTHENTICATED`, which the screen treats as "already deleted" only after its own lost response. The server function clears the session cookies so the browser is really signed out.
   - **Records on file: closure** (`requestClosure`, `cancelClosure`). A row in `account_closures` starts a 30-day window (`CLOSURE_WINDOW_DAYS`; `closes_at = requested_at + 30 days` is enforced by a `CHECK`). The customer can still sign in, sees a banner on every signed-in page and can keep the account with one click. Requesting ends the user's other sessions and keeps the current one.
 - **Proof at the moment of confirming** (`confirmIdentity`, `src/server/account/confirm.ts`): the password, or for a Google-only user a session under 10 minutes old (`PASSWORDLESS_FRESH_MS`); a 2FA user also gives a TOTP or backup code, which counts towards 4.6's lockout. A trusted-device cookie doesn't skip it. Request, cancel and delete each have their own limit bucket (`account.close`, `account.keep`, `account.delete`) with the same rule (`CLOSE_LIMIT`, 5 per hour per user). Request and delete count every attempt before the proof runs, so a wrong password counts (`auth.api` calls skip Better Auth's own limiter); request proves identity in `defineWrite`'s `before` step, after the replay lookup, so a replay is neither counted nor proved again. Staff get `STAFF_ACCOUNT` (403): an admin deactivates their account.
-- **The daily run** is `runClosures(db, now, deps)`, called by the Vercel Cron route `/api/cron/account-closures` (once a day, `vercel.json`). The route needs `CRON_SECRET` as a Bearer header: anything else is 401, and an unset secret is a 500. Each due closure (`closes_at <= now`) runs in its own `withTx`, locking the `users` row then the closure row `FOR UPDATE SKIP LOCKED`, so a customer cancelling at the same moment either wins or gets `ACCOUNT_CLOSED`; one failure doesn't stop the rest. A failure outside that loop is logged through `logSafeError` and answers a `no-store` 500. 4.11 moves it onto the jobs table.
-  - **Vercel Cron only calls Production deployments.** On Staging and Preview the job never runs, so run it there by hand with `vp run account:run-closures` (below).
+- **The daily run** is `runClosures(db, now, deps)`, run as the `account.closures` job by the daily cron (§11). Each due closure (`closes_at <= now`) runs in its own `withTx`, locking the `users` row then the closure row `FOR UPDATE SKIP LOCKED`, so a customer cancelling at the same moment either wins or gets `ACCOUNT_CLOSED`; one failure doesn't stop the rest, and any failure fails the job, so it's retried. The held and closed emails are email jobs queued in each closure's transaction.
+  - **Vercel Cron only calls Production deployments.** On Staging and Preview the job never runs, so run it there by hand with `vp run jobs:daily` (below).
   - **An open claim** (`received`, `assessing`, `approved`) holds the closure: `held_since` and `hold_reason` are set once (`account.closure_held`, held email) and later runs do nothing until the claim is settled or declined. A live policy doesn't hold it, and closing never cancels cover.
   - **No open claim:** the account is scrubbed and `closed_at` and `retain_until` are set in one transaction, with `account.closed`.
 - **What closure keeps and removes.** Kept: the `users` row (email becomes `closed+<userId>@closed.invalid`, name `Closed account`, image cleared, not verified), `customers`, policies, non-draft claims and their events, messages, settlements, payments, bundles, quotes with a payment or bundle, `security_events` and `audit_log`. Removed: `accounts`, `sessions`, `two_factors`, unused reset-password `verifications`, `idempotency_keys`, `rate_limits` rows for the user, draft claims, quotes that never became a policy and have no payment or bundle, notifications and reviews. The freed email can sign up again as a separate account. `resolveActor` returns null for a closed user.
 - **Retention** is illustrative (`RETENTION` in `src/server/account/constants.ts`: insurance records 7 years after closure, security events 12 months). `retain_until` is stored; nothing purges at that date yet (a later slice, which needs 0004's append-only trigger to allow it). The privacy notice reads its table from the same constant.
 - **Audit actions** (entity `user`): `account.deleted`, `account.closure_requested`, `account.closure_cancelled`, `account.closure_held`, `account.closed`. Rows hold only the user id.
-- **By hand:** `vp run account:run-closures` runs the real `runClosures`. `NOW=<ISO date>` selects closures due at that time (for example 31 days on) without waiting; `closed_at` still uses the database clock.
+- **By hand:** `vp run jobs:daily` queues and runs the daily jobs, the real `runClosures` among them. `NOW=<ISO date>` selects closures due at that time (for example 31 days on) without waiting; `closed_at` still uses the database clock.
 - **9.7's erasure test** uses the immediate-delete path (an account with nothing on file); a closed account keeps its rows by design.
 
 ### Roles and permissions
@@ -328,10 +328,11 @@ Uploads in four places: claim damage photos, claim documents (PDF), review photo
    - append-only: a trigger refuses `UPDATE` and `DELETE`
    - hash-chained with a keyed hash: each row stores an HMAC-SHA256 (hex) of `prev_hash` and the row's own fields, so someone with database access but no key can't rewrite history and recompute the chain. The input is a canonical JSON array of a format number, `prev_hash`, `key_version`, `created_at` (ISO, millisecond precision), actor, role, action, entity, `changes` (keys sorted at every depth), `reason`, `request_id` and `ip_hash`. The code is `src/server/audit/chain.ts`, which imports only `node:crypto`, so `auth:make-admin` signs `staff.added` with the same code
    - `audit()` takes `pg_advisory_xact_lock` inside the caller's transaction, reads the latest row and sets `created_at` to the later of now and the previous row's time, so rows never go backwards. `changes` holds strings, booleans, null, safe integers, and arrays or objects of those; anything that wouldn't round-trip through `jsonb` is refused before the insert
-   - `verifyAuditChain()` (`src/server/audit/verify.ts`) reads in id order and names the first bad row: `bad_genesis`, `broken_link`, `unknown_key_version` or `hash_mismatch`. It returns `lastId` and `lastHash` for 4.11's anchor. `/admin/audit` (6.8) has a "Verify chain" button
+   - `verifyAuditChain()` (`src/server/audit/verify.ts`) reads in id order and names the first bad row: `bad_genesis`, `broken_link`, `unknown_key_version` or `hash_mismatch`. It returns `lastId` and `lastHash`. `vp run audit:verify` runs it and then checks the anchors (below); `/admin/audit` (6.8) has a "Verify chain" button that does the same
    - **Keys:** `AUDIT_HMAC_KEYS` (`v1:base64key[,v2:…]`, each key at least 32 bytes) and `AUDIT_HMAC_ACTIVE_VERSION`, one set per Neon branch: `dev` serves Staging, Preview and Development, `prod` serves Production only. Every row records the `key_version` that signed it. To rotate, add `vN` to the list, make it the active version and keep the old ones listed; old keys only verify, and no row is rewritten. A row whose version isn't listed fails as `unknown_key_version`
    - **Fails closed:** if the keys are missing or invalid, `audit()` throws and the change it records rolls back with it. A staff member can't open a claim while auditing is broken
-   - **Limitation:** the chain can't show that the newest rows were deleted, or that the whole database was restored to an earlier point, because what's left is still a valid chain. Anchoring the latest hash outside the database (4.11, in R2) closes that gap
+   - **Limitation:** the chain can't show that the newest rows were deleted, or that the whole database was restored to an earlier point, because what's left is still a valid chain. The daily anchor closes that gap
+   - **The daily anchor** (4.11, `src/server/audit/anchor.ts`): the `audit.anchor` job writes the newest row's `lastId`, `lastHash` and `keyVersion` to R2 as `audit-anchors/YYYY-MM-DD.json`. A bucket lock rule on `audit-anchors/` (365 days, in `kerb-dev` and `kerb-prod`) refuses any overwrite or delete, even by the app's own token. `verifyAgainstAnchors` checks that every anchored row still exists with the same hash, and names `anchor_row_missing`, `anchor_hash_mismatch` or `anchor_unreadable`
    - ids and changed field names/values only, no emails, addresses or chat text; an IP is stored only as a hash
    - no foreign keys on `actor_user_id` / `entity_id`: deleting an account keeps its audit rows (user id only) and the chain stays valid
 
@@ -431,18 +432,28 @@ No Redis unless the load test shows a need (§5).
 
 ## 11. Background processing
 
+Built in 4.11 ([11-background-jobs.md](phases/04-data-auth/11-background-jobs.md)). The code is in `src/server/jobs/`, with its SQL in `src/server/data/job-rows.ts`.
+
 - **`jobs` table:** `type`, `payload`, `status` (`queued` / `running` / `done` / `failed` / `dead`), `attempts`, `run_after`, `last_error`, `idempotency_key` (unique).
-- **Enqueue** inside the same transaction as the change that triggers the job (an outbox pattern), so a job is never lost or created for a change that rolled back.
-- **Run fast:** after the response is sent, Vercel's `waitUntil` runs the job straight away.
-- **Retry:** a **per-minute Vercel Cron** (`/api/cron/jobs`, `CRON_SECRET`) picks up `queued` jobs whose time has come and failed ones, with exponential backoff. After 5 attempts a job goes to `dead`, and the admin area shows dead jobs.
-- **Handlers are idempotent:** safe to run twice, keyed by `idempotency_key`.
-- **Jobs we know about:**
-  - verification and reset emails
+- **Enqueue** inside the same transaction as the change that triggers the job (an outbox pattern), so a job is never lost or created for a change that rolled back. The exception is Better Auth's emails: its writes are outside our transactions, so they're queued after the response, inside `waitUntil`, which keeps the response time the same whether or not an email has an account (4.4b).
+- **Run fast:** after the response is sent, Vercel's `waitUntil` runs the job straight away (`runSoon`).
+- **Claiming:** one atomic `UPDATE … RETURNING` (`FOR UPDATE SKIP LOCKED` for the next due job) moves a job to `running` and counts the attempt, so two runners never take the same one. A `running` job not updated for 15 minutes died with its function and is taken again.
+- **Retry:** a **Vercel Cron every 6 hours** (`/api/cron/jobs`, `0 */6 * * *`, `CRON_SECRET`) runs `queued` and `failed` jobs whose time has come: up to 50, starting none after 45 s. Not every minute: a query every minute would keep Neon's compute awake around the clock, and jobs already run straight away, so the cron is only a safety net (Damion, 9 Nov 2026).
+  - **Backoff:** 6, 12, 24 then 48 hours after attempts 1–4. A 5th failure is `dead`, about 4 days after the job was queued.
+  - **`last_error`:** the error's class name and SQLSTATE only, never a message. A handler can skip a job (`done`, with `skipped: <reason>`), for example an email whose link has expired.
+  - **Dead jobs** stay in the table with their error until the admin area shows them (Phase 6).
+- **The daily cron** (`/api/cron/daily`, 03:00 UTC) queues the day's jobs, keyed by the UTC date so a second call is a no-op, and runs them in order: `account.closures`, `uploads.cleanup`, `housekeeping.expired_rows`, `audit.anchor` (the audit log in §7).
+- **Housekeeping** deletes expired `idempotency_keys`, `rate_limits` windows over a day old, `done` jobs after 7 days and `dead` jobs after 30. A finished job's payload is emptied (`{}`), since an email job's holds an address and a sign-in link.
+- **Handlers are idempotent:** safe to run twice. An email job passes its key to Resend as the `Idempotency-Key`, so a job run twice within 24 hours sends one email.
+- **By hand:** Vercel Cron only calls Production, so `vp run jobs:run` and `vp run jobs:daily` do the same elsewhere (`NOW=` works). They drop emails unless `SEND_EMAILS=1`.
+- **Jobs in place (4.11):**
+  - `email.send`: every transactional email (verification, reset, existing account, and the closure and deletion emails), built from a template name when it's sent
+  - `account.closures`, `uploads.cleanup`, `housekeeping.expired_rows`, `audit.anchor`
+- **Jobs to come, as new handlers:**
   - claim status emails
   - review AI check (7.7)
   - Kerbie thread summaries
   - analytics events (server-side funnel milestones only; product analytics is PostHog, §13)
-  - the upload cleanup (moves from its own cron onto this runner)
 
 ## 12. Backups and recovery
 
