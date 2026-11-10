@@ -41,7 +41,7 @@
   - title `Let's find your car`;
   - intro `Enter your registration and we'll look up your car's details.`;
   - label `Car registration`, placeholder `KR24 BXL`, hint `Enter the registration exactly as it appears on your number plate.`;
-  - demo line `Kerb is a demo, so only these plates are recognised:`;
+  - demo line `Kerb is a demo, so only these plates are recognised currently. Please choose one:` (Damion, 10 Nov 2026);
   - button `Find my car`, link `I don't know the registration`;
   - panel `No registration to hand?` / `You can choose the make, model, year and variant instead. Check the details against your vehicle documents before continuing.` / `Choose my car manually`;
   - empty-box error `Enter your registration.`

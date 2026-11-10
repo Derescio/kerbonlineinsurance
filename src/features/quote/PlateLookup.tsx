@@ -56,7 +56,9 @@ export function PlateBox({
       />
       {showDemoPlates ? (
         <div className="quote-plate__demo">
-          <p id="demo-plates-label">Kerb is a demo, so only these plates are recognised:</p>
+          <p id="demo-plates-label">
+            Kerb is a demo, so only these plates are recognised currently. Please choose one:
+          </p>
           <ul aria-labelledby="demo-plates-label">
             {demoPlates.map(({ plate: demo }) => (
               <li key={demo}>

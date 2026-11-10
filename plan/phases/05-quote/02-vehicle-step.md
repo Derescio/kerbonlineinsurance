@@ -1,6 +1,6 @@
 # 5.2 Vehicle step
 
-**Status:** done (PR #83; the manual staging check below is still open). Plan in [02-vehicle-step-plan.md](02-vehicle-step-plan.md)
+**Status:** done (PR #83; manual check recorded below, 10 Nov 2026). Plan in [02-vehicle-step-plan.md](02-vehicle-step-plan.md)
 **Phase:** 05-quote
 
 ## Goal
@@ -24,7 +24,7 @@ The car journey's first real step. A visitor finds their car by its registration
 6. **The demo plates.**
    - **The list:** six plates, each tied to a popular car from a different make: a Ford Fiesta, Volkswagen Golf, Vauxhall Corsa, Toyota Yaris hybrid, Tesla Model 3 and BMW 3 Series. They live in code (`src/features/quote/demo-plates.ts`) as plate → `(make, model, year, variant)`. A test checks that each one names an active catalogue row.
    - **Believable but never real:** each plate's age identifier matches its car's year (a `24` plate is a 2024 car). The last three letters include an I or a Q, which the DVLA never issues in that position, so a demo plate can't belong to a real car.
-   - **How they're shown:** under the box, "Kerb is a demo, so only these plates are recognised:", followed by the six plates as buttons in the plate style. Tapping one fills the box. It doesn't search until "Find my car" is pressed, so the viewer sees the plate go in first.
+   - **How they're shown:** under the box, "Kerb is a demo, so only these plates are recognised currently. Please choose one:" (Damion, 10 Nov 2026), followed by the six plates as buttons in the plate style. Tapping one fills the box. It doesn't search until "Find my car" is pressed, so the viewer sees the plate go in first.
    - **Figma:** screen 08's example `KR24 BXL` becomes the box's placeholder only.
 7. **The lookup happens in the browser.** The demo list and the catalogue are both already in the page, so "Find my car" sends nothing to the server, and a visitor's real plate never leaves their browser.
    - **Matching:** case and spaces are ignored (`kr24bxq` matches `KR24 BXQ`).
@@ -109,8 +109,18 @@ The car journey's first real step. A visitor finds their car by its registration
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] The manual check passes on staging, with the results recorded here before the PR is merged.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally: unit 650, integration 625, component 275, and the build; the quote E2E and axe 20/20 on a local preview. `ci` and the Vercel preview passed on #83.
+- [x] The manual check passes, with the results recorded here (below). #83 was merged before they were written down, so they arrive in this follow-up.
+
+## Checks (10 Nov 2026)
+
+- **Demo plates (Damion):** all six fill make → model → year → variant in turn and land on their own car.
+- **Phone (Damion):** the registration screen shows the demo plates two per row; the dropdowns work through to "Confirm this car".
+- **Laptop (Damion):** screens 08 and 09 as drawn; only Make is enabled until it's chosen; "Confirm this car" stays disabled until a variant is chosen.
+- **A car that isn't listed (Damion):** the panel shows, and its link opens a mail draft to `hello@kerb.opsedsolutions.com` with the subject "Please add my car to Kerb". The test email arrived in Gmail through the 5.1 forward.
+- **Catalogue cache (staging, curl with the bypass header):** two requests to `/api/catalogue` gave `X-Vercel-Cache: MISS`, then `HIT`. Browsers get `Cache-Control: public, max-age=3600` (Vercel keeps `s-maxage` for its CDN). The body is brotli, about 28 KB.
+- **Postcode check (staging):** `/quote/car?postcode=ZZ1+1ZZ` → `307` to `/quote?type=car&postcode=ZZ1+1ZZ&error=postcode`; `/quote/car?postcode=E8+3RL` → `200`.
+- **Copy (Damion):** the demo-plates line reads "Kerb is a demo, so only these plates are recognised currently. Please choose one:".
 
 ## Commit message
 
