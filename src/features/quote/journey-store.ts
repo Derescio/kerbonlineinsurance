@@ -8,6 +8,21 @@ import type { BuyableProductId } from "./products";
 // 5.2 onwards add their answers. Storage can be missing or throw (some private modes): then the
 // journey works for this page only, with no warning.
 
+/** The confirmed car (5.2, call 12): a snapshot of its catalogue row, as a quote's vehicles row keeps */
+const vehicleSchema = z.object({
+  catalogueVariantId: z.string().min(1),
+  make: z.string(),
+  model: z.string(),
+  year: z.number().int(),
+  variant: z.string(),
+  fuelType: z.string(),
+  doors: z.number().int(),
+  /** The demo plate that found it, if one did */
+  demoPlate: z.string().optional(),
+});
+
+export type VehicleChoice = z.infer<typeof vehicleSchema>;
+
 const journeySchema = z.object({
   version: z.literal(1),
   /** Random, made here; `quote.started` is written once per id (plan P1) */
@@ -16,6 +31,10 @@ const journeySchema = z.object({
   startedAt: z.iso.datetime(),
   /** The `quote.started` event has been sent for this journey */
   startRecorded: z.boolean(),
+  /** Car only (5.2) */
+  vehicle: vehicleSchema.optional(),
+  /** The last plate typed that wasn't a demo plate, for screen 10; it never leaves the tab (call 9) */
+  lastPlate: z.string().optional(),
 });
 
 export type Journey = z.infer<typeof journeySchema>;
@@ -91,4 +110,20 @@ export function markStartRecorded(
 ): void {
   const stored = readJourney(product, storage);
   if (stored) writeJourney(product, { ...stored, startRecorded: true }, storage);
+}
+
+/** The car journey's confirmed car; null removes it. Nothing happens without a car journey. */
+export function setVehicle(
+  vehicle: VehicleChoice | null,
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney("car", storage);
+  if (!stored) return;
+  const { vehicle: _old, ...rest } = stored;
+  writeJourney("car", vehicle ? { ...rest, vehicle } : rest, storage);
+}
+
+export function setLastPlate(plate: string, storage: JourneyStorage | null = sessionStore()): void {
+  const stored = readJourney("car", storage);
+  if (stored) writeJourney("car", { ...stored, lastPlate: plate }, storage);
 }

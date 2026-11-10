@@ -20,6 +20,8 @@ const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
   account_closures: ALL,
   accounts: ALL,
   audit_log: ["INSERT", "SELECT"],
+  // The postcodes.io cache is only added to (5.2)
+  postcode_areas: ["INSERT", "SELECT"],
   auth_rate_limits: ALL,
   bundles: ALL,
   businesses: ALL,

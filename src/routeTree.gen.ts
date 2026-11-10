@@ -27,6 +27,7 @@ import { Route as SiteQuoteRouteImport } from './routes/_site/quote'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
+import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
@@ -126,6 +127,11 @@ const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
   path: '/account/two-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCatalogueRoute = ApiCatalogueRouteImport.update({
+  id: '/api/catalogue',
+  path: '/api/catalogue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
   path: '/api/stream-test',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/staff': typeof StaffStaffRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
+  '/api/catalogue': typeof ApiCatalogueRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/staff': typeof StaffStaffRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
+  '/api/catalogue': typeof ApiCatalogueRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/_staff/staff': typeof StaffStaffRoute
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
+  '/api/catalogue': typeof ApiCatalogueRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
@@ -287,6 +296,7 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/close'
     | '/account/two-factor'
+    | '/api/catalogue'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/close'
     | '/account/two-factor'
+    | '/api/catalogue'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/_staff/staff'
     | '/account_/close'
     | '/account_/two-factor'
+    | '/api/catalogue'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/_site/'
@@ -366,6 +378,7 @@ export interface RootRouteChildren {
   SystemRoute: typeof SystemRoute
   AccountCloseRoute: typeof AccountCloseRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
+  ApiCatalogueRoute: typeof ApiCatalogueRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -500,6 +513,13 @@ declare module '@tanstack/react-router' {
       path: '/account/two-factor'
       fullPath: '/account/two-factor'
       preLoaderRoute: typeof AccountTwoFactorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalogue': {
+      id: '/api/catalogue'
+      path: '/api/catalogue'
+      fullPath: '/api/catalogue'
+      preLoaderRoute: typeof ApiCatalogueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
@@ -656,6 +676,7 @@ const rootRouteChildren: RootRouteChildren = {
   SystemRoute: SystemRoute,
   AccountCloseRoute: AccountCloseRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
+  ApiCatalogueRoute: ApiCatalogueRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

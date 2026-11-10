@@ -13,6 +13,8 @@ const pages = [
   "/quote?type=car&postcode=E8+3RL",
   "/quote/coming-soon?type=landlord&postcode=E8+3RL",
   "/quote/car?postcode=E8+3RL",
+  "/quote/car?postcode=E8+3RL&vehicle=manual",
+  "/quote/car?postcode=E8+3RL&vehicle=not-found",
 ];
 const widths = [390, 1440];
 

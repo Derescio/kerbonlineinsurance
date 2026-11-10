@@ -6,7 +6,10 @@ import {
   markStartRecorded,
   readJourney,
   sessionStore,
+  setLastPlate,
+  setVehicle,
   type JourneyStorage,
+  type VehicleChoice,
 } from "./journey-store";
 
 function memoryStorage(): JourneyStorage & { map: Map<string, string> } {
@@ -108,5 +111,64 @@ describe("journey store", () => {
     const storage = memoryStorage();
     vi.stubGlobal("window", { sessionStorage: storage });
     expect(sessionStore()).toBe(storage);
+  });
+});
+
+// 5.2 (call 12): the confirmed car, and the last plate typed for screen 10 (call 9)
+describe("the car in the journey", () => {
+  const golf: VehicleChoice = {
+    catalogueVariantId: "0195b2c4-7d1e-7a3f-9b2c-5e6f7a8b9c0d",
+    make: "Volkswagen",
+    model: "Golf",
+    year: 2021,
+    variant: "1.0 TSI Life 5dr",
+    fuelType: "petrol",
+    doors: 5,
+    demoPlate: "VW21 GQL",
+  };
+
+  it("still reads a 5.1 journey with no car", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    expect(readJourney("car", storage)?.vehicle).toBeUndefined();
+  });
+
+  it("keeps the confirmed car, and removes it", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    setVehicle(golf, storage);
+    expect(readJourney("car", storage)?.vehicle).toEqual(golf);
+    setVehicle(null, storage);
+    expect(readJourney("car", storage)?.vehicle).toBeUndefined();
+    expect(readJourney("car", storage)?.postcode).toBe("E8 3RL");
+  });
+
+  it("keeps the last plate typed", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    setLastPlate("KR24BXL", storage);
+    expect(readJourney("car", storage)?.lastPlate).toBe("KR24BXL");
+  });
+
+  it("does nothing without a car journey", () => {
+    const storage = memoryStorage();
+    setVehicle(golf, storage);
+    setLastPlate("KR24BXL", storage);
+    expect(storage.map.size).toBe(0);
+  });
+
+  it("treats a malformed car as a corrupt journey", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    storage.map.set(
+      journeyKey("car"),
+      JSON.stringify({ ...journey, vehicle: { ...golf, year: "2021" } }),
+    );
+    expect(readJourney("car", storage)).toBeNull();
+  });
+
+  it("survives storage throwing", () => {
+    expect(() => setVehicle(golf, broken)).not.toThrow();
+    expect(() => setLastPlate("KR24BXL", broken)).not.toThrow();
   });
 });

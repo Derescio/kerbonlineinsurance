@@ -7,10 +7,23 @@ import { isBuyable, isProductId, type ProductId } from "./products";
 
 export const typeError = "Choose what you'd like to insure.";
 
+/** Shown on /quote when postcodes.io says the postcode doesn't exist (5.2, call 15) */
+export const postcodeNotFoundError = "We couldn't find that postcode. Check it and try again.";
+
 export interface StartSearch {
   type?: ProductId;
   postcode?: string;
   next?: 1;
+  /** Set by /quote/car's redirect when postcodes.io doesn't know the postcode (5.2, call 15) */
+  error?: "postcode";
+}
+
+/** The car step's three views: none is the registration (screen 08) (5.2, call 9) */
+export type VehicleView = "manual" | "not-found";
+
+export interface CarSearch {
+  postcode?: string;
+  vehicle?: VehicleView;
 }
 
 export interface ComingSoonSearch {
@@ -44,12 +57,19 @@ export function startSearch(raw: Record<string, unknown>): StartSearch {
     type: linkType(raw.type),
     postcode: next ? text(raw.postcode) : linkPostcode(raw.postcode),
     next: next ? 1 : undefined,
+    error: raw.error === "postcode" ? "postcode" : undefined,
   };
 }
 
 /** /quote/car and /quote/home */
 export function journeySearch(raw: Record<string, unknown>): { postcode?: string } {
   return { postcode: linkPostcode(raw.postcode) };
+}
+
+/** /quote/car. The plate never goes in the URL (5.2, call 9). */
+export function carSearch(raw: Record<string, unknown>): CarSearch {
+  const vehicle = raw.vehicle === "manual" || raw.vehicle === "not-found" ? raw.vehicle : undefined;
+  return { postcode: linkPostcode(raw.postcode), vehicle };
 }
 
 /** /quote/coming-soon */

@@ -76,6 +76,15 @@ export async function checkAppRole(client: Queryable, keys: AuditKeys): Promise<
   );
   results.push({ name: "writes on reference tables refused", ok: reference[0]?.ok === true });
 
+  // The postcodes.io cache is only added to (5.2, call 15; 0019)
+  const { rows: postcodes } = await client.query<{ ok: boolean }>(
+    `select not (
+       has_table_privilege(current_user, 'public.postcode_areas', 'UPDATE')
+       or has_table_privilege(current_user, 'public.postcode_areas', 'DELETE')
+     ) as ok`,
+  );
+  results.push({ name: "updates on postcode_areas refused", ok: postcodes[0]?.ok === true });
+
   const chain = await verifyAuditChain(client, keys);
   results.push(
     chain.ok

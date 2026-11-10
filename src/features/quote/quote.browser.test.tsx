@@ -8,7 +8,7 @@ import { readJourney } from "./journey-store";
 import { JourneyShell } from "./JourneyShell";
 import { postcodeError } from "./postcode";
 import { QuoteStart } from "./QuoteStart";
-import { typeError } from "./search";
+import { postcodeNotFoundError, typeError } from "./search";
 import { startQuote } from "./server";
 
 vi.mock("./server", () => ({ startQuote: vi.fn(async () => ({ recorded: true })) }));
@@ -16,6 +16,18 @@ vi.mock("./server", () => ({ startQuote: vi.fn(async () => ({ recorded: true }))
 const linkHint = "Added from your link. You can change it here.";
 
 describe("QuoteStart (screen 01)", () => {
+  it("says when postcodes.io doesn't know the postcode, keeping it to fix (5.2)", async () => {
+    await renderWithRouter(
+      <QuoteStart search={{ type: "car", postcode: "ZZ1 1ZZ", error: "postcode" }} />,
+      "/quote",
+    );
+    const field = page.getByRole("textbox", { name: "Your postcode" });
+    await expect.element(field).toHaveValue("ZZ1 1ZZ");
+    await expect.element(field).toHaveAccessibleDescription(postcodeNotFoundError);
+    await userEvent.type(field, "X");
+    await expect.element(field).not.toHaveAccessibleDescription(postcodeNotFoundError);
+  });
+
   it("lists the seven types in screen order with their badges", async () => {
     await renderWithRouter(<QuoteStart search={{}} />, "/quote");
     const radios = page.getByRole("radio").all();
@@ -199,6 +211,23 @@ describe("JourneyShell", () => {
     await expect
       .element(page.getByRole("progressbar", { name: "Quote progress" }))
       .not.toBeInTheDocument();
+  });
+
+  it("puts a step in the slot, letting it own the page heading (5.2)", async () => {
+    await renderWithRouter(
+      <JourneyShell product="car" postcode="E8 3RL">
+        <h1>Let’s find your car</h1>
+      </JourneyShell>,
+      "/quote/car",
+    );
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Let’s find your car");
+    await expect.element(page.getByText("This step arrives in 5.2")).not.toBeInTheDocument();
+    await expect.element(page.getByText(/Your postcode: E8 3RL/)).toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Change postcode" }))
+      .toHaveAttribute("href", "/quote?type=car&postcode=E8+3RL");
   });
 
   it("records quote.started once per journey", async () => {

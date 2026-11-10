@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { Card } from "#/components/display/Card";
 import { Stepper } from "#/components/navigation/Stepper";
@@ -31,9 +31,12 @@ const arrives: Record<BuyableProductId, string> = {
 export function JourneyShell({
   product,
   postcode,
+  children,
 }: {
   product: BuyableProductId;
   postcode: string;
+  /** The step (5.2: car). It owns the page's h1, so the shell's heading steps aside. */
+  children?: ReactNode;
 }) {
   useEffect(() => {
     const journey = beginJourney(product, postcode);
@@ -62,20 +65,33 @@ export function JourneyShell({
         <Stepper steps={JOURNEY_STEPS} current={0} label="Quote progress" variant="bar" />
       </div>
 
-      <header className="quote-heading">
-        <p className="quote-heading__overline">{titles[product]}</p>
-        <h1 className="kb-h1 quote-heading__title">Your details</h1>
-        <p className="quote-heading__intro">
-          Postcode: {postcode}.{" "}
-          <Link to="/quote" search={{ type: product, postcode }}>
-            Change<span className="kb-sr-only"> postcode</span>
-          </Link>
-        </p>
-      </header>
-
-      <Card padding="lg" className="quote-slot">
-        <p>{arrives[product]}</p>
-      </Card>
+      {children ? (
+        <>
+          {children}
+          <p className="quote-postcode">
+            Your postcode: {postcode}.{" "}
+            <Link to="/quote" search={{ type: product, postcode }}>
+              Change<span className="kb-sr-only"> postcode</span>
+            </Link>
+          </p>
+        </>
+      ) : (
+        <>
+          <header className="quote-heading">
+            <p className="quote-heading__overline">{titles[product]}</p>
+            <h1 className="kb-h1 quote-heading__title">Your details</h1>
+            <p className="quote-heading__intro">
+              Postcode: {postcode}.{" "}
+              <Link to="/quote" search={{ type: product, postcode }}>
+                Change<span className="kb-sr-only"> postcode</span>
+              </Link>
+            </p>
+          </header>
+          <Card padding="lg" className="quote-slot">
+            <p>{arrives[product]}</p>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

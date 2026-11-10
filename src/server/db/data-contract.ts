@@ -858,6 +858,17 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     copied: false,
     columns: { ...keep("window_start", "count"), key: "drop" },
   },
+  postcode_areas: {
+    grain: "one UK postcode confirmed by postcodes.io (5.2)",
+    primaryKey: ["postcode"],
+    changeColumn: null,
+    kind: "append-only",
+    copied: false,
+    columns: {
+      ...keep("outcode", "admin_district", "region", "country"),
+      postcode: "drop",
+    },
+  },
   jobs: {
     grain: "one background job",
     primaryKey: ["id"],

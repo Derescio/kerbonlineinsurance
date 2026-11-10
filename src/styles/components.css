@@ -1205,9 +1205,10 @@
 }
 
 /* App additions (2.3) */
-/* Grey placeholder without making the select required (the original used select:invalid) */
+/* Grey placeholder without making the select required (the original used select:invalid). It's
+   the select's visible value, so it needs text contrast: fg-3, not fg-4 (2.74:1, axe in 5.2). */
 .kb-control select:has(option[value=""]:checked) {
-  color: var(--fg-4);
+  color: var(--fg-3);
 }
 .kb-control select:invalid {
   color: var(--fg-1);
