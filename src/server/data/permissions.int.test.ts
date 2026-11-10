@@ -383,7 +383,8 @@ describe("audit of staff views (4.5b)", () => {
 // holds plain helpers for the actor lookup and closure, not protected reads (4.7); reference.ts is
 // the catalogue and rates, the same for everyone and written only by the deploy (4.8); file-rows.ts
 // is the upload row helpers behind the account hooks and the cleanup (4.10); job-rows.ts is the
-// jobs table's helpers behind the runner (4.11); event-rows.ts is the guest funnel writes (5.1).
+// jobs table's helpers behind the runner (4.11); event-rows.ts is the guest funnel writes (5.1);
+// postcode-rows.ts is the guest postcode cache (5.2).
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -396,6 +397,7 @@ const modules = import.meta.glob(
     "!./file-rows.ts",
     "!./job-rows.ts",
     "!./event-rows.ts",
+    "!./postcode-rows.ts",
   ],
   {
     eager: true,

@@ -134,6 +134,13 @@
       "when": 1794258786049,
       "tag": "0018_natural_lila_cheney",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794280528236,
+      "tag": "0019_curvy_valkyrie",
+      "breakpoints": true
     }
   ]
 }
