@@ -29,7 +29,9 @@ export function VehicleNotFound({
     <>
       <header className="quote-heading">
         <p className="quote-heading__overline">Car · Lookup help</p>
-        <h1 className="kb-h1 quote-heading__title">We don&rsquo;t have that car</h1>
+        <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
+          We don&rsquo;t have that car
+        </h1>
         <p className="quote-heading__intro">
           We couldn&rsquo;t match this registration to a car in our records. You can try again or
           choose your car manually.

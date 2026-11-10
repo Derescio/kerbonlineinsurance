@@ -273,3 +273,10 @@
   background: var(--bg-surface);
   border-radius: var(--radius-lg);
 }
+/* The step's screens sit straight in the page grid; the wrapper only finds the h1 to focus */
+.quote-step {
+  display: contents;
+}
+.quote-heading__title:focus {
+  outline: none;
+}

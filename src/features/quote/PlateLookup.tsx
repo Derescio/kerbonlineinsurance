@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useEffect, useRef, type FormEvent } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
@@ -29,6 +29,12 @@ export function PlateBox({
   findLabel: string;
   showDemoPlates: boolean;
 }) {
+  // An empty box gets focus with its error, as the start form's postcode does (5.1)
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (error) input.current?.focus();
+  }, [error]);
+
   function submit(event: FormEvent) {
     event.preventDefault();
     onFind();
@@ -37,6 +43,7 @@ export function PlateBox({
   return (
     <form className="quote-plate" onSubmit={submit} noValidate>
       <Input
+        ref={input}
         label="Car registration"
         variant="plate"
         placeholder="KR24 BXL"
@@ -92,7 +99,9 @@ export function PlateLookup({
     <>
       <header className="quote-heading">
         <p className="quote-heading__overline">Car · Your details</p>
-        <h1 className="kb-h1 quote-heading__title">Let&rsquo;s find your car</h1>
+        <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
+          Let&rsquo;s find your car
+        </h1>
         <p className="quote-heading__intro">
           Enter your registration and we&rsquo;ll look up your car&rsquo;s details.
         </p>

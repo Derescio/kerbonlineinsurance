@@ -108,7 +108,9 @@ export function VehiclePicker({
         <p className="quote-heading__overline">
           {fromPlate ? "Car · Your details" : "Car · Manual lookup"}
         </p>
-        <h1 className="kb-h1 quote-heading__title">Choose your car</h1>
+        <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
+          Choose your car
+        </h1>
         <p className="quote-heading__intro">
           Choose each detail in order. You&rsquo;ll find the exact variant on your vehicle
           documents.

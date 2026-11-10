@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Card } from "#/components/display/Card";
 
@@ -84,13 +84,23 @@ export function VehicleStep({
     }
   }
 
-  // "Find my car" before the catalogue arrived waits for it
+  // "Find my car" before the catalogue arrived waits for it, unless the visitor has moved on
   useEffect(() => {
     if (pendingFind && cars) {
       setPendingFind(false);
       lookUp(cars);
     }
-  });
+  }, [pendingFind, cars]);
+
+  // Each new screen moves focus to its heading, so keyboard and screen-reader users land on it
+  const root = useRef<HTMLDivElement>(null);
+  const screen = confirmed ? "confirmed" : view;
+  const shown = useRef(screen);
+  useEffect(() => {
+    if (shown.current === screen) return;
+    shown.current = screen;
+    root.current?.querySelector<HTMLElement>("h1")?.focus();
+  }, [screen]);
 
   function find() {
     if (!normalisePlate(plate)) {
@@ -103,6 +113,7 @@ export function VehicleStep({
   }
 
   function manual() {
+    setPendingFind(false);
     setFillFrom(null);
     setDemoPlate(null);
     setInitial(null);
@@ -127,6 +138,7 @@ export function VehicleStep({
 
   function change() {
     if (!confirmed) return;
+    setPendingFind(false);
     setInitial(
       cars?.find((car) => car.id === confirmed.catalogueVariantId) ?? pickerCarOf(confirmed),
     );
@@ -142,53 +154,63 @@ export function VehicleStep({
   ) : null;
   const finding = pendingFind && !catalogue.isError;
 
-  if (confirmed) {
-    return (
-      <>
-        <header className="quote-heading">
-          <p className="quote-heading__overline">Car · Your details</p>
-          <h1 className="kb-h1 quote-heading__title">Your car</h1>
-          <p className="quote-heading__intro">
-            Your car: {confirmed.make} {confirmed.model} {confirmed.variant}, {confirmed.year}.{" "}
-            <button type="button" className="quote-link" onClick={change}>
-              Change<span className="kb-sr-only"> your car</span>
-            </button>
-          </p>
-        </header>
-        <Card padding="lg" className="quote-slot">
-          <p>Driver details arrive in 5.3</p>
-        </Card>
-      </>
-    );
-  }
+  return (
+    <div ref={root} className="quote-step">
+      {content()}
+    </div>
+  );
 
-  const plateProps = {
-    plate,
-    onPlate: (value: string) => {
-      setPlate(value);
-      setPlateErr(undefined);
-    },
-    onFind: find,
-    error: plateErr,
-    finding,
-    loadError,
-    onManual: manual,
-  };
+  function content() {
+    if (confirmed) {
+      return (
+        <>
+          <header className="quote-heading">
+            <p className="quote-heading__overline">Car · Your details</p>
+            <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
+              Your car
+            </h1>
+            <p className="quote-heading__intro">
+              Your car: {confirmed.make} {confirmed.model} {confirmed.variant}, {confirmed.year}.{" "}
+              <button type="button" className="quote-link" onClick={change}>
+                Change<span className="kb-sr-only"> your car</span>
+              </button>
+            </p>
+          </header>
+          <Card padding="lg" className="quote-slot">
+            <p>Driver details arrive in 5.3</p>
+          </Card>
+        </>
+      );
+    }
 
-  if (view === "not-found") return <VehicleNotFound {...plateProps} />;
-  if (view === "manual") {
-    return (
-      <VehiclePicker
-        key={pickerKey}
-        cars={cars}
-        fillFrom={fillFrom}
-        initial={initial}
-        fromPlate={demoPlate !== null}
-        loadError={loadError}
-        onConfirm={confirm}
-        onBack={() => onView("plate")}
-      />
-    );
+    const plateProps = {
+      plate,
+      onPlate: (value: string) => {
+        setPlate(value);
+        setPlateErr(undefined);
+      },
+      onFind: find,
+      error: plateErr,
+      finding,
+      loadError,
+      onManual: manual,
+    };
+
+    if (view === "not-found") return <VehicleNotFound {...plateProps} />;
+    if (view === "manual") {
+      return (
+        <VehiclePicker
+          key={pickerKey}
+          cars={cars}
+          fillFrom={fillFrom}
+          initial={initial}
+          fromPlate={demoPlate !== null}
+          loadError={loadError}
+          onConfirm={confirm}
+          onBack={() => onView("plate")}
+        />
+      );
+    }
+    return <PlateLookup {...plateProps} />;
   }
-  return <PlateLookup {...plateProps} />;
 }

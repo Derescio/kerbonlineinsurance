@@ -231,6 +231,60 @@ describe("the car step", () => {
       .toBeVisible();
   });
 
+  function holdCatalogue() {
+    let release = () => {};
+    vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(Response.json({ cars }));
+        }),
+    );
+    return () => release();
+  }
+  const emptyClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+  it("waits for the list of cars when Find is pressed early, then finds the plate", async () => {
+    const release = holdCatalogue();
+    await renderStep("plate", emptyClient());
+    await userEvent.fill(plateBox(), "VW21 GQL");
+    await page.getByRole("button", { name: "Find my car" }).click();
+    await expect.element(page.getByRole("button", { name: "Loading cars…" })).toBeVisible();
+    release();
+    await expect.element(view()).toHaveTextContent("manual");
+    await expect.element(variant(), { timeout: 2000 }).toHaveDisplayValue("1.0 TSI Life 5dr");
+  });
+
+  it("drops a waiting Find when the visitor chooses manually instead", async () => {
+    const release = holdCatalogue();
+    await renderStep("plate", emptyClient());
+    await userEvent.fill(plateBox(), "KR24 BXL");
+    await page.getByRole("button", { name: "Find my car" }).click();
+    await page.getByRole("button", { name: "I don’t know the registration" }).click();
+    await expect.element(view()).toHaveTextContent("manual");
+    release();
+    await expect.element(make()).toBeEnabled();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await expect.element(view()).toHaveTextContent("manual");
+    await expect.element(make()).toHaveValue("");
+  });
+
+  it("moves focus to the new screen's heading", async () => {
+    await renderStep();
+    await userEvent.fill(plateBox(), "KR24 BXL");
+    await page.getByRole("button", { name: "Find my car" }).click();
+    await expect
+      .element(page.getByRole("heading", { name: "We don’t have that car" }))
+      .toHaveFocus();
+    await page.getByRole("button", { name: "Choose my car manually" }).click();
+    await expect.element(page.getByRole("heading", { name: "Choose your car" })).toHaveFocus();
+  });
+
+  it("puts focus on the empty registration box", async () => {
+    await renderStep();
+    await page.getByRole("button", { name: "Find my car" }).click();
+    await expect.element(plateBox()).toHaveFocus();
+  });
+
   it("says when the list of cars can't load, and tries again", async () => {
     const fetch = vi
       .spyOn(window, "fetch")
