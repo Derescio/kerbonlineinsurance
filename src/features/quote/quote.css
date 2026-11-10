@@ -155,3 +155,103 @@
   margin: 0;
   color: var(--fg-2);
 }
+
+/* The car step (5.2): screens 08 (226:624), 09 (226:639) and 10 (226:654) */
+.quote-panel {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+}
+.quote-aside {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--bg-brand-subtle);
+  border-radius: var(--radius-lg);
+}
+.quote-aside > * {
+  margin: 0;
+}
+.quote-aside > h2 {
+  color: var(--green-700);
+}
+.quote-link {
+  justify-self: start;
+  padding: 0;
+  color: var(--green-700);
+  font: 600 var(--text-body)/var(--lh-body) var(--font-body);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.quote-link:hover {
+  color: var(--green-900);
+}
+
+.quote-plate {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-plate__demo {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-plate__demo > p {
+  margin: 0;
+  color: var(--fg-2);
+  font: 400 var(--text-body-s)/var(--lh-body-s) var(--font-body);
+}
+.quote-plate__demo > ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* A small number plate: the same yellow and mono face as the plate field */
+.quote-plate__chip {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--green-900);
+  font: 600 15px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  background: var(--marker-300);
+  border: 1.5px solid var(--green-900);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.quote-plate__chip:hover {
+  background: var(--marker-400);
+}
+
+.quote-picker__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--space-4);
+}
+.quote-picker__note {
+  margin: 0;
+  color: var(--fg-2);
+  font: 400 var(--text-body-s)/var(--lh-body-s) var(--font-body);
+}
+.quote-car {
+  color: var(--fg-2);
+}
+.quote-car .quote-car__name {
+  color: var(--green-700);
+  font: 600 var(--text-h3)/1.3 var(--font-display);
+}
+
+.quote-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
