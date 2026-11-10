@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import type { Db } from "#/server/db/client";
+import { getDb, type Db } from "#/server/db/client";
 import {
   ratingAddons,
   ratingFactors,
@@ -316,7 +316,7 @@ export function clearReferenceCaches(): void {
 }
 
 /** Every active catalogue row, ordered for the picker (make → model → year → variant). */
-export function getCatalogue(db: Db): Promise<readonly CatalogueRecord[]> {
+export function getCatalogue(db: Db = getDb()): Promise<readonly CatalogueRecord[]> {
   if (!catalogueCache) {
     const t = vehicleCatalogue;
     catalogueCache = db
