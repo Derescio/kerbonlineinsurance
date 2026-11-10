@@ -1,6 +1,6 @@
 # 5.2 Vehicle step
 
-**Status:** approved (Damion, 9 Nov 2026), building. Plan in [02-vehicle-step-plan.md](02-vehicle-step-plan.md)
+**Status:** done (the manual staging check below is still open). Plan in [02-vehicle-step-plan.md](02-vehicle-step-plan.md)
 **Phase:** 05-quote
 
 ## Goal

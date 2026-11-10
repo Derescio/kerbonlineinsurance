@@ -50,7 +50,7 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 05 | Home · Property | `222:6762` | 5.7 |
 | 06 | Home · Contents & security | `222:6777` | 5.7 |
 | 07 | Home · Past claims | `222:6792` | 5.7 |
-| 08 | Car · Enter registration | `226:624` | 5.2 |
+| 08 | Car · Enter registration. The build adds the demo plates under the box; `KR24 BXL` is only the placeholder, since the lookup knows just the six demo plates (5.2, call 6) | `226:624` | 5.2 |
 | 09 | Car · Manual vehicle picker (make → model → year → variant) | `226:639` | 5.2 |
 | 10 | Car · Vehicle not found | `226:654` | 5.2 |
 | 11 | Car · Licence & driving | `226:669` | 5.3 |
