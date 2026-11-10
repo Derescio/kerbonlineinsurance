@@ -1,5 +1,5 @@
 {
-  "id": "c4cf2af0-d1bf-4f18-8a1a-c34b74f15298",
+  "id": "e9ca6610-2233-4cc6-b0cc-baf0b91b8b6b",
   "prevId": "324d17f4-98dc-4dbf-b137-7b8ebcb43176",
   "version": "7",
   "dialect": "postgresql",
@@ -2920,13 +2920,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "looked_up_at": {
-          "name": "looked_up_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {},

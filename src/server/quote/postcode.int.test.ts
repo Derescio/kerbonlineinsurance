@@ -50,14 +50,15 @@ describe("checkPostcodeExists", () => {
     );
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0]?.[0]).toBe("https://api.postcodes.io/postcodes/E83RL");
+    // No time is kept: with one, a row could be matched to a visitor's district-only funnel event
     expect(await rows()).toEqual([
-      expect.objectContaining({
+      {
         postcode: "E8 3RL",
         outcode: "E8",
         adminDistrict: "Hackney",
         region: "London",
         country: "England",
-      }),
+      },
     ]);
   });
 

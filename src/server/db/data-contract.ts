@@ -865,7 +865,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
     kind: "append-only",
     copied: false,
     columns: {
-      ...keep("outcode", "admin_district", "region", "country", "looked_up_at"),
+      ...keep("outcode", "admin_district", "region", "country"),
       postcode: "drop",
     },
   },

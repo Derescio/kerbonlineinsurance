@@ -73,7 +73,8 @@ export const jobs = pgTable(
 
 // Postcodes postcodes.io has confirmed exist (5.2, call 15), so each is looked up once. Only found
 // postcodes are stored: one added later is never stuck as "not found". kerb_app may read and add
-// rows but not change or remove them (0019).
+// rows but not change or remove them (0019). No time is kept: with one, a row could be matched to
+// the visitor's district-only quote.started event (5.1, call 11).
 export const postcodeAreas = pgTable("postcode_areas", {
   // Normalised: "E8 3RL"
   postcode: text().primaryKey(),
@@ -81,5 +82,4 @@ export const postcodeAreas = pgTable("postcode_areas", {
   adminDistrict: text(),
   region: text(),
   country: text().notNull(),
-  lookedUpAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });

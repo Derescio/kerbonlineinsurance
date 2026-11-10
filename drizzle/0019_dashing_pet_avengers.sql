@@ -6,8 +6,7 @@ CREATE TABLE "postcode_areas" (
 	"outcode" text NOT NULL,
 	"admin_district" text,
 	"region" text,
-	"country" text NOT NULL,
-	"looked_up_at" timestamp with time zone DEFAULT now() NOT NULL
+	"country" text NOT NULL
 );--> statement-breakpoint
 REVOKE UPDATE, DELETE ON postcode_areas FROM kerb_app;--> statement-breakpoint
 CREATE TRIGGER postcode_areas_append_only BEFORE UPDATE ON postcode_areas
