@@ -137,16 +137,25 @@ describe("checkPostcodeExists", () => {
     );
   });
 
-  it("lets the visitor carry on when the database fails", async () => {
+  // The cache only saves a lookup. A preview runs before its migration, so the table can be
+  // missing there: the check still asks postcodes.io.
+  it("still asks postcodes.io when the cache can't be read or written", async () => {
     const broken = {
       select() {
-        throw new Error("database down");
+        throw new Error('relation "postcode_areas" does not exist');
+      },
+      insert() {
+        throw new Error('relation "postcode_areas" does not exist');
       },
     } as unknown as Db;
-    const fetch = vi.fn(async () => found("E8 3RL"));
+    const fetch = vi.fn(async () => notFound());
+    await expect(
+      checkPostcodeExists("ZZ1 1ZZ", from(IP), { fetch, secret: SECRET, db: broken }),
+    ).resolves.toBe("not_found");
+    fetch.mockImplementation(async () => found("E8 3RL"));
     await expect(
       checkPostcodeExists("E8 3RL", from(IP), { fetch, secret: SECRET, db: broken }),
-    ).resolves.toBe("unavailable");
+    ).resolves.toBe("found");
   });
 
   it("can't be changed or emptied by the app role", async () => {

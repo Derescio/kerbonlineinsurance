@@ -64,7 +64,8 @@ The car journey's first real step. A visitor finds their car by its registration
       - **The data contract:** not copied to the lakehouse. Phase 9 has the district on `quotes` already.
       - **The app role:** `kerb_app` gets `SELECT` and `INSERT` only, and `db:check-app-role` checks it.
     - **The limit:** 60 postcodes.io calls per IP per hour with the 4.5c `limit()`. A postcode already in `postcode_areas` doesn't count.
-    - **When the limit or the database fails:** the check is skipped and the step shows. That covers both `limit()` refusing and its database query failing. The limit protects postcodes.io, and a broken check never blocks a quote.
+    - **When the limit fails:** the check is skipped and the step shows. That covers both `limit()` refusing and its database query failing. The limit protects postcodes.io, and a broken check never blocks a quote.
+    - **When the cache fails:** postcodes.io is still asked, because the cache only saves a lookup. A PR preview runs before its migration, so `postcode_areas` can be missing there (build ruling, 9 Nov 2026).
     - **Checked once per postcode:** the route's loader depends on `postcode` only, so moving between the three views or pressing back doesn't check again.
     - **Why it isn't a cached public API:** the phase and engineering.md §5 say "postcode APIs: long public cache". A full postcode in a public URL would sit in CDN logs, so the `postcode_areas` table is the cache instead. engineering.md §5 is updated to say so.
     - **The error on `/quote`:** the redirect adds `error=postcode`, which `startSearch` reads. Someone could write a link that shows the error, but that's harmless, and a bad flag value is dropped like any other.

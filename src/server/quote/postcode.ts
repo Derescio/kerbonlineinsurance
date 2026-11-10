@@ -6,8 +6,9 @@ import { limit, rateLimitSubject } from "#/server/db/rate-limit";
 
 // The car step's postcode check (5.2, call 15): does the postcode from /quote exist? postcodes.io
 // answers once per postcode and postcode_areas remembers the ones that do. Only a definite "no"
-// stops the visitor: a slow or broken postcodes.io, the rate limit or a database error all let
-// them carry on, because a free service mustn't stop a quote.
+// stops the visitor: a slow or broken postcodes.io, the rate limit or its query failing all let
+// them carry on, because a free service mustn't stop a quote. A cache that can't be read or
+// written is skipped, not fatal.
 
 export type PostcodeCheck = "found" | "not_found" | "unavailable";
 
@@ -45,8 +46,8 @@ export async function checkPostcodeExists(
   try {
     if (await findPostcodeArea(postcode, deps.db)) return "found";
   } catch (error) {
+    // The cache only saves a lookup: a preview runs before its migration, so ask postcodes.io
     console.warn("postcode check: cache read failed", error);
-    return "unavailable";
   }
 
   try {
