@@ -1,6 +1,6 @@
 # 5.2 Vehicle step
 
-**Status:** done (the manual staging check below is still open). Plan in [02-vehicle-step-plan.md](02-vehicle-step-plan.md)
+**Status:** done (PR #83; the manual staging check below is still open). Plan in [02-vehicle-step-plan.md](02-vehicle-step-plan.md)
 **Phase:** 05-quote
 
 ## Goal
