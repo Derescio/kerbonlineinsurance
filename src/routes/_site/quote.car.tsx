@@ -1,20 +1,51 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { JourneyShell } from "#/features/quote/JourneyShell";
-import { journeySearch } from "#/features/quote/search";
+import { carSearch } from "#/features/quote/search";
+import { checkPostcode } from "#/features/quote/server";
+import { VehicleStep } from "#/features/quote/VehicleStep";
 
-// /quote/car: the car journey shell. No valid postcode in the link goes back to the start with car
-// picked (5.1, call 5).
+// /quote/car: the car journey. No valid postcode in the link goes back to the start with car picked
+// (5.1, call 5). The postcode is checked with postcodes.io once per postcode: the loader depends on
+// it alone and never goes stale, so moving between the vehicle views doesn't check again (5.2,
+// call 15; plan P4). Only a definite "doesn't exist" goes back to /quote.
 export const Route = createFileRoute("/_site/quote/car")({
-  validateSearch: journeySearch,
+  validateSearch: carSearch,
   beforeLoad: ({ search }) => {
     if (!search.postcode) throw redirect({ to: "/quote", search: { type: "car" } });
+  },
+  loaderDeps: ({ search }) => ({ postcode: search.postcode }),
+  staleTime: Infinity,
+  loader: async ({ deps: { postcode } }) => {
+    if (!postcode) return;
+    const { result } = await checkPostcode({ data: { postcode } }).catch(() => ({
+      result: "unavailable" as const,
+    }));
+    if (result === "not_found") {
+      throw redirect({ to: "/quote", search: { type: "car", postcode, error: "postcode" } });
+    }
   },
   head: () => ({ meta: [{ title: "Car quote · Kerb" }] }),
   component: CarQuotePage,
 });
 
 function CarQuotePage() {
-  const { postcode } = Route.useSearch();
-  return postcode ? <JourneyShell product="car" postcode={postcode} /> : null;
+  const { postcode, vehicle } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  if (!postcode) return null;
+  return (
+    <JourneyShell product="car" postcode={postcode}>
+      <noscript>
+        <p className="quote-noscript">The car step needs JavaScript turned on.</p>
+      </noscript>
+      <VehicleStep
+        view={vehicle ?? "plate"}
+        onView={(next) =>
+          void navigate({
+            search: (current) => ({ ...current, vehicle: next === "plate" ? undefined : next }),
+          })
+        }
+      />
+    </JourneyShell>
+  );
 }

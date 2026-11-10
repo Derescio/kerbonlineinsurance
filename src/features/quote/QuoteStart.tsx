@@ -6,7 +6,7 @@ import { Input } from "#/components/forms/Input";
 import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
 
 import { isBuyable, type ProductId } from "./products";
-import { checkStart, type StartSearch } from "./search";
+import { checkStart, postcodeNotFoundError, type StartSearch } from "./search";
 import { TypePicker } from "./TypePicker";
 
 const linkHint = "Added from your link. You can change it here.";
@@ -17,6 +17,8 @@ const retrieveLabel = "Retrieve a saved quote";
 type Errors = { type?: string; postcode?: string };
 
 function initialErrors(search: StartSearch): Errors {
+  // /quote/car's redirect: postcodes.io doesn't know this postcode (5.2, call 15)
+  if (search.error === "postcode" && search.postcode) return { postcode: postcodeNotFoundError };
   if (!search.next) return {};
   const check = checkStart(search);
   return check.ok ? {} : check.errors;
@@ -37,7 +39,8 @@ export function QuoteStart({ search }: { search: StartSearch }) {
   const postcodeField = useRef<HTMLInputElement>(null);
 
   const buyable = type !== undefined && isBuyable(type);
-  const fromLink = !search.next && search.postcode !== undefined && postcode === search.postcode;
+  const fromLink =
+    !search.next && !search.error && search.postcode !== undefined && postcode === search.postcode;
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -255,3 +255,21 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* Figma 08–10: the postcode sits under the step, in the mono face */
+.quote-postcode {
+  margin: 0;
+  color: var(--fg-2);
+  font: 400 var(--text-body-s)/var(--lh-body-s) var(--font-mono);
+}
+.quote-postcode a {
+  color: var(--green-700);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+.quote-noscript {
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+}
