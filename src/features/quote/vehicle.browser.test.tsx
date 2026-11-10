@@ -76,6 +76,13 @@ describe("the car step", () => {
 
   it("fills the box from a demo plate without searching", async () => {
     await renderStep();
+    await expect
+      .element(
+        page.getByRole("list", {
+          name: "Kerb is a demo, so only these plates are recognised currently. Please choose one:",
+        }),
+      )
+      .toBeVisible();
     await page.getByRole("button", { name: "VW21 GQL" }).click();
     await expect.element(plateBox()).toHaveValue("VW21 GQL");
     await expect.element(view()).toHaveTextContent("plate");
