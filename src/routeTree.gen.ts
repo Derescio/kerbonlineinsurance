@@ -37,6 +37,7 @@ import { Route as SiteQuoteHomeRouteImport } from './routes/_site/quote.home'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
+import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -175,6 +176,11 @@ const ApiCronJobsRoute = ApiCronJobsRouteImport.update({
   path: '/api/cron/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
+  id: '/api/webhooks/resend',
+  path: '/api/webhooks/resend',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/quote/': typeof SiteQuoteIndexRoute
 }
 export interface FileRoutesByTo {
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/quote': typeof SiteQuoteIndexRoute
 }
 export interface FileRoutesById {
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/_site/quote/': typeof SiteQuoteIndexRoute
 }
 export interface FileRouteTypes {
@@ -287,6 +296,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/api/webhooks/resend'
     | '/quote/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/api/webhooks/resend'
     | '/quote'
   id:
     | '__root__'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/api/webhooks/resend'
     | '/_site/quote/'
   fileRoutesById: FileRoutesById
 }
@@ -359,6 +371,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCronDailyRoute: typeof ApiCronDailyRoute
   ApiCronJobsRoute: typeof ApiCronJobsRoute
+  ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -559,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/resend': {
+      id: '/api/webhooks/resend'
+      path: '/api/webhooks/resend'
+      fullPath: '/api/webhooks/resend'
+      preLoaderRoute: typeof ApiWebhooksResendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -641,6 +661,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCronDailyRoute: ApiCronDailyRoute,
   ApiCronJobsRoute: ApiCronJobsRoute,
+  ApiWebhooksResendRoute: ApiWebhooksResendRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
