@@ -49,7 +49,7 @@ describe("checkPostcodeExists", () => {
       "found",
     );
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(String(fetch.mock.calls[0]?.[0])).toBe("https://api.postcodes.io/postcodes/E83RL");
+    expect(fetch.mock.calls[0]?.[0]).toBe("https://api.postcodes.io/postcodes/E83RL");
     expect(await rows()).toEqual([
       expect.objectContaining({
         postcode: "E8 3RL",
