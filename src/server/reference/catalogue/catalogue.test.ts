@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { expandCatalogue } from "./expand";
 import { CATALOGUE_SOURCES } from "./index";
+import { demoPlates } from "#/features/quote/demo-plates";
 
 const rows = expandCatalogue(CATALOGUE_SOURCES);
 const models = new Set(rows.map((r) => `${r.make} ${r.model}`));
@@ -103,6 +104,21 @@ describe("CATALOGUE_SOURCES", () => {
       for (const generation of make.generations) {
         expect(generation.groupSource, `${make.make} ${generation.model}`).not.toBe("");
       }
+    }
+  });
+});
+
+describe("the demo plates (5.2, call 6)", () => {
+  it("each name exactly one catalogue row", () => {
+    for (const plate of demoPlates) {
+      const matches = rows.filter(
+        (r) =>
+          r.make === plate.make &&
+          r.model === plate.model &&
+          r.year === plate.year &&
+          r.variant === plate.variant,
+      );
+      expect(matches, plate.plate).toHaveLength(1);
     }
   });
 });

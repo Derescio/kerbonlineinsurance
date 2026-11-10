@@ -5,7 +5,9 @@ import {
   checkStart,
   comingSoonRedirect,
   comingSoonSearch,
+  carSearch,
   journeySearch,
+  postcodeNotFoundError,
   startSearch,
   typeError,
 } from "./search";
@@ -41,6 +43,7 @@ describe("startSearch", () => {
       ["type", undefined],
       ["postcode", undefined],
       ["next", undefined],
+      ["error", undefined],
     ]);
     expect(Object.keys(journeySearch({ postcode: "nope" }))).toEqual(["postcode"]);
     expect(Object.keys(comingSoonSearch({}))).toEqual(["type", "postcode"]);
@@ -138,4 +141,32 @@ describe("comingSoonRedirect", () => {
 
 it("has the type error's copy", () => {
   expect(typeError).toBe("Choose what you'd like to insure.");
+});
+
+describe("the postcode-not-found flag (5.2, call 15)", () => {
+  it("keeps error=postcode and drops anything else", () => {
+    expect(startSearch({ error: "postcode" }).error).toBe("postcode");
+    expect(startSearch({ error: "x" }).error).toBeUndefined();
+    expect(startSearch({ error: 1 }).error).toBeUndefined();
+  });
+
+  it("has the spec's copy", () => {
+    expect(postcodeNotFoundError).toBe("We couldn't find that postcode. Check it and try again.");
+  });
+});
+
+describe("carSearch", () => {
+  it("keeps the postcode and a known view", () => {
+    expect(carSearch({ postcode: "e83rl", vehicle: "manual" })).toEqual({
+      postcode: "E8 3RL",
+      vehicle: "manual",
+    });
+    expect(carSearch({ postcode: "E8 3RL", vehicle: "not-found" }).vehicle).toBe("not-found");
+  });
+
+  it("drops a bad view quietly, and always returns both keys", () => {
+    expect(carSearch({ vehicle: "garage" }).vehicle).toBeUndefined();
+    expect(carSearch({ vehicle: 1 }).vehicle).toBeUndefined();
+    expect(Object.keys(carSearch({}))).toEqual(["postcode", "vehicle"]);
+  });
 });
