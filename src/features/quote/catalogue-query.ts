@@ -3,7 +3,8 @@ import { queryOptions } from "@tanstack/react-query";
 import type { PickerCar } from "./catalogue";
 
 // The catalogue only changes in a deploy, so one fetch per tab is enough (5.2, call 14). Later
-// data types set their own staleTime.
+// data types set their own staleTime. One retry, not the default three with backoff, so a failure
+// shows its message within a few seconds instead of about seven.
 
 export interface CatalogueData {
   cars: PickerCar[];
@@ -20,4 +21,5 @@ export const catalogueQuery = queryOptions({
   queryFn: fetchCatalogue,
   staleTime: Infinity,
   gcTime: Infinity,
+  retry: 1,
 });

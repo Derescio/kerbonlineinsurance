@@ -53,10 +53,19 @@ export function VehicleStep({
   // A new picker for each "Change", so it starts from that car
   const [pickerKey, setPickerKey] = useState(0);
 
-  // sessionStorage only exists in the browser, so the stored answers load after hydration
+  const root = useRef<HTMLDivElement>(null);
+  const screen = confirmed ? "confirmed" : view;
+  const shown = useRef(screen);
+  const restoring = useRef(false);
+
+  // sessionStorage only exists in the browser, so the stored answers load after hydration. A car
+  // found there is where the page starts, not a move, so focus stays put.
   useEffect(() => {
     const journey = readJourney("car");
-    if (journey?.vehicle) setConfirmed(journey.vehicle);
+    if (journey?.vehicle) {
+      restoring.current = true;
+      setConfirmed(journey.vehicle);
+    }
     if (journey?.lastPlate) setPlate((current) => current || (journey.lastPlate ?? ""));
   }, []);
 
@@ -93,12 +102,13 @@ export function VehicleStep({
   }, [pendingFind, cars]);
 
   // Each new screen moves focus to its heading, so keyboard and screen-reader users land on it
-  const root = useRef<HTMLDivElement>(null);
-  const screen = confirmed ? "confirmed" : view;
-  const shown = useRef(screen);
   useEffect(() => {
     if (shown.current === screen) return;
     shown.current = screen;
+    if (restoring.current) {
+      restoring.current = false;
+      return;
+    }
     root.current?.querySelector<HTMLElement>("h1")?.focus();
   }, [screen]);
 

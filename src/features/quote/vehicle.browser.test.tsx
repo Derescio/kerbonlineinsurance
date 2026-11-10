@@ -285,18 +285,38 @@ describe("the car step", () => {
     await expect.element(plateBox()).toHaveFocus();
   });
 
+  it("doesn't move focus when a stored car appears on load", async () => {
+    setVehicle({
+      catalogueVariantId: "golf-21-life",
+      make: "Volkswagen",
+      model: "Golf",
+      year: 2021,
+      variant: "1.0 TSI Life 5dr",
+      fuelType: "petrol",
+      doors: 5,
+    });
+    await renderStep();
+    const heading = page.getByRole("heading", { name: "Your car" });
+    await expect.element(heading).toBeVisible();
+    await expect.element(heading).not.toHaveFocus();
+  });
+
   it("says when the list of cars can't load, and tries again", async () => {
     const fetch = vi
       .spyOn(window, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
       .mockResolvedValueOnce(Response.json({ cars }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await renderStep("manual", client);
+    // One retry (catalogueQuery), then the message
     await expect
-      .element(page.getByText("We couldn’t load the list of cars. Try again in a moment."))
+      .element(page.getByText("We couldn’t load the list of cars. Try again in a moment."), {
+        timeout: 5000,
+      })
       .toBeVisible();
     await page.getByRole("button", { name: "Try again" }).click();
     await expect.element(make()).toBeEnabled();
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(3);
   });
 });
