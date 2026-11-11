@@ -1,3 +1,7 @@
+import type { ZodType } from "zod";
+
+import { fieldErrors } from "#/lib/validation";
+
 import type { Journey } from "./journey-store";
 import {
   aboutYouSchema,
@@ -37,19 +41,34 @@ export function storedAnswers(journey: Journey, step: DriverStep): unknown {
   }
 }
 
-function passes(journey: Journey, step: DriverStep, today: string): boolean {
-  const answers = storedAnswers(journey, step);
-  if (answers === undefined) return false;
+function schemaFor(journey: Journey, step: DriverStep, today: string): ZodType {
   switch (step) {
     case "about":
-      return aboutYouSchema(today).safeParse(answers).success;
+      return aboutYouSchema(today);
     case "driving":
-      return licenceSchema(today, journey.mainDriver?.dateOfBirth).safeParse(answers).success;
+      return licenceSchema(today, journey.mainDriver?.dateOfBirth);
     case "claims":
-      return claimsSchema(today).safeParse(answers).success;
+      return claimsSchema(today);
     case "drivers":
-      return namedDriversSchema(today).safeParse(answers).success;
+      return namedDriversSchema(today);
   }
+}
+
+function passes(journey: Journey, step: DriverStep, today: string): boolean {
+  const answers = storedAnswers(journey, step);
+  return answers !== undefined && schemaFor(journey, step, today).safeParse(answers).success;
+}
+
+/** The stored answers' errors, keyed like the form's, for a step reopened after an edit */
+export function storedErrors(
+  journey: Journey,
+  step: DriverStep,
+  today: string,
+): Record<string, string | undefined> {
+  const answers = storedAnswers(journey, step);
+  if (answers === undefined) return {};
+  const result = fieldErrors(schemaFor(journey, step, today), answers);
+  return result.errors ?? {};
 }
 
 export function stepState(journey: Journey, today: string): Record<DriverStep, boolean> {

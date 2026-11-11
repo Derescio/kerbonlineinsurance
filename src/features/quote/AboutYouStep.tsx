@@ -10,7 +10,7 @@ import { setStepAnswers } from "./journey-store";
 import { OccupationField, type OccupationValue } from "./OccupationField";
 import { aboutYouSchema, type AboutYou } from "./schemas/driver-steps";
 import { chosen, StepActions, StepHeading, type Errors, type StepProps } from "./step-kit";
-import { storedAnswers } from "./steps";
+import { storedAnswers, storedErrors } from "./steps";
 
 // About you (5.3, call 7): the original journey's "Tell us about you and your car" (157:10429). The
 // car is already confirmed, so the title is "Tell us about you" (plan P1); overnight parking moves
@@ -38,9 +38,11 @@ function initial(stored: AboutYou | undefined): Form {
   };
 }
 
-export function AboutYouStep({ journey, today, onBack, onDone }: StepProps) {
+export function AboutYouStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
   const [form, setForm] = useState(() => initial(storedAnswers(journey, "about") as AboutYou));
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<Errors>(() =>
+    revalidate ? storedErrors(journey, "about", today) : {},
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const car = journey.vehicle;
 

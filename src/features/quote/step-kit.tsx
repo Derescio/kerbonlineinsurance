@@ -13,6 +13,8 @@ export interface StepProps {
   journey: Journey;
   /** London date, `todayIso()`; the schemas check against it */
   today: string;
+  /** Show the stored answers' errors on open: the step was reopened because an edit broke it */
+  revalidate?: boolean;
   onBack: () => void;
   /** Called after the step's answers are saved */
   onDone: () => void;

@@ -22,7 +22,7 @@ import {
   type Errors,
   type StepProps,
 } from "./step-kit";
-import { storedAnswers } from "./steps";
+import { storedAnswers, storedErrors } from "./steps";
 
 // Licence and driving (5.3, call 8): screen 11 (226:669), plus "Current mileage", which
 // vehicles.current_mileage needs and nothing else asks for.
@@ -49,11 +49,13 @@ function initial(stored: LicenceAndUsage | undefined): Form {
   };
 }
 
-export function LicenceStep({ journey, today, onBack, onDone }: StepProps) {
+export function LicenceStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
   const [form, setForm] = useState(() =>
     initial(storedAnswers(journey, "driving") as LicenceAndUsage | undefined),
   );
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<Errors>(() =>
+    revalidate ? storedErrors(journey, "driving", today) : {},
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const driver = journey.mainDriver;
   const car = journey.vehicle;

@@ -32,8 +32,11 @@ export function JourneyShell({
   product,
   postcode,
   children,
+  current = 0,
 }: {
   product: BuyableProductId;
+  /** The Stepper's step: 0 "Your details", 1 "Your quote" (5.3, call 17) */
+  current?: number;
   postcode: string;
   /** The step (5.2: car). It owns the page's h1, so the shell's heading steps aside. */
   children?: ReactNode;
@@ -59,10 +62,10 @@ export function JourneyShell({
     <div className="quote-page">
       {/* default on web and tablet, bar at phone width (call 10); the hidden one is display: none */}
       <div className="quote-progress quote-progress--wide">
-        <Stepper steps={JOURNEY_STEPS} current={0} label="Quote progress" />
+        <Stepper steps={JOURNEY_STEPS} current={current} label="Quote progress" />
       </div>
       <div className="quote-progress quote-progress--narrow">
-        <Stepper steps={JOURNEY_STEPS} current={0} label="Quote progress" variant="bar" />
+        <Stepper steps={JOURNEY_STEPS} current={current} label="Quote progress" variant="bar" />
       </div>
 
       {children ? (

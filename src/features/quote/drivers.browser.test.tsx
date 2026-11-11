@@ -1,15 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
 import { AboutYouStep } from "./AboutYouStep";
 import { ClaimsStep } from "./ClaimsStep";
+import { DriverSteps } from "./DriverSteps";
 import { completeJourney, FIXTURE_TODAY, golf } from "./journey-fixtures";
 import { beginJourney, journeyKey, readJourney, setVehicle, type Journey } from "./journey-store";
 import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
+import type { QuoteStep } from "./search";
+import { todayIso } from "./schemas/dates";
 
 // The driver steps' screens (5.3): About you, Licence and driving (11), Claims (12) and Named
 // drivers (12a). Each test starts from a car journey on 11 Nov 2026.
@@ -363,5 +366,134 @@ describe("Named drivers", () => {
         pastClaims: 2,
       },
     ]);
+  });
+});
+
+describe("the driver steps in order", () => {
+  type Move = { step: QuoteStep | undefined; replace: boolean };
+
+  function Harness({ initial, moves }: { initial: QuoteStep; moves: Move[] }) {
+    const [step, setStep] = useState<QuoteStep | undefined>(initial);
+    return step ? (
+      <DriverSteps
+        step={step}
+        onStep={(next, opts) => {
+          moves.push({ step: next, replace: opts?.replace ?? false });
+          setStep(next);
+        }}
+      />
+    ) : (
+      <p>car step</p>
+    );
+  }
+
+  function renderFlow(initial: QuoteStep) {
+    const moves: Move[] = [];
+    const screen = withQuery(<Harness initial={initial} moves={moves} />);
+    return { moves, screen };
+  }
+
+  /** The fixture journey, moved so its dates hold against the real today */
+  function storeComplete(change?: (journey: Journey) => void) {
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    change?.(journey);
+    store(journey);
+  }
+
+  it("sends a link to a later step with no car back to the car step", async () => {
+    const { moves } = renderFlow("drivers");
+    await expect.element(page.getByText("car step")).toBeVisible();
+    expect(moves).toEqual([{ step: undefined, replace: true }]);
+  });
+
+  it("sends a link past an unfinished step to the first one", async () => {
+    carOnly();
+    const { moves } = renderFlow("claims");
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Tell us about you");
+    expect(moves).toEqual([{ step: "about", replace: true }]);
+  });
+
+  it("ends a complete journey on the holding quote view, with each answer summarised", async () => {
+    storeComplete();
+    renderFlow("drivers");
+    await page.getByRole("button", { name: "Get my car quote" }).click();
+    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
+    await expect.element(page.getByText("Your price arrives in 5.4")).toBeVisible();
+    await expect.element(page.getByText("Alex Morgan, born 12 May 1991")).toBeVisible();
+    await expect
+      .element(page.getByText("Full UK, 5 years’ no-claims, 8,000 miles a year"))
+      .toBeVisible();
+    await expect.element(page.getByText("None", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Jamie Morgan")).toBeVisible();
+    await expect.element(page.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+
+  it("sends an edit that breaks a later step to that step, with its error", async () => {
+    storeComplete();
+    renderFlow("quote");
+    await page.getByRole("button", { name: "Edit About you" }).click();
+    // Born 1995: the 2010 licence is now before the 17th birthday
+    await userEvent.fill(group("Date of birth").getByRole("textbox", { name: "Year" }), "1995");
+    await page.getByRole("button", { name: "Continue to your licence" }).click();
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your licence and driving");
+    await expect
+      .element(page.getByText("The licence date can’t be before your 17th birthday."))
+      .toBeVisible();
+  });
+
+  it("returns to the summary after an edit that breaks nothing", async () => {
+    storeComplete();
+    renderFlow("quote");
+    await page.getByRole("button", { name: "Edit Claims" }).click();
+    await page.getByRole("button", { name: "Continue to named drivers" }).click();
+    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
+  });
+
+  it("keeps the answers through a refresh", async () => {
+    storeComplete();
+    const queryClient = client();
+    const moves: Move[] = [];
+    const screen = await withQuery(
+      <Harness key="1" initial="driving" moves={moves} />,
+      queryClient,
+    );
+    await expect.element(box("Annual mileage")).toHaveValue("8000");
+    // A new key mounts the steps afresh, reading the tab's storage again, as a refresh does
+    await screen.rerender(
+      <QueryClientProvider client={queryClient}>
+        <Harness key="2" initial="driving" moves={moves} />
+      </QueryClientProvider>,
+    );
+    await expect.element(box("Annual mileage")).toHaveValue("8000");
+    await expect
+      .element(select("Use of the car"))
+      .toHaveDisplayValue("Social, domestic and commuting");
+  });
+
+  it("goes back a step, and from About you to the car", async () => {
+    storeComplete();
+    const { moves } = renderFlow("about");
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect.element(page.getByText("car step")).toBeVisible();
+    expect(moves.at(-1)).toEqual({ step: undefined, replace: false });
+  });
+
+  it("never puts an answer in the URL", async () => {
+    storeComplete();
+    renderFlow("drivers");
+    await page.getByRole("button", { name: "Get my car quote" }).click();
+    await expect.element(page.getByText("Your price arrives in 5.4")).toBeVisible();
+    for (const typed of ["Alex", "Morgan", "Albion", "Jamie"]) {
+      expect(window.location.href).not.toContain(typed);
+    }
+  });
+
+  it("uses the London date", () => {
+    expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

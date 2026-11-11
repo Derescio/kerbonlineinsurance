@@ -16,7 +16,7 @@ import {
   type NamedDrivers,
 } from "./schemas/driver-steps";
 import { chosen, StepActions, StepHeading, YesNo, type Errors, type StepProps } from "./step-kit";
-import { storedAnswers } from "./steps";
+import { storedAnswers, storedErrors } from "./steps";
 
 // Named drivers (5.3, call 12): screen 12a (235:1638) without the convictions question
 // (decision 3). Up to 4; a named driver's no-claims years are stored as 0 in 5.6, and the
@@ -52,7 +52,7 @@ const newDriver = (): DriverForm => ({
 
 const headingId = (id: string) => `named-driver-${id}`;
 
-export function NamedDriversStep({ journey, today, onBack, onDone }: StepProps) {
+export function NamedDriversStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
   const stored = storedAnswers(journey, "drivers") as NamedDrivers | undefined;
   const [any, setAny] = useState<boolean | undefined>(stored?.any);
   const [drivers, setDrivers] = useState<DriverForm[]>(
@@ -64,7 +64,9 @@ export function NamedDriversStep({ journey, today, onBack, onDone }: StepProps) 
         pastClaims: d.anyClaims ? String(d.pastClaims) : "",
       })) ?? [],
   );
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<Errors>(() =>
+    revalidate ? storedErrors(journey, "drivers", today) : {},
+  );
   // After "Remove driver": the heading (or the No radio) that should get focus
   const [focusTarget, setFocusTarget] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);

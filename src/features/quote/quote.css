@@ -350,3 +350,34 @@
   display: grid;
   gap: var(--space-2);
 }
+/* The holding quote view's answers (5.3, plan P3) */
+.quote-summary {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+}
+.quote-summary__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-1);
+}
+.quote-summary__row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.quote-summary__row dt {
+  grid-column: 1;
+  font-weight: 600;
+}
+.quote-summary__row dd {
+  margin: 0;
+  grid-column: 1;
+  color: var(--fg-2);
+}
+.quote-summary__row dd:last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}

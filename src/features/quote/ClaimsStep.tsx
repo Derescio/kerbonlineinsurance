@@ -24,7 +24,7 @@ import {
   type Errors,
   type StepProps,
 } from "./step-kit";
-import { storedAnswers } from "./steps";
+import { storedAnswers, storedErrors } from "./steps";
 
 // Claims (5.3, call 9): screen 12 (226:684) without the convictions card (decision 3). The count
 // becomes drivers.past_claims in 5.6; the details stay in the tab (decision 4).
@@ -47,7 +47,7 @@ const newIncident = (): IncidentForm => ({
   cost: "",
 });
 
-export function ClaimsStep({ journey, today, onBack, onDone }: StepProps) {
+export function ClaimsStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
   const stored = storedAnswers(journey, "claims") as Claims | undefined;
   const [any, setAny] = useState<boolean | undefined>(stored?.any);
   const [incidents, setIncidents] = useState<IncidentForm[]>(
@@ -61,7 +61,9 @@ export function ClaimsStep({ journey, today, onBack, onDone }: StepProps) {
       })) ?? [],
   );
   const [confirmed, setConfirmed] = useState(stored?.confirmed ?? false);
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<Errors>(() =>
+    revalidate ? storedErrors(journey, "claims", today) : {},
+  );
   const formRef = useRef<HTMLFormElement>(null);
 
   function answer(yes: boolean) {
