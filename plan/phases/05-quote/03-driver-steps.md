@@ -1,6 +1,6 @@
 # 5.3 Driver steps
 
-**Status:** todo (spec for approval, 11 Nov 2026)
+**Status:** done (PR pending; manual check on staging still to record). Plan in [03-driver-steps-plan.md](03-driver-steps-plan.md)
 **Phase:** 05-quote
 
 ## Goal
@@ -187,7 +187,7 @@ The rest of the car journey's "Your details". After confirming a car in 5.2, the
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally (11 Nov 2026): `vp check` clean, `vp test` 123 files and 1,631 tests, `vp build`; the driver-steps E2E, 5.2's vehicle E2E and axe on every quote page at 390 and 1440 px, 25/25 on a local preview.
 - [ ] The manual check passes, with the results recorded here.
 
 ## Commit message

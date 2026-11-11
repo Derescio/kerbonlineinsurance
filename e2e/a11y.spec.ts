@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { withCompleteJourney } from "./quote-journey";
+
 // axe on each key page (plan/engineering.md section 4). Fails on serious or critical violations.
 // Pages join the list as they ship.
 const pages = [
@@ -42,6 +44,26 @@ for (const path of pages) {
     test(`${path} at ${width}px has no serious or critical axe violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      await expectNoBlockingViolations(page);
+    });
+  }
+}
+
+// The driver steps (5.3) open only with the earlier answers in the tab, so each is checked with a
+// complete journey already in sessionStorage
+const quoteSteps = ["about", "driving", "claims", "drivers", "quote"];
+
+for (const step of quoteSteps) {
+  for (const width of widths) {
+    test(`/quote/car?step=${step} at ${width}px has no serious or critical axe violations`, async ({
+      page,
+    }) => {
+      await withCompleteJourney(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/quote/car?postcode=E8+3RL&step=${step}`);
+      await expect(page).toHaveURL(new RegExp(`step=${step}`));
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await page.waitForLoadState("networkidle");
       await expectNoBlockingViolations(page);
     });

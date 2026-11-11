@@ -31,7 +31,8 @@ describe("occupationsResponse", () => {
 
     const { occupations } = (await response.json()) as Body;
     const expected = carV1.lookups.filter((l) => l.lookup === "occupation").map((l) => l.key);
-    expect(occupations.map((o) => o.key).sort()).toEqual([...expected].sort());
+    expect(new Set(occupations.map((o) => o.key))).toEqual(new Set(expected));
+    expect(occupations).toHaveLength(expected.length);
 
     const labels = occupations.map((o) => o.label as string);
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b, "en-GB")));

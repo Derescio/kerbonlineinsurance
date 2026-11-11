@@ -168,7 +168,7 @@ describe("About you", () => {
     const journey = completeJourney();
     journey.mainDriver!.occupation = "astronaut";
     store(journey);
-    withQuery(
+    await withQuery(
       <AboutYouStep
         journey={readJourney("car")!}
         today={FIXTURE_TODAY}
@@ -184,7 +184,7 @@ describe("About you", () => {
 describe("Licence and driving", () => {
   it("refuses a provisional licence", async () => {
     const onDone = vi.fn();
-    withQuery(
+    await withQuery(
       <LicenceStep
         journey={upTo("driving")}
         today={FIXTURE_TODAY}
@@ -207,7 +207,7 @@ describe("Licence and driving", () => {
 
   it("saves the licence and how the car is used", async () => {
     const onDone = vi.fn();
-    withQuery(
+    await withQuery(
       <LicenceStep
         journey={upTo("driving")}
         today={FIXTURE_TODAY}
@@ -238,7 +238,7 @@ describe("Licence and driving", () => {
 describe("Claims", () => {
   function renderClaims() {
     const onDone = vi.fn();
-    withQuery(
+    void withQuery(
       <ClaimsStep
         journey={upTo("claims")}
         today={FIXTURE_TODAY}
@@ -293,7 +293,7 @@ describe("Claims", () => {
 describe("Named drivers", () => {
   function renderDrivers(journey = upTo("drivers")) {
     const onDone = vi.fn();
-    withQuery(
+    void withQuery(
       <NamedDriversStep
         journey={journey}
         today={FIXTURE_TODAY}
