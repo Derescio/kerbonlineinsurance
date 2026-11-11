@@ -214,7 +214,12 @@ export const aboutYouSchema = (today: string) =>
       town: text(errors.town, 100, errors.max100),
     })
     .superRefine((value, ctx) => checkOccupation(value, ctx, []))
-    .transform((value) => ({ ...value, occupation: value.occupation! }));
+    // An empty second line is left out, as the stored part expects
+    .transform(({ addressLine2, ...value }) => ({
+      ...value,
+      occupation: value.occupation!,
+      ...(addressLine2 && { addressLine2 }),
+    }));
 
 export type AboutYou = z.output<ReturnType<typeof aboutYouSchema>>;
 
