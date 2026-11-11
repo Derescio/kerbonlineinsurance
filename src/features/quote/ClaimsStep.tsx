@@ -180,6 +180,7 @@ export function ClaimsStep({ journey, today, revalidate, onBack, onDone }: StepP
           label="I confirm my driving history is complete and accurate."
           checked={confirmed}
           aria-invalid={errors.confirmed ? true : undefined}
+          aria-describedby={errors.confirmed ? "claims-confirmed-error" : undefined}
           onChange={(e) => setConfirmed(e.target.checked)}
         />
         <FieldMessage id="claims-confirmed" error={errors.confirmed} />

@@ -12,7 +12,7 @@ import { beginJourney, journeyKey, readJourney, setVehicle, type Journey } from 
 import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
 import type { QuoteStep } from "./search";
-import { todayIso } from "./schemas/dates";
+import { addYears, todayIso } from "./schemas/dates";
 
 // The driver steps' screens (5.3): About you, Licence and driving (11), Claims (12) and Named
 // drivers (12a). Each test starts from a car journey on 11 Nov 2026.
@@ -267,6 +267,9 @@ describe("Claims", () => {
     await question().getByText("No", { exact: true }).click();
     await page.getByRole("button", { name: "Continue to named drivers" }).click();
     await expect.element(page.getByText("Confirm your driving history to continue.")).toBeVisible();
+    await expect
+      .element(page.getByRole("checkbox"))
+      .toHaveAccessibleDescription("Confirm your driving history to continue.");
     expect(onDone).not.toHaveBeenCalled();
     await page.getByText("I confirm my driving history is complete and accurate.").click();
     await page.getByRole("button", { name: "Continue to named drivers" }).click();
@@ -444,6 +447,22 @@ describe("the driver steps in order", () => {
     await expect
       .element(page.getByText("The licence date can’t be before your 17th birthday."))
       .toBeVisible();
+  });
+
+  it("reopens a step that turned invalid since it was saved, with its error", async () => {
+    // An incident a day older than the 5-year window: valid when saved, invalid today
+    const [y, m, d] = addYears(todayIso(), -5).split("-").map(Number);
+    const old = new Date(Date.UTC(y!, m! - 1, d! - 1)).toISOString().slice(0, 10);
+    storeComplete((journey) => {
+      journey.claims = {
+        any: true,
+        incidents: [{ id: "i1", date: old, type: "collision", fault: "at_fault", costPounds: 500 }],
+        confirmed: true,
+      };
+    });
+    renderFlow("quote");
+    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Claims");
+    await expect.element(page.getByText("The incident must be in the last 5 years.")).toBeVisible();
   });
 
   it("returns to the summary after an edit that breaks nothing", async () => {

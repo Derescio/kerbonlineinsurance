@@ -60,6 +60,10 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
     const today = todayIso();
     const check = reachable(journey, step, today);
     if (!check.ok) {
+      // A step that had answers and no longer passes (an incident left the 5-year window
+      // overnight) opens with its errors, as after an edit (call 16)
+      reopened.current =
+        check.to && journey && storedAnswers(journey, check.to) !== undefined ? check.to : null;
       move.current(check.to, { replace: true });
       return;
     }
