@@ -28,6 +28,7 @@ import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
+import { Route as ApiOccupationsRouteImport } from './routes/api/occupations'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
@@ -132,6 +133,11 @@ const ApiCatalogueRoute = ApiCatalogueRouteImport.update({
   path: '/api/catalogue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOccupationsRoute = ApiOccupationsRouteImport.update({
+  id: '/api/occupations',
+  path: '/api/occupations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
   path: '/api/stream-test',
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
+  '/api/occupations': typeof ApiOccupationsRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
+  '/api/occupations': typeof ApiOccupationsRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
+  '/api/occupations': typeof ApiOccupationsRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/account/close'
     | '/account/two-factor'
     | '/api/catalogue'
+    | '/api/occupations'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/account/close'
     | '/account/two-factor'
     | '/api/catalogue'
+    | '/api/occupations'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -356,6 +367,7 @@ export interface FileRouteTypes {
     | '/account_/close'
     | '/account_/two-factor'
     | '/api/catalogue'
+    | '/api/occupations'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/_site/'
@@ -379,6 +391,7 @@ export interface RootRouteChildren {
   AccountCloseRoute: typeof AccountCloseRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
+  ApiOccupationsRoute: typeof ApiOccupationsRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -520,6 +533,13 @@ declare module '@tanstack/react-router' {
       path: '/api/catalogue'
       fullPath: '/api/catalogue'
       preLoaderRoute: typeof ApiCatalogueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/occupations': {
+      id: '/api/occupations'
+      path: '/api/occupations'
+      fullPath: '/api/occupations'
+      preLoaderRoute: typeof ApiOccupationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
@@ -677,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountCloseRoute: AccountCloseRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,
+  ApiOccupationsRoute: ApiOccupationsRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
