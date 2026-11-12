@@ -5,7 +5,14 @@ import { carV1 } from "#/server/reference/rating/car-v1";
 import { homeV1 } from "#/server/reference/rating/home-v1";
 
 import { priceQuote, splitBundleDiscount, type QuoteItemRequest } from "./price-quote";
-import { businessInputs, carInputs, flatCar, flatHome, homeInputs } from "./test-tables";
+import {
+  businessInputs,
+  carInputs,
+  flatBusiness,
+  flatCar,
+  flatHome,
+  homeInputs,
+} from "./test-tables";
 import type { CarInputs, HomeInputs, RatingData } from "./types";
 
 const carItem = (
@@ -55,6 +62,18 @@ describe("splitBundleDiscount", () => {
     );
     expect(split.get("car")).toBe(4_800);
     expect(split.get("home")).toBe(2_400);
+  });
+
+  it("gives nothing when there's nothing to discount", () => {
+    expect(splitBundleDiscount([], 0.08).size).toBe(0);
+    const zero = splitBundleDiscount(
+      [
+        { product: "car", premiumPence: 0 },
+        { product: "home", premiumPence: 0 },
+      ],
+      0.08,
+    );
+    expect([...zero.values()]).toEqual([0, 0]);
   });
 
   it("gives the leftover penny to the larger item", () => {
@@ -194,20 +213,60 @@ describe("priceQuote", () => {
       {
         product: "business",
         inputs: businessInputs(),
-        tables: businessV1,
+        tables: flatBusiness(),
         coverLevel: "comprehensive",
         addons: ["legal_expenses"],
       },
     ]);
-    const item = quote.items[0]!.selected!;
-    expect(item.addonsPence).toBe(4_500);
-    // IPT on premium + add-ons, rounded once
-    expect(item.iptPence).toBe(Math.round((item.premiumPence + 4_500) * 0.12));
+    // Flat tables: public liability 6000 (band A) × 1 × 1, employers' 2 × 4500 = 9000; base 15000
+    // IPT round((15000 + 4500) × 0.12) = 2340; total 15000 + 4500 + 2340 = 21840
+    expect(quote.items[0]!.selected).toMatchObject({
+      premiumPence: 15_000,
+      addonsPence: 4_500,
+      iptPence: 2_340,
+      totalPence: 21_840,
+    });
     expectSums(quote);
   });
 
   it("sums exactly for each product alone", () => {
-    for (const item of [carItem(), homeItem()]) expectSums(priceQuote([item]));
+    const businessItem: QuoteItemRequest = {
+      product: "business",
+      inputs: businessInputs(),
+      tables: businessV1,
+      coverLevel: "comprehensive",
+      addons: [],
+    };
+    for (const item of [carItem(), homeItem(), businessItem]) expectSums(priceQuote([item]));
+  });
+
+  it("refuses an input that isn't a finite, non-negative number", () => {
+    // These never pass through a band, so NaN would otherwise price as NaN and skip every rule
+    const car = carInputs();
+    expect(() =>
+      priceQuote([carItem(carV1, { ...car, vehicle: { ...car.vehicle, valuePence: NaN } })]),
+    ).toThrow("car: vehicle.valuePence must be a finite number of 0 or more");
+    expect(() => priceQuote([homeItem(homeV1, homeInputs({ rebuildCostPence: -1 }))])).toThrow(
+      "home: rebuildCostPence must be a finite number of 0 or more",
+    );
+    expect(() =>
+      priceQuote([
+        {
+          product: "business",
+          inputs: businessInputs({ employees: Number.POSITIVE_INFINITY }),
+          tables: businessV1,
+          coverLevel: "comprehensive",
+          addons: [],
+        },
+      ]),
+    ).toThrow("business: employees must be a finite number of 0 or more");
+  });
+
+  it("refuses a bundle whose versions disagree on the discount", () => {
+    const home = flatHome({ parameters: { bundle_discount_rate: 0.05 } });
+    expect(() => priceQuote([carItem(), homeItem(home)])).toThrow(
+      "bundle_discount_rate differs between car and home",
+    );
   });
 
   it("refuses two items of one product", () => {

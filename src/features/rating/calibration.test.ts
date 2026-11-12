@@ -51,14 +51,16 @@ function request(person: CalibrationPerson): QuoteItemRequest {
         r.year === vehicle.year &&
         r.variant === vehicle.variant,
     );
+    if (!row)
+      throw new Error(`${person.id}: ${vehicle.make} ${vehicle.model} isn't in the catalogue`);
     rating = {
       product: "car",
       inputs: {
         vehicle: {
           year: vehicle.year,
           insuranceGroup: vehicle.insuranceGroup,
-          fuelType: row?.fuelType ?? "petrol",
-          valuePence: vehicle.valuePence ?? 0,
+          fuelType: row.fuelType,
+          valuePence: vehicle.valuePence ?? row.valuePence,
         },
         driver: {
           age: driver.age,

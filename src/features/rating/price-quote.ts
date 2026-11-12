@@ -71,6 +71,7 @@ export function splitBundleDiscount(
 ): Map<Product, number> {
   const sum = premiums.reduce((total, p) => total + p.premiumPence, 0);
   const discount = Math.round(sum * rate);
+  if (discount === 0) return new Map(premiums.map((p) => [p.product, 0]));
   const largest = premiums.reduce((a, b) => (b.premiumPence > a.premiumPence ? b : a));
   const shares = new Map<Product, number>();
   let given = 0;
@@ -114,7 +115,28 @@ function eligibility(t: Tables, r: RatingInputs): Eligibility {
   }
 }
 
+/**
+ * Every number in the inputs is finite and 0 or more. Some never pass through a band (a car's value,
+ * a rebuild cost, a head count), so NaN would otherwise price as NaN and slip past every rule.
+ */
+function checkInputs(product: string, value: unknown, path = ""): void {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`${product}: ${path} must be a finite number of 0 or more`);
+    }
+  } else if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      checkInputs(
+        product,
+        child,
+        Array.isArray(value) ? `${path}[${key}]` : path ? `${path}.${key}` : key,
+      );
+    }
+  }
+}
+
 function draft(request: QuoteItemRequest): Draft {
+  checkInputs(request.product, request.inputs);
   const t = new Tables(request.tables);
   const base = {
     product: request.product,
@@ -176,7 +198,14 @@ export function priceQuote(requests: readonly QuoteItemRequest[]): PricedQuote {
   const quoted = drafts.filter((d) => d.item.outcome === "quoted");
   const car = quoted.find((d) => d.item.product === "car");
   const home = quoted.find((d) => d.item.product === "home");
-  // The car version's rate applies to a car + home bundle (both v1s say 0.08)
+  // One rate for a bundle: versions that disagree are a config error, not a choice
+  if (
+    car &&
+    home &&
+    car.tables.param("bundle_discount_rate") !== home.tables.param("bundle_discount_rate")
+  ) {
+    throw new Error("priceQuote: bundle_discount_rate differs between car and home");
+  }
   const shares =
     car && home
       ? splitBundleDiscount(
