@@ -167,6 +167,17 @@ describe("carSearch", () => {
   it("drops a bad view quietly, and always returns both keys", () => {
     expect(carSearch({ vehicle: "garage" }).vehicle).toBeUndefined();
     expect(carSearch({ vehicle: 1 }).vehicle).toBeUndefined();
-    expect(Object.keys(carSearch({}))).toEqual(["postcode", "vehicle"]);
+    expect(Object.keys(carSearch({}))).toEqual(["postcode", "vehicle", "step"]);
+  });
+
+  it("keeps a known driver step and drops anything else (5.3, call 5)", () => {
+    expect(carSearch({ postcode: "E8 3RL", step: "claims" }).step).toBe("claims");
+    for (const step of ["about", "driving", "drivers", "quote"]) {
+      expect(carSearch({ step }).step).toBe(step);
+    }
+    expect(carSearch({ step: "payment" }).step).toBeUndefined();
+    expect(carSearch({ step: 1 }).step).toBeUndefined();
+    expect(carSearch({}).step).toBeUndefined();
+    expect(carSearch({ vehicle: "manual", step: "about" }).vehicle).toBe("manual");
   });
 });

@@ -1,6 +1,18 @@
 import { z } from "zod";
 
+import { statusOptions } from "./occupation";
 import type { BuyableProductId } from "./products";
+import {
+  faultOptions,
+  incidentTypeOptions,
+  overnightOptions,
+  relationshipOptions,
+  usageOptions,
+  type AboutYou,
+  type Claims,
+  type LicenceAndUsage,
+  type NamedDrivers,
+} from "./schemas/driver-steps";
 
 // A guest's quote lives in the tab until the sign-in gate (4.2 decision 5; 5.1, call 9). One
 // versioned object per product in sessionStorage: it survives a refresh but not closing the tab,
@@ -23,7 +35,81 @@ const vehicleSchema = z.object({
 
 export type VehicleChoice = z.infer<typeof vehicleSchema>;
 
-const journeySchema = z.object({
+// The driver steps' answers (5.3, call 15). Stored shapes check types and stored values only; the
+// rules that move with today or span steps are stepState()'s job (call 16), so an answer that turns
+// invalid later is reopened, not lost.
+
+const oneOf = <T extends string>(options: { value: T }[]) =>
+  z.enum(options.map((o) => o.value) as [T, ...T[]]);
+const fullLicence = z.enum(["full_uk", "full_eu"]);
+const status = oneOf(statusOptions);
+
+/** About you, plus the main driver's licence once the licence step is done */
+const mainDriverSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  dateOfBirth: z.string(),
+  status,
+  occupation: z.string(),
+  addressLine1: z.string(),
+  addressLine2: z.string().optional(),
+  town: z.string(),
+  licenceType: fullLicence.optional(),
+  licenceDate: z.string().optional(),
+  noClaimsYears: z.number().int().optional(),
+});
+
+const usageSchema = z.object({
+  annualMileage: z.number().int(),
+  currentMileage: z.number().int(),
+  usage: oneOf(usageOptions),
+  overnight: oneOf(overnightOptions),
+});
+
+const claimsSchema = z.object({
+  any: z.boolean(),
+  incidents: z.array(
+    z.object({
+      id: z.string(),
+      date: z.string(),
+      type: oneOf(incidentTypeOptions),
+      fault: oneOf(faultOptions),
+      costPounds: z.number().int(),
+    }),
+  ),
+  confirmed: z.boolean(),
+});
+
+const namedDriversSchema = z.object({
+  any: z.boolean(),
+  drivers: z.array(
+    z.object({
+      id: z.string(),
+      firstName: z.string(),
+      lastName: z.string(),
+      dateOfBirth: z.string(),
+      /** Kept in the tab only: drivers has no column for it (call 12) */
+      relationship: oneOf(relationshipOptions),
+      status,
+      occupation: z.string(),
+      licenceType: fullLicence,
+      licenceDate: z.string(),
+      anyClaims: z.boolean(),
+      pastClaims: z.number().int(),
+    }),
+  ),
+});
+
+/** Read one at a time: a part that fails is dropped alone (call 15) */
+const partSchemas = {
+  vehicle: vehicleSchema,
+  mainDriver: mainDriverSchema,
+  usage: usageSchema,
+  claims: claimsSchema,
+  namedDrivers: namedDriversSchema,
+};
+
+const baseSchema = z.object({
   version: z.literal(1),
   /** Random, made here; `quote.started` is written once per id (plan P1) */
   journeyId: z.uuid(),
@@ -31,13 +117,21 @@ const journeySchema = z.object({
   startedAt: z.iso.datetime(),
   /** The `quote.started` event has been sent for this journey */
   startRecorded: z.boolean(),
-  /** Car only (5.2) */
-  vehicle: vehicleSchema.optional(),
   /** The last plate typed that wasn't a demo plate, for screen 10; it never leaves the tab (call 9) */
   lastPlate: z.string().optional(),
 });
 
-export type Journey = z.infer<typeof journeySchema>;
+export type MainDriver = z.infer<typeof mainDriverSchema>;
+
+export type Journey = z.infer<typeof baseSchema> & {
+  /** Car only (5.2) */
+  vehicle?: VehicleChoice;
+  /** Car only (5.3) */
+  mainDriver?: MainDriver;
+  usage?: z.infer<typeof usageSchema>;
+  claims?: z.infer<typeof claimsSchema>;
+  namedDrivers?: z.infer<typeof namedDriversSchema>;
+};
 
 export type JourneyStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -61,8 +155,17 @@ export function readJourney(
   try {
     const raw = storage?.getItem(journeyKey(product));
     if (!raw) return null;
-    const parsed = journeySchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
+    const json: unknown = JSON.parse(raw);
+    const base = baseSchema.safeParse(json);
+    if (!base.success) return null;
+    const journey: Journey = base.data;
+    const record = json as Record<string, unknown>;
+    for (const [key, schema] of Object.entries(partSchemas)) {
+      if (record[key] === undefined) continue;
+      const part = schema.safeParse(record[key]);
+      if (part.success) Object.assign(journey, { [key]: part.data });
+    }
+    return journey;
   } catch {
     return null;
   }
@@ -126,4 +229,47 @@ export function setVehicle(
 export function setLastPlate(plate: string, storage: JourneyStorage | null = sessionStore()): void {
   const stored = readJourney("car", storage);
   if (stored) writeJourney("car", { ...stored, lastPlate: plate }, storage);
+}
+
+/** What each driver step saves (5.3) */
+export interface StepAnswers {
+  about: AboutYou;
+  driving: LicenceAndUsage;
+  claims: Claims;
+  drivers: NamedDrivers;
+}
+
+/**
+ * Saves one driver step's answers into the car journey. About you keeps any licence answers
+ * already saved, and the licence step writes into the main driver and `usage`. Nothing happens
+ * without a car journey, or for the licence step before About you.
+ */
+export function setStepAnswers<S extends keyof StepAnswers>(
+  step: S,
+  answers: StepAnswers[S],
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney("car", storage);
+  if (!stored) return;
+  const next: Journey = { ...stored };
+  if (step === "about") {
+    const about = answers as AboutYou;
+    const { licenceType, licenceDate, noClaimsYears } = stored.mainDriver ?? {};
+    next.mainDriver = {
+      ...about,
+      ...(licenceType && { licenceType }),
+      ...(licenceDate && { licenceDate }),
+      ...(noClaimsYears !== undefined && { noClaimsYears }),
+    };
+  } else if (step === "driving") {
+    if (!stored.mainDriver) return;
+    const { licenceType, licenceDate, noClaimsYears, ...usage } = answers as LicenceAndUsage;
+    next.mainDriver = { ...stored.mainDriver, licenceType, licenceDate, noClaimsYears };
+    next.usage = usage;
+  } else if (step === "claims") {
+    next.claims = answers as Claims;
+  } else {
+    next.namedDrivers = answers as NamedDrivers;
+  }
+  writeJourney("car", next, storage);
 }

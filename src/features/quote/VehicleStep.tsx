@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { Card } from "#/components/display/Card";
+import { Button } from "#/components/actions/Button";
 
 import { findCar, type PickerCar } from "./catalogue";
 import { catalogueQuery } from "./catalogue-query";
@@ -36,9 +36,12 @@ function pickerCarOf(vehicle: VehicleChoice): PickerCar {
 export function VehicleStep({
   view,
   onView,
+  onContinue,
 }: {
   view: VehicleStepView;
   onView: (view: VehicleStepView) => void;
+  /** From the confirmed car to About you (5.3, call 6) */
+  onContinue: () => void;
 }) {
   const catalogue = useQuery(catalogueQuery);
   const cars = catalogue.data?.cars;
@@ -186,9 +189,12 @@ export function VehicleStep({
               </button>
             </p>
           </header>
-          <Card padding="lg" className="quote-slot">
-            <p>Driver details arrive in 5.3</p>
-          </Card>
+          <div className="quote-nav">
+            <span />
+            <Button variant="accent" onClick={onContinue}>
+              Continue
+            </Button>
+          </div>
         </>
       );
     }

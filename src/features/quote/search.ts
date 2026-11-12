@@ -21,9 +21,14 @@ export interface StartSearch {
 /** The car step's three views: none is the registration (screen 08) (5.2, call 9) */
 export type VehicleView = "manual" | "not-found";
 
+/** The driver steps and the holding quote view (5.3, call 5); none is the car step */
+export const QUOTE_STEPS = ["about", "driving", "claims", "drivers", "quote"] as const;
+export type QuoteStep = (typeof QUOTE_STEPS)[number];
+
 export interface CarSearch {
   postcode?: string;
   vehicle?: VehicleView;
+  step?: QuoteStep;
 }
 
 export interface ComingSoonSearch {
@@ -66,10 +71,11 @@ export function journeySearch(raw: Record<string, unknown>): { postcode?: string
   return { postcode: linkPostcode(raw.postcode) };
 }
 
-/** /quote/car. The plate never goes in the URL (5.2, call 9). */
+/** /quote/car. The plate and the driver answers never go in the URL (5.2, call 9; 5.3, call 5). */
 export function carSearch(raw: Record<string, unknown>): CarSearch {
   const vehicle = raw.vehicle === "manual" || raw.vehicle === "not-found" ? raw.vehicle : undefined;
-  return { postcode: linkPostcode(raw.postcode), vehicle };
+  const step = QUOTE_STEPS.find((known) => known === raw.step);
+  return { postcode: linkPostcode(raw.postcode), vehicle, step };
 }
 
 /** /quote/coming-soon */

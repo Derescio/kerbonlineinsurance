@@ -41,7 +41,7 @@ function Harness({ initial }: { initial: VehicleStepView }) {
   return (
     <>
       <p data-testid="view">{view}</p>
-      <VehicleStep view={view} onView={setView} />
+      <VehicleStep view={view} onView={setView} onContinue={() => {}} />
     </>
   );
 }
@@ -174,7 +174,7 @@ describe("the car step", () => {
     await expect
       .element(page.getByText(/^Your car: Volkswagen Golf 1\.0 TSI Life 5dr, 2021\./))
       .toBeVisible();
-    await expect.element(page.getByText("Driver details arrive in 5.3")).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Continue" })).toBeVisible();
     expect(readJourney("car")?.vehicle).toMatchObject({
       catalogueVariantId: "golf-21-life",
       make: "Volkswagen",

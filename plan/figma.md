@@ -54,7 +54,8 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 09 | Car · Manual vehicle picker (make → model → year → variant) | `226:639` | 5.2 |
 | 10 | Car · Vehicle not found | `226:654` | 5.2 |
 | 11 | Car · Licence & driving | `226:669` | 5.3 |
-| 12 | Car · Claims & convictions | `226:684` | 5.3 |
+| 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too | `226:684` | 5.3 |
+| 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3) | `235:1638` | 5.3 |
 | 13 | Cover cards & comparison (1440 wide) | `226:699` | 5.5 |
 | 14 | Before payment · Sign in | `226:714` | 5.6 |
 | 15 | Before payment · Create account | `226:729` | 5.6 |
@@ -65,6 +66,8 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 20 | Car declined · Home available | `226:804` | 5.5 |
 | 21 | Start a car + home bundle | `230:1434` | 5.5 / 5.7 |
 | 22 | Home quote & choose cover (1440 wide) | `230:1449` | 5.7 |
+
+**About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12).
 
 **Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
 

@@ -50,7 +50,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 - [x] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
 - [x] 5.2 **Vehicle step**: make → model → year → variant picker, faked plate lookup
-- [ ] 5.3 **Driving habits + driver steps**
+- [x] 5.3 **Driving habits + driver steps**: about you, licence and driving, claims, named drivers; occupation list from the active car rating version
 - [ ] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
 - [ ] 5.5 **Cover options + summary**: cover comparison table, price breakdown
 - [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey

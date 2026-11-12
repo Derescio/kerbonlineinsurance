@@ -7,10 +7,12 @@ import {
   readJourney,
   sessionStore,
   setLastPlate,
+  setStepAnswers,
   setVehicle,
   type JourneyStorage,
   type VehicleChoice,
 } from "./journey-store";
+import { completeJourney } from "./journey-fixtures";
 
 function memoryStorage(): JourneyStorage & { map: Map<string, string> } {
   const map = new Map<string, string>();
@@ -157,18 +159,101 @@ describe("the car in the journey", () => {
     expect(storage.map.size).toBe(0);
   });
 
-  it("treats a malformed car as a corrupt journey", () => {
+  it("drops a malformed car and keeps the rest of the journey (5.3, call 15)", () => {
     const storage = memoryStorage();
     const journey = beginJourney("car", "E8 3RL", now, storage);
     storage.map.set(
       journeyKey("car"),
       JSON.stringify({ ...journey, vehicle: { ...golf, year: "2021" } }),
     );
+    expect(readJourney("car", storage)).toEqual(journey);
+  });
+
+  it("treats a malformed base as a corrupt journey", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    storage.map.set(journeyKey("car"), JSON.stringify({ ...journey, journeyId: 7 }));
     expect(readJourney("car", storage)).toBeNull();
   });
 
   it("survives storage throwing", () => {
     expect(() => setVehicle(golf, broken)).not.toThrow();
     expect(() => setLastPlate("KR24BXL", broken)).not.toThrow();
+  });
+});
+
+describe("the driver steps in the journey (5.3)", () => {
+  function carJourney(storage: JourneyStorage) {
+    beginJourney("car", "E8 3RL", now, storage);
+    setVehicle(fixture.vehicle!, storage);
+  }
+  const fixture = completeJourney();
+
+  it("round-trips all four parts", () => {
+    const storage = memoryStorage();
+    carJourney(storage);
+    const { licenceType, licenceDate, noClaimsYears, ...about } = fixture.mainDriver!;
+    setStepAnswers("about", about, storage);
+    setStepAnswers(
+      "driving",
+      {
+        licenceType: licenceType!,
+        licenceDate: licenceDate!,
+        noClaimsYears: noClaimsYears!,
+        ...fixture.usage!,
+      },
+      storage,
+    );
+    setStepAnswers("claims", { ...fixture.claims!, confirmed: true }, storage);
+    setStepAnswers("drivers", fixture.namedDrivers!, storage);
+    const read = readJourney("car", storage)!;
+    expect(read.mainDriver).toEqual(fixture.mainDriver);
+    expect(read.usage).toEqual(fixture.usage);
+    expect(read.claims).toEqual(fixture.claims);
+    expect(read.namedDrivers).toEqual(fixture.namedDrivers);
+  });
+
+  it("keeps the licence answers when About you is saved again", () => {
+    const storage = memoryStorage();
+    storage.map.set(journeyKey("car"), JSON.stringify(fixture));
+    const { licenceType: _t, licenceDate: _d, noClaimsYears: _n, ...about } = fixture.mainDriver!;
+    setStepAnswers("about", { ...about, firstName: "Sam" }, storage);
+    expect(readJourney("car", storage)!.mainDriver).toEqual({
+      ...fixture.mainDriver,
+      firstName: "Sam",
+    });
+  });
+
+  it("still reads a 5.2 journey with only a car", () => {
+    const storage = memoryStorage();
+    carJourney(storage);
+    const read = readJourney("car", storage)!;
+    expect(read.vehicle).toEqual(fixture.vehicle);
+    expect(read.mainDriver).toBeUndefined();
+  });
+
+  it("drops only a part that no longer parses", () => {
+    const storage = memoryStorage();
+    const bad = completeJourney();
+    (bad.claims!.incidents[0] as { type: string }).type = "meteor";
+    storage.map.set(journeyKey("car"), JSON.stringify(bad));
+    const read = readJourney("car", storage)!;
+    expect(read.claims).toBeUndefined();
+    expect(read.vehicle).toEqual(fixture.vehicle);
+    expect(read.mainDriver).toEqual(fixture.mainDriver);
+    expect(read.namedDrivers).toEqual(fixture.namedDrivers);
+  });
+
+  it("keeps the driver answers when the car changes", () => {
+    const storage = memoryStorage();
+    storage.map.set(journeyKey("car"), JSON.stringify(fixture));
+    setVehicle({ ...fixture.vehicle!, catalogueVariantId: "fiesta-1", model: "Fiesta" }, storage);
+    expect(readJourney("car", storage)!.mainDriver).toEqual(fixture.mainDriver);
+  });
+
+  it("does nothing without a car journey", () => {
+    const storage = memoryStorage();
+    setStepAnswers("drivers", fixture.namedDrivers!, storage);
+    expect(storage.map.size).toBe(0);
   });
 });

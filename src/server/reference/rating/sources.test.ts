@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { STATUS_OCCUPATIONS } from "#/features/quote/occupation";
+
 import { expandCatalogue } from "../catalogue/expand";
 import { CATALOGUE_SOURCES } from "../catalogue/index";
 import { CALIBRATION_PEOPLE } from "./calibration";
@@ -11,6 +13,17 @@ const source = (product: RatingSource["product"]) =>
   RATING_SOURCES.find((s) => s.product === product)!;
 const factor = (s: RatingSource, name: string, band: string) =>
   s.factors.find((f) => f.factor === name && f.band === band)!;
+
+describe("the 5.3 status keys", () => {
+  it("are occupation keys in car v1", () => {
+    const keys = source("car")
+      .lookups.filter((l) => l.lookup === "occupation")
+      .map((l) => l.key);
+    for (const key of [...Object.values(STATUS_OCCUPATIONS), "self_employed"]) {
+      expect(keys).toContain(key);
+    }
+  });
+});
 
 describe("RATING_SOURCES v1", () => {
   it("has version 1 of car, home and business", () => {

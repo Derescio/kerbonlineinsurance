@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
+import { DriverSteps } from "#/features/quote/DriverSteps";
 import { JourneyShell } from "#/features/quote/JourneyShell";
 import { carSearch } from "#/features/quote/search";
 import { checkPostcode } from "#/features/quote/server";
@@ -30,9 +31,30 @@ export const Route = createFileRoute("/_site/quote/car")({
 });
 
 function CarQuotePage() {
-  const { postcode, vehicle } = Route.useSearch();
+  const { postcode, vehicle, step } = Route.useSearch();
   const navigate = Route.useNavigate();
   if (!postcode) return null;
+
+  // The driver steps and the holding quote view (5.3, call 5); no answer goes in the URL
+  if (step) {
+    return (
+      <JourneyShell product="car" postcode={postcode} current={step === "quote" ? 1 : 0}>
+        <noscript>
+          <p className="quote-noscript">The quote steps need JavaScript turned on.</p>
+        </noscript>
+        <DriverSteps
+          step={step}
+          onStep={(next, opts) =>
+            void navigate({
+              search: (current) => ({ ...current, vehicle: undefined, step: next }),
+              replace: opts?.replace,
+            })
+          }
+        />
+      </JourneyShell>
+    );
+  }
+
   return (
     <JourneyShell product="car" postcode={postcode}>
       <noscript>
@@ -43,6 +65,11 @@ function CarQuotePage() {
         onView={(next) =>
           void navigate({
             search: (current) => ({ ...current, vehicle: next === "plate" ? undefined : next }),
+          })
+        }
+        onContinue={() =>
+          void navigate({
+            search: (current) => ({ ...current, vehicle: undefined, step: "about" }),
           })
         }
       />

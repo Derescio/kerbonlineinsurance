@@ -413,3 +413,20 @@ export async function getActiveRatingVersion(
     .where(and(eq(ratingVersions.product, product), eq(ratingVersions.status, "active")));
   return row ?? null;
 }
+
+/**
+ * The active car version's occupations as key and label, A to Z by label (5.3, call 11): the
+ * driver steps' dropdown. The band is pricing, so it stays on the server. Throws when no car
+ * version is active. The tables are memoised per version; the active-version lookup is not.
+ */
+export async function getActiveOccupations(
+  db: Db = getDb(),
+): Promise<readonly { key: string; label: string }[]> {
+  const active = await getActiveRatingVersion(db, "car");
+  if (!active) throw new Error("No active car rating version");
+  const tables = await getRatingTables(db, active.id);
+  return tables.lookups
+    .filter((l) => l.lookup === "occupation")
+    .map(({ key, label }) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "en-GB"));
+}
