@@ -13,6 +13,12 @@ import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
 import type { QuoteStep } from "./search";
 import { addYears, todayIso } from "./schemas/dates";
+import { priceCar } from "./server";
+
+// The price (5.4) is mocked at the server-function boundary: the server's own tests price it
+vi.mock("./server", () => ({ priceCar: vi.fn() }));
+const price = vi.mocked(priceCar);
+const QUOTED = { status: "quoted", annualPence: 106_378, monthlyPaymentPence: 9_751 } as const;
 
 // The driver steps' screens (5.3): About you, Licence and driving (11), Claims (12) and Named
 // drivers (12a). Each test starts from a car journey on 11 Nov 2026.
@@ -71,7 +77,11 @@ async function fillDate(legend: string, day: string, month: string, year: string
   await userEvent.fill(g.getByRole("textbox", { name: "Year" }), year);
 }
 
-beforeEach(() => sessionStorage.clear());
+beforeEach(() => {
+  sessionStorage.clear();
+  price.mockReset();
+  price.mockResolvedValue(QUOTED);
+});
 
 describe("About you", () => {
   function renderAbout(queryClient = client()) {
@@ -424,7 +434,9 @@ describe("the driver steps in order", () => {
     renderFlow("drivers");
     await page.getByRole("button", { name: "Get my car quote" }).click();
     await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
-    await expect.element(page.getByText("Your price arrives in 5.4")).toBeVisible();
+    await expect
+      .element(page.getByText("£1,063.78 a year, or 12 payments of £97.51"))
+      .toBeVisible();
     await expect.element(page.getByText("Alex Morgan, born 12 May 1991")).toBeVisible();
     await expect
       .element(page.getByText("Full UK, 5 years’ no-claims, 8,000 miles a year"))
@@ -506,7 +518,9 @@ describe("the driver steps in order", () => {
     storeComplete();
     renderFlow("drivers");
     await page.getByRole("button", { name: "Get my car quote" }).click();
-    await expect.element(page.getByText("Your price arrives in 5.4")).toBeVisible();
+    await expect
+      .element(page.getByText("£1,063.78 a year, or 12 payments of £97.51"))
+      .toBeVisible();
     for (const typed of ["Alex", "Morgan", "Albion", "Jamie"]) {
       expect(window.location.href).not.toContain(typed);
     }
@@ -514,5 +528,189 @@ describe("the driver steps in order", () => {
 
   it("uses the London date", () => {
     expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("the price on the holding view (5.4)", () => {
+  const moves: { step: QuoteStep | undefined; replace: boolean }[] = [];
+  beforeEach(() => {
+    moves.length = 0;
+  });
+
+  function Harness({ initial }: { initial: QuoteStep }) {
+    const [step, setStep] = useState<QuoteStep | undefined>(initial);
+    return step ? (
+      <DriverSteps
+        step={step}
+        onStep={(next, opts) => {
+          moves.push({ step: next, replace: opts?.replace ?? false });
+          setStep(next);
+        }}
+      />
+    ) : (
+      <p>car step</p>
+    );
+  }
+
+  function showQuote() {
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    journey.lastPlate = "AB12 CDE";
+    journey.namedDrivers = {
+      any: true,
+      drivers: [{ ...journey.namedDrivers!.drivers[0]!, firstName: "Sam" }],
+    };
+    store(journey);
+    return withQuery(<Harness initial="quote" />);
+  }
+
+  const heading = () => page.getByRole("heading", { level: 1 });
+  const PRICE = "£1,063.78 a year, or 12 payments of £97.51";
+
+  it("shows the Comprehensive price, a year and monthly, with IPT", async () => {
+    await showQuote();
+    await expect
+      .element(page.getByRole("heading", { name: "Your Comprehensive price" }))
+      .toBeVisible();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    await expect.element(page.getByText("Premiums include Insurance Premium Tax.")).toBeVisible();
+    // The tab's journey went to the server, without the last plate typed
+    expect(price).toHaveBeenCalledTimes(1);
+    const sent = (price.mock.calls[0]![0] as { data: Journey }).data;
+    expect(sent.mainDriver?.firstName).toBe("Alex");
+    expect(sent).not.toHaveProperty("lastPlate");
+  });
+
+  it("names a named driver who needs checking, with no price", async () => {
+    price.mockResolvedValue({ status: "referred", namedDriver: 1 });
+    await showQuote();
+    await expect
+      .element(page.getByText("We need to check a couple of things about Sam."))
+      .toBeVisible();
+    await expect.element(page.getByText(PRICE)).not.toBeInTheDocument();
+  });
+
+  it("shows the plain referral line when no driver is the reason", async () => {
+    price.mockResolvedValue({ status: "referred", namedDriver: null });
+    await showQuote();
+    await expect
+      .element(page.getByText("We need to check a couple of things, usually within a day."))
+      .toBeVisible();
+  });
+
+  it("shows the plain decline line when no driver is the reason", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: null });
+    await showQuote();
+    await expect
+      .element(page.getByText("We can’t offer car cover for these details."))
+      .toBeVisible();
+  });
+
+  it("removes the driver who stopped the quote on the spot, and prices again", async () => {
+    price.mockResolvedValueOnce({ status: "declined", namedDriver: 1 }).mockResolvedValue(QUOTED);
+    await showQuote();
+    await expect
+      .element(
+        page.getByText(
+          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
+        ),
+      )
+      .toBeVisible();
+    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    // Still on the quote: Sam is gone from the tab's journey and the price is worked out again
+    await expect.element(heading()).toHaveTextContent("Your quote");
+    await expect.element(page.getByText("Sam has been removed from this quote.")).toBeVisible();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    expect(moves).toEqual([]);
+    expect(readJourney("car")!.namedDrivers).toEqual({ any: false, drivers: [] });
+    const sent = (price.mock.calls[1]![0] as { data: Journey }).data;
+    expect(sent.namedDrivers).toEqual({ any: false, drivers: [] });
+    expect(window.location.href).not.toContain("Sam");
+  });
+
+  it("puts a removed driver back with Undo, exactly as entered", async () => {
+    price
+      .mockResolvedValueOnce({ status: "declined", namedDriver: 1 })
+      .mockResolvedValueOnce(QUOTED)
+      .mockResolvedValue({ status: "declined", namedDriver: 1 });
+    await showQuote();
+    const before = readJourney("car")!.namedDrivers;
+    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    await page.getByRole("button", { name: "Add Sam back" }).click();
+    await expect
+      .element(
+        page.getByText(
+          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
+        ),
+      )
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Sam has been removed from this quote."))
+      .not.toBeInTheDocument();
+    expect(readJourney("car")!.namedDrivers).toEqual(before);
+  });
+
+  it("keeps the other named drivers when one is removed", async () => {
+    price.mockResolvedValueOnce({ status: "declined", namedDriver: 2 }).mockResolvedValue(QUOTED);
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    const jamie = journey.namedDrivers!.drivers[0]!;
+    journey.namedDrivers = {
+      any: true,
+      drivers: [jamie, { ...jamie, id: "d2", firstName: "Sam" }],
+    };
+    store(journey);
+    await withQuery(<Harness initial="quote" />);
+    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    expect(readJourney("car")!.namedDrivers).toEqual({ any: true, drivers: [jamie] });
+  });
+
+  it("sends a step the server finds invalid back to that step, replacing the history entry", async () => {
+    // Pushing would trap Back: it would return to the quote, which redirects again
+    price.mockResolvedValue({ status: "invalid", step: "driving" });
+    await showQuote();
+    await expect.element(heading()).toHaveTextContent("Your licence and driving");
+    expect(moves).toEqual([{ step: "driving", replace: true }]);
+  });
+
+  it("sends an invalid car back to the car step, replacing the history entry", async () => {
+    price.mockResolvedValue({ status: "invalid", step: "car" });
+    await showQuote();
+    await expect.element(page.getByText("car step")).toBeVisible();
+    expect(moves).toEqual([{ step: undefined, replace: true }]);
+  });
+
+  it("keeps one live region, so the price is announced when it arrives", async () => {
+    let resolve!: (value: typeof QUOTED) => void;
+    price.mockReturnValue(new Promise((r) => (resolve = r)));
+    await showQuote();
+    await expect.element(page.getByText("Working out your price…")).toBeVisible();
+    const region = document.querySelector('.quote-price[role="status"]');
+    expect(region?.textContent).toBe("Working out your price…");
+    resolve(QUOTED);
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    // The same element, still mounted, now holds the price
+    expect(region?.isConnected).toBe(true);
+    expect(region?.textContent).toContain(PRICE);
+  });
+
+  it("says when too many prices were asked for", async () => {
+    price.mockResolvedValue({ status: "rate_limited" });
+    await showQuote();
+    await expect
+      .element(
+        page.getByText("You’ve asked for a lot of prices in a short time. Try again in an hour."),
+      )
+      .toBeVisible();
+  });
+
+  it("offers Try again after a failure", async () => {
+    price.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(QUOTED);
+    await showQuote();
+    await expect.element(page.getByText("We couldn’t work out your price just now.")).toBeVisible();
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
   });
 });

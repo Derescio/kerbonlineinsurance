@@ -52,7 +52,8 @@ describe("generateSeed", () => {
 
   it("reconciles every quote", () => {
     for (const quote of plan.quotes) {
-      const items = plan.quoteItems.filter((i) => i.quoteId === quote.id);
+      // Only quoted items count (5.4): a referred item keeps its tier but adds nothing until approved
+      const items = plan.quoteItems.filter((i) => i.quoteId === quote.id && i.outcome === "quoted");
       const selected = items.flatMap((item) =>
         plan.quoteItemOptions.filter((o) => o.id === item.selectedOptionId),
       );

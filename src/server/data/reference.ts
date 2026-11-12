@@ -18,7 +18,7 @@ import type { CatalogueRow, MakeSource } from "#/server/reference/catalogue/type
 import { contentHash } from "#/server/reference/rating/hash";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { ratingSourceSchema, type RatingSource } from "#/server/reference/rating/types";
-import { validateRatingSource } from "#/server/reference/rating/validate";
+import { formulaProblems, validateRatingSource } from "#/server/reference/rating/validate";
 
 // Reference data (4.8, plan/phases/04-data-auth/08-reference-data.md). The deploy writes it as the
 // owner with upsertReferenceData (kerb_app can't, call 18); the app reads it through the memoised
@@ -64,7 +64,11 @@ function validate(sources: Sources): CatalogueRow[] {
       problems.push(...parsed.error.issues.map((i) => `${name}: ${i.path.join(".")} ${i.message}`));
       continue;
     }
-    problems.push(...validateRatingSource(parsed.data).map((problem) => `${name}: ${problem}`));
+    problems.push(
+      ...[...validateRatingSource(parsed.data), ...formulaProblems(parsed.data)].map(
+        (problem) => `${name}: ${problem}`,
+      ),
+    );
   }
   let rows: CatalogueRow[] = [];
   try {
@@ -356,7 +360,7 @@ async function loadRatingTables(db: Db, id: string): Promise<RatingTables> {
     db.select().from(ratingFactors).where(eq(ratingFactors.ratingVersionId, id)),
     db.select().from(ratingLookups).where(eq(ratingLookups.ratingVersionId, id)),
   ]);
-  return deepFreeze({
+  const tables = {
     id: version.id,
     product: version.product as Product,
     version: version.version,
@@ -388,7 +392,16 @@ async function loadRatingTables(db: Db, id: string): Promise<RatingTables> {
       group: l.group,
       band: l.band,
     })),
-  });
+  };
+  // Checked again as read (5.4, spec decision 9): a version that fails is never priced from
+  const problems = [
+    ...validateRatingSource({ ...tables, notes: "loaded" }),
+    ...formulaProblems(tables),
+  ];
+  if (problems.length > 0) {
+    throw new Error(`Rating version ${id} failed its check: ${problems.join("; ")}`);
+  }
+  return deepFreeze(tables);
 }
 
 /** One rating version's tables, loaded once per instance (5.4 prices from these). */
@@ -419,12 +432,20 @@ export async function getActiveRatingVersion(
  * driver steps' dropdown. The band is pricing, so it stays on the server. Throws when no car
  * version is active. The tables are memoised per version; the active-version lookup is not.
  */
+/** The product's active version's tables (5.4 prices from these). Throws when none is active. */
+export async function getActiveRatingTables(
+  product: Product,
+  db: Db = getDb(),
+): Promise<RatingTables> {
+  const active = await getActiveRatingVersion(db, product);
+  if (!active) throw new Error(`No active ${product} rating version`);
+  return getRatingTables(db, active.id);
+}
+
 export async function getActiveOccupations(
   db: Db = getDb(),
 ): Promise<readonly { key: string; label: string }[]> {
-  const active = await getActiveRatingVersion(db, "car");
-  if (!active) throw new Error("No active car rating version");
-  const tables = await getRatingTables(db, active.id);
+  const tables = await getActiveRatingTables("car", db);
   return tables.lookups
     .filter((l) => l.lookup === "occupation")
     .map(({ key, label }) => ({ key, label }))

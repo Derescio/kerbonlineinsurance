@@ -1,11 +1,13 @@
 import { Card } from "#/components/display/Card";
 
 import type { Journey } from "./journey-store";
+import type { NamedDrivers } from "./schemas/driver-steps";
+import { QuotePrice } from "./QuotePrice";
 import { licenceOptions } from "./schemas/driver-steps";
 import { StepHeading } from "./step-kit";
 import type { DriverStep } from "./steps";
 
-// The holding "Your quote" view (5.3, call 17): where "Get my car quote" lands until 5.4 prices it.
+// The "Your quote" view (5.3, call 17): the price from 5.4 above a summary of the answers.
 // One short line per step (plan P3), each with an Edit button back to that step.
 
 const longDate = new Intl.DateTimeFormat("en-GB", {
@@ -57,15 +59,21 @@ function rows(journey: Journey): { step: DriverStep; title: string; value: strin
 export function QuoteHolding({
   journey,
   onEdit,
+  onNamedDrivers,
+  onInvalid,
 }: {
   journey: Journey;
   onEdit: (step: DriverStep) => void;
+  /** Saves the named drivers after one is removed or put back from the price (5.4) */
+  onNamedDrivers: (namedDrivers: NamedDrivers) => void;
+  /** Where the server sends a step that no longer passes (5.4) */
+  onInvalid: (step: "car" | DriverStep) => void;
 }) {
   return (
     <>
       <StepHeading overline="Car · Your quote" title="Your quote" />
       <Card padding="lg" className="quote-slot">
-        <p>Your price arrives in 5.4</p>
+        <QuotePrice journey={journey} onNamedDrivers={onNamedDrivers} onInvalid={onInvalid} />
       </Card>
       <section className="quote-panel" aria-label="Your answers">
         <dl className="quote-summary">

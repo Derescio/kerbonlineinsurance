@@ -16,6 +16,27 @@ export const quoteStatuses = [
   "expired",
 ] as const;
 export const underwritingOutcomes = ["quoted", "referred", "declined"] as const;
+// Why an item was referred or declined (5.4, spec decision 8). Rule types are code; the numbers that
+// trigger them are rating-version data.
+export const reasonCodes = [
+  "outside_cover_area",
+  "vehicle_value_too_high",
+  "young_driver_high_group",
+  "high_insurance_group",
+  "high_vehicle_value",
+  "past_claims",
+  "new_licence_high_group",
+  "driver_age",
+  "rebuild_cost_too_high",
+  "high_rebuild_cost",
+  "high_contents_value",
+  "old_property",
+  "high_turnover",
+  "many_employees",
+  "high_risk_employees",
+  "premium_above_max",
+] as const;
+export type ReasonCode = (typeof reasonCodes)[number];
 export const ratingVersionStatuses = ["draft", "active", "retired"] as const;
 export const paymentPlans = ["annual", "monthly"] as const;
 export const paymentStatuses = ["scheduled", "succeeded", "failed", "refunded"] as const;

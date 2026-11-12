@@ -56,7 +56,7 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 11 | Car · Licence & driving | `226:669` | 5.3 |
 | 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too | `226:684` | 5.3 |
 | 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3) | `235:1638` | 5.3 |
-| 13 | Cover cards & comparison (1440 wide) | `226:699` | 5.5 |
+| 13 | Cover cards & comparison (1440 wide). Its monthly figures (annual ÷ 12) and footnote are out of date: paying monthly costs 10% more, so £458.40 a year is 12 payments of £42.02 (5.4, decision 1) | `226:699` | 5.5 |
 | 14 | Before payment · Sign in | `226:714` | 5.6 |
 | 15 | Before payment · Create account | `226:729` | 5.6 |
 | 16 | Retrieve quote · Access (email link): **not built**, sign-in only (Damion, 9 Nov 2026) | `226:744` | — |

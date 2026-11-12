@@ -148,6 +148,23 @@ export function sessionStore(): JourneyStorage | null {
   }
 }
 
+/**
+ * A journey object read part by part (call 15): null when the base fails, and a part that fails is
+ * dropped alone. The tab reads storage with it; the price server function (5.4) reads its input.
+ */
+export function parseJourney(json: unknown): Journey | null {
+  const base = baseSchema.safeParse(json);
+  if (!base.success) return null;
+  const journey: Journey = base.data;
+  const record = json as Record<string, unknown>;
+  for (const [key, schema] of Object.entries(partSchemas)) {
+    if (record[key] === undefined) continue;
+    const part = schema.safeParse(record[key]);
+    if (part.success) Object.assign(journey, { [key]: part.data });
+  }
+  return journey;
+}
+
 export function readJourney(
   product: BuyableProductId,
   storage: JourneyStorage | null = sessionStore(),
@@ -155,17 +172,7 @@ export function readJourney(
   try {
     const raw = storage?.getItem(journeyKey(product));
     if (!raw) return null;
-    const json: unknown = JSON.parse(raw);
-    const base = baseSchema.safeParse(json);
-    if (!base.success) return null;
-    const journey: Journey = base.data;
-    const record = json as Record<string, unknown>;
-    for (const [key, schema] of Object.entries(partSchemas)) {
-      if (record[key] === undefined) continue;
-      const part = schema.safeParse(record[key]);
-      if (part.success) Object.assign(journey, { [key]: part.data });
-    }
-    return journey;
+    return parseJourney(JSON.parse(raw));
   } catch {
     return null;
   }

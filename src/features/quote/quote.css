@@ -155,6 +155,19 @@
   margin: 0;
   color: var(--fg-2);
 }
+/* The price (5.4): the Comprehensive price above its IPT note */
+.quote-price {
+  display: grid;
+  gap: var(--space-2);
+  /* Buttons size to their text, not the card */
+  justify-items: start;
+}
+.quote-price__title {
+  margin: 0;
+}
+.quote-slot .quote-price__amount {
+  color: var(--fg-1);
+}
 
 /* The car step (5.2): screens 08 (226:624), 09 (226:639) and 10 (226:654) */
 .quote-panel {

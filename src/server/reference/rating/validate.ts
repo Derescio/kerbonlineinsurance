@@ -181,3 +181,49 @@ export function validateRatingSource(source: RatingSource): string[] {
 
   return problems;
 }
+
+/**
+ * The factor names each product's formulas read (src/features/rating/rate.ts). A version must have
+ * exactly these (5.4, spec decision 9): a missing one would throw mid-quote, and an extra one is
+ * a factor nobody prices, so a typo can't hide.
+ */
+export const REQUIRED_FACTORS: Readonly<Record<Product, readonly string[]>> = {
+  car: [
+    "driver_age",
+    "no_claims_years",
+    "licence_years",
+    "insurance_group",
+    "annual_mileage",
+    "usage",
+    "overnight_location",
+    "fuel_type",
+    "vehicle_age",
+    "past_claims",
+    "voluntary_excess",
+    "named_driver_age",
+    "occupation_band",
+    "postcode_band",
+  ],
+  home: [
+    "property_type",
+    "year_built",
+    "buildings_postcode_band",
+    "contents_postcode_band",
+    "burglar_alarm",
+    "lock_type",
+    "smoke_alarm",
+    "bedrooms",
+    "past_claims",
+  ],
+  business: ["trade_band", "turnover_band", "postcode_band"],
+};
+
+/** Factor names against the formulas: unknown ones first, then missing ones */
+export function formulaProblems(source: Pick<RatingSource, "product" | "factors">): string[] {
+  const required = new Set(REQUIRED_FACTORS[source.product]);
+  const present = new Set(source.factors.map((f) => f.factor));
+  return [
+    ...[...present].filter((f) => !required.has(f)).map((f) => `unknown factor ${f}`),
+    ...[...required].filter((f) => !present.has(f)).map((f) => `missing factor ${f}`),
+  ];
+}

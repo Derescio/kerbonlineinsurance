@@ -2,7 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { UK_POSTCODE_AREAS } from "../postcode-areas";
 import type { RatingSource } from "./types";
-import { REQUIRED_PARAMETERS, validateRatingSource } from "./validate";
+import { RATING_SOURCES } from "./index";
+import { formulaProblems, REQUIRED_PARAMETERS, validateRatingSource } from "./validate";
 
 // A minimal valid car source: every required parameter, the three tiers, one range factor, one
 // categorical factor and a postcode lookup covering all 121 areas.
@@ -121,5 +122,24 @@ describe("validateRatingSource", () => {
     ],
   ])("refuses %s", (_label, change, message) => {
     expect(problems(change).join("\n")).toContain(message);
+  });
+});
+
+describe("formulaProblems (5.4)", () => {
+  it("accepts every v1: each has exactly the factors its formulas read", () => {
+    for (const source of RATING_SOURCES) expect(formulaProblems(source)).toEqual([]);
+  });
+
+  it("names a factor the formulas don't read, and one they need that's missing", () => {
+    const car = structuredClone(RATING_SOURCES.find((s) => s.product === "car")!);
+    car.factors = car.factors.filter((f) => f.factor !== "usage");
+    car.factors.push({
+      factor: "star_sign",
+      band: "leo",
+      rangeFrom: null,
+      rangeTo: null,
+      multiplier: 1,
+    });
+    expect(formulaProblems(car)).toEqual(["unknown factor star_sign", "missing factor usage"]);
   });
 });

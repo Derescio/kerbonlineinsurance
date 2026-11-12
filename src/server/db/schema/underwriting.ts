@@ -16,7 +16,7 @@ import {
 import { createdAt, id, oneOf, updatedAt } from "./columns";
 import { quoteItems } from "./quotes";
 import { staffMembers } from "./staff";
-import { products, ratingVersionStatuses, underwritingOutcomes } from "./values";
+import { products, ratingVersionStatuses, reasonCodes, underwritingOutcomes } from "./values";
 
 // One row per product and version of its rates (4.2, decision 13), filled in 4.8. Each quote item
 // points at the version that rated it, so changing rates never changes an issued quote.
@@ -78,6 +78,7 @@ export const underwritingDecisions = pgTable(
       "underwriting_decisions_reason_code_check",
       sql`${t.outcome} = 'quoted' or ${t.reasonCode} is not null`,
     ),
+    check("underwriting_decisions_reason_code_values_check", oneOf(t.reasonCode, reasonCodes)),
     check(
       "underwriting_decisions_loading_percent_check",
       sql`${t.loadingPercent} is null or (${t.outcome} = 'quoted' and ${t.loadingPercent} between 0 and 100)`,

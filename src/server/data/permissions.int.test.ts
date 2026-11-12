@@ -258,7 +258,7 @@ describe("staff reads", () => {
     const itemId = items[0]!.item.id;
     await getDb()
       .update(quoteItems)
-      .set({ outcome: "referred", reasonCode: "high_value_vehicle" })
+      .set({ outcome: "referred", reasonCode: "high_vehicle_value" })
       .where(eq(quoteItems.id, itemId));
     const referral = await data.staffGetReferral(world.handler, { quoteItemId: itemId });
     expect(referral.quoteItemId).toBe(itemId);
@@ -384,7 +384,8 @@ describe("audit of staff views (4.5b)", () => {
 // the catalogue and rates, the same for everyone and written only by the deploy (4.8); file-rows.ts
 // is the upload row helpers behind the account hooks and the cleanup (4.10); job-rows.ts is the
 // jobs table's helpers behind the runner (4.11); event-rows.ts is the guest funnel writes (5.1);
-// postcode-rows.ts is the guest postcode cache (5.2).
+// postcode-rows.ts is the guest postcode cache (5.2); quote-rows.ts and save-quote.ts are a priced
+// quote's row builder and its transaction (5.4), which 5.6 wraps in a protected write.
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -398,6 +399,8 @@ const modules = import.meta.glob(
     "!./job-rows.ts",
     "!./event-rows.ts",
     "!./postcode-rows.ts",
+    "!./quote-rows.ts",
+    "!./save-quote.ts",
   ],
   {
     eager: true,

@@ -24,12 +24,32 @@ export function getOwnerDb(): Db {
 // Empties every table in `public` between test cases (call it in beforeEach). The migrations table
 // lives in the `drizzle` schema, so it's kept.
 export async function truncateAll(): Promise<void> {
+  await truncateExcept([]);
+}
+
+/** The deploy's reference tables (4.8): the catalogue and the rating versions */
+export const REFERENCE_TABLES = [
+  "vehicle_catalogue",
+  "rating_versions",
+  "rating_parameters",
+  "rating_tiers",
+  "rating_addons",
+  "rating_factors",
+  "rating_lookups",
+];
+
+/**
+ * truncateAll() keeping some tables: a file that loads the reference data once (5.4) clears only
+ * what its tests write. Nothing kept may reference a table that's emptied.
+ */
+export async function truncateExcept(keep: readonly string[]): Promise<void> {
   const db = getOwnerDb();
   const { rows } = await db.execute<{ tablename: string }>(
     sql`select tablename from pg_tables where schemaname = 'public'`,
   );
-  if (rows.length === 0) return;
-  const tables = rows.map(({ tablename }) => `"public"."${tablename}"`).join(", ");
+  const emptied = rows.filter(({ tablename }) => !keep.includes(tablename));
+  if (emptied.length === 0) return;
+  const tables = emptied.map(({ tablename }) => `"public"."${tablename}"`).join(", ");
   await db.execute(sql.raw(`truncate table ${tables} restart identity cascade`));
 }
 

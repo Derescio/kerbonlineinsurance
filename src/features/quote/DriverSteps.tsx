@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AboutYouStep } from "./AboutYouStep";
 import { ClaimsStep } from "./ClaimsStep";
-import { readJourney, type Journey } from "./journey-store";
+import { readJourney, setStepAnswers, type Journey } from "./journey-store";
 import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
 import { QuoteHolding } from "./QuoteHolding";
@@ -117,6 +117,17 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
           onEdit={(s) => {
             fromSummary.current = true;
             onStep(s);
+          }}
+          onNamedDrivers={(namedDrivers) => {
+            // Removing a driver from the quote view (5.4): saved, then priced again in place
+            setStepAnswers("drivers", namedDrivers);
+            const saved = readJourney("car");
+            if (saved) setView((v) => (v ? { ...v, journey: saved } : v));
+          }}
+          onInvalid={(s) => {
+            // Replaced, not pushed: Back would return to the quote, which redirects again
+            if (s !== "car") fromSummary.current = true;
+            onStep(s === "car" ? undefined : s, { replace: true });
           }}
         />
       ) : null}

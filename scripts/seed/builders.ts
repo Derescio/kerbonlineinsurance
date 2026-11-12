@@ -1,12 +1,14 @@
+import { priceQuote, quoteTotals, type PricedItem } from "#/features/rating/price-quote";
+import type { PricedAddon, PricedOption, RatingInputs } from "#/features/rating/types";
+import { itemRows, quoteStatus, type ItemDetails } from "#/server/data/quote-rows";
 import type { CatalogueRecord } from "#/server/data/reference";
 import type { CoverLevel, Product } from "#/server/db/schema/values";
 import { POSTCODE_AREAS_V1 } from "#/server/reference/postcode-areas";
 
-import { ipt, priceItem, type PricedAddon, type PricedItem, type PricedOption } from "./pricer.ts";
 import { type Rng, SEED_TO, uuidv7At } from "./random.ts";
 import type { SeedContext, SeedPlan, SeedUser } from "./types.ts";
 
-// One customer's records, a step at a time (4.9): sign-up → quote (priced by the stand-in, with
+// One customer's records, a step at a time (4.9): sign-up → quote (priced by 5.4's priceQuote(), with
 // its options, add-ons, factors, details and first decision) → referral decision → purchase
 // (bundle, payments, policies) → claims → review → closure. Every row gets a backdated createdAt;
 // the writer fills updatedAt from it where a builder leaves it out. Funnel events and
@@ -288,149 +290,137 @@ export class SeedBuilder {
   private item(rng: Rng, quote: QuoteHandle, spec: ItemSpec, at: Date): ItemHandle {
     const area = postcodeArea(quote.customer.postcode);
     const version = this.ctx.versions[spec.product];
-    const priced = priceItem(version.source, this.pricingInputs(spec, area, at));
-    const id = uuidv7At(at, rng);
+    // Priced by 5.4's engine, one item at a time: the bundle is a quote total (settle)
+    const priced = priceQuote([
+      {
+        ...this.ratingInputs(spec, area, at),
+        tables: { ...version.source, id: version.id },
+        coverLevel: spec.coverLevel,
+        addons: spec.addons,
+      },
+    ]).items[0]!;
     const startDate = addDays(at, rng.int(1, 14));
     const voluntaryExcessPence = spec.product === "car" ? spec.voluntaryExcessPence : 0;
 
-    const options = priced.options.map((o) => ({ ...o, id: uuidv7At(at, rng) }));
-    const option = options.find((o) => o.coverLevel === spec.coverLevel)!;
-    const row: SeedPlan["quoteItems"][number] = {
-      id,
+    const rows = itemRows(priced, {
       quoteId: quote.id,
-      product: spec.product,
       ratingVersionId: version.id,
-      outcome: priced.outcome,
-      reasonCode: priced.reasonCode,
-      // A declined item has no selection, so it adds nothing to the total
-      selectedOptionId: priced.outcome === "declined" ? null : option.id,
-      voluntaryExcessPence,
+      at,
+      newId: () => uuidv7At(at, rng),
       startDate: isoDate(startDate),
-      createdAt: at,
-      updatedAt: at,
-    };
-    this.plan.quoteItems.push(row);
-    for (const o of options) {
-      this.plan.quoteItemOptions.push({
-        id: o.id,
-        quoteItemId: id,
-        coverLevel: o.coverLevel,
-        coverMultiplier: o.coverMultiplier.toFixed(4),
-        compulsoryExcessPence: o.compulsoryExcessPence,
-        annualPremiumPence: o.annualPremiumPence,
-        monthlyPremiumPence: o.monthlyPremiumPence,
-        createdAt: at,
-      });
-    }
-    const selectedAddons = priced.addons.filter(
-      (a) => priced.outcome !== "declined" && spec.addons.includes(a.addon),
-    );
-    for (const a of priced.addons) {
-      this.plan.quoteItemAddons.push({
-        id: uuidv7At(at, rng),
-        quoteItemId: id,
-        addon: a.addon,
-        annualPricePence: a.annualPricePence,
-        monthlyPricePence: a.monthlyPricePence,
-        selected: selectedAddons.includes(a),
-        createdAt: at,
-      });
-    }
-    for (const f of priced.factors) {
-      this.plan.quoteItemFactors.push({
-        quoteItemId: id,
-        factor: f.factor,
-        inputValue: f.inputValue,
-        multiplier: f.multiplier.toFixed(4),
-        createdAt: at,
-      });
-    }
-    this.plan.underwritingDecisions.push({
-      quoteItemId: id,
-      outcome: priced.outcome,
-      reasonCode: priced.reasonCode,
-      decidedBy: null,
-      createdAt: at,
+      voluntaryExcessPence,
+      details: this.details(rng, spec, quote.customer.id),
     });
-    this.details(rng, id, spec, at, quote.customer.id);
+    this.plan.quoteItems.push(rows.item);
+    this.plan.quoteItemOptions.push(...rows.options);
+    this.plan.quoteItemAddons.push(...rows.addons);
+    this.plan.quoteItemFactors.push(...rows.factors);
+    this.plan.underwritingDecisions.push(rows.decision);
+    this.plan.vehicles.push(...rows.vehicles);
+    this.plan.drivers.push(...rows.drivers);
+    this.plan.properties.push(...rows.properties);
+    this.plan.businesses.push(...rows.businesses);
 
+    const option = rows.options.find((o) => o.coverLevel === spec.coverLevel)!;
     return {
-      id,
+      id: rows.item.id,
       product: spec.product,
       priced,
-      option,
-      addons: selectedAddons,
+      option: { ...priced.options.find((o) => o.coverLevel === spec.coverLevel)!, id: option.id },
+      addons:
+        priced.outcome === "declined"
+          ? []
+          : priced.addons.filter((a) => spec.addons.includes(a.addon)),
       startDate,
       voluntaryExcessPence,
-      row,
+      row: rows.item,
     };
   }
 
-  private pricingInputs(spec: ItemSpec, area: string, at: Date) {
+  private ratingInputs(spec: ItemSpec, area: string, at: Date): RatingInputs {
     switch (spec.product) {
-      case "car":
+      case "car": {
+        const named = spec.namedDriver;
         return {
-          product: "car" as const,
+          product: "car",
           inputs: {
             vehicle: {
-              make: spec.variant.make,
-              model: spec.variant.model,
               year: spec.variant.year,
-              variant: spec.variant.variant,
               insuranceGroup: spec.variant.insuranceGroup,
               fuelType: spec.variant.fuelType,
               valuePence: spec.variant.valuePence,
             },
-            driver: { ...spec.driver, age: ageAt(spec.driver.dateOfBirth, at) },
-            namedDriver: spec.namedDriver
-              ? { age: ageAt(spec.namedDriver.dateOfBirth, at) }
-              : undefined,
+            driver: {
+              age: ageAt(spec.driver.dateOfBirth, at),
+              occupation: spec.driver.occupation,
+              licenceYears: spec.driver.licenceYears,
+              noClaimsYears: spec.driver.noClaimsYears,
+            },
+            namedDrivers: named
+              ? [{ age: ageAt(named.dateOfBirth, at), licenceYears: named.licenceYears }]
+              : [],
+            // Every driver's claims count (5.4, spec decision 5)
+            pastClaims: spec.driver.pastClaims + (named?.pastClaims ?? 0),
             postcodeArea: area,
             annualMileage: spec.annualMileage,
             usage: spec.usage,
             overnightLocation: spec.overnightLocation,
             voluntaryExcessPence: spec.voluntaryExcessPence,
-            coverLevel: spec.coverLevel,
           },
         };
+      }
       case "home":
-        return { product: "home" as const, inputs: { ...spec, postcodeArea: area } };
+        return {
+          product: "home",
+          inputs: {
+            postcodeArea: area,
+            propertyType: spec.propertyType,
+            yearBuilt: spec.yearBuilt,
+            bedrooms: spec.bedrooms,
+            rebuildCostPence: spec.rebuildCostPence,
+            contentsValuePence: spec.contentsValuePence,
+            hasAlarm: spec.hasAlarm,
+            hasSmokeAlarm: spec.hasSmokeAlarm,
+            lockType: spec.lockType,
+            pastClaims: spec.pastClaims,
+          },
+        };
       case "business":
-        return { product: "business" as const, inputs: { ...spec, postcodeArea: area } };
+        return {
+          product: "business",
+          inputs: {
+            tradeClass: spec.tradeClass,
+            postcodeArea: area,
+            turnoverPence: spec.turnoverPence,
+            employees: spec.employees,
+          },
+        };
     }
   }
 
-  private details(rng: Rng, itemId: string, spec: ItemSpec, at: Date, customerId: string) {
+  private details(rng: Rng, spec: ItemSpec, customerId: string): ItemDetails {
     switch (spec.product) {
       case "car": {
         const v = spec.variant;
-        this.plan.vehicles.push({
-          quoteItemId: itemId,
-          make: v.make,
-          model: v.model,
-          year: v.year,
-          variant: v.variant,
-          fuelType: v.fuelType,
-          doors: v.doors,
-          insuranceGroup: v.insuranceGroup,
-          valuePence: v.valuePence,
-          catalogueVariantId: v.id,
-          registration: spec.registration,
-          currentMileage: Math.max(0, (2026 - v.year) * spec.annualMileage + rng.int(0, 3_000)),
-          annualMileage: spec.annualMileage,
-          usage: spec.usage,
-          overnightLocation: spec.overnightLocation,
-          createdAt: at,
-        });
-        const drivers = [
-          { ...spec.driver, isMain: true },
-          ...(spec.namedDriver ? [{ ...spec.namedDriver, isMain: false }] : []),
-        ];
-        for (const d of drivers) {
-          this.plan.drivers.push({
-            id: uuidv7At(at, rng),
-            quoteItemId: itemId,
-            isMain: d.isMain,
+        return {
+          product: "car",
+          vehicle: {
+            make: v.make,
+            model: v.model,
+            year: v.year,
+            variant: v.variant,
+            fuelType: v.fuelType,
+            doors: v.doors,
+            insuranceGroup: v.insuranceGroup,
+            valuePence: v.valuePence,
+            catalogueVariantId: v.id,
+            registration: spec.registration,
+            currentMileage: Math.max(0, (2026 - v.year) * spec.annualMileage + rng.int(0, 3_000)),
+            annualMileage: spec.annualMileage,
+            usage: spec.usage,
+            overnightLocation: spec.overnightLocation,
+          },
+          drivers: [spec.driver, ...(spec.namedDriver ? [spec.namedDriver] : [])].map((d) => ({
             firstName: d.firstName,
             lastName: d.lastName,
             dateOfBirth: d.dateOfBirth,
@@ -438,74 +428,66 @@ export class SeedBuilder {
             licenceYears: d.licenceYears,
             noClaimsYears: d.noClaimsYears,
             pastClaims: d.pastClaims,
-            createdAt: at,
-          });
-        }
-        return;
+          })),
+        };
       }
       case "home": {
         const customer = this.plan.customers.find((c) => c.id === customerId)!;
-        this.plan.properties.push({
-          quoteItemId: itemId,
-          addressLine1: spec.addressLine1,
-          town: customer.town,
-          postcode: customer.postcode,
-          propertyType: spec.propertyType,
-          yearBuilt: spec.yearBuilt,
-          bedrooms: spec.bedrooms,
-          rebuildCostPence: spec.rebuildCostPence,
-          contentsValuePence: spec.contentsValuePence,
-          hasAlarm: spec.hasAlarm,
-          hasSmokeAlarm: spec.hasSmokeAlarm,
-          lockType: spec.lockType,
-          pastClaims: spec.pastClaims,
-          createdAt: at,
-        });
-        return;
+        return {
+          product: "home",
+          property: {
+            addressLine1: spec.addressLine1,
+            town: customer.town,
+            postcode: customer.postcode,
+            propertyType: spec.propertyType,
+            yearBuilt: spec.yearBuilt,
+            bedrooms: spec.bedrooms,
+            rebuildCostPence: spec.rebuildCostPence,
+            contentsValuePence: spec.contentsValuePence,
+            hasAlarm: spec.hasAlarm,
+            hasSmokeAlarm: spec.hasSmokeAlarm,
+            lockType: spec.lockType,
+            pastClaims: spec.pastClaims,
+          },
+        };
       }
       case "business":
-        this.plan.businesses.push({
-          quoteItemId: itemId,
-          tradeClass: spec.tradeClass,
-          turnoverPence: spec.turnoverPence,
-          employees: spec.employees,
-          coverSections: spec.addons,
-          createdAt: at,
-        });
-        return;
+        return {
+          product: "business",
+          business: {
+            tradeClass: spec.tradeClass,
+            turnoverPence: spec.turnoverPence,
+            employees: spec.employees,
+            coverSections: spec.addons,
+          },
+        };
     }
   }
 
-  /** Status and totals from the items' outcomes and selections (the 4.2 CHECKs reconcile them) */
+  /** Status and totals from the quoted items, by 5.4's rules (the 4.2 CHECKs reconcile them) */
   private settle(quote: QuoteHandle, at: Date) {
-    const live = quote.items.filter((i) => i.row.outcome !== "declined");
-    const subtotal = live.reduce(
-      (sum, i) =>
-        sum + i.option.annualPremiumPence + i.addons.reduce((s, a) => s + a.annualPricePence, 0),
-      0,
+    const totals = quoteTotals(
+      quote.items
+        .filter((i) => i.row.outcome === "quoted")
+        .map((i) => {
+          const p = this.ctx.versions[i.product].source.parameters;
+          return {
+            product: i.product,
+            premiumPence: i.option.annualPremiumPence,
+            addonsPence: i.addons.reduce((sum, a) => sum + a.annualPricePence, 0),
+            iptRate: p.ipt_rate!,
+            feePence: p.fee_pence!,
+            bundleRate: p.bundle_discount_rate!,
+          };
+        }),
     );
-    const first = quote.items[0];
-    const discountRate =
-      live.length >= 2 && first
-        ? this.ctx.versions[first.product].source.parameters.bundle_discount_rate!
-        : 0;
-    const discount = Math.round(subtotal * discountRate);
-    const iptRate = first?.priced.iptRate ?? 0;
-    const tax = ipt(subtotal - discount, iptRate);
     Object.assign(quote.row, {
-      subtotalPence: subtotal,
-      bundleDiscountPence: discount,
-      feesPence: 0,
-      iptPence: tax,
-      totalPence: subtotal - discount + tax,
-      status:
-        quote.items.length === 0
-          ? "draft"
-          : live.length === 0
-            ? "declined"
-            : live.some((i) => i.row.outcome === "referred")
-              ? "referred"
-              : "priced",
+      subtotalPence: totals.subtotalPence,
+      bundleDiscountPence: totals.bundleDiscountPence,
+      feesPence: totals.feesPence,
+      iptPence: totals.iptPence,
+      totalPence: totals.totalPence,
+      status: quoteStatus(quote.items.map((i) => i.row.outcome as PricedItem["outcome"])),
       updatedAt: at,
     });
   }

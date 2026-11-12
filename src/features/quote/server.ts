@@ -3,6 +3,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 
 import { publicMiddleware } from "#/server/auth/middleware";
 import type { PostcodeCheck } from "#/server/quote/postcode";
+import type { CarPriceResult } from "#/server/quote/price";
 import type { StartQuoteInput } from "#/server/quote/start";
 
 // The quote journey's server functions. Server modules are imported inside the handlers, which
@@ -24,4 +25,16 @@ export const checkPostcode = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ result: PostcodeCheck }> => {
     const { checkPostcodeExists } = await import("#/server/quote/postcode");
     return { result: await checkPostcodeExists(data.postcode, getRequestHeaders()) };
+  });
+
+/**
+ * The car journey's Comprehensive price, or why there isn't one (5.4, spec decision 3). The tab
+ * sends its journey; the server checks it again and prices it. Nothing is saved.
+ */
+export const priceCar = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data }): Promise<CarPriceResult> => {
+    const { priceCarJourney } = await import("#/server/quote/price");
+    return priceCarJourney(data, getRequestHeaders());
   });
