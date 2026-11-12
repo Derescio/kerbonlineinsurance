@@ -1,6 +1,6 @@
 # 5.4 Rating engine
 
-**Status:** approved (Damion, 12 Nov 2026). Plan in [04-rating-engine-plan.md](04-rating-engine-plan.md)
+**Status:** done (PR pending; the E2E on the preview, the manual check on staging and the dev reseed still to record). Plan in [04-rating-engine-plan.md](04-rating-engine-plan.md)
 **Phase:** 05-quote
 
 ## Goal
@@ -116,7 +116,7 @@ The calculator behind every price Kerb shows. `priceQuote()` takes what the quot
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally (12 Nov 2026): `vp check` clean, `vp test` 130 files and 1,707 tests, `vp build`. The E2E (the Golf's price, the Tesla's decline naming the driver, axe on the quote view) runs on the PR's preview.
 - [ ] The manual check passes, with the results recorded here.
 
 ## Commit message
