@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
@@ -35,6 +35,10 @@ describe("DetailsTabs", () => {
 });
 
 describe("CarCard", () => {
+  afterEach(async () => {
+    await page.viewport(414, 896);
+  });
+
   it("shows only what's chosen so far, with the postcode", async () => {
     await render(<CarCard car={{ make: "Tesla" }} postcode="E8 3RL" />);
     await expect.element(page.getByText("Tesla", { exact: true })).toBeVisible();
@@ -43,6 +47,7 @@ describe("CarCard", () => {
   });
 
   it("shows the whole car, and Change calls back", async () => {
+    await page.viewport(1280, 900);
     const onChange = vi.fn();
     await render(
       <CarCard
@@ -62,6 +67,22 @@ describe("CarCard", () => {
     await expect.element(page.getByText("2024 · Electric · 4 doors")).toBeVisible();
     await page.getByRole("button", { name: "Change car or postcode" }).click();
     expect(onChange).toHaveBeenCalledOnce();
+  });
+
+  it("is one line at phone width: the name, postcode and Change", async () => {
+    await page.viewport(360, 800);
+    await render(
+      <CarCard
+        car={{ make: "Tesla", model: "Model 3", variant: "RWD", year: 2024, doors: 4 }}
+        postcode="E8 3RL"
+        onChange={() => {}}
+      />,
+    );
+    await expect.element(page.getByText("Tesla Model 3 RWD")).toBeVisible();
+    await expect.element(page.getByText("2024 · 4 doors")).not.toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "Change car or postcode" }))
+      .toBeVisible();
   });
 
   it("shows only the postcode before a car is chosen", async () => {
