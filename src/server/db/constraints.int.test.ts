@@ -112,6 +112,29 @@ describe("Postgres integrity rules", () => {
       await expectRefused(makeClaim({ status: "lost" }), CHECK, "claims_status_check");
     });
 
+    it("refuses a reason code outside 5.4's list", async () => {
+      const { items } = await makeQuote();
+      const itemId = items[0]!.item.id;
+      await expectRefused(
+        db().execute(
+          sql`update quote_items set outcome = 'referred', reason_code = 'made_up' where id = ${itemId}`,
+        ),
+        CHECK,
+        "quote_items_reason_code_values_check",
+      );
+      await expectRefused(
+        db()
+          .insert(underwritingDecisions)
+          .values({ quoteItemId: itemId, outcome: "referred", reasonCode: "made_up" }),
+        CHECK,
+        "underwriting_decisions_reason_code_values_check",
+      );
+      // A listed code is accepted
+      await db()
+        .insert(underwritingDecisions)
+        .values({ quoteItemId: itemId, outcome: "referred", reasonCode: "past_claims" });
+    });
+
     it("refuses a customer with no postcode", async () => {
       const user = await makeUser();
       await expectRefused(
