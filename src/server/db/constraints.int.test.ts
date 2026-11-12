@@ -607,7 +607,7 @@ describe("Postgres integrity rules", () => {
         db().insert(underwritingDecisions).values({
           quoteItemId: items[0]!.item.id,
           outcome: "declined",
-          reasonCode: "too_young",
+          reasonCode: "driver_age",
           loadingPercent: 10,
         }),
         CHECK,

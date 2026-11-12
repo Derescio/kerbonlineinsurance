@@ -258,7 +258,7 @@ describe("staff reads", () => {
     const itemId = items[0]!.item.id;
     await getDb()
       .update(quoteItems)
-      .set({ outcome: "referred", reasonCode: "high_value_vehicle" })
+      .set({ outcome: "referred", reasonCode: "high_vehicle_value" })
       .where(eq(quoteItems.id, itemId));
     const referral = await data.staffGetReferral(world.handler, { quoteItemId: itemId });
     expect(referral.quoteItemId).toBe(itemId);
