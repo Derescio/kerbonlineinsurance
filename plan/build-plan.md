@@ -65,10 +65,12 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 6.5 **Damage + review + submit**: damage photos and claim documents (PDF)
 - [ ] 6.6 **Claim tracker** (shows `claim_events` written by staff in 6.10), settlement card, messages, notification bell
 - [ ] 6.7 **Reviews: write**: review UI designed in Figma; uses the `reviews` table from 4.2; up to 3 photos; "Leave a review" card on the dashboard for policyholders
-- [ ] 6.8 **Admin area**: review moderation queue (approve / reject) + `/admin/users` role assignment and staff deactivation (audited) + `/admin/audit` viewer with chain check
+- [ ] 6.8 **Admin area**: review moderation queue (approve / reject) + `/admin/users` role assignment (claims handler, admin, data uploader) and staff deactivation (audited) + `/admin/audit` viewer with chain check
 - [ ] 6.9 **Reviews: public**: `/reviews` page (average, filters) + latest reviews in the landing trust section; `/media/r/:fileId` photo route
 - [ ] 6.10 **Staff claims console**: designed in Figma first; `/staff/claims` queue + claim detail (photos, documents, notes); status changes write `claim_events`; staff views of claims and files audited; claim → approval Playwright journey
 - [ ] 6.11 **Staff referral queue**: designed in Figma first; `/staff/referrals` for quote items the eligibility rules referred; approve (with optional loading) or decline, audited; referral → approval → purchase Playwright journey
+- [ ] 6.12 **Staff spreadsheet imports**: `data_uploader` role, `/staff/imports`, `.xlsx` templates checked on upload, withdraw and supersede
+- [ ] 6.13 **Import endpoint for ADF**: read-only paged JSON API with a pipeline key; ADF hooks up in 9.3
 
 ## 7. Kerbie · `s7-kerbie` · [phase](phases/07-kerbie/phase.md)
 
