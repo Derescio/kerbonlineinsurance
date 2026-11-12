@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
 import { Card } from "#/components/display/Card";
-import { Stepper } from "#/components/navigation/Stepper";
 import { anonymousId } from "#/lib/analytics";
 
 import { beginJourney, markStartRecorded } from "./journey-store";
@@ -10,9 +9,8 @@ import { postcodeDistrict } from "./postcode";
 import type { BuyableProductId } from "./products";
 import { startQuote } from "./server";
 
-/** One Stepper for car and home (5.1, decision 3). Home's property, contents and claims are the
- * three parts of "Your details". */
-export const JOURNEY_STEPS = ["Your details", "Your quote", "Choose cover", "Buy"];
+// The Stepper lives in the journey frame now (5.4b, decision 4)
+export { JOURNEY_STEPS } from "./frame";
 
 const titles: Record<BuyableProductId, string> = { car: "Car quote", home: "Home quote" };
 
@@ -24,7 +22,7 @@ const arrives: Record<BuyableProductId, string> = {
 };
 
 /**
- * The car and home journey shell: where the visitor is, their postcode, and the slot 5.2 (car) and
+ * The car and home journey shell: their postcode, and the slot 5.2 (car) and
  * 5.7 (home) fill. On mount it starts or resumes the tab's journey and records `quote.started`
  * once per journey; a failure there is never shown, because the funnel mustn't block a quote.
  */
@@ -32,11 +30,8 @@ export function JourneyShell({
   product,
   postcode,
   children,
-  current = 0,
 }: {
   product: BuyableProductId;
-  /** The Stepper's step: 0 "Your details", 1 "Your quote" (5.3, call 17) */
-  current?: number;
   postcode: string;
   /** The step (5.2: car). It owns the page's h1, so the shell's heading steps aside. */
   children?: ReactNode;
@@ -60,14 +55,6 @@ export function JourneyShell({
 
   return (
     <div className="quote-page">
-      {/* default on web and tablet, bar at phone width (call 10); the hidden one is display: none */}
-      <div className="quote-progress quote-progress--wide">
-        <Stepper steps={JOURNEY_STEPS} current={current} label="Quote progress" />
-      </div>
-      <div className="quote-progress quote-progress--narrow">
-        <Stepper steps={JOURNEY_STEPS} current={current} label="Quote progress" variant="bar" />
-      </div>
-
       {children ? (
         <>
           {children}

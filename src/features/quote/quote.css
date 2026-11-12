@@ -394,3 +394,81 @@
   grid-row: 1 / span 2;
   align-self: center;
 }
+
+/* The journey frame (5.4b, decision 4; Revamp 249:5806): a white header bar with the wordmark,
+   the Stepper and "Need help?", and a one-line footer */
+.quote-frame__header {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-1);
+}
+.quote-frame__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 76px;
+  padding-block: var(--space-3);
+}
+.quote-frame__home {
+  display: inline-flex;
+  flex: none;
+}
+.quote-frame__steps,
+.quote-frame__spacer {
+  flex: 1;
+  min-width: 0;
+}
+.quote-frame__step-name {
+  margin: 0 0 var(--space-1);
+  color: var(--fg-1);
+  font: 600 13px/16px var(--font-body);
+}
+.quote-frame__help {
+  flex: none;
+  color: var(--green-700);
+  font: 600 15px/20px var(--font-body);
+  text-decoration: none;
+}
+.quote-frame__help:hover {
+  text-decoration: underline;
+}
+@media (max-width: 640px) {
+  .quote-frame__bar {
+    gap: var(--space-4);
+  }
+}
+.quote-frame__footer {
+  padding-block: var(--space-6);
+  color: var(--fg-2);
+  font: 400 13px/18px var(--font-body);
+}
+.quote-frame__footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+.quote-frame__footer-row p {
+  margin: 0;
+}
+.quote-frame__footer-row ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.quote-frame__footer-row a,
+.quote-frame__settings {
+  color: var(--green-700);
+  font: inherit;
+  font-weight: 600;
+}
+.quote-frame__settings {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-decoration: underline;
+}

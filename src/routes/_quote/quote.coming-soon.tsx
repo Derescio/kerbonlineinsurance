@@ -5,7 +5,7 @@ import { comingSoonRedirect, comingSoonSearch } from "#/features/quote/search";
 
 // /quote/coming-soon, screen 02: only for the five types not sold yet. Car, home or no type goes
 // back to the start with the same search (plan P6).
-export const Route = createFileRoute("/_site/quote/coming-soon")({
+export const Route = createFileRoute("/_quote/quote/coming-soon")({
   validateSearch: comingSoonSearch,
   beforeLoad: ({ search }) => {
     const back = comingSoonRedirect(search);
