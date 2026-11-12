@@ -1,14 +1,18 @@
+import type { ReactNode } from "react";
+
 import { Card } from "#/components/display/Card";
 
 import type { Journey } from "./journey-store";
 import type { NamedDrivers } from "./schemas/driver-steps";
 import { QuotePrice } from "./QuotePrice";
 import { licenceOptions } from "./schemas/driver-steps";
+import { JourneyPage, StepNav } from "./page-kit";
 import { StepHeading } from "./step-kit";
 import type { DriverStep } from "./steps";
 
-// The "Your quote" view (5.3, call 17): the price from 5.4 above a summary of the answers.
-// One short line per step (plan P3), each with an Edit button back to that step.
+// The "Your quote" view (5.3, call 17), as Revamp R09 "Your quote is ready" (5.4b, call 10): the
+// price from 5.4 with the pay choice, above "Your details at a glance", one short line per step
+// (plan P3), each with an Edit button back to that step.
 
 const longDate = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
@@ -61,21 +65,43 @@ export function QuoteHolding({
   onEdit,
   onNamedDrivers,
   onInvalid,
+  onBack,
+  aside,
 }: {
   journey: Journey;
+  /** "Back to your details": Named drivers (5.4b, call 10) */
+  onBack: () => void;
+  /** The "Your car" and help cards (5.4b) */
+  aside: ReactNode;
   onEdit: (step: DriverStep) => void;
   /** Saves the named drivers after one is removed or put back from the price (5.4) */
   onNamedDrivers: (namedDrivers: NamedDrivers) => void;
   /** Where the server sends a step that no longer passes (5.4) */
   onInvalid: (step: "car" | DriverStep) => void;
 }) {
+  const car = journey.vehicle;
   return (
-    <>
-      <StepHeading overline="Car · Your quote" title="Your quote" />
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your quote"
+          title="Your quote is ready"
+          intro={
+            car
+              ? `Comprehensive car insurance for your ${car.make} ${car.model} ${car.variant}.`
+              : undefined
+          }
+        />
+      }
+      aside={aside}
+    >
       <Card padding="lg" className="quote-slot">
         <QuotePrice journey={journey} onNamedDrivers={onNamedDrivers} onInvalid={onInvalid} />
       </Card>
-      <section className="quote-panel" aria-label="Your answers">
+      <Card padding="lg" as="section" className="quote-glance" aria-labelledby="glance-heading">
+        <h2 id="glance-heading" className="kb-h3">
+          Your details at a glance
+        </h2>
         <dl className="quote-summary">
           {rows(journey).map((row) => (
             <div key={row.step} className="quote-summary__row">
@@ -89,7 +115,8 @@ export function QuoteHolding({
             </div>
           ))}
         </dl>
-      </section>
-    </>
+      </Card>
+      <StepNav onBack={onBack} backLabel="Back to your details" />
+    </JourneyPage>
   );
 }

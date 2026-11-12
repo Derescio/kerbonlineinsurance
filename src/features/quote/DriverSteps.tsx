@@ -142,6 +142,17 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
       {step === "quote" ? (
         <QuoteHolding
           journey={journey}
+          onBack={() => onStep("drivers")}
+          aside={
+            <>
+              <CarCard
+                car={journey.vehicle ?? null}
+                postcode={journey.postcode}
+                onChange={changeCar}
+              />
+              <HelpCard title="Need a hand?">{helpLines.about}</HelpCard>
+            </>
+          }
           onEdit={(s) => {
             fromSummary.current = true;
             onStep(s);

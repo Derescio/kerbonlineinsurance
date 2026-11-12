@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
-import { formatPounds } from "#/features/rating/money";
 
 import type { CarPriceResult } from "#/server/quote/price";
 
-import type { Journey } from "./journey-store";
+import { setPayment, type Journey, type Payment } from "./journey-store";
+import { PayChoice } from "./PayChoice";
 import { priceQuery } from "./price-query";
 import type { NamedDrivers } from "./schemas/driver-steps";
 import type { DriverStep } from "./steps";
@@ -53,6 +53,13 @@ export function QuotePrice({
     onNamedDrivers({ any: drivers.length > 0, drivers });
   }
 
+  // Kept in the tab for Choose cover and Buy; it never changes the price (5.4b, call 10)
+  const [payment, setPaymentState] = useState<Payment>(journey.payment ?? "annual");
+  function choosePayment(value: Payment) {
+    setPaymentState(value);
+    setPayment("car", value);
+  }
+
   function undo() {
     if (!removed) return;
     onNamedDrivers(removed.before);
@@ -72,7 +79,13 @@ export function QuotePrice({
           </p>
         ) : null}
         {query.isError ? null : (
-          <PriceContent journey={journey} result={result} onRemove={remove} />
+          <PriceContent
+            journey={journey}
+            result={result}
+            onRemove={remove}
+            payment={payment}
+            onPayment={choosePayment}
+          />
         )}
       </div>
       {query.isError ? (
@@ -91,10 +104,14 @@ function PriceContent({
   journey,
   result,
   onRemove,
+  payment,
+  onPayment,
 }: {
   journey: Journey;
   result: CarPriceResult | undefined;
   onRemove: (position: number) => void;
+  payment: Payment;
+  onPayment: (value: Payment) => void;
 }) {
   if (!result || result.status === "invalid") return <p>Working out your price&hellip;</p>;
 
@@ -103,11 +120,14 @@ function PriceContent({
       return (
         <>
           <h2 className="kb-h3 quote-price__title">Your Comprehensive price</h2>
-          <p className="kb-price quote-price__amount">
-            {formatPounds(result.annualPence)} a year, or 12 payments of{" "}
-            {formatPounds(result.monthlyPaymentPence)}
-          </p>
+          <PayChoice
+            annualPence={result.annualPence}
+            monthlyPaymentPence={result.monthlyPaymentPence}
+            value={payment}
+            onChange={onPayment}
+          />
           <p>Premiums include Insurance Premium Tax.</p>
+          <ChooseCover />
         </>
       );
     case "rate_limited":
@@ -141,4 +161,17 @@ function PriceContent({
       );
     }
   }
+}
+
+/** Choose cover is 5.5's screen; until then the button says so (5.4b, call 10). Staging only. */
+function ChooseCover() {
+  const [asked, setAsked] = useState(false);
+  return (
+    <>
+      <Button variant="accent" iconRight="arrow-right" onClick={() => setAsked(true)}>
+        Choose cover
+      </Button>
+      {asked ? <p className="quote-price__soon">Choosing your cover arrives in 5.5</p> : null}
+    </>
+  );
 }

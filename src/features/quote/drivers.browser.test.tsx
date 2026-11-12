@@ -472,10 +472,10 @@ describe("the driver steps in order", () => {
     storeComplete();
     renderFlow("drivers");
     await page.getByRole("button", { name: "Get my car quote" }).click();
-    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
     await expect
-      .element(page.getByText("£1,063.78 a year, or 12 payments of £97.51"))
-      .toBeVisible();
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your quote is ready");
+    await expect.element(page.getByText("Total payable £1,063.78")).toBeVisible();
     await expect.element(page.getByText("Alex Morgan, born 12 May 1991")).toBeVisible();
     await expect
       .element(page.getByText("Full UK, 5 years’ no-claims, 8,000 miles a year"))
@@ -523,7 +523,9 @@ describe("the driver steps in order", () => {
     renderFlow("quote");
     await page.getByRole("button", { name: "Edit Claims" }).click();
     await page.getByRole("button", { name: "Continue to named drivers" }).click();
-    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your quote is ready");
   });
 
   it("keeps the answers through a refresh", async () => {
@@ -559,9 +561,7 @@ describe("the driver steps in order", () => {
     storeComplete();
     renderFlow("drivers");
     await page.getByRole("button", { name: "Get my car quote" }).click();
-    await expect
-      .element(page.getByText("£1,063.78 a year, or 12 payments of £97.51"))
-      .toBeVisible();
+    await expect.element(page.getByText("Total payable £1,063.78")).toBeVisible();
     for (const typed of ["Alex", "Morgan", "Albion", "Jamie"]) {
       expect(window.location.href).not.toContain(typed);
     }
@@ -606,14 +606,24 @@ describe("the price on the holding view (5.4)", () => {
   }
 
   const heading = () => page.getByRole("heading", { level: 1 });
-  const PRICE = "£1,063.78 a year, or 12 payments of £97.51";
+  // The annual card's total: the price is showing (5.4b, call 10)
+  const PRICE = "Total payable £1,063.78";
 
-  it("shows the Comprehensive price, a year and monthly, with IPT", async () => {
+  it("shows annual and monthly as a choice, annual first, with IPT (5.4b, call 10)", async () => {
     await showQuote();
+    await expect.element(heading()).toHaveTextContent("Your quote is ready");
     await expect
       .element(page.getByRole("heading", { name: "Your Comprehensive price" }))
       .toBeVisible();
+    const annual = page.getByRole("radio", { name: /Pay annually/ });
+    const monthly = page.getByRole("radio", { name: /Pay monthly/ });
+    await expect.element(annual).toBeChecked();
+    await expect.element(monthly).not.toBeChecked();
+    await expect.element(page.getByText("£1,063.78", { exact: true })).toBeVisible();
     await expect.element(page.getByText(PRICE)).toBeVisible();
+    await expect.element(page.getByText("£97.51", { exact: true })).toBeVisible();
+    // 12 × £97.51 = £1,170.12: what the visitor actually pays monthly
+    await expect.element(page.getByText("Total payable £1,170.12")).toBeVisible();
     await expect.element(page.getByText("Premiums include Insurance Premium Tax.")).toBeVisible();
     // The tab's journey went to the server, without the last plate typed
     expect(price).toHaveBeenCalledTimes(1);
@@ -659,7 +669,7 @@ describe("the price on the holding view (5.4)", () => {
       .toBeVisible();
     await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
     // Still on the quote: Sam is gone from the tab's journey and the price is worked out again
-    await expect.element(heading()).toHaveTextContent("Your quote");
+    await expect.element(heading()).toHaveTextContent("Your quote is ready");
     await expect.element(page.getByText("Sam has been removed from this quote.")).toBeVisible();
     await expect.element(page.getByText(PRICE)).toBeVisible();
     expect(moves).toEqual([]);
@@ -735,6 +745,30 @@ describe("the price on the holding view (5.4)", () => {
     // The same element, still mounted, now holds the price
     expect(region?.isConnected).toBe(true);
     expect(region?.textContent).toContain(PRICE);
+  });
+
+  it("keeps the pay choice through a refresh (5.4b, call 10)", async () => {
+    const screen = await showQuote();
+    await page.getByText("Pay monthly").click();
+    await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+    expect(readJourney("car")?.payment).toBe("monthly");
+    await screen.unmount();
+    await withQuery(<Harness initial="quote" />);
+    await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+  });
+
+  it("says Choose cover arrives in 5.5 (5.4b, call 10)", async () => {
+    await showQuote();
+    await page.getByRole("button", { name: "Choose cover" }).click();
+    await expect.element(page.getByText("Choosing your cover arrives in 5.5")).toBeVisible();
+  });
+
+  it("goes back to Named drivers from Back to your details (5.4b, call 10)", async () => {
+    await showQuote();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    await page.getByRole("button", { name: "Back to your details" }).click();
+    await expect.element(heading()).toHaveTextContent("Who else will drive your car?");
+    expect(moves.at(-1)).toEqual({ step: "drivers", replace: false });
   });
 
   it("says when too many prices were asked for", async () => {

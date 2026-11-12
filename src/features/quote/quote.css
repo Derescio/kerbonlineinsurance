@@ -660,3 +660,82 @@ button.quote-tabs__tab:focus-visible {
 .quote-confirmed__hint {
   color: var(--fg-2);
 }
+
+/* R09, "Your quote is ready" (5.4b, call 10; 249:6275): annual or monthly as two radio cards */
+.quote-pay {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.quote-pay__legend {
+  padding: 0;
+  margin-bottom: var(--space-3);
+  color: var(--fg-2);
+}
+.quote-pay__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.quote-pay__option {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-pay__card {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  cursor: pointer;
+}
+.quote-pay__card--checked {
+  border: 2px solid var(--green-700);
+  padding: calc(var(--space-5) - 1px);
+}
+.quote-pay__card:focus-within {
+  box-shadow: var(--focus-ring);
+}
+.quote-pay__card input {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-5);
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--green-700);
+}
+.quote-pay__title {
+  color: var(--fg-1);
+  font: 600 17px/22px var(--font-body);
+}
+.quote-pay__note,
+.quote-pay__per,
+.quote-pay__total {
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.quote-pay__amount {
+  margin-top: var(--space-2);
+}
+.quote-pay__total {
+  margin: 0;
+}
+.quote-price .kb-btn {
+  width: 100%;
+  justify-content: center;
+}
+.quote-price__soon {
+  color: var(--fg-2);
+}
+.quote-glance {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-glance h2 {
+  margin: 0;
+}
