@@ -118,6 +118,7 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
             fromSummary.current = true;
             onStep(s);
           }}
+          onCar={() => onStep(undefined)}
         />
       ) : null}
     </div>
