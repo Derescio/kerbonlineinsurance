@@ -281,8 +281,104 @@ describe("reference data", () => {
       await owner().delete(ratingFactors).where(eq(ratingFactors.ratingVersionId, active!.id));
       expect(await getRatingTables(getDb(), active!.id)).toBe(first);
 
+      // Reloaded with no factors, the version fails its check (5.4, spec decision 9)
       clearReferenceCaches();
-      expect((await getRatingTables(getDb(), active!.id)).factors).toEqual([]);
+      await expect(getRatingTables(getDb(), active!.id)).rejects.toThrow("failed its check");
+    });
+
+    describe("the check on load (5.4)", () => {
+      async function loadedAfter(change: (id: string) => Promise<unknown>) {
+        await upsertReferenceData(owner(), sources());
+        const active = await getActiveRatingVersion(getDb(), "car");
+        await change(active!.id);
+        return getRatingTables(getDb(), active!.id);
+      }
+
+      it("loads every v1", async () => {
+        await upsertReferenceData(owner(), sources());
+        for (const product of ["car", "home", "business"] as const) {
+          const active = await getActiveRatingVersion(getDb(), product);
+          await expect(getRatingTables(getDb(), active!.id)).resolves.toBeDefined();
+        }
+      });
+
+      it("refuses a version missing a parameter", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner()
+              .delete(ratingParameters)
+              .where(
+                and(
+                  eq(ratingParameters.ratingVersionId, id),
+                  eq(ratingParameters.name, "base_rate_pence"),
+                ),
+              ),
+          ),
+        ).rejects.toThrow("missing parameter base_rate_pence");
+      });
+
+      it("refuses a factor the formulas don't read", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner().insert(ratingFactors).values({
+              ratingVersionId: id,
+              factor: "star_sign",
+              band: "leo",
+              multiplier: "1.1000",
+            }),
+          ),
+        ).rejects.toThrow("unknown factor star_sign");
+      });
+
+      it("refuses a version missing a factor the formulas read", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner()
+              .delete(ratingFactors)
+              .where(and(eq(ratingFactors.ratingVersionId, id), eq(ratingFactors.factor, "usage"))),
+          ),
+        ).rejects.toThrow("missing factor usage");
+      });
+
+      it("refuses a gap between range bands", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner()
+              .delete(ratingFactors)
+              .where(
+                and(
+                  eq(ratingFactors.ratingVersionId, id),
+                  eq(ratingFactors.factor, "insurance_group"),
+                  eq(ratingFactors.band, "20"),
+                ),
+              ),
+          ),
+        ).rejects.toThrow("insurance_group: gap after 19");
+      });
+
+      it("refuses an unknown version id", async () => {
+        await expect(
+          getRatingTables(getDb(), "00000000-0000-7000-8000-000000000000"),
+        ).rejects.toThrow("not found");
+      });
+
+      it("drops a failed load from the memo, so a fixed version loads next time", async () => {
+        await upsertReferenceData(owner(), sources());
+        const active = await getActiveRatingVersion(getDb(), "car");
+        const [row] = await owner()
+          .delete(ratingParameters)
+          .where(
+            and(
+              eq(ratingParameters.ratingVersionId, active!.id),
+              eq(ratingParameters.name, "base_rate_pence"),
+            ),
+          )
+          .returning();
+        await expect(getRatingTables(getDb(), active!.id)).rejects.toThrow();
+        const { id: _id, ...restored } = row!;
+        await owner().insert(ratingParameters).values(restored);
+        await expect(getRatingTables(getDb(), active!.id)).resolves.toBeDefined();
+      });
     });
 
     it("returns the active version", async () => {
