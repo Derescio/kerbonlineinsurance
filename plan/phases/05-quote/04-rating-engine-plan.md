@@ -35,7 +35,7 @@
   - **Quoted:** heading `Your Comprehensive price`; `£{annual} a year, or 12 payments of £{monthly}`; note `Premiums include Insurance Premium Tax.`
   - **Referred:** `We need to check a couple of things, usually within a day.`
   - **Declined:** `We can’t offer car cover for these details.`
-  - **A named driver referred:** `We need to check a couple of things about {firstName}.` **Declined:** `We can’t offer cover with {firstName} as a named driver.` Then a button `Remove {firstName} to see a price without them`.
+  - **A named driver referred:** `We need to check a couple of things about {firstName}.` **Declined:** `Unfortunately, we’re unable to provide cover with {firstName} included as a named driver.` Then a button `Remove {firstName} to see a price without them`.
   - **Failure:** `We couldn’t work out your price just now.` with `Try again`. **Rate-limited:** `You’ve asked for a lot of prices in a short time. Try again in an hour.`
   - Money as `£1,234.56` (`en-GB`, two decimals).
 

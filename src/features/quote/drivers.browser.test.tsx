@@ -610,7 +610,11 @@ describe("the price on the holding view (5.4)", () => {
     price.mockResolvedValueOnce({ status: "declined", namedDriver: 1 }).mockResolvedValue(QUOTED);
     await showQuote();
     await expect
-      .element(page.getByText("We can’t offer cover with Sam as a named driver."))
+      .element(
+        page.getByText(
+          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
+        ),
+      )
       .toBeVisible();
     await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
     // Still on the quote: Sam is gone from the tab's journey and the price is worked out again
@@ -635,7 +639,11 @@ describe("the price on the holding view (5.4)", () => {
     await expect.element(page.getByText(PRICE)).toBeVisible();
     await page.getByRole("button", { name: "Add Sam back" }).click();
     await expect
-      .element(page.getByText("We can’t offer cover with Sam as a named driver."))
+      .element(
+        page.getByText(
+          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
+        ),
+      )
       .toBeVisible();
     await expect
       .element(page.getByText("Sam has been removed from this quote."))

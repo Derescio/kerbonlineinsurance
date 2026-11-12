@@ -33,7 +33,7 @@ The calculator behind every price Kerb shows. `priceQuote()` takes what the quot
    - **Quoted:** the Comprehensive price, annual and monthly ("£458.40 a year, or 12 payments of £42.02"), and "Premiums include Insurance Premium Tax". The answers summary and its "Edit" links stay.
    - **Referred:** screen 19's line, "We need to check a couple of things, usually within a day", and no price.
    - **Declined:** a neutral line ("We can't offer car cover for these details"), never the threshold that declined it.
-   - **When a named driver is the reason** (decision 14), the line names them and offers the way out: "We can't offer cover with Sam as a named driver" or "We need to check a couple of things about Sam", then "Remove Sam to see a price without them". Still no threshold.
+   - **When a named driver is the reason** (decision 14), the line names them and offers the way out: "Unfortunately, we're unable to provide cover with Sam included as a named driver" (Damion's wording, 12 Nov 2026) or "We need to check a couple of things about Sam", then "Remove Sam to see a price without them". Still no threshold.
      - **Removing is on the spot** (found in the manual check, 12 Nov 2026; Damion left the design to me). The button takes Sam off the quote and prices it again, staying on "Your quote". A line says "Sam has been removed from this quote." with "Add Sam back", which restores him exactly as entered. If he was the only named driver, the answer goes back to No. Editing the named drivers stays under the summary's Edit link.
    - The full cover cards, comparison table, add-ons, breakdown and the designed referred and declined screens (13, 19, 20) are 5.5 *(my call: 5.4 shows the minimum that proves the engine works on screen)*.
    - **Changing an answer re-prices.** After an "Edit" and "Continue" back to the summary, the price is fetched again.
@@ -121,8 +121,9 @@ The calculator behind every price Kerb shows. `priceQuote()` takes what the quot
 - [x] The manual check passes, with the results recorded here. Damion, 12 Nov 2026, on the PR preview:
   - **A sensible price:** a 44-year-old in E8 with 3 years' no-claims and 12,000 miles gets £967.18 a year, or 12 payments of £88.66 (£967.18 × 1.10 ÷ 12).
   - **The named-driver shot:** adding John, 20 (17–20 band), raises the price by exactly ×1.35, checked against the engine; removing him brings it back. A first comparison looked off by ×0.95 because another answer had changed between the two quotes; re-pricing confirmed the engine.
-  - **The Tesla (`TS24 EIV`, group 32):** with John named it shows "We can't offer cover with John as a named driver" and no price; without him, £1,526.88 a year, or 12 payments of £139.96.
+  - **The Tesla (`TS24 EIV`, group 32):** with John named it showed the decline naming him and no price; without him, £1,526.88 a year, or 12 payments of £139.96. Damion reworded the decline afterwards (decision 4).
   - **Found and fixed:** "Remove John" only opened the named-drivers step with John still there. It now removes him on the spot, prices again, and offers "Add John back" (decision 4). The button also sizes to its text.
+  - **Remove and Undo, after the fix:** on the Tesla with John named, "Remove John" stayed on "Your quote" and showed "John has been removed from this quote. Add John back" above £1,703.39 a year, or 12 payments of £156.14 (£1,703.39 × 1.10 ÷ 12); "Add John back" brought the decline back. Checked again at phone width.
   - **Phone width (393 px):** nothing clipped or overflowing. The price sentence wraps over three lines in the 30 px price style; 5.5 puts the monthly figure on its own smaller line, as screen 13 does.
   - **Still to do after the merge:** reseed `dev` (`db:reset-dev`, then `db:seed`) and spot-check a few seeded prices.
 

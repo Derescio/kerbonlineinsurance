@@ -132,7 +132,7 @@ function PriceContent({
           <p>
             {result.status === "referred"
               ? `We need to check a couple of things about ${name}.`
-              : `We can’t offer cover with ${name} as a named driver.`}
+              : `Unfortunately, we’re unable to provide cover with ${name} included as a named driver.`}
           </p>
           <Button variant="secondary" size="sm" onClick={() => onRemove(result.namedDriver!)}>
             Remove {name} to see a price without them
