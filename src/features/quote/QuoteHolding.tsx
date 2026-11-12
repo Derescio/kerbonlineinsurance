@@ -1,12 +1,13 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { Card } from "#/components/display/Card";
 
 import type { Journey } from "./journey-store";
 import type { NamedDrivers } from "./schemas/driver-steps";
-import { QuotePrice } from "./QuotePrice";
+import { DriverReview, reviewIntro } from "./DriverReview";
+import { QuotePrice, RemovedLine, useQuotePrice } from "./QuotePrice";
 import { licenceOptions } from "./schemas/driver-steps";
-import { JourneyPage, StepNav } from "./page-kit";
+import { HelpCard, JourneyPage, StepNav } from "./page-kit";
 import { StepHeading } from "./step-kit";
 import type { DriverStep } from "./steps";
 
@@ -66,13 +67,16 @@ export function QuoteHolding({
   onNamedDrivers,
   onInvalid,
   onBack,
-  aside,
+  onReviewDrivers,
+  carCard,
 }: {
   journey: Journey;
   /** "Back to your details": Named drivers (5.4b, call 10) */
   onBack: () => void;
-  /** The "Your car" and help cards (5.4b) */
-  aside: ReactNode;
+  /** R10's "Review named driver details" (5.4b, call 11) */
+  onReviewDrivers: () => void;
+  /** The "Your car" card (5.4b, call 6); the help card's line changes with the view */
+  carCard: ReactNode;
   onEdit: (step: DriverStep) => void;
   /** Saves the named drivers after one is removed or put back from the price (5.4) */
   onNamedDrivers: (namedDrivers: NamedDrivers) => void;
@@ -80,43 +84,95 @@ export function QuoteHolding({
   onInvalid: (step: "car" | DriverStep) => void;
 }) {
   const car = journey.vehicle;
+  const price = useQuotePrice(journey, onNamedDrivers, onInvalid);
+  const stopper = price.stopper;
+
+  // R09 and R10 are one view whose heading changes: focus follows it, as a step change does
+  const root = useRef<HTMLDivElement>(null);
+  const shown = useRef(stopper !== null);
+  useEffect(() => {
+    if (shown.current === (stopper !== null)) return;
+    shown.current = stopper !== null;
+    root.current?.querySelector<HTMLElement>("h1")?.focus();
+  }, [stopper]);
+
+  const aside = (
+    <>
+      {carCard}
+      <HelpCard title="Need a hand?">
+        {stopper
+          ? "You can review your driver details or contact us to talk through the next steps."
+          : "Keep your vehicle documents and driving licence nearby as you complete your details."}
+      </HelpCard>
+    </>
+  );
+
+  const glance = (
+    <Card padding="lg" as="section" className="quote-glance" aria-labelledby="glance-heading">
+      <h2 id="glance-heading" className="kb-h3">
+        Your details at a glance
+      </h2>
+      <dl className="quote-summary">
+        {rows(journey).map((row) => (
+          <div key={row.step} className="quote-summary__row">
+            <dt>{row.title}</dt>
+            <dd>{row.value}</dd>
+            <dd>
+              <button type="button" className="quote-link" onClick={() => onEdit(row.step)}>
+                Edit<span className="kb-sr-only"> {row.title}</span>
+              </button>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  );
+
   return (
-    <JourneyPage
-      heading={
-        <StepHeading
-          overline="Car insurance / Your quote"
-          title="Your quote is ready"
-          intro={
-            car
-              ? `Comprehensive car insurance for your ${car.make} ${car.model} ${car.variant}.`
-              : undefined
+    <div ref={root} className="quote-step">
+      {stopper ? (
+        <JourneyPage
+          heading={
+            <StepHeading
+              overline="Car insurance / Your quote"
+              title="Let’s review your named driver"
+              intro={reviewIntro(stopper.name, stopper.outcome)}
+            />
           }
-        />
-      }
-      aside={aside}
-    >
-      <Card padding="lg" className="quote-slot">
-        <QuotePrice journey={journey} onNamedDrivers={onNamedDrivers} onInvalid={onInvalid} />
-      </Card>
-      <Card padding="lg" as="section" className="quote-glance" aria-labelledby="glance-heading">
-        <h2 id="glance-heading" className="kb-h3">
-          Your details at a glance
-        </h2>
-        <dl className="quote-summary">
-          {rows(journey).map((row) => (
-            <div key={row.step} className="quote-summary__row">
-              <dt>{row.title}</dt>
-              <dd>{row.value}</dd>
-              <dd>
-                <button type="button" className="quote-link" onClick={() => onEdit(row.step)}>
-                  Edit<span className="kb-sr-only"> {row.title}</span>
-                </button>
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </Card>
-      <StepNav onBack={onBack} backLabel="Back to your details" />
-    </JourneyPage>
+          aside={aside}
+        >
+          <RemovedLine state={price} />
+          <DriverReview
+            name={stopper.name}
+            outcome={stopper.outcome}
+            onRemove={() => price.remove(stopper.position)}
+            onReview={onReviewDrivers}
+          />
+          {glance}
+          <StepNav onBack={onBack} backLabel="Back to your details" />
+        </JourneyPage>
+      ) : (
+        <JourneyPage
+          heading={
+            <StepHeading
+              overline="Car insurance / Your quote"
+              title="Your quote is ready"
+              intro={
+                car
+                  ? `Comprehensive car insurance for your ${car.make} ${car.model} ${car.variant}.`
+                  : undefined
+              }
+            />
+          }
+          aside={aside}
+        >
+          <Card padding="lg" className="quote-slot">
+            <QuotePrice state={price} />
+          </Card>
+          {glance}
+          <StepNav onBack={onBack} backLabel="Back to your details" />
+        </JourneyPage>
+      )}
+    </div>
   );
 }

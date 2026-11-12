@@ -739,3 +739,19 @@ button.quote-tabs__tab:focus-visible {
 .quote-glance h2 {
   margin: 0;
 }
+
+/* R10, "Let's review your named driver" (5.4b, call 11; 249:6337) */
+.quote-review {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-review h2,
+.quote-review p {
+  margin: 0;
+}
+.quote-review .kb-btn {
+  width: 100%;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
+}

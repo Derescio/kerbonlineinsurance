@@ -104,24 +104,20 @@ test("the Tesla is declined with a 19-year-old named driver; removing him prices
 }) => {
   await quoteWithYoungDriver(page, "TS24 EIV", "RWD");
 
-  // Group 32: under 21 on group 30 or above is declined, and the person applying is told who
-  await expect(
-    page.getByText(
-      "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-    ),
-  ).toBeVisible();
+  // Group 32: under 21 on group 30 or above is declined, and the person applying is told who,
+  // on the review step (5.4b, call 11)
+  const review = page.getByRole("heading", { level: 1, name: "Let’s review your named driver" });
+  await expect(review).toBeVisible();
+  await expect(page.getByText("We can’t offer cover with Sam as a named driver.")).toBeVisible();
   await expect(page.getByText(totals)).toHaveCount(0);
-  // Removed on the spot and priced again, with Undo to put him back
-  await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+  // Removed on the spot and priced again, with "Add back" to put him back
+  await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
   await expect(page.getByText("Sam has been removed from this quote.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Your quote is ready" })).toBeVisible();
   await expect(page.getByText(totals)).toHaveCount(2);
   await expect(page).toHaveURL(/step=quote/);
   await page.getByRole("button", { name: "Add Sam back" }).click();
-  await expect(
-    page.getByText(
-      "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-    ),
-  ).toBeVisible();
+  await expect(review).toBeVisible();
 });
 
 test("a cold link to a later step goes back to the car step", async ({ page }) => {

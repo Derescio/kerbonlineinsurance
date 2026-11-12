@@ -632,13 +632,83 @@ describe("the price on the holding view (5.4)", () => {
     expect(sent).not.toHaveProperty("lastPlate");
   });
 
-  it("names a named driver who needs checking, with no price", async () => {
+  const REVIEW = "Let’s review your named driver";
+
+  it("shows the review step when a named driver needs checking (5.4b, call 11)", async () => {
     price.mockResolvedValue({ status: "referred", namedDriver: 1 });
     await showQuote();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
     await expect
-      .element(page.getByText("We need to check a couple of things about Sam."))
+      .element(page.getByText("We need to check a couple of things before we can include Sam."))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("We need to check a couple of things about Sam"))
       .toBeVisible();
     await expect.element(page.getByText(PRICE)).not.toBeInTheDocument();
+  });
+
+  it("shows the review step when a named driver is declined (5.4b, call 11)", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: 1 });
+    await showQuote();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await expect
+      .element(page.getByText("We can’t offer cover with Sam as a named driver."))
+      .toBeVisible();
+    await expect.element(page.getByText("We can’t offer cover with Sam included")).toBeVisible();
+    await expect
+      .element(page.getByRole("heading", { name: "What happens if you remove Sam?" }))
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByText(
+          "Sam won’t be covered to drive your car. Only continue without them if they don’t need to drive it.",
+        ),
+      )
+      .toBeVisible();
+    await expect.element(page.getByText(PRICE)).not.toBeInTheDocument();
+  });
+
+  it("opens Named drivers from Review named driver details", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: 1 });
+    await showQuote();
+    await page.getByRole("button", { name: "Review named driver details" }).click();
+    await expect.element(heading()).toHaveTextContent("Who else will drive your car?");
+    expect(moves.at(-1)).toEqual({ step: "drivers", replace: false });
+  });
+
+  it("shows the review for the next driver who stops the quote, keeping Add back for the last one removed", async () => {
+    price
+      .mockResolvedValueOnce({ status: "declined", namedDriver: 1 })
+      .mockResolvedValue({ status: "declined", namedDriver: 1 });
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    const jamie = journey.namedDrivers!.drivers[0]!;
+    journey.namedDrivers = { any: true, drivers: [{ ...jamie, firstName: "Sam" }, jamie] };
+    store(journey);
+    await withQuery(<Harness initial="quote" />);
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
+    await expect.element(page.getByText("Sam has been removed from this quote.")).toBeVisible();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await expect
+      .element(page.getByText("We can’t offer cover with Jamie as a named driver."))
+      .toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Add Sam back" })).toBeVisible();
+  });
+
+  it("fits a long name at 360px", async () => {
+    await page.viewport(360, 800);
+    price.mockResolvedValue({ status: "declined", namedDriver: 1 });
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    journey.namedDrivers = {
+      any: true,
+      drivers: [{ ...journey.namedDrivers!.drivers[0]!, firstName: "Maximilian-Alexander" }],
+    };
+    store(journey);
+    await withQuery(<Harness initial="quote" />);
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
+    await page.viewport(414, 896);
   });
 
   it("shows the plain referral line when no driver is the reason", async () => {
@@ -660,14 +730,8 @@ describe("the price on the holding view (5.4)", () => {
   it("removes the driver who stopped the quote on the spot, and prices again", async () => {
     price.mockResolvedValueOnce({ status: "declined", namedDriver: 1 }).mockResolvedValue(QUOTED);
     await showQuote();
-    await expect
-      .element(
-        page.getByText(
-          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-        ),
-      )
-      .toBeVisible();
-    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
     // Still on the quote: Sam is gone from the tab's journey and the price is worked out again
     await expect.element(heading()).toHaveTextContent("Your quote is ready");
     await expect.element(page.getByText("Sam has been removed from this quote.")).toBeVisible();
@@ -686,16 +750,11 @@ describe("the price on the holding view (5.4)", () => {
       .mockResolvedValue({ status: "declined", namedDriver: 1 });
     await showQuote();
     const before = readJourney("car")!.namedDrivers;
-    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
     await expect.element(page.getByText(PRICE)).toBeVisible();
     await page.getByRole("button", { name: "Add Sam back" }).click();
-    await expect
-      .element(
-        page.getByText(
-          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-        ),
-      )
-      .toBeVisible();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await expect.element(page.getByText("We can’t offer cover with Sam included")).toBeVisible();
     await expect
       .element(page.getByText("Sam has been removed from this quote."))
       .not.toBeInTheDocument();
@@ -713,7 +772,7 @@ describe("the price on the holding view (5.4)", () => {
     };
     store(journey);
     await withQuery(<Harness initial="quote" />);
-    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
     await expect.element(page.getByText(PRICE)).toBeVisible();
     expect(readJourney("car")!.namedDrivers).toEqual({ any: true, drivers: [jamie] });
   });
