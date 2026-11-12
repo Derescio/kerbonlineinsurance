@@ -100,6 +100,10 @@ const namedDriversSchema = z.object({
   ),
 });
 
+/** How the visitor would like to pay, picked on Your quote (5.4b, call 10). It never reaches the server. */
+const paymentSchema = z.enum(["annual", "monthly"]);
+export type Payment = z.infer<typeof paymentSchema>;
+
 /** Read one at a time: a part that fails is dropped alone (call 15) */
 const partSchemas = {
   vehicle: vehicleSchema,
@@ -107,6 +111,7 @@ const partSchemas = {
   usage: usageSchema,
   claims: claimsSchema,
   namedDrivers: namedDriversSchema,
+  payment: paymentSchema,
 };
 
 const baseSchema = z.object({
@@ -131,6 +136,8 @@ export type Journey = z.infer<typeof baseSchema> & {
   usage?: z.infer<typeof usageSchema>;
   claims?: z.infer<typeof claimsSchema>;
   namedDrivers?: z.infer<typeof namedDriversSchema>;
+  /** Kept in the tab for Choose cover and Buy (5.4b) */
+  payment?: Payment;
 };
 
 export type JourneyStorage = Pick<Storage, "getItem" | "setItem">;
@@ -236,6 +243,16 @@ export function setVehicle(
 export function setLastPlate(plate: string, storage: JourneyStorage | null = sessionStore()): void {
   const stored = readJourney("car", storage);
   if (stored) writeJourney("car", { ...stored, lastPlate: plate }, storage);
+}
+
+/** The pay choice from Your quote (5.4b, call 10). Nothing happens without a journey. */
+export function setPayment(
+  product: BuyableProductId,
+  payment: Payment,
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney(product, storage);
+  if (stored) writeJourney(product, { ...stored, payment }, storage);
 }
 
 /** What each driver step saves (5.3) */

@@ -472,3 +472,170 @@
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* The revamp's page (5.4b; Revamp 249:5806): heading, details tabs, then the step's cards beside
+   the "Your car" and help cards. The columns stack below 960px, and at phone width the car card
+   becomes one line above the form (call 12). */
+.quote-page__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-6);
+  align-items: start;
+}
+.quote-page__main {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.quote-page__aside {
+  display: grid;
+  gap: var(--space-4);
+}
+@media (max-width: 959px) {
+  .quote-page__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .quote-page__aside {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+/* Details tabs (call 5): the current one filled, done ones ticked */
+.quote-tabs ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.quote-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--fg-3);
+  font: 600 15px/20px var(--font-body);
+  text-align: left;
+  white-space: nowrap;
+}
+button.quote-tabs__tab {
+  cursor: pointer;
+}
+button.quote-tabs__tab:hover {
+  background: var(--bg-surface);
+}
+button.quote-tabs__tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.quote-tabs__item--done .quote-tabs__tab,
+.quote-tabs__item--open .quote-tabs__tab {
+  color: var(--green-700);
+}
+.quote-tabs__item--current .quote-tabs__tab {
+  background: var(--bg-inverse);
+  color: var(--fg-inverse);
+}
+@media (max-width: 640px) {
+  .quote-tabs {
+    margin-inline: calc(-1 * var(--site-gutter));
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .quote-tabs ol {
+    display: flex;
+    padding-inline: var(--site-gutter);
+  }
+  .quote-tabs__item {
+    flex: none;
+    scroll-snap-align: start;
+  }
+}
+
+/* "Your car" card (call 6) and the help card (call 7) */
+.quote-car-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-2);
+}
+.quote-car-card p {
+  margin: 0;
+}
+.quote-car-card__icon {
+  color: var(--fg-1);
+}
+.quote-car-card__overline {
+  color: var(--green-700);
+  font: 500 12px/16px var(--font-mono);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+.quote-car-card__name {
+  color: var(--green-700);
+  font: 600 20px/26px var(--font-display);
+}
+.quote-car-card .quote-link {
+  margin-top: var(--space-2);
+}
+@media (max-width: 640px) {
+  .quote-page__aside {
+    display: contents;
+  }
+  .quote-car-card {
+    order: -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+  .quote-car-card__icon,
+  .quote-car-card__overline,
+  .quote-car-card__details {
+    display: none;
+  }
+  .quote-car-card__name {
+    font-size: 16px;
+    line-height: 22px;
+  }
+  .quote-car-card .quote-link {
+    margin-top: 0;
+  }
+  .quote-page__columns {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .quote-help-card {
+    order: 1;
+  }
+}
+.quote-help-card {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-help-card h2,
+.quote-help-card p {
+  margin: 0;
+}
+.quote-help-card p {
+  color: var(--fg-2);
+}
+
+/* Back with an arrow (call 9) */
+.quote-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+}
