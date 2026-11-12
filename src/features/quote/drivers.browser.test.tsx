@@ -553,7 +553,7 @@ describe("the price on the holding view (5.4)", () => {
   const PRICE = "£1,063.78 a year, or 12 payments of £97.51";
 
   it("shows the Comprehensive price, a year and monthly, with IPT", async () => {
-    showQuote();
+    await showQuote();
     await expect
       .element(page.getByRole("heading", { name: "Your Comprehensive price" }))
       .toBeVisible();
@@ -568,7 +568,7 @@ describe("the price on the holding view (5.4)", () => {
 
   it("names a named driver who needs checking, with no price", async () => {
     price.mockResolvedValue({ status: "referred", namedDriver: 1 });
-    showQuote();
+    await showQuote();
     await expect
       .element(page.getByText("We need to check a couple of things about Sam."))
       .toBeVisible();
@@ -577,7 +577,7 @@ describe("the price on the holding view (5.4)", () => {
 
   it("shows the plain referral line when no driver is the reason", async () => {
     price.mockResolvedValue({ status: "referred", namedDriver: null });
-    showQuote();
+    await showQuote();
     await expect
       .element(page.getByText("We need to check a couple of things, usually within a day."))
       .toBeVisible();
@@ -585,7 +585,7 @@ describe("the price on the holding view (5.4)", () => {
 
   it("shows the plain decline line when no driver is the reason", async () => {
     price.mockResolvedValue({ status: "declined", namedDriver: null });
-    showQuote();
+    await showQuote();
     await expect
       .element(page.getByText("We can’t offer car cover for these details."))
       .toBeVisible();
@@ -593,7 +593,7 @@ describe("the price on the holding view (5.4)", () => {
 
   it("names the driver who stopped the quote, and removing them brings a price back", async () => {
     price.mockResolvedValueOnce({ status: "declined", namedDriver: 1 }).mockResolvedValue(QUOTED);
-    showQuote();
+    await showQuote();
     await expect
       .element(page.getByText("We can’t offer cover with Sam as a named driver."))
       .toBeVisible();
@@ -610,19 +610,19 @@ describe("the price on the holding view (5.4)", () => {
 
   it("sends a step the server finds invalid back to that step", async () => {
     price.mockResolvedValue({ status: "invalid", step: "driving" });
-    showQuote();
+    await showQuote();
     await expect.element(heading()).toHaveTextContent("Your licence and driving");
   });
 
   it("sends an invalid car back to the car step", async () => {
     price.mockResolvedValue({ status: "invalid", step: "car" });
-    showQuote();
+    await showQuote();
     await expect.element(page.getByText("car step")).toBeVisible();
   });
 
   it("says when too many prices were asked for", async () => {
     price.mockResolvedValue({ status: "rate_limited" });
-    showQuote();
+    await showQuote();
     await expect
       .element(
         page.getByText("You’ve asked for a lot of prices in a short time. Try again in an hour."),
@@ -632,7 +632,7 @@ describe("the price on the holding view (5.4)", () => {
 
   it("offers Try again after a failure", async () => {
     price.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(QUOTED);
-    showQuote();
+    await showQuote();
     await expect.element(page.getByText("We couldn’t work out your price just now.")).toBeVisible();
     await page.getByRole("button", { name: "Try again" }).click();
     await expect.element(page.getByText(PRICE)).toBeVisible();
