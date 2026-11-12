@@ -639,3 +639,24 @@ button.quote-tabs__tab:focus-visible {
   gap: var(--space-2);
   text-decoration: none;
 }
+
+/* R01's card title and R02, "Your car, confirmed" (5.4b; 249:5807, 249:5858) */
+.quote-picker > h2 {
+  margin: 0;
+}
+.quote-confirmed {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+.quote-confirmed h2,
+.quote-confirmed p {
+  margin: 0;
+}
+.quote-confirmed__name {
+  color: var(--green-700);
+  font: 600 28px/34px var(--font-display);
+}
+.quote-confirmed__hint {
+  color: var(--fg-2);
+}

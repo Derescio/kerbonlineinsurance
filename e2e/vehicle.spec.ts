@@ -13,17 +13,15 @@ test("a demo plate fills the car in, and a refresh keeps it", async ({ page }) =
   await page.getByRole("button", { name: "Find my car" }).click();
 
   await expect(page).toHaveURL(/vehicle=manual/);
-  await expect(select(page, "1 · Make")).toHaveValue("Volkswagen");
-  await expect(select(page, "2 · Model")).toHaveValue("Golf");
-  await expect(select(page, "3 · Year first registered")).toHaveValue("2021");
-  await expect(select(page, "4 · Variant").locator("option:checked")).toHaveText(
-    "1.0 TSI Life 5dr",
-  );
+  await expect(select(page, "Make")).toHaveValue("Volkswagen");
+  await expect(select(page, "Model")).toHaveValue("Golf");
+  await expect(select(page, "Year first registered")).toHaveValue("2021");
+  await expect(select(page, "Variant").locator("option:checked")).toHaveText("1.0 TSI Life 5dr");
   await page.getByRole("button", { name: "Confirm this car" }).click();
-  await expect(page.getByText(/Your car: Volkswagen Golf 1\.0 TSI Life 5dr, 2021\./)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your car, confirmed" })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText(/Your car: Volkswagen Golf 1\.0 TSI Life 5dr, 2021\./)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your car, confirmed" })).toBeVisible();
 });
 
 test("an unknown plate goes the manual way, and the views don't check the postcode again", async ({
@@ -48,10 +46,10 @@ test("an unknown plate goes the manual way, and the views don't check the postco
 
   await page.getByRole("button", { name: "Choose my car manually" }).click();
   await expect(page).toHaveURL(/vehicle=manual/);
-  await select(page, "1 · Make").selectOption("Ford");
-  await select(page, "2 · Model").selectOption("Fiesta");
-  await select(page, "3 · Year first registered").selectOption("2019");
-  await select(page, "4 · Variant").selectOption({ label: "1.0 EcoBoost 125 Titanium 5dr" });
+  await select(page, "Make").selectOption("Ford");
+  await select(page, "Model").selectOption("Fiesta");
+  await select(page, "Year first registered").selectOption("2019");
+  await select(page, "Variant").selectOption({ label: "1.0 EcoBoost 125 Titanium 5dr" });
   await expect(page.getByText("2019 · Petrol · 5 doors")).toBeVisible();
 
   await page.goBack();

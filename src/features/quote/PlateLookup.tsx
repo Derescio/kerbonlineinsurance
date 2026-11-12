@@ -5,6 +5,8 @@ import { Alert } from "#/components/feedback/Alert";
 import { Input } from "#/components/forms/Input";
 
 import { demoPlates } from "./demo-plates";
+import { JourneyPage, StepNav } from "./page-kit";
+import { StepHeading } from "./step-kit";
 
 /**
  * The registration box, shared by screens 08 and 10. Tapping a demo plate only fills the box, so the
@@ -79,7 +81,21 @@ export function PlateBox({
   );
 }
 
-/** Screen 08 (Figma 226:624) */
+/** What the registration screens (08 and 10) take, in the revamp's frame (5.4b, decision 2) */
+export interface PlateViewProps {
+  plate: string;
+  onPlate: (plate: string) => void;
+  onFind: () => void;
+  error?: string;
+  finding: boolean;
+  loadError: React.ReactNode;
+  onManual: () => void;
+  tabs: React.ReactNode;
+  aside: React.ReactNode;
+  onBack: () => void;
+}
+
+/** Screen 08 (Figma 226:624), in the revamp's frame as it is (5.4b, decision 2) */
 export function PlateLookup({
   plate,
   onPlate,
@@ -88,26 +104,22 @@ export function PlateLookup({
   finding,
   loadError,
   onManual,
-}: {
-  plate: string;
-  onPlate: (plate: string) => void;
-  onFind: () => void;
-  error?: string;
-  finding: boolean;
-  loadError: React.ReactNode;
-  onManual: () => void;
-}) {
+  tabs,
+  aside,
+  onBack,
+}: PlateViewProps) {
   return (
-    <>
-      <header className="quote-heading">
-        <p className="quote-heading__overline">Car · Your details</p>
-        <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
-          Let&rsquo;s find your car
-        </h1>
-        <p className="quote-heading__intro">
-          Enter your registration and we&rsquo;ll look up your car&rsquo;s details.
-        </p>
-      </header>
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your details"
+          title="Let’s find your car"
+          intro="Enter your registration and we’ll look up your car’s details."
+        />
+      }
+      tabs={tabs}
+      aside={aside}
+    >
       <div className="quote-panel">
         <PlateBox
           plate={plate}
@@ -136,7 +148,8 @@ export function PlateLookup({
           Choose my car manually
         </Button>
       </section>
-    </>
+      <StepNav onBack={onBack} />
+    </JourneyPage>
   );
 }
 

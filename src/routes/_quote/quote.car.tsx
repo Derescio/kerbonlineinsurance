@@ -62,6 +62,11 @@ function CarQuotePage() {
       </noscript>
       <VehicleStep
         view={vehicle ?? "plate"}
+        postcode={postcode}
+        onBack={() => void navigate({ to: "/quote", search: { type: "car", postcode } })}
+        onTab={(tab) =>
+          void navigate({ search: (current) => ({ ...current, vehicle: undefined, step: tab }) })
+        }
         onView={(next) =>
           void navigate({
             search: (current) => ({ ...current, vehicle: next === "plate" ? undefined : next }),

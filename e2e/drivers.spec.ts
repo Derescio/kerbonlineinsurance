@@ -22,9 +22,9 @@ async function quoteWithYoungDriver(page: Page, plate: string, variant: string) 
   await page.goto("/quote/car?postcode=E8+3RL");
   await page.getByRole("button", { name: plate }).click();
   await page.getByRole("button", { name: "Find my car" }).click();
-  await expect(select(page, "4 · Variant").locator("option:checked")).toHaveText(variant);
+  await expect(select(page, "Variant").locator("option:checked")).toHaveText(variant);
   await page.getByRole("button", { name: "Confirm this car" }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue to your details" }).click();
 
   // About you
   await expect(page).toHaveURL(/step=about/);

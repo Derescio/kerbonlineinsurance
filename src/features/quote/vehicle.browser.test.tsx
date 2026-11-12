@@ -5,6 +5,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
 import type { PickerCar } from "./catalogue";
+import { completeJourney } from "./journey-fixtures";
 import { beginJourney, readJourney, setVehicle } from "./journey-store";
 import { VehicleStep, type VehicleStepView } from "./VehicleStep";
 
@@ -36,12 +37,29 @@ const cars = [
 
 const mailto = "mailto:hello@kerb.opsedsolutions.com?subject=Please%20add%20my%20car%20to%20Kerb";
 
+/** A full journey whose car is in this test's catalogue */
+function storeListedJourney() {
+  const journey = completeJourney();
+  journey.vehicle = { ...journey.vehicle!, catalogueVariantId: "golf-21-life" };
+  sessionStorage.setItem("kerb.quote.v1.car", JSON.stringify(journey));
+}
+
+const onBack = vi.fn();
+const onTab = vi.fn();
+
 function Harness({ initial }: { initial: VehicleStepView }) {
   const [view, setView] = useState(initial);
   return (
     <>
       <p data-testid="view">{view}</p>
-      <VehicleStep view={view} onView={setView} onContinue={() => {}} />
+      <VehicleStep
+        view={view}
+        postcode="E8 3RL"
+        onView={setView}
+        onContinue={() => {}}
+        onBack={onBack}
+        onTab={onTab}
+      />
     </>
   );
 }
@@ -60,10 +78,10 @@ async function renderStep(initial: VehicleStepView = "plate", client?: QueryClie
   );
 }
 
-const make = () => page.getByRole("combobox", { name: "1 · Make" });
-const model = () => page.getByRole("combobox", { name: "2 · Model" });
-const year = () => page.getByRole("combobox", { name: "3 · Year first registered" });
-const variant = () => page.getByRole("combobox", { name: "4 · Variant" });
+const make = () => page.getByRole("combobox", { name: "Make" });
+const model = () => page.getByRole("combobox", { name: "Model" });
+const year = () => page.getByRole("combobox", { name: "Year first registered" });
+const variant = () => page.getByRole("combobox", { name: "Variant" });
 const plateBox = () => page.getByRole("textbox", { name: "Car registration" });
 const view = () => page.getByTestId("view");
 
@@ -93,13 +111,14 @@ describe("the car step", () => {
     await userEvent.fill(plateBox(), "vw21gql");
     await page.getByRole("button", { name: "Find my car" }).click();
     await expect.element(view()).toHaveTextContent("manual");
-    await expect.element(page.getByText("Car · Your details")).toBeVisible();
+    await expect.element(page.getByText("Car insurance / Your details")).toBeVisible();
     await expect.element(make(), { timeout: 2000 }).toHaveDisplayValue("Volkswagen");
     await expect.element(model(), { timeout: 2000 }).toHaveDisplayValue("Golf");
     await expect.element(year(), { timeout: 2000 }).toHaveDisplayValue("2021");
     await expect.element(variant(), { timeout: 2000 }).toHaveDisplayValue("1.0 TSI Life 5dr");
-    await expect.element(page.getByText("Volkswagen Golf 1.0 TSI Life 5dr")).toBeVisible();
-    await expect.element(page.getByText("2021 · Petrol · 5 doors")).toBeVisible();
+    // The "Your car" card follows the fill (5.4b, call 6)
+    const card = page.getByRole("region", { name: "Your car" });
+    await expect.element(card.getByText("Volkswagen Golf 1.0 TSI Life 5dr")).toBeVisible();
   });
 
   it("fills everything at once with reduced motion", async () => {
@@ -171,10 +190,12 @@ describe("the car step", () => {
     await expect.element(confirm).toBeDisabled();
     await userEvent.selectOptions(variant(), "golf-21-life");
     await confirm.click();
+    await expect.element(page.getByRole("heading", { name: "Your car, confirmed" })).toBeVisible();
+    await expect.element(page.getByRole("heading", { name: "Is this your car?" })).toBeVisible();
+    await expect.element(page.getByText("2021 · Petrol · 5 doors").first()).toBeVisible();
     await expect
-      .element(page.getByText(/^Your car: Volkswagen Golf 1\.0 TSI Life 5dr, 2021\./))
+      .element(page.getByRole("button", { name: "Continue to your details" }))
       .toBeVisible();
-    await expect.element(page.getByRole("button", { name: "Continue" })).toBeVisible();
     expect(readJourney("car")?.vehicle).toMatchObject({
       catalogueVariantId: "golf-21-life",
       make: "Volkswagen",
@@ -191,7 +212,7 @@ describe("the car step", () => {
     await userEvent.selectOptions(year(), "2019");
     await userEvent.selectOptions(variant(), "fiesta-19");
     await page.getByRole("button", { name: "Confirm this car" }).click();
-    await page.getByRole("button", { name: "Change your car" }).click();
+    await page.getByRole("button", { name: "Change car", exact: true }).click();
     await expect.element(variant()).toHaveValue("fiesta-19");
     expect(readJourney("car")?.vehicle).toBeUndefined();
   });
@@ -233,9 +254,80 @@ describe("the car step", () => {
       doors: 5,
     });
     await renderStep();
+    await expect.element(page.getByRole("heading", { name: "Your car, confirmed" })).toBeVisible();
+  });
+
+  it("fills the Your car card as the picker is filled (5.4b, call 6)", async () => {
+    await page.viewport(1280, 900);
+    await renderStep("manual");
+    const card = page.getByRole("region", { name: "Your car" });
+    await userEvent.selectOptions(make(), "Volkswagen");
+    await expect.element(card.getByText("Volkswagen", { exact: true })).toBeVisible();
+    await userEvent.selectOptions(model(), "Golf");
+    await expect.element(card.getByText("Volkswagen Golf", { exact: true })).toBeVisible();
+    await userEvent.selectOptions(year(), "2021");
+    await userEvent.selectOptions(variant(), "golf-21-life");
+    await expect.element(card.getByText("Volkswagen Golf 1.0 TSI Life 5dr")).toBeVisible();
+    await expect.element(card.getByText("2021 · Petrol · 5 doors")).toBeVisible();
+    await userEvent.selectOptions(make(), "Ford");
+    await expect.element(card.getByText("Ford", { exact: true })).toBeVisible();
+    await expect.element(card.getByText(/doors/)).not.toBeInTheDocument();
+    await page.viewport(414, 896);
+  });
+
+  it("shows only the postcode on the registration screen", async () => {
+    await renderStep();
+    const card = page.getByRole("region", { name: "Your car" });
+    await expect.element(card.getByText("Postcode E8 3RL")).toBeInTheDocument();
+    await expect.element(card.getByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("Change car or postcode clears the car and opens the registration screen, keeping the driver answers", async () => {
+    sessionStorage.clear();
+    storeListedJourney();
+    await renderStep();
+    await expect.element(page.getByRole("heading", { name: "Your car, confirmed" })).toBeVisible();
+    await page.getByRole("button", { name: "Change car or postcode" }).click();
+    await expect.element(page.getByRole("heading", { name: "Let’s find your car" })).toBeVisible();
+    await expect.element(view()).toHaveTextContent("plate");
+    expect(readJourney("car")?.vehicle).toBeUndefined();
+    expect(readJourney("car")?.mainDriver).toBeDefined();
+  });
+
+  it("shows the details tabs with Car current and the rest locked", async () => {
+    await renderStep("manual");
+    const tabs = page.getByRole("navigation", { name: "Your details" });
     await expect
-      .element(page.getByText(/^Your car: Volkswagen Golf 1\.0 TSI Life 5dr, 2021\./))
-      .toBeVisible();
+      .element(tabs.getByRole("listitem").filter({ hasText: "Car" }))
+      .toHaveAttribute("aria-current", "step");
+    await expect.element(tabs.getByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("opens a finished driver step from the tabs on the confirmed car", async () => {
+    sessionStorage.clear();
+    storeListedJourney();
+    await renderStep();
+    await page.getByRole("button", { name: "Claims, done" }).click();
+    expect(onTab).toHaveBeenLastCalledWith("claims");
+  });
+
+  it("Back on the confirmed car goes to where the car was chosen", async () => {
+    await renderStep("manual");
+    await userEvent.selectOptions(make(), "Ford");
+    await userEvent.selectOptions(model(), "Fiesta");
+    await userEvent.selectOptions(year(), "2019");
+    await userEvent.selectOptions(variant(), "fiesta-19");
+    await page.getByRole("button", { name: "Confirm this car" }).click();
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect.element(view()).toHaveTextContent("manual");
+    await expect.element(variant()).toHaveValue("fiesta-19");
+    expect(readJourney("car")?.vehicle).toBeUndefined();
+  });
+
+  it("Back on the registration screen leaves the car step", async () => {
+    await renderStep();
+    await page.getByRole("button", { name: "Back" }).click();
+    expect(onBack).toHaveBeenCalled();
   });
 
   function holdCatalogue() {
@@ -303,7 +395,7 @@ describe("the car step", () => {
       doors: 5,
     });
     await renderStep();
-    const heading = page.getByRole("heading", { name: "Your car" });
+    const heading = page.getByRole("heading", { name: "Your car, confirmed" });
     await expect.element(heading).toBeVisible();
     await expect.element(heading).not.toHaveFocus();
   });
