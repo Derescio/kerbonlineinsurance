@@ -98,7 +98,7 @@ test("a car quote's driver steps end on the Golf's price, and a refresh keeps it
   await expect(page.getByText("Sam Morgan")).toBeVisible();
 });
 
-test("the Tesla is declined with a 19-year-old named driver, and removing them brings a price", async ({
+test("the Tesla is declined with a 19-year-old named driver; removing him prices it, and Undo puts him back", async ({
   page,
 }) => {
   await quoteWithYoungDriver(page, "TS24 EIV", "RWD");
@@ -106,12 +106,13 @@ test("the Tesla is declined with a 19-year-old named driver, and removing them b
   // Group 32: under 21 on group 30 or above is declined, and the person applying is told who
   await expect(page.getByText("We can’t offer cover with Sam as a named driver.")).toBeVisible();
   await expect(page.getByText(yearly)).toHaveCount(0);
+  // Removed on the spot and priced again, with Undo to put him back
   await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
-  await expect(page).toHaveURL(/step=drivers/);
-  await page.getByRole("button", { name: "Remove driver 1" }).click();
-  await page.getByRole("button", { name: "Get my car quote" }).click();
-  await expect(page).toHaveURL(/step=quote/);
+  await expect(page.getByText("Sam has been removed from this quote.")).toBeVisible();
   await expect(page.getByText(yearly)).toBeVisible();
+  await expect(page).toHaveURL(/step=quote/);
+  await page.getByRole("button", { name: "Add Sam back" }).click();
+  await expect(page.getByText("We can’t offer cover with Sam as a named driver.")).toBeVisible();
 });
 
 test("a cold link to a later step goes back to the car step", async ({ page }) => {

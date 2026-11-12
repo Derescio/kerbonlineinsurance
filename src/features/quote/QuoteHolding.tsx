@@ -1,6 +1,7 @@
 import { Card } from "#/components/display/Card";
 
 import type { Journey } from "./journey-store";
+import type { NamedDrivers } from "./schemas/driver-steps";
 import { QuotePrice } from "./QuotePrice";
 import { licenceOptions } from "./schemas/driver-steps";
 import { StepHeading } from "./step-kit";
@@ -58,10 +59,13 @@ function rows(journey: Journey): { step: DriverStep; title: string; value: strin
 export function QuoteHolding({
   journey,
   onEdit,
+  onNamedDrivers,
   onInvalid,
 }: {
   journey: Journey;
   onEdit: (step: DriverStep) => void;
+  /** Saves the named drivers after one is removed or put back from the price (5.4) */
+  onNamedDrivers: (namedDrivers: NamedDrivers) => void;
   /** Where the server sends a step that no longer passes (5.4) */
   onInvalid: (step: "car" | DriverStep) => void;
 }) {
@@ -69,7 +73,7 @@ export function QuoteHolding({
     <>
       <StepHeading overline="Car · Your quote" title="Your quote" />
       <Card padding="lg" className="quote-slot">
-        <QuotePrice journey={journey} onEdit={onEdit} onInvalid={onInvalid} />
+        <QuotePrice journey={journey} onNamedDrivers={onNamedDrivers} onInvalid={onInvalid} />
       </Card>
       <section className="quote-panel" aria-label="Your answers">
         <dl className="quote-summary">
