@@ -1,6 +1,6 @@
 # 5.4 Rating engine
 
-**Status:** done (PR pending; the dev reseed still to record after the merge). Plan in [04-rating-engine-plan.md](04-rating-engine-plan.md)
+**Status:** done (merged as #87; `dev` reseeded 12 Nov 2026). Plan in [04-rating-engine-plan.md](04-rating-engine-plan.md)
 **Phase:** 05-quote
 
 ## Goal
@@ -125,7 +125,11 @@ The calculator behind every price Kerb shows. `priceQuote()` takes what the quot
   - **Found and fixed:** "Remove John" only opened the named-drivers step with John still there. It now removes him on the spot, prices again, and offers "Add John back" (decision 4). The button also sizes to its text.
   - **Remove and Undo, after the fix:** on the Tesla with John named, "Remove John" stayed on "Your quote" and showed "John has been removed from this quote. Add John back" above £1,703.39 a year, or 12 payments of £156.14 (£1,703.39 × 1.10 ÷ 12); "Add John back" brought the decline back. Checked again at phone width.
   - **Phone width (393 px):** nothing clipped or overflowing. The price sentence wraps over three lines in the 30 px price style; 5.5 puts the monthly figure on its own smaller line, as screen 13 does.
-  - **Still to do after the merge:** reseed `dev` (`db:reset-dev`, then `db:seed`) and spot-check a few seeded prices.
+  - **`dev` reseeded after the merge** (12 Nov 2026, `vp run db:reset-dev -- --confirm <dev host>`, which migrates, loads the reference data and seeds in one run): 0020 applied, car, home and business v1 active, 5,524 quotes and 5,461 items, and every app-role check passed. Spot check, read-only:
+    - **Prices, quoted one-item quotes with IPT:** car £252.00 to £6,432.12, median £621.73 (the lowest is the £225 minimum plus IPT); home £140.52 to £2,694.47, median £506.52; business £61.60 to £20,733.04, median £461.82. All within each version's limits.
+    - **Bundles:** 544 quotes have a discount, and none without a quoted car and a quoted home (decision 7).
+    - **Reasons:** all on the fixed list; the most common are `high_insurance_group` (89), `past_claims` (57) and `young_driver_high_group` (46). 21 decisions note "named driver 1" (decision 14).
+    - **References:** `KRB-Q-90000` to `KRB-Q-95523`, the seed's 9 range.
 
 ## Commit message
 
