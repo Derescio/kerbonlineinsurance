@@ -28,18 +28,27 @@ const VALID_DAYS = 30;
 const REFERENCE_TRIES = 5;
 const UNIQUE_VIOLATION = "23505";
 
-/** A time-ordered id, like Postgres 18's uuidv7() (4.2 decision 3) */
-function uuidv7(at: Date = new Date()): string {
-  const bytes = getRandomValues(new Uint8Array(16));
-  let ms = at.getTime();
-  for (let i = 5; i >= 0; i--) {
-    bytes[i] = ms % 256;
-    ms = Math.floor(ms / 256);
-  }
-  bytes[6] = (bytes[6]! & 0x0f) | 0x70;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+/**
+ * Time-ordered ids, like Postgres 18's uuidv7() (4.2 decision 3), counting up within one save: the
+ * 12 bits after the time are a counter, so rows sort by id in the order they were built. Named
+ * drivers keep their entry order that way, and "named driver 2" finds the right row (decision 14).
+ */
+function idsAt(at: Date): () => string {
+  let counter = 0;
+  return () => {
+    const bytes = getRandomValues(new Uint8Array(16));
+    let ms = at.getTime();
+    for (let i = 5; i >= 0; i--) {
+      bytes[i] = ms % 256;
+      ms = Math.floor(ms / 256);
+    }
+    bytes[6] = 0x70 | ((counter >> 8) & 0x0f);
+    bytes[7] = counter & 0xff;
+    bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+    counter++;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  };
 }
 
 /** KRB-Q-10000 to KRB-Q-89999: below the seed's 9 range (4.9 call 19) */
@@ -65,17 +74,20 @@ export interface SaveQuoteInput {
 export async function saveQuote(
   db: Db = getDb(),
   input: SaveQuoteInput,
+  deps: { drawReference?: () => string } = {},
 ): Promise<{ quoteId: string; reference: string }> {
   const at = input.now ?? new Date();
+  const draw = deps.drawReference ?? drawReference;
   for (let attempt = 1; ; attempt++) {
+    const newId = idsAt(at);
     const rows = quoteRows(input.priced, {
-      quoteId: uuidv7(at),
-      reference: drawReference(),
+      quoteId: newId(),
+      reference: draw(),
       customerId: input.customerId,
       postcode: input.postcode,
       at,
       validUntil: new Date(at.getTime() + VALID_DAYS * 86_400_000),
-      newId: () => uuidv7(at),
+      newId,
       items: input.items,
     });
     try {

@@ -49,6 +49,8 @@ export interface PricedItem {
   /** The cover level and add-ons asked for, kept for a referred item that a handler approves */
   coverLevel: CoverLevel;
   chosenAddons: string[];
+  /** What it was priced from: saveQuote checks the saved details against it */
+  inputs: RatingInputs["inputs"];
   factors: PricedFactor[];
   options: PricedOption[];
   addons: PricedAddon[];
@@ -207,6 +209,7 @@ function draft(request: QuoteItemRequest): Draft {
     product: request.product,
     coverLevel: request.coverLevel,
     chosenAddons: request.addons,
+    inputs: request.inputs,
     ratingVersionId: request.tables.id ?? null,
     selected: null,
   };

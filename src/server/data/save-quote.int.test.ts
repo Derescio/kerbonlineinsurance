@@ -24,6 +24,7 @@ import { makeCustomer } from "#/test/factories";
 
 import type { CarDetails, HomeDetails, SaveItem } from "./quote-rows";
 import { saveQuote } from "./save-quote";
+import { makeQuote } from "#/test/factories";
 
 // saveQuote() (5.4, spec decision 2): built and tested here, called by 5.6 after sign-in. One
 // transaction writes the quote, its items, options, add-ons, factor lines, detail rows and first
@@ -70,6 +71,13 @@ const carDetails = (named = 1): CarDetails => ({
     })),
   ],
 });
+
+/** The details priced as a group 32 car with one 19-year-old named driver */
+function teslaDetails(): CarDetails {
+  const details = carDetails(1);
+  details.vehicle.insuranceGroup = 32;
+  return details;
+}
 
 const homeDetails = (): HomeDetails => ({
   product: "home",
@@ -217,7 +225,7 @@ describe("saveQuote", () => {
       customerId: customer.id,
       postcode: "LS6 2AB",
       priced: quote,
-      items: [save(carDetails())],
+      items: [save(teslaDetails())],
       now: NOW,
     });
     const [item] = await getDb()
@@ -247,9 +255,9 @@ describe("saveQuote", () => {
     const quote = await priced([
       { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
     ]);
-    // A group of 99 breaks vehicles_insurance_group_check after the quote and item are written
+    // 9 doors breaks vehicles_doors_check after the quote and item are written
     const bad = carDetails(0);
-    bad.vehicle.insuranceGroup = 99;
+    bad.vehicle.doors = 9;
     await expect(
       saveQuote(getDb(), {
         customerId: customer.id,
@@ -307,5 +315,109 @@ describe("saveQuote", () => {
     const [row] = await getDb().select().from(quotes).where(eq(quotes.id, saved.quoteId));
     expect(row!.totalPence).toBe(quote.totalPence);
     expect(await getDb().select().from(ratingVersions)).toHaveLength(4);
+  });
+
+  it("keeps named drivers in the order entered, so 'named driver n' finds the right row", async () => {
+    const customer = await makeCustomer();
+    const three = [30, 40, 50].map((age) => ({ age, licenceYears: 10 }));
+    const quote = await priced([
+      {
+        product: "car",
+        inputs: carInputs({ namedDrivers: three }),
+        coverLevel: "comprehensive",
+        addons: [],
+      },
+    ]);
+    const details = carDetails(0);
+    details.drivers.push(
+      ...["First", "Second", "Third"].map((firstName) => ({ ...details.drivers[0]!, firstName })),
+    );
+    const saved = await saveQuote(getDb(), {
+      customerId: customer.id,
+      postcode: "LS6 2AB",
+      priced: quote,
+      items: [save(details)],
+      now: NOW,
+    });
+    const [item] = await getDb()
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.quoteId, saved.quoteId));
+    const named = (await getDb().select().from(drivers).where(eq(drivers.quoteItemId, item!.id)))
+      .filter((d) => !d.isMain)
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map((d) => d.firstName);
+    expect(named).toEqual(["First", "Second", "Third"]);
+  });
+
+  it("refuses details that don't match what was priced", async () => {
+    const customer = await makeCustomer();
+    const quote = await priced([
+      {
+        product: "car",
+        inputs: carInputs({ namedDrivers: [{ age: 30, licenceYears: 10 }] }),
+        coverLevel: "comprehensive",
+        addons: [],
+      },
+    ]);
+    const input = { customerId: customer.id, postcode: "LS6 2AB", priced: quote, now: NOW };
+    // No named driver saved for the one priced
+    await expect(saveQuote(getDb(), { ...input, items: [save(carDetails(0))] })).rejects.toThrow(
+      "don't match what was priced",
+    );
+    // A different car
+    await expect(saveQuote(getDb(), { ...input, items: [save(teslaDetails())] })).rejects.toThrow(
+      "don't match what was priced",
+    );
+    expect(await getDb().select().from(quotes)).toEqual([]);
+  });
+
+  it("draws another reference when one is taken", async () => {
+    const customer = await makeCustomer();
+    const { quote: taken } = await makeQuote();
+    const quote = await priced([
+      { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
+    ]);
+    const draws = [taken.reference, "KRB-Q-23456"];
+    const saved = await saveQuote(
+      getDb(),
+      {
+        customerId: customer.id,
+        postcode: "LS6 2AB",
+        priced: quote,
+        items: [save(carDetails(0))],
+        now: NOW,
+      },
+      { drawReference: () => draws.shift()! },
+    );
+    expect(saved.reference).toBe("KRB-Q-23456");
+  });
+
+  it("gives up after five taken references", async () => {
+    const customer = await makeCustomer();
+    const { quote: taken } = await makeQuote();
+    const quote = await priced([
+      { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
+    ]);
+    let draws = 0;
+    await expect(
+      saveQuote(
+        getDb(),
+        {
+          customerId: customer.id,
+          postcode: "LS6 2AB",
+          priced: quote,
+          items: [save(carDetails(0))],
+          now: NOW,
+        },
+        {
+          drawReference: () => {
+            draws++;
+            return taken.reference;
+          },
+        },
+      ),
+    ).rejects.toThrow();
+    expect(draws).toBe(5);
   });
 });

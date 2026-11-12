@@ -1,4 +1,5 @@
 import type { PricedItem, PricedQuote } from "#/features/rating/price-quote";
+import type { BusinessInputs, CarInputs, HomeInputs } from "#/features/rating/types";
 import type {
   businesses,
   drivers,
@@ -69,6 +70,47 @@ export function quoteStatus(outcomes: readonly PricedItem["outcome"][]) {
   return live.includes("referred") ? "referred" : "priced";
 }
 
+/**
+ * The saved details describe the risk that was priced: the same car and drivers, home or business.
+ * A stale tab or a bug would otherwise store one risk beside another's price and decision.
+ */
+function detailsMatch(priced: PricedItem, details: ItemDetails): boolean {
+  if (priced.product !== details.product) return false;
+  switch (details.product) {
+    case "car": {
+      const car = priced.inputs as CarInputs;
+      const v = details.vehicle;
+      return (
+        details.drivers.length === 1 + car.namedDrivers.length &&
+        v.year === car.vehicle.year &&
+        v.insuranceGroup === car.vehicle.insuranceGroup &&
+        v.fuelType === car.vehicle.fuelType &&
+        v.valuePence === car.vehicle.valuePence
+      );
+    }
+    case "home": {
+      const i = priced.inputs as HomeInputs;
+      const h = details.property;
+      return (
+        h.propertyType === i.propertyType &&
+        h.yearBuilt === i.yearBuilt &&
+        h.bedrooms === i.bedrooms &&
+        h.rebuildCostPence === i.rebuildCostPence &&
+        h.contentsValuePence === i.contentsValuePence
+      );
+    }
+    case "business": {
+      const i = priced.inputs as BusinessInputs;
+      const b = details.business;
+      return (
+        b.tradeClass === i.tradeClass &&
+        b.turnoverPence === i.turnoverPence &&
+        b.employees === i.employees
+      );
+    }
+  }
+}
+
 export function itemRows(
   priced: PricedItem,
   ctx: {
@@ -78,8 +120,8 @@ export function itemRows(
     newId: () => string;
   } & SaveItem,
 ): ItemRows {
-  if (priced.product !== ctx.details.product) {
-    throw new Error(`itemRows: ${priced.product} item with ${ctx.details.product} details`);
+  if (!detailsMatch(priced, ctx.details)) {
+    throw new Error(`itemRows: the ${priced.product} details don't match what was priced`);
   }
   const id = ctx.newId();
   const at = ctx.at;
