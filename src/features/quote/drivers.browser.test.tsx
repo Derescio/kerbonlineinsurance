@@ -113,7 +113,9 @@ describe("About you", () => {
         ),
       )
       .toBeVisible();
-    await expect.element(page.getByText("Home postcode: E8 3RL.")).toBeVisible();
+    await expect.element(page.getByText("Home postcode: E8 3RL")).toBeVisible();
+    await expect.element(page.getByRole("heading", { name: "About you", level: 2 })).toBeVisible();
+    await expect.element(page.getByRole("heading", { name: "Home address" })).toBeVisible();
   });
 
   it("shows the job list for Employed, without the statuses, and hides it for Retired", async () => {
@@ -208,7 +210,7 @@ describe("Licence and driving", () => {
       )
       .toBeVisible();
     await userEvent.selectOptions(select("Licence type"), "Provisional UK");
-    await page.getByRole("button", { name: "Continue to driving history" }).click();
+    await page.getByRole("button", { name: "Continue to claims" }).click();
     await expect
       .element(page.getByText("Kerb can’t quote for a provisional licence yet."))
       .toBeVisible();
@@ -232,7 +234,7 @@ describe("Licence and driving", () => {
     await userEvent.fill(box("Current mileage"), "18200");
     await userEvent.selectOptions(select("Use of the car"), "Social, domestic and commuting");
     await userEvent.selectOptions(select("Where is the car kept overnight?"), "Driveway");
-    await page.getByRole("button", { name: "Continue to driving history" }).click();
+    await page.getByRole("button", { name: "Continue to claims" }).click();
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledOnce());
     const journey = readJourney("car")!;
     expect(journey.mainDriver).toMatchObject({ licenceType: "full_uk", noClaimsYears: 5 });
@@ -414,6 +416,43 @@ describe("the driver steps in order", () => {
     store(journey);
   }
 
+  it("ticks finished steps in the tabs and opens one when clicked (5.4b, call 5)", async () => {
+    storeComplete((journey) => delete journey.namedDrivers);
+    const { moves } = renderFlow("claims");
+    const tabs = page.getByRole("navigation", { name: "Your details" });
+    await expect
+      .element(tabs.getByRole("listitem").filter({ hasText: "Claims" }))
+      .toHaveAttribute("aria-current", "step");
+    await tabs.getByRole("button", { name: "About you, done" }).click();
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Tell us about you");
+    await expect.element(box("First name")).toHaveValue("Alex");
+    expect(moves.at(-1)).toEqual({ step: "about", replace: false });
+  });
+
+  it("never links past the first unfinished step (5.4b, call 5)", async () => {
+    carOnly();
+    renderFlow("about");
+    const tabs = page.getByRole("navigation", { name: "Your details" });
+    await expect.element(tabs.getByRole("button", { name: "Car, done" })).toBeVisible();
+    await expect.element(tabs.getByRole("button", { name: /Driving/ })).not.toBeInTheDocument();
+    await expect.element(tabs.getByRole("button", { name: /Claims/ })).not.toBeInTheDocument();
+    await expect.element(tabs.getByRole("button", { name: /Drivers/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the car beside every step, and Change clears it for the car step (5.4b, call 6)", async () => {
+    storeComplete();
+    const { moves } = renderFlow("driving");
+    const card = page.getByRole("region", { name: "Your car" });
+    await expect.element(card.getByText("Postcode E8 3RL")).toBeInTheDocument();
+    await card.getByRole("button", { name: /Change/ }).click();
+    await expect.element(page.getByText("car step")).toBeVisible();
+    expect(moves.at(-1)).toEqual({ step: undefined, replace: false });
+    expect(readJourney("car")?.vehicle).toBeUndefined();
+    expect(readJourney("car")?.usage).toBeDefined();
+  });
+
   it("sends a link to a later step with no car back to the car step", async () => {
     const { moves } = renderFlow("drivers");
     await expect.element(page.getByText("car step")).toBeVisible();
@@ -473,7 +512,9 @@ describe("the driver steps in order", () => {
       };
     });
     renderFlow("quote");
-    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Claims");
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your driving history");
     await expect.element(page.getByText("The incident must be in the last 5 years.")).toBeVisible();
   });
 

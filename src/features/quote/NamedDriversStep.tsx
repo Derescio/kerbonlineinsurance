@@ -16,6 +16,8 @@ import {
   type NamedDrivers,
 } from "./schemas/driver-steps";
 import { chosen, StepActions, StepHeading, YesNo, type Errors, type StepProps } from "./step-kit";
+import { namedIntro } from "./intros";
+import { JourneyPage } from "./page-kit";
 import { storedAnswers, storedErrors } from "./steps";
 
 // Named drivers (5.3, call 12): screen 12a (235:1638) without the convictions question
@@ -52,7 +54,15 @@ const newDriver = (): DriverForm => ({
 
 const headingId = (id: string) => `named-driver-${id}`;
 
-export function NamedDriversStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
+export function NamedDriversStep({
+  journey,
+  today,
+  revalidate,
+  onBack,
+  onDone,
+  tabs,
+  aside,
+}: StepProps) {
   const stored = storedAnswers(journey, "drivers") as NamedDrivers | undefined;
   const [any, setAny] = useState<boolean | undefined>(stored?.any);
   const [drivers, setDrivers] = useState<DriverForm[]>(
@@ -127,138 +137,137 @@ export function NamedDriversStep({ journey, today, revalidate, onBack, onDone }:
   }
 
   return (
-    <form ref={formRef} className="quote-form" onSubmit={submit} noValidate>
-      <StepHeading
-        overline="Car · Your details · Named drivers"
-        title="Who else will drive your car?"
-        intro={
-          car ? (
-            <>
-              Add anyone else who needs to drive the {car.make} {car.model}. You&rsquo;ll remain the
-              main driver.
-            </>
-          ) : null
-        }
-      />
-
-      <section className="quote-panel" aria-label="Named drivers">
-        <YesNo
-          name="drivers-any"
-          legend="Would you like to add a named driver?"
-          hint="Only people listed on your policy will be covered to drive your car."
-          value={any}
-          error={errors.any ?? errors.drivers}
-          onChange={answer}
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your details"
+          title="Who else will drive your car?"
+          intro={namedIntro(car)}
         />
-      </section>
+      }
+      tabs={tabs}
+      aside={aside}
+    >
+      <form ref={formRef} className="quote-form" onSubmit={submit} noValidate>
+        <section className="quote-panel" aria-label="Named drivers">
+          <YesNo
+            name="drivers-any"
+            legend="Would you like to add a named driver?"
+            hint="Only people listed on your policy will be covered to drive your car."
+            value={any}
+            error={errors.any ?? errors.drivers}
+            onChange={answer}
+          />
+        </section>
 
-      {drivers.map((driver, i) => {
-        const err = (field: string) => errors[`drivers.${i}.${field}`];
-        const name = driver.firstName.trim();
-        const text = (key: "firstName" | "lastName") => ({
-          value: driver[key],
-          error: err(key),
-          onChange: (e: { target: { value: string } }) =>
-            update(driver.id, { [key]: e.target.value }),
-        });
-        return (
-          <div key={driver.id} className="quote-form">
-            <section className="quote-panel" aria-labelledby={headingId(driver.id)}>
-              <div className="quote-panel__head">
-                <h2 id={headingId(driver.id)} className="kb-h3 quote-panel__title" tabIndex={-1}>
-                  Named driver {i + 1}
-                </h2>
-                <button type="button" className="quote-link" onClick={() => remove(i)}>
-                  Remove driver<span className="kb-sr-only"> {i + 1}</span>
-                </button>
-              </div>
-              <div className="quote-fields">
-                <Input label="First name" {...text("firstName")} />
-                <Input label="Last name" {...text("lastName")} />
-              </div>
-              <p className="quote-note">Use their name as it appears on their driving licence.</p>
-              <div className="quote-fields">
-                <DateField
-                  legend="Date of birth"
-                  value={driver.dateOfBirth}
-                  error={err("dateOfBirth")}
-                  onChange={(dateOfBirth) => update(driver.id, { dateOfBirth })}
+        {drivers.map((driver, i) => {
+          const err = (field: string) => errors[`drivers.${i}.${field}`];
+          const name = driver.firstName.trim();
+          const text = (key: "firstName" | "lastName") => ({
+            value: driver[key],
+            error: err(key),
+            onChange: (e: { target: { value: string } }) =>
+              update(driver.id, { [key]: e.target.value }),
+          });
+          return (
+            <div key={driver.id} className="quote-form">
+              <section className="quote-panel" aria-labelledby={headingId(driver.id)}>
+                <div className="quote-panel__head">
+                  <h2 id={headingId(driver.id)} className="kb-h3 quote-panel__title" tabIndex={-1}>
+                    Named driver {i + 1}
+                  </h2>
+                  <button type="button" className="quote-link" onClick={() => remove(i)}>
+                    Remove driver<span className="kb-sr-only"> {i + 1}</span>
+                  </button>
+                </div>
+                <div className="quote-fields">
+                  <Input label="First name" {...text("firstName")} />
+                  <Input label="Last name" {...text("lastName")} />
+                </div>
+                <p className="quote-note">Use their name as it appears on their driving licence.</p>
+                <div className="quote-fields">
+                  <DateField
+                    legend="Date of birth"
+                    value={driver.dateOfBirth}
+                    error={err("dateOfBirth")}
+                    onChange={(dateOfBirth) => update(driver.id, { dateOfBirth })}
+                  />
+                  <Select
+                    label="Relationship to you"
+                    placeholder="Choose a relationship"
+                    options={relationshipOptions}
+                    value={driver.relationship}
+                    error={err("relationship")}
+                    onChange={(e) => update(driver.id, { relationship: e.target.value })}
+                  />
+                </div>
+                <OccupationField
+                  value={driver}
+                  errors={{ status: err("status"), occupation: err("occupation") }}
+                  onChange={(value) => update(driver.id, value)}
                 />
-                <Select
-                  label="Relationship to you"
-                  placeholder="Choose a relationship"
-                  options={relationshipOptions}
-                  value={driver.relationship}
-                  error={err("relationship")}
-                  onChange={(e) => update(driver.id, { relationship: e.target.value })}
-                />
-              </div>
-              <OccupationField
-                value={driver}
-                errors={{ status: err("status"), occupation: err("occupation") }}
-                onChange={(value) => update(driver.id, value)}
-              />
-            </section>
+              </section>
 
-            <section className="quote-panel" aria-labelledby={`${headingId(driver.id)}-history`}>
-              <h3 id={`${headingId(driver.id)}-history`} className="kb-h3 quote-panel__title">
-                {name
-                  ? `${name}’s licence and driving history`
-                  : "Their licence and driving history"}
-              </h3>
-              <div className="quote-fields">
-                <Select
-                  label="Licence type"
-                  placeholder="Choose a licence type"
-                  options={licenceOptions}
-                  value={driver.licenceType}
-                  error={err("licenceType")}
-                  onChange={(e) => update(driver.id, { licenceType: e.target.value })}
+              <section className="quote-panel" aria-labelledby={`${headingId(driver.id)}-history`}>
+                <h3 id={`${headingId(driver.id)}-history`} className="kb-h3 quote-panel__title">
+                  {name
+                    ? `${name}’s licence and driving history`
+                    : "Their licence and driving history"}
+                </h3>
+                <div className="quote-fields">
+                  <Select
+                    label="Licence type"
+                    placeholder="Choose a licence type"
+                    options={licenceOptions}
+                    value={driver.licenceType}
+                    error={err("licenceType")}
+                    onChange={(e) => update(driver.id, { licenceType: e.target.value })}
+                  />
+                  <DateField
+                    legend="Date full licence obtained"
+                    value={driver.licenceDate}
+                    error={err("licenceDate")}
+                    onChange={(licenceDate) => update(driver.id, { licenceDate })}
+                  />
+                </div>
+                <YesNo
+                  name={`driver-${driver.id}-claims`}
+                  legend="Any accidents, claims or losses in the last 5 years?"
+                  hint="Include incidents even if they didn’t claim, or weren’t at fault."
+                  value={driver.anyClaims}
+                  error={err("anyClaims")}
+                  onChange={(anyClaims) =>
+                    update(driver.id, { anyClaims, ...(!anyClaims && { pastClaims: "" }) })
+                  }
                 />
-                <DateField
-                  legend="Date full licence obtained"
-                  value={driver.licenceDate}
-                  error={err("licenceDate")}
-                  onChange={(licenceDate) => update(driver.id, { licenceDate })}
-                />
-              </div>
-              <YesNo
-                name={`driver-${driver.id}-claims`}
-                legend="Any accidents, claims or losses in the last 5 years?"
-                hint="Include incidents even if they didn’t claim, or weren’t at fault."
-                value={driver.anyClaims}
-                error={err("anyClaims")}
-                onChange={(anyClaims) =>
-                  update(driver.id, { anyClaims, ...(!anyClaims && { pastClaims: "" }) })
-                }
-              />
-              {driver.anyClaims ? (
-                <Select
-                  label="How many?"
-                  placeholder="Choose how many"
-                  options={claimsCountOptions}
-                  value={driver.pastClaims}
-                  error={err("pastClaims")}
-                  onChange={(e) => update(driver.id, { pastClaims: e.target.value })}
-                />
-              ) : null}
-            </section>
-          </div>
-        );
-      })}
+                {driver.anyClaims ? (
+                  <Select
+                    label="How many?"
+                    placeholder="Choose how many"
+                    options={claimsCountOptions}
+                    value={driver.pastClaims}
+                    error={err("pastClaims")}
+                    onChange={(e) => update(driver.id, { pastClaims: e.target.value })}
+                  />
+                ) : null}
+              </section>
+            </div>
+          );
+        })}
 
-      {any && drivers.length < MAX_DRIVERS ? (
-        <Button
-          type="button"
-          variant="secondary"
-          className="quote-add"
-          onClick={() => setDrivers((current) => [...current, newDriver()])}
-        >
-          Add another driver
-        </Button>
-      ) : null}
+        {any && drivers.length < MAX_DRIVERS ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="quote-add"
+            onClick={() => setDrivers((current) => [...current, newDriver()])}
+          >
+            Add another driver
+          </Button>
+        ) : null}
 
-      <StepActions onBack={onBack} submit="Get my car quote" />
-    </form>
+        <StepActions onBack={onBack} submit="Get my car quote" />
+      </form>
+    </JourneyPage>
   );
 }

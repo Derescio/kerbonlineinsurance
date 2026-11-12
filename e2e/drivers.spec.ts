@@ -46,7 +46,7 @@ async function quoteWithYoungDriver(page: Page, plate: string, variant: string) 
   await box(page, "Current mileage").fill("18200");
   await select(page, "Use of the car").selectOption({ label: "Social, domestic and commuting" });
   await select(page, "Where is the car kept overnight?").selectOption({ label: "Driveway" });
-  await page.getByRole("button", { name: "Continue to driving history" }).click();
+  await page.getByRole("button", { name: "Continue to claims" }).click();
 
   // Claims: one incident last year
   await expect(page).toHaveURL(/step=claims/);

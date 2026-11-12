@@ -1,15 +1,15 @@
 import { useRef, useState, type FormEvent } from "react";
 
-import { Icon } from "#/components/display/Icon";
 import { Input } from "#/components/forms/Input";
 import { fieldErrors, focusFirstError } from "#/lib/validation";
 
-import { fuelLabel } from "./catalogue";
 import { DateField, isoOf, partsOf, type DateParts } from "./DateField";
 import { setStepAnswers } from "./journey-store";
 import { OccupationField, type OccupationValue } from "./OccupationField";
 import { aboutYouSchema, type AboutYou } from "./schemas/driver-steps";
 import { chosen, StepActions, StepHeading, type Errors, type StepProps } from "./step-kit";
+import { aboutIntro } from "./intros";
+import { JourneyPage } from "./page-kit";
 import { storedAnswers, storedErrors } from "./steps";
 
 // About you (5.3, call 7): the original journey's "Tell us about you and your car" (157:10429). The
@@ -38,7 +38,15 @@ function initial(stored: AboutYou | undefined): Form {
   };
 }
 
-export function AboutYouStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
+export function AboutYouStep({
+  journey,
+  today,
+  revalidate,
+  onBack,
+  onDone,
+  tabs,
+  aside,
+}: StepProps) {
   const [form, setForm] = useState(() => initial(storedAnswers(journey, "about") as AboutYou));
   const [errors, setErrors] = useState<Errors>(() =>
     revalidate ? storedErrors(journey, "about", today) : {},
@@ -74,34 +82,22 @@ export function AboutYouStep({ journey, today, revalidate, onBack, onDone }: Ste
   }
 
   return (
-    <form ref={formRef} className="quote-form" onSubmit={submit} noValidate>
-      <StepHeading
-        overline="Car · Your details · About you"
-        title="Tell us about you"
-        intro={
-          car ? (
-            <>
-              We&rsquo;ll use this information to build your quote for the {car.year} {car.make}{" "}
-              {car.model}.
-            </>
-          ) : null
-        }
-      />
-
-      <div className="quote-details">
-        {car ? (
-          <section className="quote-aside quote-car" aria-label="Your car">
-            <Icon name="car" size={24} />
-            <p className="quote-car__name">
-              {car.make} {car.model} {car.variant}
-            </p>
-            <p>
-              {car.year} · {fuelLabel(car.fuelType)} · {car.doors} doors
-            </p>
-          </section>
-        ) : null}
-
-        <div className="quote-panel">
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your details"
+          title="Tell us about you"
+          intro={aboutIntro(car)}
+        />
+      }
+      tabs={tabs}
+      aside={aside}
+    >
+      <form ref={formRef} className="quote-form" onSubmit={submit} noValidate>
+        <section className="quote-panel" aria-labelledby="about-heading">
+          <h2 id="about-heading" className="kb-h3 quote-panel__title">
+            About you
+          </h2>
           <div className="quote-fields">
             <Input label="First name" autoComplete="given-name" {...text("firstName")} />
             <Input label="Last name" autoComplete="family-name" {...text("lastName")} />
@@ -118,6 +114,12 @@ export function AboutYouStep({ journey, today, revalidate, onBack, onDone }: Ste
             errors={{ status: errors.status, occupation: errors.occupation }}
             onChange={(value) => setForm((current) => ({ ...current, ...value }))}
           />
+        </section>
+
+        <section className="quote-panel" aria-labelledby="address-heading">
+          <h2 id="address-heading" className="kb-h3 quote-panel__title">
+            Home address
+          </h2>
           <Input label="Address line 1" autoComplete="address-line1" {...text("addressLine1")} />
           <Input
             label="Address line 2"
@@ -126,12 +128,11 @@ export function AboutYouStep({ journey, today, revalidate, onBack, onDone }: Ste
             {...text("addressLine2")}
           />
           <Input label="Town or city" autoComplete="address-level2" {...text("town")} />
-          {/* The shell's "Your postcode … Change" line sits under every step */}
-          <p className="quote-postcode">Home postcode: {journey.postcode}.</p>
-        </div>
-      </div>
+          <p className="quote-postcode">Home postcode: {journey.postcode}</p>
+        </section>
 
-      <StepActions onBack={onBack} submit="Continue to your licence" />
-    </form>
+        <StepActions onBack={onBack} submit="Continue to your licence" />
+      </form>
+    </JourneyPage>
   );
 }

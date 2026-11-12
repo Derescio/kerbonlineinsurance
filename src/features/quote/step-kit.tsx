@@ -5,6 +5,7 @@ import { Radio } from "#/components/forms/Radio";
 import { RadioGroup } from "#/components/forms/RadioGroup";
 
 import type { Journey } from "./journey-store";
+import { StepNav } from "./page-kit";
 
 // Pieces the four driver steps share (5.3): the heading, a Yes/No question, the Back and Continue
 // row, and the props every step takes.
@@ -18,6 +19,9 @@ export interface StepProps {
   onBack: () => void;
   /** Called after the step's answers are saved */
   onDone: () => void;
+  /** The details tabs and the right-hand cards (5.4b); DriverSteps passes them */
+  tabs?: ReactNode;
+  aside?: ReactNode;
 }
 
 /** A form's field errors, keyed by zod path (`drivers.0.firstName`) */
@@ -79,16 +83,17 @@ export function YesNo({
   );
 }
 
+/** Back and the step's named submit button (5.4b, call 9) */
 export function StepActions({ onBack, submit }: { onBack: () => void; submit: string }) {
   return (
-    <div className="quote-nav">
-      <button type="button" className="quote-link" onClick={onBack}>
-        Back
-      </button>
-      <Button type="submit" variant="accent">
-        {submit}
-      </Button>
-    </div>
+    <StepNav
+      onBack={onBack}
+      next={
+        <Button type="submit" variant="accent" iconRight="arrow-right">
+          {submit}
+        </Button>
+      }
+    />
   );
 }
 
