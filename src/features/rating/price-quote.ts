@@ -46,6 +46,9 @@ export interface PricedItem {
   outcome: "quoted" | "referred" | "declined";
   reasonCode: ReasonCode | null;
   driver: "main" | number | null;
+  /** The cover level and add-ons asked for, kept for a referred item that a handler approves */
+  coverLevel: CoverLevel;
+  chosenAddons: string[];
   factors: PricedFactor[];
   options: PricedOption[];
   addons: PricedAddon[];
@@ -83,6 +86,68 @@ export function splitBundleDiscount(
   }
   shares.set(largest.product, discount - given);
   return shares;
+}
+
+/** One quoted item's money before the bundle */
+export interface TotalsLine {
+  product: Product;
+  premiumPence: number;
+  addonsPence: number;
+  iptRate: number;
+  feePence: number;
+  bundleRate: number;
+}
+
+export interface QuoteTotals {
+  lines: Map<Product, Omit<SelectedPrice, "coverLevel">>;
+  subtotalPence: number;
+  bundleDiscountPence: number;
+  feesPence: number;
+  iptPence: number;
+  totalPence: number;
+}
+
+/**
+ * A quote's money from its quoted items: the car + home bundle, then IPT on each item after its
+ * share, each line rounded once. The seed re-totals with it after a referral is decided.
+ */
+export function quoteTotals(lines: readonly TotalsLine[]): QuoteTotals {
+  const car = lines.find((l) => l.product === "car");
+  const home = lines.find((l) => l.product === "home");
+  // One rate for a bundle: versions that disagree are a config error, not a choice
+  if (car && home && car.bundleRate !== home.bundleRate) {
+    throw new Error("priceQuote: bundle_discount_rate differs between car and home");
+  }
+  const shares =
+    car && home ? splitBundleDiscount([car, home], car.bundleRate) : new Map<Product, number>();
+
+  const totals: QuoteTotals = {
+    lines: new Map(),
+    subtotalPence: 0,
+    bundleDiscountPence: 0,
+    feesPence: 0,
+    iptPence: 0,
+    totalPence: 0,
+  };
+  for (const l of lines) {
+    const discountPence = shares.get(l.product) ?? 0;
+    const iptPence = ipt(l.premiumPence - discountPence + l.addonsPence, l.iptRate);
+    const totalPence = l.premiumPence - discountPence + l.addonsPence + iptPence + l.feePence;
+    totals.lines.set(l.product, {
+      premiumPence: l.premiumPence,
+      addonsPence: l.addonsPence,
+      discountPence,
+      iptPence,
+      feePence: l.feePence,
+      totalPence,
+    });
+    totals.subtotalPence += l.premiumPence + l.addonsPence;
+    totals.bundleDiscountPence += discountPence;
+    totals.feesPence += l.feePence;
+    totals.iptPence += iptPence;
+    totals.totalPence += totalPence;
+  }
+  return totals;
 }
 
 interface Draft {
@@ -140,6 +205,8 @@ function draft(request: QuoteItemRequest): Draft {
   const t = new Tables(request.tables);
   const base = {
     product: request.product,
+    coverLevel: request.coverLevel,
+    chosenAddons: request.addons,
     ratingVersionId: request.tables.id ?? null,
     selected: null,
   };
@@ -196,60 +263,24 @@ export function priceQuote(requests: readonly QuoteItemRequest[]): PricedQuote {
 
   const drafts = requests.map(draft);
   const quoted = drafts.filter((d) => d.item.outcome === "quoted");
-  const car = quoted.find((d) => d.item.product === "car");
-  const home = quoted.find((d) => d.item.product === "home");
-  // One rate for a bundle: versions that disagree are a config error, not a choice
-  if (
-    car &&
-    home &&
-    car.tables.param("bundle_discount_rate") !== home.tables.param("bundle_discount_rate")
-  ) {
-    throw new Error("priceQuote: bundle_discount_rate differs between car and home");
-  }
-  const shares =
-    car && home
-      ? splitBundleDiscount(
-          [car, home].map((d) => ({
-            product: d.item.product,
-            premiumPence: d.option!.annualPremiumPence,
-          })),
-          car.tables.param("bundle_discount_rate"),
-        )
-      : new Map<Product, number>();
-
-  const totals = {
-    subtotalPence: 0,
-    bundleDiscountPence: 0,
-    feesPence: 0,
-    iptPence: 0,
-    totalPence: 0,
-  };
+  const totals = quoteTotals(
+    quoted.map((d) => ({
+      product: d.item.product,
+      premiumPence: d.option!.annualPremiumPence,
+      addonsPence: d.addons.reduce((sum, a) => sum + a.annualPricePence, 0),
+      iptRate: d.tables.param("ipt_rate"),
+      feePence: d.tables.param("fee_pence"),
+      bundleRate: d.tables.param("bundle_discount_rate"),
+    })),
+  );
   for (const d of quoted) {
-    const premiumPence = d.option!.annualPremiumPence;
-    const addonsPence = d.addons.reduce((sum, a) => sum + a.annualPricePence, 0);
-    const discountPence = shares.get(d.item.product) ?? 0;
-    const iptPence = ipt(premiumPence - discountPence + addonsPence, d.tables.param("ipt_rate"));
-    const feePence = d.tables.param("fee_pence");
-    const totalPence = premiumPence - discountPence + addonsPence + iptPence + feePence;
-    d.item.selected = {
-      coverLevel: d.request.coverLevel,
-      premiumPence,
-      addonsPence,
-      discountPence,
-      iptPence,
-      feePence,
-      totalPence,
-    };
-    totals.subtotalPence += premiumPence + addonsPence;
-    totals.bundleDiscountPence += discountPence;
-    totals.feesPence += feePence;
-    totals.iptPence += iptPence;
-    totals.totalPence += totalPence;
+    d.item.selected = { coverLevel: d.request.coverLevel, ...totals.lines.get(d.item.product)! };
   }
+  const { lines: _lines, ...sums } = totals;
 
   return {
     items: drafts.map((d) => d.item),
-    ...totals,
+    ...sums,
     // The first item's rate; every v1 has 0.10
     monthlyCreditChargeRate: drafts[0]?.tables.param("monthly_credit_charge_rate") ?? 0,
   };
