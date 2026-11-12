@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { carInputs, homeInputs } from "#/features/rating/test-tables";
 import { priceQuote, type QuoteItemRequest } from "#/features/rating/price-quote";
@@ -19,7 +19,7 @@ import {
 } from "#/server/db/schema";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
-import { getOwnerDb, truncateAll } from "#/test/db";
+import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
 import { makeCustomer } from "#/test/factories";
 
 import type { CarDetails, HomeDetails, SaveItem } from "./quote-rows";
@@ -114,13 +114,18 @@ const save = (item: SaveItem["details"]): SaveItem => ({
 });
 
 describe("saveQuote", () => {
-  beforeEach(async () => {
+  beforeAll(async () => {
     await truncateAll();
     clearReferenceCaches();
     await upsertReferenceData(getOwnerDb(), {
       rating: structuredClone(RATING_SOURCES),
       catalogue: structuredClone(CATALOGUE_SOURCES),
     });
+  });
+  beforeEach(async () => {
+    // The reference data is loaded once (beforeAll); each test clears only what it writes
+    await truncateExcept(REFERENCE_TABLES);
+    clearReferenceCaches();
   });
   afterAll(closeDb);
 

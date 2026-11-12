@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-// The driver steps (5.3): from a confirmed demo car through About you, licence and driving, claims
-// and a 19-year-old named driver to the holding quote view. Runs against a deployed preview, so
-// the occupation list is the real one from the active car rating version.
+// The driver steps (5.3) and the price (5.4): from a confirmed demo car through About you, licence
+// and driving, claims and a 19-year-old named driver to the price. Runs against a deployed preview,
+// so the occupations, the catalogue and the rating tables are the real ones.
 
 const select = (page: Page, name: string) => page.getByRole("combobox", { name, exact: true });
 const box = (scope: Page | Locator, name: string) =>
@@ -15,17 +15,14 @@ async function fillDate(page: Page, legend: string, [day, month, year]: number[]
   await box(group, "Year").fill(String(year));
 }
 
-test("a car quote's driver steps end on the holding quote view, and a refresh keeps it", async ({
-  page,
-}) => {
+/** From a demo plate to "Get my car quote", with a 19-year-old named driver */
+async function quoteWithYoungDriver(page: Page, plate: string, variant: string) {
   const year = new Date().getFullYear();
 
   await page.goto("/quote/car?postcode=E8+3RL");
-  await page.getByRole("button", { name: "VW21 GQL" }).click();
+  await page.getByRole("button", { name: plate }).click();
   await page.getByRole("button", { name: "Find my car" }).click();
-  await expect(select(page, "4 · Variant").locator("option:checked")).toHaveText(
-    "1.0 TSI Life 5dr",
-  );
+  await expect(select(page, "4 · Variant").locator("option:checked")).toHaveText(variant);
   await page.getByRole("button", { name: "Confirm this car" }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
@@ -79,16 +76,42 @@ test("a car quote's driver steps end on the holding quote view, and a refresh ke
     .getByText("No", { exact: true })
     .click();
   await page.getByRole("button", { name: "Get my car quote" }).click();
-
   await expect(page).toHaveURL(/step=quote/);
-  await expect(page.getByText("Your price arrives in 5.4")).toBeVisible();
+}
+
+const yearly = /^£[\d,]+\.\d{2} a year, or 12 payments of £[\d,]+\.\d{2}$/;
+
+test("a car quote's driver steps end on the Golf's price, and a refresh keeps it", async ({
+  page,
+}) => {
+  await quoteWithYoungDriver(page, "VW21 GQL", "1.0 TSI Life 5dr");
+
+  // Group 14: the 19-year-old raises the price but doesn't stop it (5.4)
+  await expect(page.getByRole("heading", { name: "Your Comprehensive price" })).toBeVisible();
+  await expect(page.getByText(yearly)).toBeVisible();
   await expect(page.getByText("Sam Morgan")).toBeVisible();
   await expect(page.getByText("1 incident")).toBeVisible();
   for (const typed of ["Alex", "Sam", "Albion", "Morgan"]) expect(page.url()).not.toContain(typed);
 
   await page.reload();
-  await expect(page.getByText("Your price arrives in 5.4")).toBeVisible();
+  await expect(page.getByText(yearly)).toBeVisible();
   await expect(page.getByText("Sam Morgan")).toBeVisible();
+});
+
+test("the Tesla is declined with a 19-year-old named driver, and removing them brings a price", async ({
+  page,
+}) => {
+  await quoteWithYoungDriver(page, "TS24 EIV", "RWD");
+
+  // Group 32: under 21 on group 30 or above is declined, and the person applying is told who
+  await expect(page.getByText("We can’t offer cover with Sam as a named driver.")).toBeVisible();
+  await expect(page.getByText(yearly)).toHaveCount(0);
+  await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+  await expect(page).toHaveURL(/step=drivers/);
+  await page.getByRole("button", { name: "Remove driver 1" }).click();
+  await page.getByRole("button", { name: "Get my car quote" }).click();
+  await expect(page).toHaveURL(/step=quote/);
+  await expect(page.getByText(yearly)).toBeVisible();
 });
 
 test("a cold link to a later step goes back to the car step", async ({ page }) => {

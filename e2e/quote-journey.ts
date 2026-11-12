@@ -10,7 +10,8 @@ const journey = {
   startedAt: "2026-11-11T09:00:00.000Z",
   startRecorded: true,
   vehicle: {
-    catalogueVariantId: "e2e-golf",
+    // Replaced with the Golf's real id: the price (5.4) is worked out from the catalogue
+    catalogueVariantId: "",
     make: "Volkswagen",
     model: "Golf",
     year: 2021,
@@ -52,9 +53,26 @@ const journey = {
   },
 };
 
+interface CatalogueCar {
+  id: string;
+  make: string;
+  model: string;
+  year: number;
+  variant: string;
+}
+
 /** Puts the complete journey in sessionStorage before the page's own scripts run */
 export async function withCompleteJourney(page: Page): Promise<void> {
+  const { cars } = (await (await page.request.get("/api/catalogue")).json()) as {
+    cars: CatalogueCar[];
+  };
+  const v = journey.vehicle;
+  const golf = cars.find(
+    (c) => c.make === v.make && c.model === v.model && c.year === v.year && c.variant === v.variant,
+  );
+  if (!golf) throw new Error("The 2021 Golf 1.0 TSI Life isn't in the catalogue");
+  const stored = { ...journey, vehicle: { ...v, catalogueVariantId: golf.id } };
   await page.addInitScript((value) => {
     sessionStorage.setItem("kerb.quote.v1.car", value);
-  }, JSON.stringify(journey));
+  }, JSON.stringify(stored));
 }

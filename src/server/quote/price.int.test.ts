@@ -1,5 +1,14 @@
 import { eq } from "drizzle-orm";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 
 import { completeJourney } from "#/features/quote/journey-fixtures";
 import type { Journey } from "#/features/quote/journey-store";
@@ -9,7 +18,7 @@ import { vehicleCatalogue } from "#/server/db/schema";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { SECRET } from "#/test/auth";
-import { getOwnerDb, truncateAll } from "#/test/db";
+import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
 
 import { priceCarJourney } from "./price";
 
@@ -68,14 +77,19 @@ function withYoungNamedDriver(journey: Journey): Journey {
 
 describe("priceCarJourney", () => {
   let warn: ReturnType<typeof vi.spyOn>;
-  beforeEach(async () => {
-    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  beforeAll(async () => {
     await truncateAll();
     clearReferenceCaches();
     await upsertReferenceData(getOwnerDb(), {
       rating: structuredClone(RATING_SOURCES),
       catalogue: structuredClone(CATALOGUE_SOURCES),
     });
+  });
+  beforeEach(async () => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    // The reference data is loaded once (beforeAll); each test clears only what it writes
+    await truncateExcept(REFERENCE_TABLES);
+    clearReferenceCaches();
   });
   afterEach(() => warn.mockRestore());
   afterAll(closeDb);
@@ -139,15 +153,18 @@ describe("priceCarJourney", () => {
     });
 
     const inactive = await golf();
-    await getOwnerDb()
-      .update(vehicleCatalogue)
-      .set({ isActive: false })
-      .where(eq(vehicleCatalogue.id, inactive.vehicle!.catalogueVariantId));
+    const golfRow = eq(vehicleCatalogue.id, inactive.vehicle!.catalogueVariantId);
+    await getOwnerDb().update(vehicleCatalogue).set({ isActive: false }).where(golfRow);
     clearReferenceCaches();
-    await expect(priceCarJourney(inactive, from(IP), NOW, SECRET)).resolves.toEqual({
-      status: "invalid",
-      step: "car",
-    });
+    try {
+      await expect(priceCarJourney(inactive, from(IP), NOW, SECRET)).resolves.toEqual({
+        status: "invalid",
+        step: "car",
+      });
+    } finally {
+      // The catalogue is shared by the file's tests
+      await getOwnerDb().update(vehicleCatalogue).set({ isActive: true }).where(golfRow);
+    }
   });
 
   it("treats input that isn't a journey as the car step", async () => {
