@@ -1,6 +1,6 @@
 # 5.4 Rating engine
 
-**Status:** done (PR pending; the E2E on the preview, the manual check on staging and the dev reseed still to record). Plan in [04-rating-engine-plan.md](04-rating-engine-plan.md)
+**Status:** done (PR pending; the dev reseed still to record after the merge). Plan in [04-rating-engine-plan.md](04-rating-engine-plan.md)
 **Phase:** 05-quote
 
 ## Goal
@@ -118,7 +118,13 @@ The calculator behind every price Kerb shows. `priceQuote()` takes what the quot
 ## Done when
 
 - [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR. Locally (12 Nov 2026): `vp check` clean, `vp test` 130 files and 1,707 tests, `vp build`. The E2E (the Golf's price, the Tesla's decline naming the driver, axe on the quote view) runs on the PR's preview.
-- [ ] The manual check passes, with the results recorded here.
+- [x] The manual check passes, with the results recorded here. Damion, 12 Nov 2026, on the PR preview:
+  - **A sensible price:** a 44-year-old in E8 with 3 years' no-claims and 12,000 miles gets £967.18 a year, or 12 payments of £88.66 (£967.18 × 1.10 ÷ 12).
+  - **The named-driver shot:** adding John, 20 (17–20 band), raises the price by exactly ×1.35, checked against the engine; removing him brings it back. A first comparison looked off by ×0.95 because another answer had changed between the two quotes; re-pricing confirmed the engine.
+  - **The Tesla (`TS24 EIV`, group 32):** with John named it shows "We can't offer cover with John as a named driver" and no price; without him, £1,526.88 a year, or 12 payments of £139.96.
+  - **Found and fixed:** "Remove John" only opened the named-drivers step with John still there. It now removes him on the spot, prices again, and offers "Add John back" (decision 4). The button also sizes to its text.
+  - **Phone width (393 px):** nothing clipped or overflowing. The price sentence wraps over three lines in the 30 px price style; 5.5 puts the monthly figure on its own smaller line, as screen 13 does.
+  - **Still to do after the merge:** reseed `dev` (`db:reset-dev`, then `db:seed`) and spot-check a few seeded prices.
 
 ## Commit message
 
