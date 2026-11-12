@@ -58,18 +58,18 @@ function rows(journey: Journey): { step: DriverStep; title: string; value: strin
 export function QuoteHolding({
   journey,
   onEdit,
-  onCar,
+  onInvalid,
 }: {
   journey: Journey;
   onEdit: (step: DriverStep) => void;
-  /** Back to the car step, when the server no longer finds the car (5.4) */
-  onCar: () => void;
+  /** Where the server sends a step that no longer passes (5.4) */
+  onInvalid: (step: "car" | DriverStep) => void;
 }) {
   return (
     <>
       <StepHeading overline="Car · Your quote" title="Your quote" />
       <Card padding="lg" className="quote-slot">
-        <QuotePrice journey={journey} onEdit={onEdit} onCar={onCar} />
+        <QuotePrice journey={journey} onEdit={onEdit} onInvalid={onInvalid} />
       </Card>
       <section className="quote-panel" aria-label="Your answers">
         <dl className="quote-summary">

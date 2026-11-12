@@ -532,9 +532,24 @@ describe("the driver steps in order", () => {
 });
 
 describe("the price on the holding view (5.4)", () => {
+  const moves: { step: QuoteStep | undefined; replace: boolean }[] = [];
+  beforeEach(() => {
+    moves.length = 0;
+  });
+
   function Harness({ initial }: { initial: QuoteStep }) {
     const [step, setStep] = useState<QuoteStep | undefined>(initial);
-    return step ? <DriverSteps step={step} onStep={(next) => setStep(next)} /> : <p>car step</p>;
+    return step ? (
+      <DriverSteps
+        step={step}
+        onStep={(next, opts) => {
+          moves.push({ step: next, replace: opts?.replace ?? false });
+          setStep(next);
+        }}
+      />
+    ) : (
+      <p>car step</p>
+    );
   }
 
   function showQuote() {
@@ -608,16 +623,33 @@ describe("the price on the holding view (5.4)", () => {
     expect(window.location.href).not.toContain("1063");
   });
 
-  it("sends a step the server finds invalid back to that step", async () => {
+  it("sends a step the server finds invalid back to that step, replacing the history entry", async () => {
+    // Pushing would trap Back: it would return to the quote, which redirects again
     price.mockResolvedValue({ status: "invalid", step: "driving" });
     await showQuote();
     await expect.element(heading()).toHaveTextContent("Your licence and driving");
+    expect(moves).toEqual([{ step: "driving", replace: true }]);
   });
 
-  it("sends an invalid car back to the car step", async () => {
+  it("sends an invalid car back to the car step, replacing the history entry", async () => {
     price.mockResolvedValue({ status: "invalid", step: "car" });
     await showQuote();
     await expect.element(page.getByText("car step")).toBeVisible();
+    expect(moves).toEqual([{ step: undefined, replace: true }]);
+  });
+
+  it("keeps one live region, so the price is announced when it arrives", async () => {
+    let resolve!: (value: typeof QUOTED) => void;
+    price.mockReturnValue(new Promise((r) => (resolve = r)));
+    await showQuote();
+    await expect.element(page.getByText("Working out your price…")).toBeVisible();
+    const region = document.querySelector('.quote-price[role="status"]');
+    expect(region?.textContent).toBe("Working out your price…");
+    resolve(QUOTED);
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    // The same element, still mounted, now holds the price
+    expect(region?.isConnected).toBe(true);
+    expect(region?.textContent).toContain(PRICE);
   });
 
   it("says when too many prices were asked for", async () => {

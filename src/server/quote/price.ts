@@ -8,6 +8,7 @@ import { priceQuote } from "#/features/rating/price-quote";
 import { RateLimitError } from "#/server/auth/errors";
 import { getActiveRatingTables, getCatalogue } from "#/server/data/reference";
 import { limit, rateLimitSubject } from "#/server/db/rate-limit";
+import { CROWN_DEPENDENCIES } from "#/server/reference/postcode-areas";
 
 // The car price for the holding view (5.4, spec decisions 3 and 4). The journey is read and checked
 // as the tab reads it; the car's value and group come from the catalogue, never the browser; the
@@ -49,20 +50,32 @@ export async function priceCarJourney(
   if (!car) return backToCar;
 
   const tables = await getActiveRatingTables("car");
+  const inputs = carInputsFromJourney(
+    journey,
+    {
+      year: car.year,
+      insuranceGroup: car.insuranceGroup,
+      fuelType: car.fuelType,
+      valuePence: car.valuePence,
+    },
+    today,
+  );
+  // A key the active version doesn't know (a v2 renamed it while a tab held the old one) is a step
+  // to answer again, not an error: Try again could never succeed. Crown dependencies are declined.
+  const known = (lookup: string, key: string) =>
+    tables.lookups.some((l) => l.lookup === lookup && l.key === key);
+  if (!known("occupation", inputs.driver.occupation)) return { status: "invalid", step: "about" };
+  if (
+    !(CROWN_DEPENDENCIES as readonly string[]).includes(inputs.postcodeArea) &&
+    !known("postcode_area", inputs.postcodeArea)
+  ) {
+    return backToCar;
+  }
 
   const quote = priceQuote([
     {
       product: "car",
-      inputs: carInputsFromJourney(
-        journey,
-        {
-          year: car.year,
-          insuranceGroup: car.insuranceGroup,
-          fuelType: car.fuelType,
-          valuePence: car.valuePence,
-        },
-        today,
-      ),
+      inputs,
       tables,
       coverLevel: "comprehensive",
       addons: [],

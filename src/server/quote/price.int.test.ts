@@ -167,6 +167,24 @@ describe("priceCarJourney", () => {
     }
   });
 
+  it("sends an occupation the tables don't know back to About you", async () => {
+    // A v2 can rename an occupation key while a tab still holds the old one
+    const journey = await golf();
+    journey.mainDriver!.occupation = "astronaut";
+    await expect(priceCarJourney(journey, from(IP), NOW, SECRET)).resolves.toEqual({
+      status: "invalid",
+      step: "about",
+    });
+  });
+
+  it("sends a postcode area the tables don't know back to the car step", async () => {
+    const journey = { ...(await golf()), postcode: "ZZ1 1ZZ" };
+    await expect(priceCarJourney(journey, from(IP), NOW, SECRET)).resolves.toEqual({
+      status: "invalid",
+      step: "car",
+    });
+  });
+
   it("treats input that isn't a journey as the car step", async () => {
     await expect(priceCarJourney({ hello: "world" }, from(IP), NOW, SECRET)).resolves.toEqual({
       status: "invalid",

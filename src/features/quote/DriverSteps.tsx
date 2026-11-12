@@ -118,7 +118,11 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
             fromSummary.current = true;
             onStep(s);
           }}
-          onCar={() => onStep(undefined)}
+          onInvalid={(s) => {
+            // Replaced, not pushed: Back would return to the quote, which redirects again
+            if (s !== "car") fromSummary.current = true;
+            onStep(s === "car" ? undefined : s, { replace: true });
+          }}
         />
       ) : null}
     </div>
