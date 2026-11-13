@@ -202,7 +202,7 @@ describe("JourneyShell", () => {
       .not.toBeInTheDocument();
   });
 
-  it("puts a step in the slot, letting it own the page heading (5.2)", async () => {
+  it("puts a step in the slot, letting it own the page and its heading (5.2, 5.4b)", async () => {
     await renderWithRouter(
       <JourneyShell product="car" postcode="E8 3RL">
         <h1>Let’s find your car</h1>
@@ -213,10 +213,9 @@ describe("JourneyShell", () => {
       .element(page.getByRole("heading", { level: 1 }))
       .toHaveTextContent("Let’s find your car");
     await expect.element(page.getByText("This step arrives in 5.2")).not.toBeInTheDocument();
-    await expect.element(page.getByText(/Your postcode: E8 3RL/)).toBeVisible();
-    await expect
-      .element(page.getByRole("link", { name: "Change postcode" }))
-      .toHaveAttribute("href", "/quote?type=car&postcode=E8+3RL");
+    // The step lays out its own page: no second page wrapper, no postcode line under it
+    expect(document.querySelector(".quote-page")).toBeNull();
+    await expect.element(page.getByText(/Your postcode: E8 3RL/)).not.toBeInTheDocument();
   });
 
   it("records quote.started once per journey", async () => {

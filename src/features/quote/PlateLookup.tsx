@@ -83,6 +83,7 @@ export function PlateBox({
 
 /** What the registration screens (08 and 10) take, in the revamp's frame (5.4b, decision 2) */
 export interface PlateViewProps {
+  postcode: string;
   plate: string;
   onPlate: (plate: string) => void;
   onFind: () => void;
@@ -97,6 +98,7 @@ export interface PlateViewProps {
 
 /** Screen 08 (Figma 226:624), in the revamp's frame as it is (5.4b, decision 2) */
 export function PlateLookup({
+  postcode,
   plate,
   onPlate,
   onFind,
@@ -114,7 +116,16 @@ export function PlateLookup({
         <StepHeading
           overline="Car insurance / Your details"
           title="Let’s find your car"
-          intro="Enter your registration and we’ll look up your car’s details."
+          intro={
+            <>
+              Enter your registration and we&rsquo;ll look up your car&rsquo;s details. Your
+              postcode: {postcode}.{" "}
+              {/* Where the postcode changes (5.4b, call 6): the start page */}
+              <a href={`/quote?${new URLSearchParams({ type: "car", postcode })}`}>
+                Change<span className="kb-sr-only"> postcode</span>
+              </a>
+            </>
+          }
         />
       }
       tabs={tabs}

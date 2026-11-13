@@ -53,35 +53,24 @@ export function JourneyShell({
       });
   }, [product, postcode]);
 
+  // A step lays out its own page (5.4b), with the postcode in its "Your car" card
+  if (children) return <>{children}</>;
+
   return (
     <div className="quote-page">
-      {children ? (
-        <>
-          {children}
-          <p className="quote-postcode">
-            Your postcode: {postcode}.{" "}
-            <Link to="/quote" search={{ type: product, postcode }}>
-              Change<span className="kb-sr-only"> postcode</span>
-            </Link>
-          </p>
-        </>
-      ) : (
-        <>
-          <header className="quote-heading">
-            <p className="quote-heading__overline">{titles[product]}</p>
-            <h1 className="kb-h1 quote-heading__title">Your details</h1>
-            <p className="quote-heading__intro">
-              Postcode: {postcode}.{" "}
-              <Link to="/quote" search={{ type: product, postcode }}>
-                Change<span className="kb-sr-only"> postcode</span>
-              </Link>
-            </p>
-          </header>
-          <Card padding="lg" className="quote-slot">
-            <p>{arrives[product]}</p>
-          </Card>
-        </>
-      )}
+      <header className="quote-heading">
+        <p className="quote-heading__overline">{titles[product]}</p>
+        <h1 className="kb-h1 quote-heading__title">Your details</h1>
+        <p className="quote-heading__intro">
+          Postcode: {postcode}.{" "}
+          <Link to="/quote" search={{ type: product, postcode }}>
+            Change<span className="kb-sr-only"> postcode</span>
+          </Link>
+        </p>
+      </header>
+      <Card padding="lg" className="quote-slot">
+        <p>{arrives[product]}</p>
+      </Card>
     </div>
   );
 }

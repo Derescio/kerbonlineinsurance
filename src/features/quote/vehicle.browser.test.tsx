@@ -275,6 +275,13 @@ describe("the car step", () => {
     await page.viewport(414, 896);
   });
 
+  it("lets the registration screen change the postcode (5.4b, call 6)", async () => {
+    await renderStep();
+    await expect
+      .element(page.getByRole("link", { name: "Change postcode" }))
+      .toHaveAttribute("href", "/quote?type=car&postcode=E8+3RL");
+  });
+
   it("shows only the postcode on the registration screen", async () => {
     await renderStep();
     const card = page.getByRole("region", { name: "Your car" });
@@ -322,6 +329,16 @@ describe("the car step", () => {
     await expect.element(view()).toHaveTextContent("manual");
     await expect.element(variant()).toHaveValue("fiesta-19");
     expect(readJourney("car")?.vehicle).toBeUndefined();
+  });
+
+  it("Back on a car restored from the tab leaves the car step and keeps the car", async () => {
+    storeListedJourney();
+    await renderStep();
+    await expect.element(page.getByRole("heading", { name: "Your car, confirmed" })).toBeVisible();
+    onBack.mockClear();
+    await page.getByRole("button", { name: "Back" }).click();
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(readJourney("car")?.vehicle?.catalogueVariantId).toBe("golf-21-life");
   });
 
   it("Back on the registration screen leaves the car step", async () => {

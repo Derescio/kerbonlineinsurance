@@ -708,6 +708,16 @@ describe("the price on the holding view (5.4)", () => {
     await withQuery(<Harness initial="quote" />);
     await expect.element(heading()).toHaveTextContent(REVIEW);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
+    // A wrapped label grows the button rather than spilling out of it
+    const buttons = [
+      page.getByRole("button", { name: "Remove Maximilian-Alexander and see my price" }),
+      page.getByRole("button", { name: "Review named driver details" }),
+    ];
+    for (const button of buttons) {
+      const el = button.element() as HTMLElement;
+      expect(el.scrollHeight).toBeLessThanOrEqual(el.clientHeight + 1);
+      expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth + 1);
+    }
     await page.viewport(414, 896);
   });
 
@@ -814,6 +824,17 @@ describe("the price on the holding view (5.4)", () => {
     await screen.unmount();
     await withQuery(<Harness initial="quote" />);
     await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+  });
+
+  it("doesn't price again when only the pay choice changed (5.4b, call 10)", async () => {
+    await showQuote();
+    await page.getByText("Pay monthly").click();
+    await page.getByRole("button", { name: "Back to your details" }).click();
+    await page.getByRole("button", { name: "Get my car quote" }).click();
+    await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+    expect(price).toHaveBeenCalledTimes(1);
+    const sent = (price.mock.calls[0]![0] as { data: Journey }).data;
+    expect(sent).not.toHaveProperty("payment");
   });
 
   it("says Choose cover arrives in 5.5 (5.4b, call 10)", async () => {

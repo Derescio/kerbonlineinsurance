@@ -78,8 +78,9 @@ export function VehicleStep({
   const [pickerKey, setPickerKey] = useState(0);
   // What the picker has chosen so far, for the "Your car" card (5.4b, call 6)
   const [liveCar, setLiveCar] = useState<CarCardCar | null>(null);
-  // Where the confirmed car was chosen, for R02's Back (5.4b, call 8)
-  const [chosenFrom, setChosenFrom] = useState<VehicleStepView>("manual");
+  // Where the confirmed car was chosen, for R02's Back (5.4b, call 8); null for a car restored from
+  // the tab, which wasn't chosen on this page
+  const [chosenFrom, setChosenFrom] = useState<VehicleStepView | null>(null);
   // The stored journey, for the tabs: read after hydration and after each change to the car
   const [journey, setJourney] = useState<Journey | null>(null);
 
@@ -210,9 +211,10 @@ export function VehicleStep({
     onView("plate");
   }
 
-  /** R02's Back: to where the car was chosen */
+  /** R02's Back: to where the car was chosen, or out of the car step for a restored car, keeping it */
   function backFromConfirmed() {
-    if (chosenFrom === "plate") changeCarOrPostcode();
+    if (chosenFrom === null) onBack();
+    else if (chosenFrom === "plate") changeCarOrPostcode();
     else change();
   }
 
@@ -295,6 +297,7 @@ export function VehicleStep({
       </>
     );
     const plateProps = {
+      postcode,
       plate,
       onPlate: (value: string) => {
         setPlate(value);
