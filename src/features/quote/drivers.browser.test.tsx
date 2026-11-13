@@ -732,6 +732,13 @@ describe("the price on the holding view (5.4)", () => {
     const next = page.getByRole("region", { name: "What happens next?" });
     await expect.element(next).toMatchTextContent("Volkswagen Golf 1.0 TSI Life 5dr");
     await expect.element(next).toMatchTextContent("2021 · Alex Morgan");
+    await expect
+      .element(
+        page.getByText(
+          "Need to correct something or ask a question? Check your answers, or contact us.",
+        ),
+      )
+      .toBeVisible();
     // Nothing is saved before 5.6, so the screen never says it is
     await expect.element(page.getByText(/saved/)).not.toBeInTheDocument();
     await page.getByRole("button", { name: "Sign in to send this for review" }).click();

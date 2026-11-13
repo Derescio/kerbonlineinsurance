@@ -122,7 +122,9 @@ export function QuoteHolding({
       <HelpCard title="Need a hand?">
         {stopper
           ? "You can review your driver details or contact us to talk through the next steps."
-          : "Keep your vehicle documents and driving licence nearby as you complete your details."}
+          : outcome
+            ? "Need to correct something or ask a question? Check your answers, or contact us."
+            : "Keep your vehicle documents and driving licence nearby as you complete your details."}
       </HelpCard>
     </>
   );
