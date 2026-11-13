@@ -10,7 +10,7 @@ import { VehicleStep } from "#/features/quote/VehicleStep";
 // (5.1, call 5). The postcode is checked with postcodes.io once per postcode: the loader depends on
 // it alone and never goes stale, so moving between the vehicle views doesn't check again (5.2,
 // call 15; plan P4). Only a definite "doesn't exist" goes back to /quote.
-export const Route = createFileRoute("/_site/quote/car")({
+export const Route = createFileRoute("/_quote/quote/car")({
   validateSearch: carSearch,
   beforeLoad: ({ search }) => {
     if (!search.postcode) throw redirect({ to: "/quote", search: { type: "car" } });
@@ -38,7 +38,7 @@ function CarQuotePage() {
   // The driver steps and the holding quote view (5.3, call 5); no answer goes in the URL
   if (step) {
     return (
-      <JourneyShell product="car" postcode={postcode} current={step === "quote" ? 1 : 0}>
+      <JourneyShell product="car" postcode={postcode}>
         <noscript>
           <p className="quote-noscript">The quote steps need JavaScript turned on.</p>
         </noscript>
@@ -62,6 +62,11 @@ function CarQuotePage() {
       </noscript>
       <VehicleStep
         view={vehicle ?? "plate"}
+        postcode={postcode}
+        onBack={() => void navigate({ to: "/quote", search: { type: "car", postcode } })}
+        onTab={(tab) =>
+          void navigate({ search: (current) => ({ ...current, vehicle: undefined, step: tab }) })
+        }
         onView={(next) =>
           void navigate({
             search: (current) => ({ ...current, vehicle: next === "plate" ? undefined : next }),

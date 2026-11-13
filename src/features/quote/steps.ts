@@ -89,3 +89,29 @@ export function firstIncompleteStep(
   const state = stepState(journey, today);
   return DRIVER_STEPS.find((step) => !state[step]) ?? null;
 }
+
+/** The details tabs (5.4b, call 5): the car, then the four driver steps */
+export type DetailsTab = "car" | DriverStep;
+export const DETAILS_TABS: readonly DetailsTab[] = ["car", ...DRIVER_STEPS];
+
+/** done: complete, a link with a tick. open: the first unfinished step, a link. locked: plain text. */
+export type TabState = "done" | "open" | "current" | "locked";
+
+/**
+ * Each tab's state. Only the steps up to the first unfinished one can be opened, so a tab can never
+ * skip past it (5.3, call 5).
+ */
+export function tabStates(
+  journey: Journey | null,
+  current: DetailsTab,
+  today: string,
+): Record<DetailsTab, TabState> {
+  const first = firstIncompleteStep(journey, today);
+  const firstIndex = first === null ? DETAILS_TABS.length : DETAILS_TABS.indexOf(first);
+  const states = {} as Record<DetailsTab, TabState>;
+  DETAILS_TABS.forEach((tab, i) => {
+    states[tab] =
+      tab === current ? "current" : i < firstIndex ? "done" : i === firstIndex ? "open" : "locked";
+  });
+  return states;
+}

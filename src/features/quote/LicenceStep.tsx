@@ -22,6 +22,8 @@ import {
   type Errors,
   type StepProps,
 } from "./step-kit";
+import { licenceIntro } from "./intros";
+import { JourneyPage } from "./page-kit";
 import { storedAnswers, storedErrors } from "./steps";
 
 // Licence and driving (5.3, call 8): screen 11 (226:669), plus "Current mileage", which
@@ -49,7 +51,15 @@ function initial(stored: LicenceAndUsage | undefined): Form {
   };
 }
 
-export function LicenceStep({ journey, today, revalidate, onBack, onDone }: StepProps) {
+export function LicenceStep({
+  journey,
+  today,
+  revalidate,
+  onBack,
+  onDone,
+  tabs,
+  aside,
+}: StepProps) {
   const [form, setForm] = useState(() =>
     initial(storedAnswers(journey, "driving") as LicenceAndUsage | undefined),
   );
@@ -91,84 +101,86 @@ export function LicenceStep({ journey, today, revalidate, onBack, onDone }: Step
   }
 
   return (
-    <form ref={formRef} className="quote-form" onSubmit={submit} noValidate>
-      <StepHeading
-        overline="Car · Your details · Driving"
-        title="Your licence and driving"
-        intro={
-          driver && car
-            ? `A few more details about ${driver.firstName} ${driver.lastName} and how the ${car.make} ${car.model} is used.`
-            : null
-        }
-      />
-
-      <section className="quote-panel" aria-labelledby="licence-heading">
-        <h2 id="licence-heading" className="kb-h3 quote-panel__title">
-          Your driving licence
-        </h2>
-        <div className="quote-fields">
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your details"
+          title="Your licence and driving"
+          intro={licenceIntro(driver, car)}
+        />
+      }
+      tabs={tabs}
+      aside={aside}
+    >
+      <form ref={formRef} className="quote-form" onSubmit={submit} noValidate>
+        <section className="quote-panel" aria-labelledby="licence-heading">
+          <h2 id="licence-heading" className="kb-h3 quote-panel__title">
+            Your driving licence
+          </h2>
+          <div className="quote-fields">
+            <Select
+              label="Licence type"
+              placeholder="Choose a licence type"
+              options={licenceOptions}
+              {...choice("licenceType")}
+            />
+            <DateField
+              legend="Date full licence obtained"
+              hint="Use the date you passed your test."
+              value={form.licenceDate}
+              error={errors.licenceDate}
+              onChange={set("licenceDate")}
+            />
+          </div>
           <Select
-            label="Licence type"
-            placeholder="Choose a licence type"
-            options={licenceOptions}
-            {...choice("licenceType")}
+            label="Years of no-claims discount"
+            hint="Use the number on your latest renewal notice. We may ask for proof."
+            placeholder="Choose the years"
+            options={noClaimsOptions}
+            {...choice("noClaimsYears")}
           />
-          <DateField
-            legend="Date full licence obtained"
-            hint="Use the date you passed your test."
-            value={form.licenceDate}
-            error={errors.licenceDate}
-            onChange={set("licenceDate")}
-          />
-        </div>
-        <Select
-          label="Years of no-claims discount"
-          hint="Use the number on your latest renewal notice. We may ask for proof."
-          placeholder="Choose the years"
-          options={noClaimsOptions}
-          {...choice("noClaimsYears")}
-        />
-      </section>
+        </section>
 
-      <section className="quote-panel" aria-labelledby="usage-heading">
-        <h2 id="usage-heading" className="kb-h3 quote-panel__title">
-          How you use your car
-        </h2>
-        <div className="quote-fields">
-          <Input
-            label="Annual mileage"
-            inputMode="numeric"
-            suffix="miles"
-            hint="Estimated miles over the next 12 months."
-            {...choice("annualMileage")}
+        <section className="quote-panel" aria-labelledby="usage-heading">
+          <h2 id="usage-heading" className="kb-h3 quote-panel__title">
+            How you use your car
+          </h2>
+          <div className="quote-fields">
+            <Input
+              label="Annual mileage"
+              inputMode="numeric"
+              suffix="miles"
+              hint="Estimated miles over the next 12 months."
+              {...choice("annualMileage")}
+            />
+            <Input
+              label="Current mileage"
+              inputMode="numeric"
+              suffix="miles"
+              hint="As shown on the dashboard."
+              {...choice("currentMileage")}
+            />
+          </div>
+          <Select
+            label="Use of the car"
+            placeholder="Choose how the car is used"
+            options={usageOptions}
+            {...choice("usage")}
           />
-          <Input
-            label="Current mileage"
-            inputMode="numeric"
-            suffix="miles"
-            hint="As shown on the dashboard."
-            {...choice("currentMileage")}
+          <p className="quote-note">
+            Commuting includes travelling to a regular place of work. Choose business use if you
+            drive between work locations. Delivery or hire-and-reward use needs different cover.
+          </p>
+          <Select
+            label="Where is the car kept overnight?"
+            placeholder="Choose a place"
+            options={overnightOptions}
+            {...choice("overnight")}
           />
-        </div>
-        <Select
-          label="Use of the car"
-          placeholder="Choose how the car is used"
-          options={usageOptions}
-          {...choice("usage")}
-        />
-        <p className="quote-note">
-          Commuting includes travelling to a regular place of work. Choose business use if you drive
-          between work locations. Delivery or hire-and-reward use needs different cover.
-        </p>
-        <Select
-          label="Where is the car kept overnight?"
-          placeholder="Choose a place"
-          options={overnightOptions}
-          {...choice("overnight")}
-        />
-      </section>
+        </section>
 
-      <StepActions onBack={onBack} submit="Continue to driving history" />
-    </form>
+        <StepActions onBack={onBack} submit="Continue to claims" />
+      </form>
+    </JourneyPage>
   );
 }

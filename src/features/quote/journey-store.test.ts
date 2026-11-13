@@ -7,6 +7,7 @@ import {
   readJourney,
   sessionStore,
   setLastPlate,
+  setPayment,
   setStepAnswers,
   setVehicle,
   type JourneyStorage,
@@ -255,5 +256,34 @@ describe("the driver steps in the journey (5.3)", () => {
     const storage = memoryStorage();
     setStepAnswers("drivers", fixture.namedDrivers!, storage);
     expect(storage.map.size).toBe(0);
+  });
+});
+
+describe("the pay choice in the journey (5.4b, call 10)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps annual or monthly", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    expect(readJourney("car", storage)?.payment).toBeUndefined();
+    setPayment("car", "monthly", storage);
+    expect(readJourney("car", storage)?.payment).toBe("monthly");
+    setPayment("car", "annual", storage);
+    expect(readJourney("car", storage)?.payment).toBe("annual");
+  });
+
+  it("drops only a pay choice that isn't annual or monthly", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    storage.setItem(journeyKey("car"), JSON.stringify({ ...journey, payment: "weekly" }));
+    const read = readJourney("car", storage);
+    expect(read?.journeyId).toBe(journey.journeyId);
+    expect(read?.payment).toBeUndefined();
+  });
+
+  it("does nothing without a journey", () => {
+    const storage = memoryStorage();
+    setPayment("car", "monthly", storage);
+    expect(readJourney("car", storage)).toBeNull();
   });
 });

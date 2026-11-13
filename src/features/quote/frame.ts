@@ -1,0 +1,13 @@
+// Where the journey frame's Stepper stands (5.4b, decision 4): Your details on the car and home
+// steps, Your quote on the car's quote view, and no Stepper before a journey starts (the start
+// page and coming soon).
+
+/** One Stepper for car and home (5.1, decision 3). Home's property, contents and claims are the
+ * three parts of "Your details". */
+export const JOURNEY_STEPS = ["Your details", "Your quote", "Choose cover", "Buy"];
+
+export function journeyStepOf(pathname: string, search: { step?: string }): number | null {
+  const path = pathname.replace(/\/+$/, "");
+  if (path !== "/quote/car" && path !== "/quote/home") return null;
+  return search.step === "quote" ? 1 : 0;
+}

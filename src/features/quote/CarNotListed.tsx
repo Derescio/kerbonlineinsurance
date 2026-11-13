@@ -1,8 +1,9 @@
 import { Alert } from "#/components/feedback/Alert";
 
+import { HELP_EMAIL as HELLO } from "./help";
+
 // A car that isn't in the catalogue (5.2, decision 5; call 11). The link names no car and no plate.
 
-const HELLO = "hello@kerb.opsedsolutions.com";
 const mailto = `mailto:${HELLO}?subject=${encodeURIComponent("Please add my car to Kerb")}`;
 
 export function CarNotListed() {

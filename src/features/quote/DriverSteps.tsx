@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { AboutYouStep } from "./AboutYouStep";
 import { ClaimsStep } from "./ClaimsStep";
-import { readJourney, setStepAnswers, type Journey } from "./journey-store";
+import { readJourney, setStepAnswers, setVehicle, type Journey } from "./journey-store";
 import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
+import { CarCard, DetailsTabs, HelpCard } from "./page-kit";
 import { QuoteHolding } from "./QuoteHolding";
 import { todayIso } from "./schemas/dates";
 import type { QuoteStep } from "./search";
@@ -13,8 +14,17 @@ import {
   firstIncompleteStep,
   stepState,
   storedAnswers,
+  tabStates,
   type DriverStep,
 } from "./steps";
+
+/** Each step's line in the help card (5.4b, call 7; Revamp R03–R08) */
+const helpLines: Record<DriverStep, string> = {
+  about: "Keep your vehicle documents and driving licence nearby as you complete your details.",
+  driving: "Keep your vehicle documents and driving licence nearby as you complete your details.",
+  claims: "Include incidents even if you didn’t claim, and whether or not you were at fault.",
+  drivers: "Only people listed on your policy will be covered to drive your car.",
+};
 
 // The driver steps in order (5.3, calls 5 and 16): about → driving → claims → drivers → quote.
 // The answers live in sessionStorage, so the "can't skip ahead" check runs here in the browser,
@@ -97,12 +107,30 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
     onStep(next);
   }
 
+  /** "Change car or postcode": the car is forgotten, the answers stay (5.4b, call 6) */
+  function changeCar() {
+    setVehicle(null);
+    onStep(undefined);
+  }
+
   const props = (s: DriverStep) => ({
     journey,
     today,
     revalidate: reopened.current === s,
     onBack: () => onStep(previous[s]),
     onDone: () => done(s),
+    tabs: (
+      <DetailsTabs
+        states={tabStates(journey, s, today)}
+        onOpen={(tab) => onStep(tab === "car" ? undefined : tab)}
+      />
+    ),
+    aside: (
+      <>
+        <CarCard car={journey.vehicle ?? null} postcode={journey.postcode} onChange={changeCar} />
+        <HelpCard>{helpLines[s]}</HelpCard>
+      </>
+    ),
   });
 
   return (
@@ -114,6 +142,18 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
       {step === "quote" ? (
         <QuoteHolding
           journey={journey}
+          onBack={() => onStep("drivers")}
+          onReviewDrivers={() => {
+            fromSummary.current = true;
+            onStep("drivers");
+          }}
+          carCard={
+            <CarCard
+              car={journey.vehicle ?? null}
+              postcode={journey.postcode}
+              onChange={changeCar}
+            />
+          }
           onEdit={(s) => {
             fromSummary.current = true;
             onStep(s);

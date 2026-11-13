@@ -1,12 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
 
 import { CarNotListed } from "./CarNotListed";
-import { PlateBox } from "./PlateLookup";
+import { JourneyPage, StepNav } from "./page-kit";
+import { PlateBox, type PlateViewProps } from "./PlateLookup";
+import { StepHeading } from "./step-kit";
 
-/** Screen 10 (Figma 226:654): the plate didn't match a demo plate. The plate is kept in the box. */
+/** Screen 10 (Figma 226:654): the plate didn't match a demo plate. The plate is kept in the box.
+ * In the revamp's frame as it is (5.4b, decision 2). */
 export function VehicleNotFound({
   plate,
   onPlate,
@@ -15,28 +18,23 @@ export function VehicleNotFound({
   finding,
   loadError,
   onManual,
-}: {
-  plate: string;
-  onPlate: (plate: string) => void;
-  onFind: () => void;
-  error?: string;
-  finding: boolean;
-  loadError: ReactNode;
-  onManual: () => void;
-}) {
+  tabs,
+  aside,
+  onBack,
+}: PlateViewProps) {
   const [contact, setContact] = useState(false);
   return (
-    <>
-      <header className="quote-heading">
-        <p className="quote-heading__overline">Car · Lookup help</p>
-        <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
-          We don&rsquo;t have that car
-        </h1>
-        <p className="quote-heading__intro">
-          We couldn&rsquo;t match this registration to a car in our records. You can try again or
-          choose your car manually.
-        </p>
-      </header>
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your details"
+          title="We don’t have that car"
+          intro="We couldn’t match this registration to a car in our records. You can try again or choose your car manually."
+        />
+      }
+      tabs={tabs}
+      aside={aside}
+    >
       <div className="quote-panel">
         <Alert tone="neutral" title="No matching car found">
           Your quote is still here. Try the registration again or use manual lookup.
@@ -69,6 +67,7 @@ export function VehicleNotFound({
         Contact us about this car
       </button>
       {contact ? <CarNotListed /> : null}
-    </>
+      <StepNav onBack={onBack} />
+    </JourneyPage>
   );
 }

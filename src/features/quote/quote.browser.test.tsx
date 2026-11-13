@@ -190,30 +190,19 @@ describe("JourneyShell", () => {
     await page.viewport(414, 896);
   });
 
-  it("shows the bar Stepper on a phone and the full one wider, at the first step", async () => {
-    await page.viewport(390, 800);
+  it("shows the slot and the postcode, and leaves the Stepper to the frame (5.4b)", async () => {
     await renderWithRouter(<JourneyShell product="car" postcode="E8 3RL" />, "/quote/car");
-    await expect
-      .element(page.getByRole("progressbar", { name: "Quote progress" }))
-      .toHaveAttribute("aria-valuetext", "Step 1 of 4: Your details");
+    await expect.element(page.getByText("This step arrives in 5.2")).toBeVisible();
+    await expect.element(page.getByText(/Postcode: E8 3RL/)).toBeVisible();
     await expect
       .element(page.getByRole("navigation", { name: "Quote progress" }))
       .not.toBeInTheDocument();
-
-    await page.viewport(1024, 800);
-    const progress = page.getByRole("navigation", { name: "Quote progress" });
-    await expect.element(progress).toBeVisible();
-    await expect
-      .element(progress.getByRole("listitem").filter({ hasText: "Your details" }))
-      .toHaveAttribute("aria-current", "step");
-    await expect.element(page.getByText("This step arrives in 5.2")).toBeVisible();
-    await expect.element(page.getByText(/Postcode: E8 3RL/)).toBeVisible();
     await expect
       .element(page.getByRole("progressbar", { name: "Quote progress" }))
       .not.toBeInTheDocument();
   });
 
-  it("puts a step in the slot, letting it own the page heading (5.2)", async () => {
+  it("puts a step in the slot, letting it own the page and its heading (5.2, 5.4b)", async () => {
     await renderWithRouter(
       <JourneyShell product="car" postcode="E8 3RL">
         <h1>Let’s find your car</h1>
@@ -224,10 +213,9 @@ describe("JourneyShell", () => {
       .element(page.getByRole("heading", { level: 1 }))
       .toHaveTextContent("Let’s find your car");
     await expect.element(page.getByText("This step arrives in 5.2")).not.toBeInTheDocument();
-    await expect.element(page.getByText(/Your postcode: E8 3RL/)).toBeVisible();
-    await expect
-      .element(page.getByRole("link", { name: "Change postcode" }))
-      .toHaveAttribute("href", "/quote?type=car&postcode=E8+3RL");
+    // The step lays out its own page: no second page wrapper, no postcode line under it
+    expect(document.querySelector(".quote-page")).toBeNull();
+    await expect.element(page.getByText(/Your postcode: E8 3RL/)).not.toBeInTheDocument();
   });
 
   it("records quote.started once per journey", async () => {

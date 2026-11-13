@@ -51,11 +51,11 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 06 | Home · Contents & security | `222:6777` | 5.7 |
 | 07 | Home · Past claims | `222:6792` | 5.7 |
 | 08 | Car · Enter registration. The build adds the demo plates under the box; `KR24 BXL` is only the placeholder, since the lookup knows just the six demo plates (5.2, call 6) | `226:624` | 5.2 |
-| 09 | Car · Manual vehicle picker (make → model → year → variant) | `226:639` | 5.2 |
+| 09 | Car · Manual vehicle picker (make → model → year → variant). Replaced by Revamp R01 (5.4b) | `226:639` | 5.2 |
 | 10 | Car · Vehicle not found | `226:654` | 5.2 |
-| 11 | Car · Licence & driving | `226:669` | 5.3 |
-| 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too | `226:684` | 5.3 |
-| 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3) | `235:1638` | 5.3 |
+| 11 | Car · Licence & driving. Replaced by Revamp R04 (5.4b) | `226:669` | 5.3 |
+| 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too. Replaced by Revamp R05/R06 (5.4b) | `226:684` | 5.3 |
+| 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3). Replaced by Revamp R07/R08 (5.4b) | `235:1638` | 5.3 |
 | 13 | Cover cards & comparison (1440 wide). Its monthly figures (annual ÷ 12) and footnote are out of date: paying monthly costs 10% more, so £458.40 a year is 12 payments of £42.02 (5.4, decision 1) | `226:699` | 5.5 |
 | 14 | Before payment · Sign in | `226:714` | 5.6 |
 | 15 | Before payment · Create account | `226:729` | 5.6 |
@@ -67,11 +67,30 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 21 | Start a car + home bundle | `230:1434` | 5.5 / 5.7 |
 | 22 | Home quote & choose cover (1440 wide) | `230:1449` | 5.7 |
 
-**About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12).
+**About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12). Replaced by Revamp R03 (5.4b).
 
 **Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
 
 **To update in Figma:** screens 21 and 22 say "no bundle discount", but bundles keep the 8% discount from rating tables v1 (Damion, 9 Nov 2026). Show the saving instead.
+
+## Quote · Revamp, Web (`249:5806`)
+
+Drawn by Damion on 12 Nov 2026 after the 5.4 manual check, and built in 5.4b. The car journey in its own frame: a journey header with the Stepper and "Need help?", the details tabs, a "Your car" card and a help card beside every step, and a one-line footer. 1280 wide; tablet and phone stack the right-hand cards (5.4b, call 12). They replace screens 09, 11, 12 and 12a and the About you frame (`157:10429`); screens 08 and 10 have no Revamp frame and move into it as they are. 5.5's screens (13, 19, 20, 03, 04, 21) take this style without being redrawn (5.4b, decision 3).
+
+| # | Screen | Node | Slice |
+|---|---|---|---|
+| R01 | Choose your car | `249:5807` | 5.4b |
+| R02 | Your car, confirmed | `249:5858` | 5.4b |
+| R03 | Tell us about you | `249:5907` | 5.4b |
+| R04 | Your licence and driving | `249:5967` | 5.4b |
+| R05 | Your driving history, with an incident | `249:6028` | 5.4b |
+| R06 | Your driving history, no incidents | `249:6092` | 5.4b |
+| R07 | Who else will drive your car?, with a driver | `249:6143` | 5.4b |
+| R08 | Who else will drive your car?, nobody else | `249:6226` | 5.4b |
+| R09 | Your quote is ready (pay annually or monthly) | `249:6275` | 5.4b |
+| R10 | Let's review your named driver. Only the declined version is drawn; the referred wording is 5.4b's (call 11) | `249:6337` | 5.4b |
+
+**Differences from the frames:** the demo notice bar stays above the journey header, and the footer has no Accessibility link until there's a statement to link to; Help, "Need help?" and "Contact us" open the hello@ inbox (5.4b, decision 4). The frames' sample content (the Oshawa address) isn't copied.
 
 ## Lo Fidelity Wireframes (`18:7822`)
 

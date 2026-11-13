@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { completeJourney, FIXTURE_TODAY } from "./journey-fixtures";
 import type { Journey } from "./journey-store";
-import { firstIncompleteStep, stepState } from "./steps";
+import { firstIncompleteStep, stepState, tabStates } from "./steps";
 
 // 5.3, call 16: a step is complete only if its answers still pass against today and the other parts
 
@@ -56,5 +56,47 @@ describe("stepState", () => {
     const journey = completeJourney();
     delete journey.mainDriver!.licenceDate;
     expect(stepState(journey, FIXTURE_TODAY).driving).toBe(false);
+  });
+});
+
+describe("tabStates (5.4b, call 5)", () => {
+  it("ticks complete steps, opens the first unfinished one and locks the rest", () => {
+    expect(tabStates(without("namedDrivers"), "about", FIXTURE_TODAY)).toEqual({
+      car: "done",
+      about: "current",
+      driving: "done",
+      claims: "done",
+      drivers: "open",
+    });
+  });
+
+  it("locks every step after the car until there is one", () => {
+    expect(tabStates(null, "car", FIXTURE_TODAY)).toEqual({
+      car: "current",
+      about: "locked",
+      driving: "locked",
+      claims: "locked",
+      drivers: "locked",
+    });
+  });
+
+  it("opens a step an edit broke and locks the steps after it", () => {
+    expect(tabStates(without("usage"), "drivers", FIXTURE_TODAY)).toEqual({
+      car: "done",
+      about: "done",
+      driving: "open",
+      claims: "locked",
+      drivers: "current",
+    });
+  });
+
+  it("ticks every step but the current one on a complete journey", () => {
+    expect(tabStates(completeJourney(), "claims", FIXTURE_TODAY)).toEqual({
+      car: "done",
+      about: "done",
+      driving: "done",
+      claims: "current",
+      drivers: "done",
+    });
   });
 });

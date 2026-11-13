@@ -18,7 +18,8 @@ const pages = [
   "/quote/car?postcode=E8+3RL&vehicle=manual",
   "/quote/car?postcode=E8+3RL&vehicle=not-found",
 ];
-const widths = [390, 1440];
+// Phone, tablet and laptop: the revamp's columns stack below 960px (5.4b, call 12)
+const widths = [390, 768, 1440];
 
 // Signed-in pages redirect a signed-out visitor, so each is checked where it lands. The two-factor
 // setup page signed in (frame 12, the staff gate) is checked in auth.spec.ts with the E2E staff
@@ -68,6 +69,22 @@ for (const step of quoteSteps) {
       await expectNoBlockingViolations(page);
     });
   }
+}
+
+// The named-driver review step (5.4b, R10): the Tesla with a 19-year-old named driver
+for (const width of widths) {
+  test(`/quote/car?step=quote, named driver review, at ${width}px has no serious or critical axe violations`, async ({
+    page,
+  }) => {
+    await withCompleteJourney(page, { declined: true });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/quote/car?postcode=E8+3RL&step=quote");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Let’s review your named driver" }),
+    ).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expectNoBlockingViolations(page);
+  });
 }
 
 for (const [path, lands] of redirected) {

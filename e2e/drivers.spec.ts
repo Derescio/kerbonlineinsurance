@@ -22,9 +22,9 @@ async function quoteWithYoungDriver(page: Page, plate: string, variant: string) 
   await page.goto("/quote/car?postcode=E8+3RL");
   await page.getByRole("button", { name: plate }).click();
   await page.getByRole("button", { name: "Find my car" }).click();
-  await expect(select(page, "4 · Variant").locator("option:checked")).toHaveText(variant);
+  await expect(select(page, "Variant").locator("option:checked")).toHaveText(variant);
   await page.getByRole("button", { name: "Confirm this car" }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue to your details" }).click();
 
   // About you
   await expect(page).toHaveURL(/step=about/);
@@ -46,7 +46,7 @@ async function quoteWithYoungDriver(page: Page, plate: string, variant: string) 
   await box(page, "Current mileage").fill("18200");
   await select(page, "Use of the car").selectOption({ label: "Social, domestic and commuting" });
   await select(page, "Where is the car kept overnight?").selectOption({ label: "Driveway" });
-  await page.getByRole("button", { name: "Continue to driving history" }).click();
+  await page.getByRole("button", { name: "Continue to claims" }).click();
 
   // Claims: one incident last year
   await expect(page).toHaveURL(/step=claims/);
@@ -79,7 +79,8 @@ async function quoteWithYoungDriver(page: Page, plate: string, variant: string) 
   await expect(page).toHaveURL(/step=quote/);
 }
 
-const yearly = /^£[\d,]+\.\d{2} a year, or 12 payments of £[\d,]+\.\d{2}$/;
+// The pay cards' totals (5.4b, call 10): two when the quote is priced, none otherwise
+const totals = /^Total payable £[\d,]+\.\d{2}$/;
 
 test("a car quote's driver steps end on the Golf's price, and a refresh keeps it", async ({
   page,
@@ -88,13 +89,13 @@ test("a car quote's driver steps end on the Golf's price, and a refresh keeps it
 
   // Group 14: the 19-year-old raises the price but doesn't stop it (5.4)
   await expect(page.getByRole("heading", { name: "Your Comprehensive price" })).toBeVisible();
-  await expect(page.getByText(yearly)).toBeVisible();
+  await expect(page.getByText(totals)).toHaveCount(2);
   await expect(page.getByText("Sam Morgan")).toBeVisible();
   await expect(page.getByText("1 incident")).toBeVisible();
   for (const typed of ["Alex", "Sam", "Albion", "Morgan"]) expect(page.url()).not.toContain(typed);
 
   await page.reload();
-  await expect(page.getByText(yearly)).toBeVisible();
+  await expect(page.getByText(totals)).toHaveCount(2);
   await expect(page.getByText("Sam Morgan")).toBeVisible();
 });
 
@@ -103,24 +104,20 @@ test("the Tesla is declined with a 19-year-old named driver; removing him prices
 }) => {
   await quoteWithYoungDriver(page, "TS24 EIV", "RWD");
 
-  // Group 32: under 21 on group 30 or above is declined, and the person applying is told who
-  await expect(
-    page.getByText(
-      "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-    ),
-  ).toBeVisible();
-  await expect(page.getByText(yearly)).toHaveCount(0);
-  // Removed on the spot and priced again, with Undo to put him back
-  await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+  // Group 32: under 21 on group 30 or above is declined, and the person applying is told who,
+  // on the review step (5.4b, call 11)
+  const review = page.getByRole("heading", { level: 1, name: "Let’s review your named driver" });
+  await expect(review).toBeVisible();
+  await expect(page.getByText("We can’t offer cover with Sam as a named driver.")).toBeVisible();
+  await expect(page.getByText(totals)).toHaveCount(0);
+  // Removed on the spot and priced again, with "Add back" to put him back
+  await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
   await expect(page.getByText("Sam has been removed from this quote.")).toBeVisible();
-  await expect(page.getByText(yearly)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Your quote is ready" })).toBeVisible();
+  await expect(page.getByText(totals)).toHaveCount(2);
   await expect(page).toHaveURL(/step=quote/);
   await page.getByRole("button", { name: "Add Sam back" }).click();
-  await expect(
-    page.getByText(
-      "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-    ),
-  ).toBeVisible();
+  await expect(review).toBeVisible();
 });
 
 test("a cold link to a later step goes back to the car step", async ({ page }) => {

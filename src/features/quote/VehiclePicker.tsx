@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
-import { Icon } from "#/components/display/Icon";
+import { Card } from "#/components/display/Card";
 import { Select } from "#/components/forms/Select";
 
 import { CarNotListed } from "./CarNotListed";
-import { fuelLabel, makesOf, modelsOf, variantsOf, yearsOf, type PickerCar } from "./catalogue";
+import { makesOf, modelsOf, variantsOf, yearsOf, type PickerCar } from "./catalogue";
+import { JourneyPage, StepNav, type CarCardCar } from "./page-kit";
+import { StepHeading } from "./step-kit";
 
-// Screen 09 (Figma 226:639): make → model → year → variant (5.2, call 10). After a demo plate, the
-// four fill one after another so the viewer sees it happen (call 8).
+// Screen 09, now Revamp R01 (Figma 249:5807): make → model → year → variant (5.2, call 10). After a
+// demo plate, the four fill one after another so the viewer sees it happen (call 8). The "Your car"
+// card beside it follows the choice as it's made (5.4b, call 6).
 
 const FILL_STEP_MS = 200;
 
@@ -37,8 +40,10 @@ export function VehiclePicker({
   cars,
   fillFrom,
   initial,
-  fromPlate,
   loadError,
+  tabs,
+  aside,
+  onChoiceChange,
   onConfirm,
   onBack,
 }: {
@@ -48,8 +53,11 @@ export function VehiclePicker({
   fillFrom?: PickerCar | null;
   /** A car to start with chosen ("Change", plan P5) */
   initial?: PickerCar | null;
-  fromPlate: boolean;
   loadError: ReactNode;
+  tabs: ReactNode;
+  aside: ReactNode;
+  /** As much of the car as is chosen so far, for the "Your car" card */
+  onChoiceChange?: (car: CarCardCar | null) => void;
   onConfirm: (car: PickerCar) => void;
   onBack: () => void;
 }) {
@@ -91,6 +99,21 @@ export function VehiclePicker({
     : [];
   const chosen = variants.find((v) => v.id === choice.variantId) ?? null;
 
+  const changed = useRef(onChoiceChange);
+  useEffect(() => {
+    changed.current = onChoiceChange;
+  });
+  useEffect(() => {
+    if (!choice.make) changed.current?.(null);
+    else if (chosen) changed.current?.(chosen);
+    else
+      changed.current?.({
+        make: choice.make,
+        model: choice.model || undefined,
+        year: choice.year ? Number(choice.year) : undefined,
+      });
+  }, [choice.make, choice.model, choice.year, chosen]);
+
   /** A manual change stops a running fill and clears every later choice */
   function pick(next: Partial<Choice>, clears: (keyof Choice)[]) {
     stopFill();
@@ -103,25 +126,22 @@ export function VehiclePicker({
 
   const disabled = !cars;
   return (
-    <>
-      <header className="quote-heading">
-        <p className="quote-heading__overline">
-          {fromPlate ? "Car · Your details" : "Car · Manual lookup"}
-        </p>
-        <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
-          Choose your car
-        </h1>
-        <p className="quote-heading__intro">
-          Choose each detail in order. You&rsquo;ll find the exact variant on your vehicle
-          documents.
-        </p>
-      </header>
-
-      <div className="quote-panel quote-picker">
+    <JourneyPage
+      heading={
+        <StepHeading
+          overline="Car insurance / Your details"
+          title="Choose your car"
+          intro="Choose each detail in order. You’ll find the exact variant on your vehicle documents."
+        />
+      }
+      tabs={tabs}
+      aside={aside}
+    >
+      <Card padding="lg" className="quote-picker">
+        <h2 className="kb-h4">Vehicle details</h2>
         {loadError}
         <Select
-          label="1 · Make"
-          hint="Choose the manufacturer."
+          label="Make"
           placeholder="Choose a make"
           options={makes}
           value={choice.make}
@@ -129,8 +149,7 @@ export function VehiclePicker({
           onChange={(e) => pick({ make: e.target.value }, ["model", "year", "variantId"])}
         />
         <Select
-          label="2 · Model"
-          hint="Models depend on the make you choose."
+          label="Model"
           placeholder="Choose a model"
           options={models}
           value={choice.model}
@@ -139,7 +158,7 @@ export function VehiclePicker({
         />
         <div className="quote-picker__pair">
           <Select
-            label="3 · Year first registered"
+            label="Year first registered"
             placeholder="Choose a year"
             options={years.map(String)}
             value={choice.year}
@@ -147,7 +166,7 @@ export function VehiclePicker({
             onChange={(e) => pick({ year: e.target.value }, ["variantId"])}
           />
           <Select
-            label="4 · Variant"
+            label="Variant"
             placeholder="Choose a variant"
             options={variants.map((v) => ({ value: v.id, label: v.variant }))}
             value={choice.variantId}
@@ -158,33 +177,26 @@ export function VehiclePicker({
         <p className="quote-picker__note">
           Changing an earlier answer clears the choices that depend on it.
         </p>
-      </div>
-
-      {chosen ? (
-        <section className="quote-aside quote-car" aria-label="Your car">
-          <Icon name="car" size={24} />
-          <p className="quote-car__name">
-            {chosen.make} {chosen.model} {chosen.variant}
-          </p>
-          <p>
-            {chosen.year} · {fuelLabel(chosen.fuelType)} · {chosen.doors} doors
-          </p>
-        </section>
-      ) : null}
+      </Card>
 
       <button type="button" className="quote-link" onClick={() => setNotListed(true)}>
         My car isn&rsquo;t listed
       </button>
       {notListed ? <CarNotListed /> : null}
 
-      <div className="quote-nav">
-        <button type="button" className="quote-link" onClick={onBack}>
-          Back
-        </button>
-        <Button variant="accent" disabled={!chosen} onClick={() => chosen && onConfirm(chosen)}>
-          Confirm this car
-        </Button>
-      </div>
-    </>
+      <StepNav
+        onBack={onBack}
+        next={
+          <Button
+            variant="accent"
+            iconRight="arrow-right"
+            disabled={!chosen}
+            onClick={() => chosen && onConfirm(chosen)}
+          >
+            Confirm this car
+          </Button>
+        }
+      />
+    </JourneyPage>
   );
 }

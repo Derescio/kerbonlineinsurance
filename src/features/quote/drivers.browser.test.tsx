@@ -113,7 +113,9 @@ describe("About you", () => {
         ),
       )
       .toBeVisible();
-    await expect.element(page.getByText("Home postcode: E8 3RL.")).toBeVisible();
+    await expect.element(page.getByText("Home postcode: E8 3RL")).toBeVisible();
+    await expect.element(page.getByRole("heading", { name: "About you", level: 2 })).toBeVisible();
+    await expect.element(page.getByRole("heading", { name: "Home address" })).toBeVisible();
   });
 
   it("shows the job list for Employed, without the statuses, and hides it for Retired", async () => {
@@ -208,7 +210,7 @@ describe("Licence and driving", () => {
       )
       .toBeVisible();
     await userEvent.selectOptions(select("Licence type"), "Provisional UK");
-    await page.getByRole("button", { name: "Continue to driving history" }).click();
+    await page.getByRole("button", { name: "Continue to claims" }).click();
     await expect
       .element(page.getByText("Kerb can’t quote for a provisional licence yet."))
       .toBeVisible();
@@ -232,7 +234,7 @@ describe("Licence and driving", () => {
     await userEvent.fill(box("Current mileage"), "18200");
     await userEvent.selectOptions(select("Use of the car"), "Social, domestic and commuting");
     await userEvent.selectOptions(select("Where is the car kept overnight?"), "Driveway");
-    await page.getByRole("button", { name: "Continue to driving history" }).click();
+    await page.getByRole("button", { name: "Continue to claims" }).click();
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledOnce());
     const journey = readJourney("car")!;
     expect(journey.mainDriver).toMatchObject({ licenceType: "full_uk", noClaimsYears: 5 });
@@ -414,6 +416,43 @@ describe("the driver steps in order", () => {
     store(journey);
   }
 
+  it("ticks finished steps in the tabs and opens one when clicked (5.4b, call 5)", async () => {
+    storeComplete((journey) => delete journey.namedDrivers);
+    const { moves } = renderFlow("claims");
+    const tabs = page.getByRole("navigation", { name: "Your details" });
+    await expect
+      .element(tabs.getByRole("listitem").filter({ hasText: "Claims" }))
+      .toHaveAttribute("aria-current", "step");
+    await tabs.getByRole("button", { name: "About you, done" }).click();
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Tell us about you");
+    await expect.element(box("First name")).toHaveValue("Alex");
+    expect(moves.at(-1)).toEqual({ step: "about", replace: false });
+  });
+
+  it("never links past the first unfinished step (5.4b, call 5)", async () => {
+    carOnly();
+    renderFlow("about");
+    const tabs = page.getByRole("navigation", { name: "Your details" });
+    await expect.element(tabs.getByRole("button", { name: "Car, done" })).toBeVisible();
+    await expect.element(tabs.getByRole("button", { name: /Driving/ })).not.toBeInTheDocument();
+    await expect.element(tabs.getByRole("button", { name: /Claims/ })).not.toBeInTheDocument();
+    await expect.element(tabs.getByRole("button", { name: /Drivers/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the car beside every step, and Change clears it for the car step (5.4b, call 6)", async () => {
+    storeComplete();
+    const { moves } = renderFlow("driving");
+    const card = page.getByRole("region", { name: "Your car" });
+    await expect.element(card.getByText("Postcode E8 3RL")).toBeInTheDocument();
+    await card.getByRole("button", { name: /Change/ }).click();
+    await expect.element(page.getByText("car step")).toBeVisible();
+    expect(moves.at(-1)).toEqual({ step: undefined, replace: false });
+    expect(readJourney("car")?.vehicle).toBeUndefined();
+    expect(readJourney("car")?.usage).toBeDefined();
+  });
+
   it("sends a link to a later step with no car back to the car step", async () => {
     const { moves } = renderFlow("drivers");
     await expect.element(page.getByText("car step")).toBeVisible();
@@ -433,10 +472,10 @@ describe("the driver steps in order", () => {
     storeComplete();
     renderFlow("drivers");
     await page.getByRole("button", { name: "Get my car quote" }).click();
-    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
     await expect
-      .element(page.getByText("£1,063.78 a year, or 12 payments of £97.51"))
-      .toBeVisible();
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your quote is ready");
+    await expect.element(page.getByText("Total payable £1,063.78")).toBeVisible();
     await expect.element(page.getByText("Alex Morgan, born 12 May 1991")).toBeVisible();
     await expect
       .element(page.getByText("Full UK, 5 years’ no-claims, 8,000 miles a year"))
@@ -473,7 +512,9 @@ describe("the driver steps in order", () => {
       };
     });
     renderFlow("quote");
-    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Claims");
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your driving history");
     await expect.element(page.getByText("The incident must be in the last 5 years.")).toBeVisible();
   });
 
@@ -482,7 +523,9 @@ describe("the driver steps in order", () => {
     renderFlow("quote");
     await page.getByRole("button", { name: "Edit Claims" }).click();
     await page.getByRole("button", { name: "Continue to named drivers" }).click();
-    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Your quote");
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your quote is ready");
   });
 
   it("keeps the answers through a refresh", async () => {
@@ -518,9 +561,7 @@ describe("the driver steps in order", () => {
     storeComplete();
     renderFlow("drivers");
     await page.getByRole("button", { name: "Get my car quote" }).click();
-    await expect
-      .element(page.getByText("£1,063.78 a year, or 12 payments of £97.51"))
-      .toBeVisible();
+    await expect.element(page.getByText("Total payable £1,063.78")).toBeVisible();
     for (const typed of ["Alex", "Morgan", "Albion", "Jamie"]) {
       expect(window.location.href).not.toContain(typed);
     }
@@ -565,14 +606,24 @@ describe("the price on the holding view (5.4)", () => {
   }
 
   const heading = () => page.getByRole("heading", { level: 1 });
-  const PRICE = "£1,063.78 a year, or 12 payments of £97.51";
+  // The annual card's total: the price is showing (5.4b, call 10)
+  const PRICE = "Total payable £1,063.78";
 
-  it("shows the Comprehensive price, a year and monthly, with IPT", async () => {
+  it("shows annual and monthly as a choice, annual first, with IPT (5.4b, call 10)", async () => {
     await showQuote();
+    await expect.element(heading()).toHaveTextContent("Your quote is ready");
     await expect
       .element(page.getByRole("heading", { name: "Your Comprehensive price" }))
       .toBeVisible();
+    const annual = page.getByRole("radio", { name: /Pay annually/ });
+    const monthly = page.getByRole("radio", { name: /Pay monthly/ });
+    await expect.element(annual).toBeChecked();
+    await expect.element(monthly).not.toBeChecked();
+    await expect.element(page.getByText("£1,063.78", { exact: true })).toBeVisible();
     await expect.element(page.getByText(PRICE)).toBeVisible();
+    await expect.element(page.getByText("£97.51", { exact: true })).toBeVisible();
+    // 12 × £97.51 = £1,170.12: what the visitor actually pays monthly
+    await expect.element(page.getByText("Total payable £1,170.12")).toBeVisible();
     await expect.element(page.getByText("Premiums include Insurance Premium Tax.")).toBeVisible();
     // The tab's journey went to the server, without the last plate typed
     expect(price).toHaveBeenCalledTimes(1);
@@ -581,13 +632,93 @@ describe("the price on the holding view (5.4)", () => {
     expect(sent).not.toHaveProperty("lastPlate");
   });
 
-  it("names a named driver who needs checking, with no price", async () => {
+  const REVIEW = "Let’s review your named driver";
+
+  it("shows the review step when a named driver needs checking (5.4b, call 11)", async () => {
     price.mockResolvedValue({ status: "referred", namedDriver: 1 });
     await showQuote();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
     await expect
-      .element(page.getByText("We need to check a couple of things about Sam."))
+      .element(page.getByText("We need to check a couple of things before we can include Sam."))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("We need to check a couple of things about Sam"))
       .toBeVisible();
     await expect.element(page.getByText(PRICE)).not.toBeInTheDocument();
+  });
+
+  it("shows the review step when a named driver is declined (5.4b, call 11)", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: 1 });
+    await showQuote();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await expect
+      .element(page.getByText("We can’t offer cover with Sam as a named driver."))
+      .toBeVisible();
+    await expect.element(page.getByText("We can’t offer cover with Sam included")).toBeVisible();
+    await expect
+      .element(page.getByRole("heading", { name: "What happens if you remove Sam?" }))
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByText(
+          "Sam won’t be covered to drive your car. Only continue without them if they don’t need to drive it.",
+        ),
+      )
+      .toBeVisible();
+    await expect.element(page.getByText(PRICE)).not.toBeInTheDocument();
+  });
+
+  it("opens Named drivers from Review named driver details", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: 1 });
+    await showQuote();
+    await page.getByRole("button", { name: "Review named driver details" }).click();
+    await expect.element(heading()).toHaveTextContent("Who else will drive your car?");
+    expect(moves.at(-1)).toEqual({ step: "drivers", replace: false });
+  });
+
+  it("shows the review for the next driver who stops the quote, keeping Add back for the last one removed", async () => {
+    price
+      .mockResolvedValueOnce({ status: "declined", namedDriver: 1 })
+      .mockResolvedValue({ status: "declined", namedDriver: 1 });
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    const jamie = journey.namedDrivers!.drivers[0]!;
+    journey.namedDrivers = { any: true, drivers: [{ ...jamie, firstName: "Sam" }, jamie] };
+    store(journey);
+    await withQuery(<Harness initial="quote" />);
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
+    await expect.element(page.getByText("Sam has been removed from this quote.")).toBeVisible();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await expect
+      .element(page.getByText("We can’t offer cover with Jamie as a named driver."))
+      .toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Add Sam back" })).toBeVisible();
+  });
+
+  it("fits a long name at 360px", async () => {
+    await page.viewport(360, 800);
+    price.mockResolvedValue({ status: "declined", namedDriver: 1 });
+    const journey = completeJourney();
+    journey.claims = { any: false, incidents: [], confirmed: true };
+    journey.namedDrivers = {
+      any: true,
+      drivers: [{ ...journey.namedDrivers!.drivers[0]!, firstName: "Maximilian-Alexander" }],
+    };
+    store(journey);
+    await withQuery(<Harness initial="quote" />);
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
+    // A wrapped label grows the button rather than spilling out of it
+    const buttons = [
+      page.getByRole("button", { name: "Remove Maximilian-Alexander and see my price" }),
+      page.getByRole("button", { name: "Review named driver details" }),
+    ];
+    for (const button of buttons) {
+      const el = button.element() as HTMLElement;
+      expect(el.scrollHeight).toBeLessThanOrEqual(el.clientHeight + 1);
+      expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth + 1);
+    }
+    await page.viewport(414, 896);
   });
 
   it("shows the plain referral line when no driver is the reason", async () => {
@@ -609,16 +740,10 @@ describe("the price on the holding view (5.4)", () => {
   it("removes the driver who stopped the quote on the spot, and prices again", async () => {
     price.mockResolvedValueOnce({ status: "declined", namedDriver: 1 }).mockResolvedValue(QUOTED);
     await showQuote();
-    await expect
-      .element(
-        page.getByText(
-          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-        ),
-      )
-      .toBeVisible();
-    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
     // Still on the quote: Sam is gone from the tab's journey and the price is worked out again
-    await expect.element(heading()).toHaveTextContent("Your quote");
+    await expect.element(heading()).toHaveTextContent("Your quote is ready");
     await expect.element(page.getByText("Sam has been removed from this quote.")).toBeVisible();
     await expect.element(page.getByText(PRICE)).toBeVisible();
     expect(moves).toEqual([]);
@@ -635,16 +760,11 @@ describe("the price on the holding view (5.4)", () => {
       .mockResolvedValue({ status: "declined", namedDriver: 1 });
     await showQuote();
     const before = readJourney("car")!.namedDrivers;
-    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
     await expect.element(page.getByText(PRICE)).toBeVisible();
     await page.getByRole("button", { name: "Add Sam back" }).click();
-    await expect
-      .element(
-        page.getByText(
-          "Unfortunately, we’re unable to provide cover with Sam included as a named driver.",
-        ),
-      )
-      .toBeVisible();
+    await expect.element(heading()).toHaveTextContent(REVIEW);
+    await expect.element(page.getByText("We can’t offer cover with Sam included")).toBeVisible();
     await expect
       .element(page.getByText("Sam has been removed from this quote."))
       .not.toBeInTheDocument();
@@ -662,7 +782,7 @@ describe("the price on the holding view (5.4)", () => {
     };
     store(journey);
     await withQuery(<Harness initial="quote" />);
-    await page.getByRole("button", { name: "Remove Sam to see a price without them" }).click();
+    await page.getByRole("button", { name: "Remove Sam and see my price" }).click();
     await expect.element(page.getByText(PRICE)).toBeVisible();
     expect(readJourney("car")!.namedDrivers).toEqual({ any: true, drivers: [jamie] });
   });
@@ -694,6 +814,41 @@ describe("the price on the holding view (5.4)", () => {
     // The same element, still mounted, now holds the price
     expect(region?.isConnected).toBe(true);
     expect(region?.textContent).toContain(PRICE);
+  });
+
+  it("keeps the pay choice through a refresh (5.4b, call 10)", async () => {
+    const screen = await showQuote();
+    await page.getByText("Pay monthly").click();
+    await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+    expect(readJourney("car")?.payment).toBe("monthly");
+    await screen.unmount();
+    await withQuery(<Harness initial="quote" />);
+    await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+  });
+
+  it("doesn't price again when only the pay choice changed (5.4b, call 10)", async () => {
+    await showQuote();
+    await page.getByText("Pay monthly").click();
+    await page.getByRole("button", { name: "Back to your details" }).click();
+    await page.getByRole("button", { name: "Get my car quote" }).click();
+    await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+    expect(price).toHaveBeenCalledTimes(1);
+    const sent = (price.mock.calls[0]![0] as { data: Journey }).data;
+    expect(sent).not.toHaveProperty("payment");
+  });
+
+  it("says Choose cover arrives in 5.5 (5.4b, call 10)", async () => {
+    await showQuote();
+    await page.getByRole("button", { name: "Choose cover" }).click();
+    await expect.element(page.getByText("Choosing your cover arrives in 5.5")).toBeVisible();
+  });
+
+  it("goes back to Named drivers from Back to your details (5.4b, call 10)", async () => {
+    await showQuote();
+    await expect.element(page.getByText(PRICE)).toBeVisible();
+    await page.getByRole("button", { name: "Back to your details" }).click();
+    await expect.element(heading()).toHaveTextContent("Who else will drive your car?");
+    expect(moves.at(-1)).toEqual({ step: "drivers", replace: false });
   });
 
   it("says when too many prices were asked for", async () => {
