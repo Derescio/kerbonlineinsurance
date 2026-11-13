@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { AuthzError } from "#/server/auth/errors";
-import { quotes } from "#/server/db/schema";
+import { customers, quotes } from "#/server/db/schema";
 
 import { defineRead } from "./define";
 import { monthlyPaymentFor } from "./pay-quote";
@@ -131,6 +131,20 @@ export const listMyQuotes = defineRead(
       });
     }
     return cards;
+  },
+);
+
+/** The eyebrow on Your saved quotes: the signed-in customer's own name, or null before a first save */
+export const getMyCustomerName = defineRead(
+  "signed_in",
+  z.object({}),
+  async (actor, _input, db): Promise<{ firstName: string; lastName: string } | null> => {
+    if (!actor.customerId) return null;
+    const row = await db.query.customers.findFirst({
+      columns: { firstName: true, lastName: true },
+      where: eq(customers.id, actor.customerId),
+    });
+    return row ?? null;
   },
 );
 

@@ -5,7 +5,7 @@ import { Card } from "#/components/display/Card";
 import { formatPounds } from "#/features/rating/money";
 import type { Purchase } from "#/server/data/quotes";
 
-import { tierName } from "./PayPage";
+import { tierName } from "./labels";
 
 // You're covered (5.6, decision 9; screen 18, adapted to 5.4b's frame): the badge, the thanks, a
 // card per policy bought from the quote, the payment line and the email line. "Your policy

@@ -24,7 +24,7 @@ import {
   getCatalogue,
   upsertReferenceData,
 } from "./reference";
-import { getPurchase, getQuoteForPayment, listMyQuotes } from "./quotes";
+import { getMyCustomerName, getPurchase, getQuoteForPayment, listMyQuotes } from "./quotes";
 
 // The owner-only reads behind Confirm and pay, You're covered and Your saved quotes (5.6,
 // decisions 6, 9 and 10): each filters by the signed-in customer, and a quote that isn't theirs is
@@ -320,5 +320,18 @@ describe("getPurchase", () => {
       ratingVersionId: (await getActiveRatingTables("car")).id,
     });
     expect(await codeOf(() => getPurchase(other, { quoteId: quote.id }))).toBe("NOT_FOUND");
+  });
+});
+
+describe("getMyCustomerName", () => {
+  it("is the signed-in customer's own first and last name", async () => {
+    const a = await signedUp();
+    await signedUp();
+    expect(await getMyCustomerName(a.actor, {})).toEqual({ firstName: "Alex", lastName: "Taylor" });
+  });
+
+  it("is null for a user with no customer row yet", async () => {
+    const actor = (await resolveActor(getDb(), (await makeUser()).id))!;
+    expect(await getMyCustomerName(actor, {})).toBeNull();
   });
 });

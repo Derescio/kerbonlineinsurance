@@ -12,11 +12,10 @@ import { formatPounds } from "#/features/rating/money";
 import { focusFirstError } from "#/lib/validation";
 import { useIdempotencyKey, writeOutcome } from "#/lib/writes";
 import type { PaymentSummary } from "#/server/data/quotes";
-import type { CoverLevel } from "#/server/db/schema/values";
 
 import { checkCard } from "./card";
-import { TIERS } from "./cover";
 import { clearJourney, readJourney, type Payment } from "./journey-store";
+import { tierName } from "./labels";
 import { JourneyPage, StepNav } from "./page-kit";
 import { ALREADY_BOUGHT, NOT_BUYABLE, QUOTE_EXPIRED, START_DATE_RANGE } from "./pay-copy";
 import { PayChoice } from "./PayChoice";
@@ -63,9 +62,6 @@ const DATE = new Intl.DateTimeFormat("en-GB", {
 const formatDay = (iso: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(iso) ? DATE.format(new Date(`${iso}T00:00:00Z`)) : iso;
 
-export const tierName = (coverLevel: string | null) =>
-  coverLevel && coverLevel in TIERS ? TIERS[coverLevel as CoverLevel].name : "Car insurance";
-
 /** The tab's car journey, when it still holds this quote (read after hydration) */
 function useTabJourney(quoteId: string) {
   const [tab, setTab] = useState<{ postcode: string; payment?: Payment } | null>(null);
@@ -86,7 +82,7 @@ export function PayPage({ summary }: { summary: PaymentSummary }) {
   // otherwise Your saved quotes, where it came from
   const back = () => {
     if (tab) void navigate({ to: "/quote/car", search: { postcode: tab.postcode, step: "cover" } });
-    else void navigate({ href: "/quote/retrieve" });
+    else void navigate({ to: "/quote/retrieve" });
   };
 
   const heading = (

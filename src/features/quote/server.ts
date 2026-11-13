@@ -5,7 +5,7 @@ import { getRequestHeaders, setResponseHeader } from "@tanstack/react-start/serv
 import type { WriteResult } from "#/lib/validation";
 import { AuthzError } from "#/server/auth/errors";
 import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
-import type { PaymentSummary, Purchase } from "#/server/data/quotes";
+import type { PaymentSummary, Purchase, SavedQuoteCard } from "#/server/data/quotes";
 import type { PostcodeCheck } from "#/server/quote/postcode";
 import type { PayResult } from "#/server/quote/pay";
 import type { CarPriceResult } from "#/server/quote/price";
@@ -116,4 +116,23 @@ export const getPurchaseFn = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<Purchase> => {
     const { getPurchase } = await import("#/server/data/quotes");
     return orNotFound(() => getPurchase(context.actor, data));
+  });
+
+export interface SavedQuotes {
+  owner: { firstName: string; lastName: string };
+  cards: SavedQuoteCard[];
+}
+
+/** Your saved quotes: the customer's own, newest first, and their name for the eyebrow (decision 10) */
+export const listMyQuotesFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .handler(async ({ context }): Promise<SavedQuotes> => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    const { getMyCustomerName, listMyQuotes } = await import("#/server/data/quotes");
+    const [name, cards] = await Promise.all([
+      getMyCustomerName(context.actor, {}),
+      listMyQuotes(context.actor, {}),
+    ]);
+    // No customer row yet means nothing saved; the name then comes from the account
+    return { owner: name ?? { firstName: "", lastName: "" }, cards };
   });

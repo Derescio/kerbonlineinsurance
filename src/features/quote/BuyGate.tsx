@@ -165,11 +165,12 @@ export function BuyGate({
     started.current = attempt;
     const key = savedQuoteKey(journey);
     const go = (quoteId: string) =>
-      void navigate({
-        href: after === "retrieve" ? "/quote/retrieve" : `/quote/pay/${quoteId}`,
+      void navigate(
         // Back from pay returns to the step before the gate, not to a gate that sends it on again
-        replace: true,
-      });
+        after === "retrieve"
+          ? { to: "/quote/retrieve", replace: true }
+          : { to: "/quote/pay/$quoteId", params: { quoteId }, replace: true },
+      );
 
     // One save per answers (decision 5): Back then Buy with nothing changed reuses it
     if (journey.saved && journey.saved.key === key) {

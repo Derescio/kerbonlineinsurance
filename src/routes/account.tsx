@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { listMyPoliciesFn } from "#/features/account/policies";
 import { AccountPage } from "#/features/auth/AccountPage";
 import { requireSignedIn } from "#/features/auth/guard";
 import { getAccountSummary } from "#/features/auth/session";
@@ -23,13 +24,16 @@ export const Route = createFileRoute("/account")({
     if (!summary) throw redirect({ to: "/login", search: { redirect: "/account" } });
     return { summary };
   },
-  loader: ({ context }) => context.summary,
+  loader: async ({ context }) => ({
+    summary: context.summary,
+    policies: await listMyPoliciesFn(),
+  }),
   head: () => ({ meta: [{ title: "Your account · Kerb" }] }),
   component: Account,
 });
 
 function Account() {
-  const summary = Route.useLoaderData();
+  const { summary, policies } = Route.useLoaderData();
   const notice = Route.useSearch();
-  return <AccountPage summary={summary} notice={notice} />;
+  return <AccountPage summary={summary} policies={policies} notice={notice} />;
 }

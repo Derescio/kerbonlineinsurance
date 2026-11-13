@@ -36,6 +36,7 @@ import { Route as QuoteQuoteIndexRouteImport } from './routes/_quote/quote.index
 import { Route as QuoteQuoteCarRouteImport } from './routes/_quote/quote.car'
 import { Route as QuoteQuoteComingSoonRouteImport } from './routes/_quote/quote.coming-soon'
 import { Route as QuoteQuoteHomeRouteImport } from './routes/_quote/quote.home'
+import { Route as QuoteQuoteRetrieveRouteImport } from './routes/_quote/quote.retrieve'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
@@ -174,6 +175,11 @@ const QuoteQuoteHomeRoute = QuoteQuoteHomeRouteImport.update({
   path: '/quote/home',
   getParentRoute: () => QuoteRoute,
 } as any)
+const QuoteQuoteRetrieveRoute = QuoteQuoteRetrieveRouteImport.update({
+  id: '/quote/retrieve',
+  path: '/quote/retrieve',
+  getParentRoute: () => QuoteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/quote/car': typeof QuoteQuoteCarRoute
   '/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
   '/quote/home': typeof QuoteQuoteHomeRoute
+  '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -260,6 +267,7 @@ export interface FileRoutesByTo {
   '/quote/car': typeof QuoteQuoteCarRoute
   '/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
   '/quote/home': typeof QuoteQuoteHomeRoute
+  '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -296,6 +304,7 @@ export interface FileRoutesById {
   '/_quote/quote/car': typeof QuoteQuoteCarRoute
   '/_quote/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
   '/_quote/quote/home': typeof QuoteQuoteHomeRoute
+  '/_quote/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -329,6 +338,7 @@ export interface FileRouteTypes {
     | '/quote/car'
     | '/quote/coming-soon'
     | '/quote/home'
+    | '/quote/retrieve'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/quote/car'
     | '/quote/coming-soon'
     | '/quote/home'
+    | '/quote/retrieve'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/_quote/quote/car'
     | '/_quote/quote/coming-soon'
     | '/_quote/quote/home'
+    | '/_quote/quote/retrieve'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -614,6 +626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QuoteQuoteHomeRouteImport
       parentRoute: typeof QuoteRoute
     }
+    '/_quote/quote/retrieve': {
+      id: '/_quote/quote/retrieve'
+      path: '/quote/retrieve'
+      fullPath: '/quote/retrieve'
+      preLoaderRoute: typeof QuoteQuoteRetrieveRouteImport
+      parentRoute: typeof QuoteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -685,6 +704,7 @@ interface QuoteRouteChildren {
   QuoteQuoteCarRoute: typeof QuoteQuoteCarRoute
   QuoteQuoteComingSoonRoute: typeof QuoteQuoteComingSoonRoute
   QuoteQuoteHomeRoute: typeof QuoteQuoteHomeRoute
+  QuoteQuoteRetrieveRoute: typeof QuoteQuoteRetrieveRoute
   QuoteQuoteIndexRoute: typeof QuoteQuoteIndexRoute
   QuoteQuoteCoveredQuoteIdRoute: typeof QuoteQuoteCoveredQuoteIdRoute
   QuoteQuotePayQuoteIdRoute: typeof QuoteQuotePayQuoteIdRoute
@@ -694,6 +714,7 @@ const QuoteRouteChildren: QuoteRouteChildren = {
   QuoteQuoteCarRoute: QuoteQuoteCarRoute,
   QuoteQuoteComingSoonRoute: QuoteQuoteComingSoonRoute,
   QuoteQuoteHomeRoute: QuoteQuoteHomeRoute,
+  QuoteQuoteRetrieveRoute: QuoteQuoteRetrieveRoute,
   QuoteQuoteIndexRoute: QuoteQuoteIndexRoute,
   QuoteQuoteCoveredQuoteIdRoute: QuoteQuoteCoveredQuoteIdRoute,
   QuoteQuotePayQuoteIdRoute: QuoteQuotePayQuoteIdRoute,
