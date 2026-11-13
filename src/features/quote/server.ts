@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
-import { publicMiddleware } from "#/server/auth/middleware";
+import type { WriteResult } from "#/lib/validation";
+import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
 import type { PostcodeCheck } from "#/server/quote/postcode";
 import type { CarPriceResult } from "#/server/quote/price";
+import type { SaveCarResult } from "#/server/quote/save";
 import type { StartQuoteInput } from "#/server/quote/start";
 
 // The quote journey's server functions. Server modules are imported inside the handlers, which
@@ -37,4 +39,21 @@ export const priceCar = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CarPriceResult> => {
     const { priceCarJourney } = await import("#/server/quote/price");
     return priceCarJourney(data, getRequestHeaders());
+  });
+
+export interface SaveQuoteEnvelope {
+  input: { journey: unknown };
+  idempotencyKey: string;
+}
+
+/**
+ * Saves the signed-in user's car journey at the gate (5.6, decision 5). The server checks and
+ * prices it again; the key makes a double click or a retry one save.
+ */
+export const saveQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveQuoteEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveCarResult>> => {
+    const { saveCarQuote } = await import("#/server/quote/save");
+    return saveCarQuote(context.actor, data, { headers: getRequestHeaders() });
   });

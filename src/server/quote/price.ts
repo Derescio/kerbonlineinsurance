@@ -1,21 +1,19 @@
-import { isOfferedExcess, type CoverPrices, type TierPrice } from "#/features/quote/cover";
-import { parseJourney } from "#/features/quote/journey-store";
-import { normalisePostcode } from "#/features/quote/postcode";
-import { todayIso } from "#/features/quote/schemas/dates";
-import { firstIncompleteStep, type DriverStep } from "#/features/quote/steps";
-import { carInputsFromJourney } from "#/features/rating/car-journey";
+import type { CoverPrices, TierPrice } from "#/features/quote/cover";
+import type { DriverStep } from "#/features/quote/steps";
 import { priceQuote } from "#/features/rating/price-quote";
 import { Tables } from "#/features/rating/tables";
+import type { CarInputs } from "#/features/rating/types";
 import { RateLimitError } from "#/server/auth/errors";
-import { getActiveRatingTables, getCatalogue } from "#/server/data/reference";
+import type { RatingTables } from "#/server/data/reference";
 import { coverLevels } from "#/server/db/schema/values";
 import { limit, rateLimitSubject } from "#/server/db/rate-limit";
-import { CROWN_DEPENDENCIES } from "#/server/reference/postcode-areas";
+
+import { checkCarJourney } from "./car-check";
 
 // The car price for Your quote and Choose cover (5.4, spec decisions 3 and 4; 5.5, decision 6). The
-// journey is read and checked as the tab reads it; the car's value and group come from the
-// catalogue, never the browser; the answer carries every cover level's price at the asked voluntary
-// excess, or the outcome, and nothing of the tables. Nothing is saved, and the input is never
+// journey is checked by checkCarJourney (car-check.ts), which the save shares (5.6); the answer
+// carries every cover level's price at the asked voluntary excess, or the outcome, and nothing of
+// the tables. Nothing is saved, and the input is never
 // logged: it holds names and dates of birth.
 
 export const QUOTE_PRICE_RULE = { max: 60, windowSeconds: 60 * 60 };
@@ -26,8 +24,6 @@ export type CarPriceResult =
   | { status: "referred" | "declined"; namedDriver: number | null }
   | { status: "invalid"; step: "car" | DriverStep | "cover" }
   | { status: "rate_limited" };
-
-const backToCar: CarPriceResult = { status: "invalid", step: "car" };
 
 export async function priceCarJourney(
   raw: unknown,
@@ -43,42 +39,16 @@ export async function priceCarJourney(
     throw error;
   }
 
-  const input = (raw ?? {}) as { journey?: unknown; voluntaryExcessPence?: unknown };
-  const journey = parseJourney(input.journey);
-  if (!journey || normalisePostcode(journey.postcode) === null) return backToCar;
-  const today = todayIso(now);
-  const step = firstIncompleteStep(journey, today);
-  if (step !== null) return { status: "invalid", step };
-  const excess = input.voluntaryExcessPence ?? 0;
-  if (!isOfferedExcess(excess)) return { status: "invalid", step: "cover" };
+  const checked = await checkCarJourney(raw, now);
+  if (!checked.ok) return { status: "invalid", step: checked.step };
+  return carPrices(checked.inputs, checked.tables);
+}
 
-  const car = (await getCatalogue()).find((r) => r.id === journey.vehicle!.catalogueVariantId);
-  if (!car) return backToCar;
-
-  const tables = await getActiveRatingTables("car");
-  const inputs = carInputsFromJourney(
-    journey,
-    {
-      year: car.year,
-      insuranceGroup: car.insuranceGroup,
-      fuelType: car.fuelType,
-      valuePence: car.valuePence,
-    },
-    today,
-    excess,
-  );
-  // A key the active version doesn't know (a v2 renamed it while a tab held the old one) is a step
-  // to answer again, not an error: Try again could never succeed. Crown dependencies are declined.
-  const known = (lookup: string, key: string) =>
-    tables.lookups.some((l) => l.lookup === lookup && l.key === key);
-  if (!known("occupation", inputs.driver.occupation)) return { status: "invalid", step: "about" };
-  if (
-    !(CROWN_DEPENDENCIES as readonly string[]).includes(inputs.postcodeArea) &&
-    !known("postcode_area", inputs.postcodeArea)
-  ) {
-    return backToCar;
-  }
-
+/** Every cover level's price for checked inputs, or the quote's outcome when it isn't quoted */
+export function carPrices(
+  inputs: CarInputs,
+  tables: RatingTables,
+): Extract<CarPriceResult, { status: "quoted" | "referred" | "declined" }> {
   // One priceQuote per level: only premium_above_max can tell them apart (5.5, decision 6)
   const priced = coverLevels.map((coverLevel) => {
     const quote = priceQuote([{ product: "car", inputs, tables, coverLevel, addons: [] }]);
@@ -95,7 +65,7 @@ export async function priceCarJourney(
   const t = new Tables(tables);
   return {
     status: "quoted",
-    voluntaryExcessPence: excess,
+    voluntaryExcessPence: inputs.voluntaryExcessPence,
     levels: priced.map(({ coverLevel, item: level }): TierPrice => {
       const quoted = level.outcome === "quoted";
       return {
