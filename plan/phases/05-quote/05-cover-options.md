@@ -155,8 +155,16 @@ They see exactly how the price is made up, then are offered home insurance along
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
-- [ ] The manual check passes, with the results recorded here.
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#90).
+- [x] The manual check passes, with the results recorded here.
+
+**Manual check** (Damion, 13 Nov 2026, on the PR #90 preview), all passed:
+- **Choose cover at 1280:** a 2019 Ford Fiesta. The card, table column, pay card and breakdown agree (Essential £815.94 a year, 12 payments of £74.79, £897.48 payable, APR 23.6%).
+- **The video shot:** Plus, a higher excess lowering every price, breakdown cover, then monthly.
+- **Tablet and 393 px:** the table hidden on the phone, nothing scrolling sideways.
+- **Screen 21:** the chosen price, "Home quotes are coming soon", and the postcode error.
+- **Screen 19:** three claims referred the quote. The help card still had the details steps' line, so the outcome screens got their own (e512b56).
+- **Screen 20:** declined with an Isle of Man postcode (IM1 3PN), with the "Get a home quote" card.
 
 ## Commit message
 
