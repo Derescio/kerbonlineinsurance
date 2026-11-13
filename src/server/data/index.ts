@@ -6,6 +6,8 @@ export * from "./claims";
 // Uploads (4.10): the four reads; the writes (createUpload and the rest) are `kind: "write"`
 export * from "./files";
 export * from "./policies";
+// Saved quotes, the pay page and the purchase (5.6): owner-only
+export * from "./quotes";
 export * from "./referrals";
 // Not protected reads: the account state and what's on file (4.7), for callers that already know
 // who is asking. The suite's completeness scan skips this module. Named, so the raw writes behind

@@ -350,7 +350,7 @@ export function getCatalogue(db: Db = getDb()): Promise<readonly CatalogueRecord
   return catalogueCache;
 }
 
-async function loadRatingTables(db: Db, id: string): Promise<RatingTables> {
+async function loadRatingTables(db: Db | Tx, id: string): Promise<RatingTables> {
   const [version] = await db.select().from(ratingVersions).where(eq(ratingVersions.id, id));
   if (!version) throw new Error(`Rating version ${id} not found`);
   const [parameters, tiers, addons, factors, lookups] = await Promise.all([
@@ -404,8 +404,11 @@ async function loadRatingTables(db: Db, id: string): Promise<RatingTables> {
   return deepFreeze(tables);
 }
 
-/** One rating version's tables, loaded once per instance (5.4 prices from these). */
-export function getRatingTables(db: Db, ratingVersionId: string): Promise<RatingTables> {
+/**
+ * One rating version's tables, loaded once per instance (5.4 prices from these). Given a Tx (5.6:
+ * paying), the first load runs in it rather than on a second pooled connection.
+ */
+export function getRatingTables(db: Db | Tx, ratingVersionId: string): Promise<RatingTables> {
   let tables = tablesCache.get(ratingVersionId);
   if (!tables) {
     tables = loadRatingTables(db, ratingVersionId);

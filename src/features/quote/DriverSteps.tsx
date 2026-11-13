@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AboutYouStep } from "./AboutYouStep";
 import { AddHome } from "./AddHome";
+import { BuyStep } from "./BuyGate";
 import { ChooseCover } from "./ChooseCover";
 import { ClaimsStep } from "./ClaimsStep";
 import {
@@ -36,11 +37,13 @@ const helpLines: Record<DriverStep, string> = {
 };
 
 // The driver steps in order (5.3, calls 5 and 16): about → driving → claims → drivers → quote, then
-// Choose cover and the home offer (5.5), which also need a quoted price: they check that themselves.
+// Choose cover, the home offer (5.5) and the gate (5.6), which also need a quoted price: they check
+// that themselves.
 // The answers live in sessionStorage, so the "can't skip ahead" check runs here in the browser,
 // not in the route's beforeLoad (plan P5). A blocked link is replaced, not added to history.
 
-type Move = (step: QuoteStep | undefined, opts?: { replace?: boolean }) => void;
+/** `after: "retrieve"` sends the gate on to Your saved quotes rather than pay (5.6) */
+type Move = (step: QuoteStep | undefined, opts?: { replace?: boolean; after?: "retrieve" }) => void;
 
 /** Where a blocked link goes: the car step (undefined) or the first unfinished step */
 function reachable(journey: Journey | null, step: QuoteStep, today: string) {
@@ -60,7 +63,19 @@ const previous: Record<DriverStep, QuoteStep | undefined> = {
   drivers: "claims",
 };
 
-export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move }) {
+export function DriverSteps({
+  step,
+  after,
+  onStep,
+  onRestart,
+}: {
+  step: QuoteStep;
+  /** The gate's `after` from the URL (5.6) */
+  after?: "retrieve";
+  onStep: Move;
+  /** The start page, for the gate with no journey in the tab (a paid quote clears it, 5.6) */
+  onRestart?: () => void;
+}) {
   const [view, setView] = useState<{ step: QuoteStep; journey: Journey; today: string } | null>(
     null,
   );
@@ -72,14 +87,21 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
   const shown = useRef<QuoteStep | null>(null);
   // The route passes a new function each render; the effect below runs per step, not per render
   const move = useRef(onStep);
+  const restart = useRef(onRestart);
   useEffect(() => {
     move.current = onStep;
+    restart.current = onRestart;
   });
 
   // sessionStorage only exists in the browser, so the step shows after hydration
   useEffect(() => {
     const journey = readJourney("car");
     const today = todayIso();
+    // Never a save of an empty journey: Back to the gate after paying starts again (5.6)
+    if (step === "buy" && !journey && restart.current) {
+      restart.current();
+      return;
+    }
     const check = reachable(journey, step, today);
     if (!check.ok) {
       // A step that had answers and no longer passes (an incident left the 5-year window
@@ -127,10 +149,13 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
   }
 
   /** Where the server sends a step that no longer passes: replaced, not pushed */
-  function invalid(s: "car" | DriverStep) {
-    if (s !== "car") fromSummary.current = true;
+  function invalid(s: "car" | DriverStep | "cover") {
+    if (s !== "car" && s !== "cover") fromSummary.current = true;
     onStep(s === "car" ? undefined : s, { replace: true });
   }
+
+  /** Save and exit, and "Sign in to send this for review": the gate, then Your saved quotes */
+  const saveAndExit = () => onStep("buy", { after: "retrieve" });
 
   /** "Change car or postcode": the car is forgotten, the answers stay (5.4b, call 6) */
   function changeCar() {
@@ -200,6 +225,7 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
           }}
           onChooseCover={() => onStep("cover")}
           onCover={saveCover}
+          onSaveAndExit={saveAndExit}
           // Replaced, not pushed: Back would return to the quote, which redirects again
           onInvalid={invalid}
         />
@@ -210,6 +236,7 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
           aside={coverAside}
           onBack={() => onStep("quote")}
           onContinue={() => onStep("add-home")}
+          onSaveAndExit={saveAndExit}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}
           onInvalid={invalid}
@@ -220,6 +247,17 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
           journey={journey}
           aside={coverAside}
           onBack={() => onStep("cover")}
+          onCarOnly={() => onStep("buy")}
+          onCover={saveCover}
+          onNotQuoted={() => onStep("quote", { replace: true })}
+          onInvalid={invalid}
+        />
+      ) : null}
+      {step === "buy" ? (
+        <BuyStep
+          journey={journey}
+          after={after ?? "pay"}
+          onBack={() => onStep(after === "retrieve" ? "quote" : "cover")}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}
           onInvalid={invalid}

@@ -6,6 +6,7 @@ import {
   journeyKey,
   markStartRecorded,
   readJourney,
+  savedQuoteKey,
   sessionStore,
   setCover,
   setLastPlate,
@@ -334,5 +335,53 @@ describe("the cover choice in the journey (5.5, decision 3)", () => {
     const storage = memoryStorage();
     setCover(DEFAULT_COVER, storage);
     expect(storage.map.size).toBe(0);
+  });
+});
+
+describe("the saved quote and its key (5.6, decision 7)", () => {
+  const withCover = () => ({ ...completeJourney(), cover: DEFAULT_COVER });
+
+  it("is the same for equal journeys", () => {
+    expect(savedQuoteKey(withCover())).toBe(savedQuoteKey(withCover()));
+    expect(savedQuoteKey(withCover())).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("changes with the cover or an answer", () => {
+    const base = savedQuoteKey(withCover());
+    const plus = { ...withCover(), cover: { ...DEFAULT_COVER, coverLevel: "plus" as const } };
+    expect(savedQuoteKey(plus)).not.toBe(base);
+    const journey = withCover();
+    const renamed = {
+      ...journey,
+      namedDrivers: {
+        any: true,
+        drivers: [
+          { ...completeJourney().namedDrivers!.drivers[0]!, firstName: "Changed" },
+          ...completeJourney().namedDrivers!.drivers.slice(1),
+        ],
+      },
+    };
+    expect(savedQuoteKey(renamed)).not.toBe(base);
+  });
+
+  it("ignores key order, lastPlate, payment and saved", () => {
+    const base = savedQuoteKey(withCover());
+    expect(savedQuoteKey({ ...withCover(), lastPlate: "AB12CDE" })).toBe(base);
+    expect(savedQuoteKey({ ...withCover(), payment: "monthly" })).toBe(base);
+    expect(savedQuoteKey({ ...withCover(), saved: { quoteId: "q", key: "k" } })).toBe(base);
+    const j = withCover();
+    const reordered = Object.fromEntries(Object.entries(j).reverse()) as typeof j;
+    expect(savedQuoteKey(reordered)).toBe(base);
+  });
+
+  it("round-trips a saved part and drops a bad one alone", () => {
+    const storage = memoryStorage();
+    const journey = { ...withCover(), saved: { quoteId: "KRB-Q-12345", key: "abcd1234" } };
+    storage.setItem(journeyKey("car"), JSON.stringify(journey));
+    expect(readJourney("car", storage)?.saved).toEqual(journey.saved);
+    storage.setItem(journeyKey("car"), JSON.stringify({ ...journey, saved: { quoteId: 5 } }));
+    const read = readJourney("car", storage);
+    expect(read?.saved).toBeUndefined();
+    expect(read?.cover).toEqual(DEFAULT_COVER);
   });
 });

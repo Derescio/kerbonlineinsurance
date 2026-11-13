@@ -21,7 +21,10 @@ export interface StartSearch {
 /** The car step's three views: none is the registration (screen 08) (5.2, call 9) */
 export type VehicleView = "manual" | "not-found";
 
-/** The driver steps, Your quote (5.3, call 5), Choose cover and the home offer (5.5); none is the car step */
+/**
+ * The driver steps, Your quote (5.3, call 5), Choose cover and the home offer (5.5), and the gate
+ * (5.6, decision 2); none is the car step
+ */
 export const QUOTE_STEPS = [
   "about",
   "driving",
@@ -30,6 +33,7 @@ export const QUOTE_STEPS = [
   "quote",
   "cover",
   "add-home",
+  "buy",
 ] as const;
 export type QuoteStep = (typeof QUOTE_STEPS)[number];
 
@@ -37,6 +41,10 @@ export interface CarSearch {
   postcode?: string;
   vehicle?: VehicleView;
   step?: QuoteStep;
+  /** The gate's create-account half, screen 15 (5.6, decision 2) */
+  auth?: "signup";
+  /** The gate goes on to Your saved quotes, not pay: Save and exit and the referred screens (5.6) */
+  after?: "retrieve";
 }
 
 export interface ComingSoonSearch {
@@ -83,7 +91,10 @@ export function journeySearch(raw: Record<string, unknown>): { postcode?: string
 export function carSearch(raw: Record<string, unknown>): CarSearch {
   const vehicle = raw.vehicle === "manual" || raw.vehicle === "not-found" ? raw.vehicle : undefined;
   const step = QUOTE_STEPS.find((known) => known === raw.step);
-  return { postcode: linkPostcode(raw.postcode), vehicle, step };
+  // Only the gate reads these two, so they go with any other step
+  const auth = step === "buy" && raw.auth === "signup" ? "signup" : undefined;
+  const after = step === "buy" && raw.after === "retrieve" ? "retrieve" : undefined;
+  return { postcode: linkPostcode(raw.postcode), vehicle, step, auth, after };
 }
 
 /** /quote/coming-soon */

@@ -12,6 +12,7 @@ import {
   readJourney,
   setLastPlate,
   setVehicle,
+  takeCarWithdrawn,
   type Journey,
   type VehicleChoice,
 } from "./journey-store";
@@ -83,6 +84,8 @@ export function VehicleStep({
   const [chosenFrom, setChosenFrom] = useState<VehicleStepView | null>(null);
   // The stored journey, for the tabs: read after hydration and after each change to the car
   const [journey, setJourney] = useState<Journey | null>(null);
+  // The gate's save found the car withdrawn: said once, on the registration screen (5.6)
+  const [withdrawn, setWithdrawn] = useState(false);
 
   const root = useRef<HTMLDivElement>(null);
   const screen = confirmed ? "confirmed" : view;
@@ -94,6 +97,7 @@ export function VehicleStep({
   useEffect(() => {
     const stored = readJourney("car");
     setJourney(stored);
+    if (takeCarWithdrawn()) setWithdrawn(true);
     if (stored?.vehicle) {
       restoring.current = true;
       setConfirmed(stored.vehicle);
@@ -331,6 +335,6 @@ export function VehicleStep({
         />
       );
     }
-    return <PlateLookup {...plateProps} onBack={onBack} />;
+    return <PlateLookup {...plateProps} onBack={onBack} withdrawn={withdrawn} />;
   }
 }

@@ -11,11 +11,14 @@ export function PayChoice({
   monthlyPaymentPence,
   value,
   onChange,
+  legend = "Choose how you’d like to pay",
 }: {
   annualPence: number;
   monthlyPaymentPence: number;
   value: Payment;
   onChange: (value: Payment) => void;
+  /** Confirm and pay asks "How would you like to pay?" (5.6, decision 6) */
+  legend?: string;
 }) {
   const options = [
     {
@@ -37,7 +40,7 @@ export function PayChoice({
   ];
   return (
     <fieldset className="quote-pay">
-      <legend className="quote-pay__legend">Choose how you&rsquo;d like to pay</legend>
+      <legend className="quote-pay__legend">{legend}</legend>
       <div className="quote-pay__options">
         {options.map((option) => (
           <div key={option.value} className="quote-pay__option">

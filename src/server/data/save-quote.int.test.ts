@@ -5,6 +5,7 @@ import { carInputs, homeInputs } from "#/features/rating/test-tables";
 import { priceQuote, type QuoteItemRequest } from "#/features/rating/price-quote";
 import { clearReferenceCaches, getActiveRatingTables, upsertReferenceData } from "./reference";
 import { closeDb, getDb } from "#/server/db/client";
+import { withTx } from "#/server/db/tx";
 import {
   drivers,
   properties,
@@ -424,5 +425,54 @@ describe("saveQuote", () => {
       ),
     ).rejects.toThrow();
     expect(draws).toBe(5);
+  });
+
+  it("runs inside a given transaction, so a later failure there leaves no rows (5.6)", async () => {
+    const customer = await makeCustomer();
+    const quote = await priced([
+      { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
+    ]);
+    await expect(
+      withTx(getDb(), async (tx) => {
+        await saveQuote(tx, {
+          customerId: customer.id,
+          postcode: "LS6 2AB",
+          priced: quote,
+          items: [save(carDetails(0))],
+          now: NOW,
+        });
+        expect(await tx.select().from(quotes)).toHaveLength(1);
+        throw new Error("the write after the save failed");
+      }),
+    ).rejects.toThrow("the write after the save failed");
+    expect(await getDb().select().from(quotes)).toEqual([]);
+    expect(await getDb().select().from(quoteItems)).toEqual([]);
+  });
+
+  it("retries a taken reference inside a given transaction, which stays usable", async () => {
+    const customer = await makeCustomer();
+    const { quote: taken } = await makeQuote();
+    const quote = await priced([
+      { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
+    ]);
+    const draws = [taken.reference, "KRB-Q-23457"];
+    const saved = await withTx(getDb(), async (tx) => {
+      const result = await saveQuote(
+        tx,
+        {
+          customerId: customer.id,
+          postcode: "LS6 2AB",
+          priced: quote,
+          items: [save(carDetails(0))],
+          now: NOW,
+        },
+        { drawReference: () => draws.shift()! },
+      );
+      // The clash rolled back to its savepoint, not the whole transaction
+      expect(await tx.select().from(quotes).where(eq(quotes.id, result.quoteId))).toHaveLength(1);
+      return result;
+    });
+    expect(saved.reference).toBe("KRB-Q-23457");
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, saved.quoteId))).toHaveLength(1);
   });
 });

@@ -57,17 +57,19 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too. Replaced by Revamp R05/R06 (5.4b) | `226:684` | 5.3 |
 | 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3). Replaced by Revamp R07/R08 (5.4b) | `235:1638` | 5.3 |
 | 13 | Cover cards & comparison (1440 wide). Its monthly figures (annual ÷ 12) and footnote are out of date: paying monthly costs 10% more, so £458.40 a year is 12 payments of £42.02 (5.4, decision 1). Built in 5.5 with the real figures, a voluntary excess, the pay cards and a price breakdown; the table is hidden on a phone | `226:699` | 5.5 |
-| 14 | Before payment · Sign in | `226:714` | 5.6 |
-| 15 | Before payment · Create account | `226:729` | 5.6 |
+| 14 | Before payment · Sign in. Built in 5.6 in 5.4b's frame without the "Quote saved" badge or "Cover starts" line (neither is true before the save); the intro reads "We’ll save your quote and selected cover when you sign in. You’ll review your payment details next." (5.6, decisions 3 and 8) | `226:714` | 5.6 |
+| 15 | Before payment · Create account. Built in 5.6 as screen 14, with "…when you create your account."; after sign-up, "Check your inbox" adds "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under Your saved quotes." (5.6, decisions 1 and 3) | `226:729` | 5.6 |
 | 16 | Retrieve quote · Access (email link): **not built**, sign-in only (Damion, 9 Nov 2026) | `226:744` | — |
-| 17 | Retrieve quote · Saved quotes | `226:759` | 5.6 |
-| 18 | You're covered | `226:774` | 5.6 |
+| 17 | Retrieve quote · Saved quotes. Built in 5.6 in 5.4b's frame without the Stepper, with four badges: Ready to buy, Under review, Bought and Expired (5.6, decision 10) | `226:759` | 5.6 |
+| 18 | You're covered. Built in 5.6; "Your policy documents" and "View policy" wait for 6.2, and the email line reads "A confirmation has been sent to {email}. You can also see your policy in your account." (5.6, decision 9) | `226:774` | 5.6 |
 | 19 | Car · Referred. "Your car quote is saved" becomes "What happens next?" and "Sign in to send this for review" until 5.6 (5.5, decision 9) | `226:789` | 5.5 |
 | 20 | Car declined · Home available. On the car journey the home card offers "Get a home quote"; the half as drawn waits for a home quote (5.7) (5.5, decision 10) | `226:804` | 5.5 |
 | 21 | Start a car + home bundle. Built in 5.5 after Choose cover: "Car quote saved" reads "Your car quote", and the footnote shows the 8% saving; "Add home insurance" waits for 5.7 (5.5, decision 11) | `230:1434` | 5.5 / 5.7 |
 | 22 | Home quote & choose cover (1440 wide) | `230:1449` | 5.7 |
 
 **About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12). Replaced by Revamp R03 (5.4b).
+
+**Confirm and pay (5.6):** the `Quote & Policy – Web` Purchase frame (`157:11256`) is built as "Confirm and pay" in 5.4b's frame, after screens 14 and 15. It adds a cover start date (today up to 30 days ahead, tomorrow by default), "How would you like to pay?" with 5.4b's annual and monthly cards, and the demo cards under the card form. The frame's one confirmation line becomes two tick boxes: "I confirm my details are correct" and "I agree to the policy terms and understand my cover" (5.6, decision 6).
 
 **Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
 

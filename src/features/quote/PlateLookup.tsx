@@ -109,7 +109,11 @@ export function PlateLookup({
   tabs,
   aside,
   onBack,
-}: PlateViewProps) {
+  withdrawn = false,
+}: PlateViewProps & {
+  /** The gate's save found the stored car withdrawn (5.6, decision 5) */
+  withdrawn?: boolean;
+}) {
   return (
     <JourneyPage
       heading={
@@ -131,6 +135,11 @@ export function PlateLookup({
       tabs={tabs}
       aside={aside}
     >
+      {withdrawn ? (
+        <Alert tone="warning" announce>
+          This car is no longer available on Kerb. Choose your car again.
+        </Alert>
+      ) : null}
       <div className="quote-panel">
         <PlateBox
           plate={plate}

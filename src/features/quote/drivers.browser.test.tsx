@@ -21,6 +21,8 @@ import { priceCar } from "./server";
 // The price (5.4) is mocked at the server-function boundary: the server's own tests price it
 vi.mock("./server", () => ({ priceCar: vi.fn() }));
 const price = vi.mocked(priceCar);
+// The gate (5.6) has its own tests, with a router and a session
+vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
 const QUOTED: CarPriceResult = { status: "quoted", ...GOLF_PRICES };
 
 // The driver steps' screens (5.3): About you, Licence and driving (11), Claims (12) and Named
@@ -739,12 +741,8 @@ describe("the price on the holding view (5.4)", () => {
         ),
       )
       .toBeVisible();
-    // Nothing is saved before 5.6, so the screen never says it is
+    // Nothing is saved until the gate (5.6), so the screen never says it is
     await expect.element(page.getByText(/saved/)).not.toBeInTheDocument();
-    await page.getByRole("button", { name: "Sign in to send this for review" }).click();
-    await expect
-      .element(page.getByText("Sending your quote for review arrives in 5.6"))
-      .toBeVisible();
     await page.getByRole("button", { name: "Check your answers" }).click();
     expect(moves.at(-1)).toEqual({ step: "about", replace: false });
   });
