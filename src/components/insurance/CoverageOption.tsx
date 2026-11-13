@@ -23,6 +23,8 @@ export interface CoverageOptionProps extends Omit<
   /** Strings are included. Objects with included: false render muted with a minus. */
   features?: Array<string | CoverageFeature>;
   selected?: boolean;
+  /** A line under the features, e.g. "Total excess £250". */
+  note?: string;
   /** Marker badge above the card, e.g. "Most chosen". */
   flag?: string;
   onSelect?: () => void;
@@ -40,6 +42,7 @@ export function CoverageOption({
   price,
   period = "/month",
   features = [],
+  note,
   selected = false,
   flag,
   onSelect,
@@ -52,6 +55,7 @@ export function CoverageOption({
     price != null && `${id}-price`,
     description && `${id}-desc`,
     features.length > 0 && `${id}-features`,
+    note && `${id}-note`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -113,6 +117,11 @@ export function CoverageOption({
             );
           })}
         </ul>
+      ) : null}
+      {note ? (
+        <span className="kb-cover__note" id={`${id}-note`}>
+          {note}
+        </span>
       ) : null}
     </button>
   );

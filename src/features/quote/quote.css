@@ -755,3 +755,236 @@ button.quote-tabs__tab:focus-visible {
   white-space: normal;
   text-align: center;
 }
+
+/* Choose cover (5.5; screen 13, 226:699): the excess, the level cards, the comparison table, the
+   extras, how to pay and the breakdown, stacked in the main column beside the "Your car" card */
+.quote-cover {
+  display: grid;
+  gap: var(--space-5);
+}
+.quote-cover h2,
+.quote-cover p {
+  margin: 0;
+}
+.quote-cover__excess {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-cover__updating {
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.quote-cover__levels {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+}
+
+.quote-compare {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-compare__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: var(--space-2);
+  margin: calc(var(--space-2) * -1);
+  font-size: 14px;
+  line-height: 20px;
+}
+.quote-compare__table th,
+.quote-compare__table td {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  text-align: left;
+  font-weight: 400;
+}
+.quote-compare__table thead th {
+  font-weight: 600;
+}
+.quote-compare__table tbody tr:nth-child(odd) > * {
+  background: var(--bg-sunken);
+}
+.quote-compare__table .is-chosen,
+.quote-compare__table tbody tr > .is-chosen {
+  background: var(--green-50);
+  color: var(--green-800);
+}
+.quote-compare__choose {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.quote-compare__choose[aria-pressed="true"] {
+  text-decoration: none;
+}
+.quote-compare__choose:disabled {
+  color: var(--fg-4);
+  text-decoration: none;
+  cursor: default;
+}
+.quote-compare__note {
+  color: var(--fg-2);
+  font-size: 13px;
+}
+/* On a phone the cards carry the comparison, and nothing scrolls sideways (decision 13) */
+@media (max-width: 640px) {
+  .quote-compare {
+    display: none;
+  }
+}
+
+.quote-extras {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-extras__list {
+  display: grid;
+  gap: var(--space-3);
+}
+.quote-extras__total {
+  color: var(--green-700);
+  font-size: 14px;
+}
+
+.quote-breakdown {
+  display: grid;
+  gap: var(--space-3);
+}
+.quote-breakdown__excess {
+  color: var(--fg-2);
+}
+.quote-breakdown__lines {
+  display: grid;
+  margin: 0;
+}
+.quote-breakdown__lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--border-1);
+}
+.quote-breakdown__lines dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.quote-breakdown__total {
+  font-weight: 600;
+}
+
+/* A later slice's button and its holding line (5.5) */
+.quote-holding {
+  display: inline-grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+.quote-holding__line {
+  color: var(--fg-2);
+  font-size: 14px;
+}
+
+/* Screens 19, 20, 03 and 04 (5.5, decisions 9 to 12) */
+.quote-outcome__head {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.quote-outcome {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.quote-outcome h2,
+.quote-outcome h3,
+.quote-outcome p {
+  margin: 0;
+}
+.quote-outcome__name {
+  font: 600 17px/22px var(--font-body);
+}
+.quote-outcome__meta {
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.quote-outcome__key {
+  color: var(--green-700);
+}
+.quote-outcome__small {
+  color: var(--fg-2);
+  font-size: 13px;
+}
+.quote-outcome__steps {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+}
+.quote-outcome__box {
+  justify-self: stretch;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--green-50);
+  color: var(--green-800);
+}
+.quote-outcome__box--plain {
+  background: var(--bg-sunken);
+  color: var(--fg-1);
+}
+.quote-outcome__total {
+  font: 700 30px/34px var(--font-display);
+}
+.quote-outcome__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+/* Screen 21, "Add home insurance to your car quote?" (5.5, decision 11) */
+.quote-addhome__car,
+.quote-addhome__home {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.quote-addhome__car h2,
+.quote-addhome__home h2,
+.quote-addhome__car p,
+.quote-addhome__home p {
+  margin: 0;
+}
+.quote-addhome__home {
+  background: var(--green-50);
+}
+.quote-addhome__home h2 {
+  color: var(--green-800);
+}
+.quote-addhome__home .kb-field {
+  justify-self: stretch;
+}
+.quote-addhome__price {
+  justify-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.quote-addhome__amount {
+  font: 700 26px/32px var(--font-display);
+}
+.quote-addhome__excess {
+  font: 600 18px/24px var(--font-body);
+}
+.quote-addhome__note {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 14px;
+}

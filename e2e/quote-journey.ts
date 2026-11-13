@@ -105,7 +105,9 @@ export async function withCompleteJourney(
     vehicle: { ...v, catalogueVariantId: car.id },
     ...(declined && { namedDrivers: { any: true, drivers: [nineteenYearOld()] } }),
   };
+  // Only into an empty tab: a reload keeps what the visitor has chosen since (5.5)
   await page.addInitScript((value) => {
-    sessionStorage.setItem("kerb.quote.v1.car", value);
+    if (!sessionStorage.getItem("kerb.quote.v1.car"))
+      sessionStorage.setItem("kerb.quote.v1.car", value);
   }, JSON.stringify(stored));
 }

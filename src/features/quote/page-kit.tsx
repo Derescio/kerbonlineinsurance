@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { Button, type ButtonProps } from "#/components/actions/Button";
 import { Card } from "#/components/display/Card";
 import { Icon } from "#/components/display/Icon";
 import { cx } from "#/lib/cx";
@@ -192,5 +193,29 @@ export function StepNav({
       )}
       {next}
     </div>
+  );
+}
+
+/**
+ * A button whose screen is a later slice's: pressing it says when it arrives (5.1, 5.4b and 5.5
+ * did the same). Staging only: Phase 5 reaches production at its release.
+ */
+export function HoldingButton({
+  line,
+  children,
+  ...button
+}: Omit<ButtonProps, "onClick"> & { line: string }) {
+  const [asked, setAsked] = useState(false);
+  return (
+    <span className="quote-holding">
+      <Button {...button} onClick={() => setAsked(true)}>
+        {children}
+      </Button>
+      {asked ? (
+        <span role="status" className="quote-holding__line">
+          {line}
+        </span>
+      ) : null}
+    </span>
   );
 }

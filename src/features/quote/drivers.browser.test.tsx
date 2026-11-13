@@ -4,8 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
+import type { CarPriceResult } from "#/server/quote/price";
+
 import { AboutYouStep } from "./AboutYouStep";
 import { ClaimsStep } from "./ClaimsStep";
+import { GOLF_PRICES } from "./cover-fixtures";
 import { DriverSteps } from "./DriverSteps";
 import { completeJourney, FIXTURE_TODAY, golf } from "./journey-fixtures";
 import { beginJourney, journeyKey, readJourney, setVehicle, type Journey } from "./journey-store";
@@ -18,7 +21,7 @@ import { priceCar } from "./server";
 // The price (5.4) is mocked at the server-function boundary: the server's own tests price it
 vi.mock("./server", () => ({ priceCar: vi.fn() }));
 const price = vi.mocked(priceCar);
-const QUOTED = { status: "quoted", annualPence: 106_378, monthlyPaymentPence: 9_751 } as const;
+const QUOTED: CarPriceResult = { status: "quoted", ...GOLF_PRICES };
 
 // The driver steps' screens (5.3): About you, Licence and driving (11), Claims (12) and Named
 // drivers (12a). Each test starts from a car journey on 11 Nov 2026.
@@ -627,7 +630,7 @@ describe("the price on the holding view (5.4)", () => {
     await expect.element(page.getByText("Premiums include Insurance Premium Tax.")).toBeVisible();
     // The tab's journey went to the server, without the last plate typed
     expect(price).toHaveBeenCalledTimes(1);
-    const sent = (price.mock.calls[0]![0] as { data: Journey }).data;
+    const sent = (price.mock.calls[0]![0] as { data: { journey: Journey } }).data.journey;
     expect(sent.mainDriver?.firstName).toBe("Alex");
     expect(sent).not.toHaveProperty("lastPlate");
   });
@@ -721,20 +724,33 @@ describe("the price on the holding view (5.4)", () => {
     await page.viewport(414, 896);
   });
 
-  it("shows the plain referral line when no driver is the reason", async () => {
+  it("shows screen 19 when the quote is referred and no driver is the reason (5.5)", async () => {
     price.mockResolvedValue({ status: "referred", namedDriver: null });
     await showQuote();
+    await expect.element(heading()).toHaveTextContent("We need to check a couple of things…");
+    await expect.element(page.getByText("Under review")).toBeVisible();
+    const next = page.getByRole("region", { name: "What happens next?" });
+    await expect.element(next).toMatchTextContent("Volkswagen Golf 1.0 TSI Life 5dr");
+    await expect.element(next).toMatchTextContent("2021 · Alex Morgan");
+    // Nothing is saved before 5.6, so the screen never says it is
+    await expect.element(page.getByText(/saved/)).not.toBeInTheDocument();
+    await page.getByRole("button", { name: "Sign in to send this for review" }).click();
     await expect
-      .element(page.getByText("We need to check a couple of things, usually within a day."))
+      .element(page.getByText("Sending your quote for review arrives in 5.6"))
       .toBeVisible();
+    await page.getByRole("button", { name: "Check your answers" }).click();
+    expect(moves.at(-1)).toEqual({ step: "about", replace: false });
   });
 
-  it("shows the plain decline line when no driver is the reason", async () => {
+  it("shows screen 20 when the quote is declined and no driver is the reason (5.5)", async () => {
     price.mockResolvedValue({ status: "declined", namedDriver: null });
     await showQuote();
-    await expect
-      .element(page.getByText("We can’t offer car cover for these details."))
-      .toBeVisible();
+    await expect.element(heading()).toHaveTextContent("We’re unable to offer car cover");
+    await expect.element(page.getByText("Car · Not available")).toBeVisible();
+    await page.getByRole("button", { name: "Get a home quote" }).click();
+    await expect.element(page.getByText("Home quotes are coming soon")).toBeVisible();
+    await page.getByRole("button", { name: "Check car answers" }).click();
+    expect(moves.at(-1)).toEqual({ step: "about", replace: false });
   });
 
   it("removes the driver who stopped the quote on the spot, and prices again", async () => {
@@ -748,7 +764,7 @@ describe("the price on the holding view (5.4)", () => {
     await expect.element(page.getByText(PRICE)).toBeVisible();
     expect(moves).toEqual([]);
     expect(readJourney("car")!.namedDrivers).toEqual({ any: false, drivers: [] });
-    const sent = (price.mock.calls[1]![0] as { data: Journey }).data;
+    const sent = (price.mock.calls[1]![0] as { data: { journey: Journey } }).data.journey;
     expect(sent.namedDrivers).toEqual({ any: false, drivers: [] });
     expect(window.location.href).not.toContain("Sam");
   });
@@ -803,7 +819,7 @@ describe("the price on the holding view (5.4)", () => {
   });
 
   it("keeps one live region, so the price is announced when it arrives", async () => {
-    let resolve!: (value: typeof QUOTED) => void;
+    let resolve!: (value: CarPriceResult) => void;
     price.mockReturnValue(new Promise((r) => (resolve = r)));
     await showQuote();
     await expect.element(page.getByText("Working out your price…")).toBeVisible();
@@ -833,14 +849,15 @@ describe("the price on the holding view (5.4)", () => {
     await page.getByRole("button", { name: "Get my car quote" }).click();
     await expect.element(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
     expect(price).toHaveBeenCalledTimes(1);
-    const sent = (price.mock.calls[0]![0] as { data: Journey }).data;
+    const sent = (price.mock.calls[0]![0] as { data: { journey: Journey } }).data.journey;
     expect(sent).not.toHaveProperty("payment");
   });
 
-  it("says Choose cover arrives in 5.5 (5.4b, call 10)", async () => {
+  it("opens Choose cover (5.5)", async () => {
     await showQuote();
     await page.getByRole("button", { name: "Choose cover" }).click();
-    await expect.element(page.getByText("Choosing your cover arrives in 5.5")).toBeVisible();
+    await expect.element(heading()).toHaveTextContent("Compare your cover, side by side");
+    expect(moves.at(-1)).toEqual({ step: "cover", replace: false });
   });
 
   it("goes back to Named drivers from Back to your details (5.4b, call 10)", async () => {

@@ -51,9 +51,9 @@ for (const path of pages) {
   }
 }
 
-// The driver steps (5.3) open only with the earlier answers in the tab, so each is checked with a
-// complete journey already in sessionStorage
-const quoteSteps = ["about", "driving", "claims", "drivers", "quote"];
+// The driver steps (5.3), Choose cover and the home offer (5.5) open only with the earlier answers
+// in the tab, so each is checked with a complete journey already in sessionStorage
+const quoteSteps = ["about", "driving", "claims", "drivers", "quote", "cover", "add-home"];
 
 for (const step of quoteSteps) {
   for (const width of widths) {

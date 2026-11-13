@@ -19,4 +19,9 @@ describe("journeyStepOf", () => {
   it("is Your quote on the quote view", () => {
     expect(journeyStepOf("/quote/car", { step: "quote" })).toBe(1);
   });
+
+  it("is Choose cover on Choose cover and the home offer (5.5)", () => {
+    expect(journeyStepOf("/quote/car", { step: "cover" })).toBe(2);
+    expect(journeyStepOf("/quote/car", { step: "add-home" })).toBe(2);
+  });
 });
