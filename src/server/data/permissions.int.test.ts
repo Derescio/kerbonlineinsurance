@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
 
 import { asc, eq } from "drizzle-orm";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 
 import type { Actor } from "#/server/auth/actor";
 import { AuthzError, type AuthzCode } from "#/server/auth/errors";
@@ -12,12 +21,16 @@ import { auditLog, quoteItems, underwritingDecisions } from "#/server/db/schema"
 import { AuditConfigError } from "#/server/env";
 import { setObjectStore } from "#/server/uploads/store";
 import { MemoryObjectStore } from "#/server/uploads/store-memory";
-import { getOwnerDb, truncateAll } from "#/test/db";
+import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
+import { RATING_SOURCES } from "#/server/reference/rating/index";
+import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
 import { makeQuote } from "#/test/factories";
+import { makePurchase } from "#/test/purchase";
 import { buildWorld, type World } from "#/test/world";
 
 import type { DataRead } from "./define";
 import * as data from "./index";
+import { clearReferenceCaches, getActiveRatingTables, upsertReferenceData } from "./reference";
 
 // The permission suite (4.5): every protected read is declared with its access, and this file
 // attacks each one as eight kinds of user. Adding a read means adding one row to `cases`; the
@@ -33,9 +46,15 @@ interface Case {
   owner: "A" | "admin" | null;
 }
 
+// A bought quote of customer A's, with a real rating version so its credit charge loads (5.6)
+let purchaseA: { quoteId: string };
+
 const cases: Case[] = [
   { read: data.listMyPolicies, input: () => ({}), owner: null },
   { read: data.getMyPolicy, input: (w) => ({ policyId: w.records.policyA.id }), owner: "A" },
+  { read: data.listMyQuotes, input: () => ({}), owner: null },
+  { read: data.getQuoteForPayment, input: () => ({ quoteId: purchaseA.quoteId }), owner: "A" },
+  { read: data.getPurchase, input: () => ({ quoteId: purchaseA.quoteId }), owner: "A" },
   { read: data.listMyClaims, input: () => ({}), owner: null },
   { read: data.getMyClaim, input: (w) => ({ claimId: w.records.claimA.id }), owner: "A" },
   { read: data.staffListClaims, input: () => ({}), owner: null },
@@ -69,11 +88,29 @@ const actorNames = [
 ] as const;
 
 let world: World;
+beforeAll(async () => {
+  // The rating versions are loaded once; each test clears only what it writes
+  await truncateAll();
+  clearReferenceCaches();
+  await upsertReferenceData(getOwnerDb(), {
+    rating: structuredClone(RATING_SOURCES),
+    catalogue: structuredClone(CATALOGUE_SOURCES),
+  });
+});
 beforeEach(async () => {
   // The file reads sign links (4.10); the fake store signs them without R2
   setObjectStore(new MemoryObjectStore());
-  await truncateAll();
+  await truncateExcept(REFERENCE_TABLES);
   world = await buildWorld();
+  // The factories' quotes carry bare rating versions; listMyQuotes loads each quote's own, so
+  // they are re-pointed at the real car version
+  const ratingVersionId = (await getActiveRatingTables("car")).id;
+  await getDb().update(quoteItems).set({ ratingVersionId });
+  const { quote } = await makePurchase({
+    customerId: world.customerA!.customerId!,
+    ratingVersionId,
+  });
+  purchaseA = { quoteId: quote.id };
 });
 afterAll(closeDb);
 afterEach(() => {
