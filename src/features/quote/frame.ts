@@ -1,6 +1,6 @@
 // Where the journey frame's Stepper stands (5.4b, decision 4): Your details on the car and home
 // steps, Your quote on the car's quote view, Choose cover on Choose cover and the home offer (5.5,
-// decision 2), and no Stepper before a journey starts (the start
+// decision 2), Buy on the gate (5.6, decision 2), and no Stepper before a journey starts (the start
 // page and coming soon).
 
 /** One Stepper for car and home (5.1, decision 3). Home's property, contents and claims are the
@@ -11,5 +11,6 @@ export function journeyStepOf(pathname: string, search: { step?: string }): numb
   const path = pathname.replace(/\/+$/, "");
   if (path !== "/quote/car" && path !== "/quote/home") return null;
   if (search.step === "quote") return 1;
+  if (search.step === "buy") return 3;
   return search.step === "cover" || search.step === "add-home" ? 2 : 0;
 }

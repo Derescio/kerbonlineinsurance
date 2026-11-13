@@ -46,7 +46,27 @@ export const TOO_MANY_TRIES = {
   message: "Wait 15 minutes and try again, or reset your password.",
 } as const satisfies Notice;
 
-export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: string }) {
+export function LoginForm({
+  redirectTo,
+  error,
+  title,
+  extraLine,
+  submitLabel = "Log in",
+  newUserRedirectTo = "/account",
+  onSignedIn,
+}: {
+  redirectTo: string;
+  error?: string;
+  /** A heading on the form, as the quote gate's card has (5.6, decision 3) */
+  title?: string;
+  /** A line above the button */
+  extraLine?: string;
+  submitLabel?: string;
+  /** Where a first Google sign-in lands; the quote gate keeps it on the gate */
+  newUserRedirectTo?: string;
+  /** Signed in with no code owed, before going to `redirectTo`: the gate checks the session again */
+  onSignedIn?: () => void;
+}) {
   const hydrated = useHydrated();
   const navigate = useNavigate();
   const form = useRef<HTMLFormElement>(null);
@@ -96,6 +116,7 @@ export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: s
         });
         return;
       }
+      onSignedIn?.();
       await navigate({ href: redirectTo });
       return;
     }
@@ -120,7 +141,7 @@ export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: s
     const { error: failure } = await authClient.signIn.social({
       provider: "google",
       callbackURL: redirectTo,
-      newUserCallbackURL: "/account",
+      newUserCallbackURL: newUserRedirectTo,
       errorCallbackURL: "/login",
     });
     if (failure) {
@@ -131,6 +152,7 @@ export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: s
 
   return (
     <form ref={form} method="post" className="auth__form" noValidate onSubmit={onSubmit}>
+      {title ? <h2 className="kb-h3">{title}</h2> : null}
       {notice ? (
         <Alert tone={notice.tone} title={notice.title} announce>
           {notice.message}
@@ -177,6 +199,7 @@ export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: s
         defaultChecked
         disabled={locked}
       />
+      {extraLine ? <p className="auth__note">{extraLine}</p> : null}
       <Button
         type="submit"
         variant="primary"
@@ -185,7 +208,7 @@ export function LoginForm({ redirectTo, error }: { redirectTo: string; error?: s
         loading={busy === "email"}
         disabled={!hydrated || locked || busy !== null}
       >
-        Log in
+        {submitLabel}
       </Button>
       <AuthDivider />
       <GoogleButton onClick={onGoogle} loading={busy === "google"} />

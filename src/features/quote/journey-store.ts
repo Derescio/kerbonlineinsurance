@@ -320,6 +320,44 @@ export function setCover(
   if (stored) writeJourney("car", { ...stored, cover }, storage);
 }
 
+/** The quote the gate saved this journey as (5.6, decision 5). Nothing happens without a car journey. */
+export function setSaved(saved: SavedQuote, storage: JourneyStorage | null = sessionStore()): void {
+  const stored = readJourney("car", storage);
+  if (stored) writeJourney("car", { ...stored, saved }, storage);
+}
+
+/**
+ * What the server is sent to save the journey (5.6): the last plate typed never leaves the tab
+ * (5.2, call 9), and the tab's own record of an earlier save isn't the server's business.
+ */
+export function journeyToSave(journey: Journey): Omit<Journey, "lastPlate" | "saved"> {
+  const { lastPlate: _plate, saved: _saved, ...rest } = journey;
+  return rest;
+}
+
+const CAR_WITHDRAWN_KEY = "kerb.quote.v1.car.withdrawn";
+
+/** The save found the car withdrawn (5.6, decision 5): the car step says so, once */
+export function noteCarWithdrawn(): void {
+  try {
+    sessionStore()?.setItem(CAR_WITHDRAWN_KEY, "1");
+  } catch {
+    // Blocked: the car step opens without the line
+  }
+}
+
+/** Whether the car step owes the withdrawn line; reading it clears it */
+export function takeCarWithdrawn(): boolean {
+  try {
+    const storage = sessionStore() as Storage | null;
+    if (storage?.getItem(CAR_WITHDRAWN_KEY) !== "1") return false;
+    storage.removeItem(CAR_WITHDRAWN_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** What each driver step saves (5.3) */
 export interface StepAnswers {
   about: AboutYou;

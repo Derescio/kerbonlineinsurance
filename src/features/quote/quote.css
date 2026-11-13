@@ -988,3 +988,36 @@ button.quote-tabs__tab:focus-visible {
   color: var(--fg-2);
   font-size: 14px;
 }
+
+/* The gate (5.6, decisions 2 and 3; screens 14 and 15): 4.4's forms on a card, "Your cover is
+   waiting" beside them */
+.quote-nav__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.quote-gate {
+  display: grid;
+  gap: var(--space-5);
+}
+.quote-gate__switch {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.quote-waiting {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-waiting h2,
+.quote-waiting p {
+  margin: 0;
+}
+.quote-waiting__amount {
+  font: 700 22px/28px var(--font-display);
+}
+.quote-waiting__note {
+  margin-top: var(--space-2);
+  color: var(--fg-2);
+  font-size: 14px;
+}

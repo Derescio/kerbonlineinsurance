@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
+import { Button } from "#/components/actions/Button";
 import { Card } from "#/components/display/Card";
 
 import { TIERS, usableCover } from "./cover";
@@ -73,6 +74,7 @@ export function QuoteHolding({
   onReviewDrivers,
   onChooseCover,
   onCover,
+  onSaveAndExit,
   carCard,
 }: {
   journey: Journey;
@@ -84,6 +86,11 @@ export function QuoteHolding({
   onChooseCover: () => void;
   /** Saves the cover choice, when the server resets the excess (5.5) */
   onCover: (cover: CoverChoice) => void;
+  /**
+   * The gate and the save, then Your saved quotes (5.6): "Save and exit" on a quoted price
+   * (decision 13) and screen 19's "Sign in to send this for review" (decision 11)
+   */
+  onSaveAndExit: () => void;
   /** The "Your car" card (5.4b, call 6); the help card's line changes with the view */
   carCard: ReactNode;
   onEdit: (step: DriverStep) => void;
@@ -153,7 +160,12 @@ export function QuoteHolding({
   return (
     <div ref={root} className="quote-step">
       {outcome === "referred" ? (
-        <CarReferred journey={journey} aside={aside} onCheckAnswers={() => onEdit("about")} />
+        <CarReferred
+          journey={journey}
+          aside={aside}
+          onCheckAnswers={() => onEdit("about")}
+          onSendForReview={onSaveAndExit}
+        />
       ) : outcome === "declined" ? (
         <CarDeclined journey={journey} aside={aside} onCheckAnswers={() => onEdit("about")} />
       ) : stopper ? (
@@ -196,7 +208,18 @@ export function QuoteHolding({
             <QuotePrice state={price} onChooseCover={onChooseCover} />
           </Card>
           {glance}
-          <StepNav onBack={onBack} backLabel="Back to your details" />
+          <StepNav
+            onBack={onBack}
+            backLabel="Back to your details"
+            next={
+              // Only a price can be saved (decision 13)
+              result?.status === "quoted" ? (
+                <Button variant="secondary" onClick={onSaveAndExit}>
+                  Save and exit
+                </Button>
+              ) : null
+            }
+          />
         </JourneyPage>
       )}
     </div>

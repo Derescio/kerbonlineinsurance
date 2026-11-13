@@ -24,4 +24,8 @@ describe("journeyStepOf", () => {
     expect(journeyStepOf("/quote/car", { step: "cover" })).toBe(2);
     expect(journeyStepOf("/quote/car", { step: "add-home" })).toBe(2);
   });
+
+  it("is Buy on the gate (5.6, decision 2)", () => {
+    expect(journeyStepOf("/quote/car", { step: "buy" })).toBe(3);
+  });
 });

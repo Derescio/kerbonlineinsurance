@@ -53,7 +53,7 @@ export interface CoverMoves {
   /** Saves the choice in the tab; the journey comes back with it */
   onCover: (cover: CoverChoice) => void;
   /** Referred or declined: Your quote shows why */
-  onNotQuoted: () => void;
+  onNotQuoted: (status: "referred" | "declined") => void;
   /** Where the server sends a step that no longer passes */
   onInvalid: (step: "car" | DriverStep) => void;
 }
@@ -82,7 +82,7 @@ export function useCoverPrice(journey: Journey, handlers: CoverMoves) {
       if (result.step === "cover") moves.current.onCover({ ...cover, voluntaryExcessPence: 0 });
       else moves.current.onInvalid(result.step);
     } else if (result.status === "referred" || result.status === "declined") {
-      moves.current.onNotQuoted();
+      moves.current.onNotQuoted(result.status);
     } else if (result.status === "quoted") {
       const usable = usableCover(result, cover);
       if (JSON.stringify(usable) !== JSON.stringify(cover)) moves.current.onCover(usable);
@@ -98,6 +98,7 @@ export function ChooseCover({
   onCover,
   onBack,
   onContinue,
+  onSaveAndExit,
   onNotQuoted,
   onInvalid,
 }: {
@@ -105,6 +106,8 @@ export function ChooseCover({
   aside: ReactNode;
   onBack: () => void;
   onContinue: () => void;
+  /** "Save and exit" (5.6, decision 13): the gate, then Your saved quotes */
+  onSaveAndExit: () => void;
 } & CoverMoves) {
   const { query, result, cover } = useCoverPrice(journey, { onCover, onNotQuoted, onInvalid });
   const [payment, setPaymentState] = useState<Payment>(journey.payment ?? "annual");
@@ -249,9 +252,14 @@ export function ChooseCover({
         onBack={onBack}
         backLabel="Back to your quote"
         next={
-          <Button variant="accent" iconRight="arrow-right" onClick={onContinue}>
-            Continue with {name}
-          </Button>
+          <span className="quote-nav__actions">
+            <Button variant="secondary" onClick={onSaveAndExit}>
+              Save and exit
+            </Button>
+            <Button variant="accent" iconRight="arrow-right" onClick={onContinue}>
+              Continue with {name}
+            </Button>
+          </span>
         }
       />
     </JourneyPage>

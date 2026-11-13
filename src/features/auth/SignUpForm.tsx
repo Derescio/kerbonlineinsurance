@@ -13,6 +13,7 @@ import { AuthDivider, GoogleButton, PasswordHint } from "./parts";
 import { LINK_HOURS, ResendVerificationAlert } from "./ResendVerification";
 import { signUpSchema, type SignUpInput } from "./schemas";
 import { Turnstile } from "./Turnstile";
+import type { Journey } from "#/features/quote/journey-store";
 
 // Create account (Figma 03, 03b) and "Check your inbox" (03c, 4.4b).
 
@@ -21,7 +22,25 @@ const ROBOT_CHECK_PENDING = "Wait for the check above to finish, then try again.
 
 type Errors = FieldErrors<SignUpInput> & { robot?: string };
 
-export function SignUpForm() {
+/** What screen 15 adds to the "Check your inbox" panel when the sign-up carried a quote (5.6) */
+export const QUOTE_SAVED_LINE =
+  "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under Your saved quotes.";
+
+export function SignUpForm({
+  title,
+  extraLine,
+  quote,
+  redirectTo = "/account",
+}: {
+  /** A heading on the form, as the quote gate's card has (5.6, decision 3) */
+  title?: string;
+  /** A line under the terms box */
+  extraLine?: string;
+  /** Sent with the sign-up: a new account gets this quote saved against it (5.6, decision 1) */
+  quote?: { journey: Omit<Journey, "lastPlate" | "saved"> };
+  /** Where Google sign-in returns to */
+  redirectTo?: string;
+} = {}) {
   const hydrated = useHydrated();
   const form = useRef<HTMLFormElement>(null);
   const [values, setValues] = useState({ name: "", email: "", password: "" });
@@ -64,6 +83,7 @@ export function SignUpForm() {
         callbackURL: "/email-confirmed",
         // Checked again on the server, which records when (decision 5)
         acceptTerms: true,
+        ...(quote && { quote }),
       } as Parameters<typeof authClient.signUp.email>[0],
       { headers: captchaHeaders(token!) },
     );
@@ -91,7 +111,7 @@ export function SignUpForm() {
     setBusy("google");
     const { error } = await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/account",
+      callbackURL: redirectTo,
       errorCallbackURL: "/login",
     });
     if (error) {
@@ -106,6 +126,7 @@ export function SignUpForm() {
         <ResendVerificationAlert email={sentTo} title="Check your inbox">
           {`We sent a link to ${sentTo}. Open it to confirm your email, then you're in. It works for ${LINK_HOURS} hours.`}
         </ResendVerificationAlert>
+        {quote ? <p className="auth__note">{QUOTE_SAVED_LINE}</p> : null}
         <Button
           variant="ghost"
           size="lg"
@@ -123,6 +144,7 @@ export function SignUpForm() {
 
   return (
     <form ref={form} method="post" className="auth__form" noValidate onSubmit={onSubmit}>
+      {title ? <h2 className="kb-h3">{title}</h2> : null}
       <GoogleButton onClick={onGoogle} loading={busy === "google"} />
       <AuthDivider>or use your email</AuthDivider>
       {notice ? (
@@ -181,6 +203,7 @@ export function SignUpForm() {
           {errors.acceptTerms}
         </p>
       ) : null}
+      {extraLine ? <p className="auth__note">{extraLine}</p> : null}
       <div>
         <Turnstile
           resetKey={resetKey}
