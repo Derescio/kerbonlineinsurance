@@ -133,6 +133,6 @@ export const listMyQuotesFn = createServerFn({ method: "GET" })
       getMyCustomerName(context.actor, {}),
       listMyQuotes(context.actor, {}),
     ]);
-    // No customer row yet means nothing saved; the name then comes from the account
+    // No customer row yet means nothing saved; a blank name leaves the overline "Saved quotes"
     return { owner: name ?? { firstName: "", lastName: "" }, cards };
   });

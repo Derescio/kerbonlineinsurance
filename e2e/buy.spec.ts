@@ -91,11 +91,15 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/quote\/retrieve$/);
 
-  // 5. The quote the sign-up saved is ready to buy
+  // 5. The quote the sign-up saved is ready to buy. The sign-up saves it after its response, so
+  // it can land a moment after the login: reload until it's there
   await expect(page.getByRole("heading", { level: 1, name: "Your saved quotes" })).toBeVisible();
-  await expect(page.getByText("Saved quotes · Alex Morgan")).toBeVisible();
   const saved = page.getByRole("article", { name: /^Quote KRB-Q-\d{5}$/ });
-  await expect(saved).toHaveCount(1);
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByText("Saved quotes · Alex Morgan")).toBeVisible({ timeout: 2_000 });
+    await expect(saved).toHaveCount(1, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(saved).toContainText("Ready to buy");
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);

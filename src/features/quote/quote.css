@@ -549,6 +549,10 @@ button.quote-tabs__tab:focus-visible {
     scroll-snap-type: x proximity;
     scrollbar-width: none;
   }
+  .quote-tabs:focus-visible {
+    outline: 2px solid var(--green-600);
+    outline-offset: -2px;
+  }
   .quote-tabs ol {
     display: flex;
     padding-inline: var(--site-gutter);
