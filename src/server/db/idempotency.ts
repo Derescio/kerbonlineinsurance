@@ -10,6 +10,9 @@
 // - A second request with the same key waits on the first's uncommitted row (bounded by withTx's
 //   lock_timeout). Once the first commits, nothing is returned, and a fresh SELECT (READ COMMITTED
 //   takes a new snapshot per statement) reads the committed row and its response.
+// - A user deleted while the claim waited on their row (a delete's FOR UPDATE) fails the claim's
+//   foreign key; that comes out as UNAUTHENTICATED, as deleteAccount's own second request does,
+//   not a raw database error (5.6: a purchase racing a delete).
 // - Only a hash of the request is stored. Responses are stored as they are, so they should hold
 //   ids and statuses only, never personal data.
 import { createHash } from "node:crypto";
@@ -18,7 +21,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 
 import { Rejected } from "#/lib/validation";
 import { canonicalJson, type JsonValue } from "#/server/audit/chain";
-import { IdempotencyConflictError } from "#/server/auth/errors";
+import { AuthzError, IdempotencyConflictError } from "#/server/auth/errors";
 
 import type { Db } from "./client";
 import { idempotencyKeys } from "./schema";
@@ -46,6 +49,18 @@ export function requestHash(action: string, payload: unknown): string {
   return createHash("sha256")
     .update(canonicalJson({ action, payload: toJson(payload) }))
     .digest("hex");
+}
+
+const FOREIGN_KEY_VIOLATION = "23503";
+
+function isUserGone(error: unknown): boolean {
+  const pg = ((error as { cause?: unknown }).cause ?? error) as {
+    code?: string;
+    constraint?: string;
+  };
+  return (
+    pg.code === FOREIGN_KEY_VIOLATION && pg.constraint === "idempotency_keys_user_id_users_id_fk"
+  );
 }
 
 /** The read-only replay lookup: an unexpired row's response, a conflict, or null. */
@@ -86,7 +101,10 @@ export function withIdempotency<T extends JsonValue>(
         set: { requestHash: hash, response: null, createdAt: sql`now()`, expiresAt: expiresAt() },
         setWhere: sql`${idempotencyKeys.expiresAt} <= now()`,
       })
-      .returning({ key: idempotencyKeys.key });
+      .returning({ key: idempotencyKeys.key })
+      .catch((error: unknown) => {
+        throw isUserGone(error) ? new AuthzError("UNAUTHENTICATED") : error;
+      });
 
     if (claimed.length === 0) {
       // Another request committed this key first

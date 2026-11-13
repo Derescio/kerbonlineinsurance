@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -104,16 +104,25 @@ function Harness({ initial, after }: { initial: QuoteStep; after?: "retrieve" })
 
 async function show(
   step: QuoteStep,
-  { after, edit, path }: { after?: "retrieve"; edit?: (j: Journey) => void; path?: string } = {},
+  {
+    after,
+    edit,
+    path,
+    strict,
+  }: { after?: "retrieve"; edit?: (j: Journey) => void; path?: string; strict?: boolean } = {},
 ) {
   const journey = completeJourney();
   edit?.(journey);
   sessionStorage.setItem(journeyKey("car"), JSON.stringify(journey));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return renderWithRouter(
+  const ui = (
     <QueryClientProvider client={queryClient}>
       <Harness initial={step} after={after} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
+  );
+  return renderWithRouter(
+    // As src/client.tsx renders the app: effects run, are cleaned up, then run again
+    strict ? <StrictMode>{ui}</StrictMode> : ui,
     path ?? `/quote/car?postcode=E8+3RL&step=${step}`,
   );
 }
@@ -284,6 +293,32 @@ describe("the gate, signed in (decision 2)", () => {
     await expect.poll(() => router.state.location.pathname).toBe("/quote/pay/q-1");
     const journey = readJourney("car")!;
     expect(journey.saved).toEqual({ quoteId: "q-1", key: savedQuoteKey(journey) });
+  });
+
+  it("under StrictMode, saves once and still goes on to pay", async () => {
+    let finish!: (value: WriteResult<SaveCarResult>) => void;
+    save.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const { router } = await show("buy", { strict: true });
+    await expect.element(page.getByRole("status")).toHaveTextContent("Saving your quote…");
+    finish(saved("q-1"));
+    await expect.poll(() => router.state.location.pathname).toBe("/quote/pay/q-1");
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("Back while saving: the save finishes, but the visitor stays where Back took them", async () => {
+    let finish!: (value: WriteResult<SaveCarResult>) => void;
+    save.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const { router } = await show("buy", { strict: true });
+    await expect.element(page.getByRole("status")).toHaveTextContent("Saving your quote…");
+    await page.getByRole("button", { name: "Back to choose cover" }).click();
+    expect(moves.at(-1)).toEqual({ step: "cover", replace: false });
+
+    finish(saved("q-1"));
+    // The quote exists, so it's remembered: Buy again with nothing changed reuses it
+    await expect.poll(() => readJourney("car")?.saved?.quoteId).toBe("q-1");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(router.state.location.pathname).toBe("/quote/car");
+    expect(moves.at(-1)).toEqual({ step: "cover", replace: false });
   });
 
   it("reuses the saved quote when nothing has changed", async () => {

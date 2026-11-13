@@ -17,7 +17,7 @@ import { audit } from "#/server/audit/audit";
 import type { Actor } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import { authUrls } from "#/server/auth/origins";
-import { getAccountState } from "#/server/data/account";
+import { getAccountState, lockUser } from "#/server/data/account";
 import {
   defineWrite,
   rejected,
@@ -27,6 +27,7 @@ import {
 } from "#/server/data/define";
 import {
   acceptQuote,
+  hasExpired,
   insertBundle,
   insertPayments,
   insertPolicy,
@@ -153,8 +154,12 @@ async function pay(
       if (actor.staff) return rejected(STAFF_CANT_BUY);
       if (input.card.declined) return rejected(CARD_DECLINED, { "card.number": CARD_DECLINED });
 
-      // 1. The customer, locked, and an account that isn't closing
+      // 1. The user and the customer, locked, and an account that isn't closing. The users row
+      // first, as deleteAccount and closure lock it, so they serialise without a deadlock: a
+      // delete that waits on this then sees the policy and refuses (INSURANCE_RECORDS); a pay that
+      // waits on a delete finds the user gone. FOR NO KEY UPDATE, so a sign-in isn't blocked.
       if (!actor.customerId) throw new AuthzError("NOT_FOUND");
+      if (!(await lockUser(tx, actor.userId, "write"))) throw new AuthzError("UNAUTHENTICATED");
       const customer = await lockCustomer(tx, actor.customerId);
       if (!customer) throw new AuthzError("NOT_FOUND");
       if ((await getAccountState(tx, actor.userId)).kind !== "active") {
@@ -165,7 +170,8 @@ async function pay(
       const quote = await lockQuote(tx, input.quoteId, customer.id);
       if (!quote) throw new AuthzError("NOT_FOUND");
       if (quote.status === "accepted") return rejected(ALREADY_BOUGHT);
-      if (quote.status === "expired" || quote.validUntil <= now) return rejected(QUOTE_EXPIRED);
+      if (quote.status === "expired" || hasExpired(quote.validUntil, now))
+        return rejected(QUOTE_EXPIRED);
       if (quote.status !== "priced") return rejected(NOT_BUYABLE);
       const items = await purchaseItems(tx, quote.id);
       if (items.length === 0) return rejected(NOT_BUYABLE);

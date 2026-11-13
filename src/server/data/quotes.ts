@@ -5,7 +5,7 @@ import { AuthzError } from "#/server/auth/errors";
 import { customers, quotes } from "#/server/db/schema";
 
 import { defineRead } from "./define";
-import { monthlyPaymentFor } from "./pay-quote";
+import { hasExpired, monthlyPaymentFor } from "./pay-quote";
 
 // The signed-in customer's own saved quotes, the pay page and the purchase (5.6, decisions 6, 9
 // and 10). Every query filters by actor.customerId, so someone else's quote is indistinguishable
@@ -73,7 +73,7 @@ const carColumns = { make: true, model: true, variant: true, registration: true 
 /** Accepted is bought; else a lapsed validity is expired; else referred is under review */
 function stateOf(quote: { status: string; validUntil: Date }, now: Date): SavedQuoteState | null {
   if (quote.status === "accepted") return "bought";
-  if (quote.status === "expired" || quote.validUntil < now) return "expired";
+  if (quote.status === "expired" || hasExpired(quote.validUntil, now)) return "expired";
   if (quote.status === "referred") return "review";
   if (quote.status === "priced") return "ready";
   return null;
@@ -174,7 +174,7 @@ export const getQuoteForPayment = defineRead(
       quoteId: quote.id,
       reference: quote.reference,
       status: quote.status,
-      expired: quote.status === "expired" || quote.validUntil < new Date(),
+      expired: quote.status === "expired" || hasExpired(quote.validUntil, new Date()),
       policyholder: quote.customer,
       car: item.vehicle,
       coverLevel: item.selectedOption?.coverLevel ?? null,

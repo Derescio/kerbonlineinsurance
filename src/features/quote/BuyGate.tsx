@@ -157,6 +157,17 @@ export function BuyGate({
   useEffect(() => {
     handlers.current = { onInvalid, rotate, idempotencyKey };
   });
+  // Whether the gate is still showing when a save comes back: after Back it isn't, and the save
+  // mustn't move the visitor on. A mount flag, not the save effect's own cleanup: StrictMode's
+  // rehearsal unmount runs that cleanup, and the remount's run returns early (started), so a
+  // per-run flag would drop the real save's navigation.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const signedIn = Boolean(session.data) && !signedOut;
 
@@ -186,16 +197,21 @@ export function BuyGate({
     })
       .then((result) => {
         if (!result.ok) {
-          setFailure(result.error.message);
+          if (mounted.current) setFailure(result.error.message);
           return;
         }
         // The key's write is done: the next save is a new one
         newKey();
         const data = result.data;
         if (data.status === "saved") {
+          // Kept even after Back: the quote exists, so Buy again reuses it (decision 5)
           setSaved({ quoteId: data.quoteId, key });
-          go(data.quoteId);
-        } else if (data.status === "invalid") {
+          if (mounted.current) go(data.quoteId);
+          return;
+        }
+        // Gone after Back: the next Buy saves again and gets the same answer then
+        if (!mounted.current) return;
+        if (data.status === "invalid") {
           if (data.step === "car") {
             setVehicle(null);
             noteCarWithdrawn();
@@ -209,11 +225,11 @@ export function BuyGate({
       .catch((thrown: unknown) => {
         const outcome = writeOutcome(thrown);
         if (outcome.kind === "sign_in") {
-          setSignedOut(true);
+          if (mounted.current) setSignedOut(true);
           return;
         }
         if (outcome.rotateKey) newKey();
-        setFailure(outcome.message);
+        if (mounted.current) setFailure(outcome.message);
       });
   }, [signedIn, attempt, journey, after, navigate]);
 

@@ -38,7 +38,18 @@ export async function monthlyPaymentFor(
   return monthlyPayment(totalPence, new Tables(tables).param("monthly_credit_charge_rate"));
 }
 
-/** The customer row, locked for this transaction (4.7: a purchase racing a delete), with the email */
+/**
+ * Expired at the instant it's valid until, the same in pay and in the reads (stateOf,
+ * getQuoteForPayment), so a quote Saved quotes calls ready is one pay will take.
+ */
+export function hasExpired(validUntil: Date, now: Date): boolean {
+  return validUntil <= now;
+}
+
+/**
+ * The customer row, locked for this transaction, with the email. payForQuote locks the users row
+ * first (lockUser), which is what a delete or a closure waits on (4.7: a purchase racing a delete).
+ */
 export async function lockCustomer(
   tx: Tx,
   customerId: string,
