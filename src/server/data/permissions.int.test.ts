@@ -53,6 +53,7 @@ const cases: Case[] = [
   { read: data.listMyPolicies, input: () => ({}), owner: null },
   { read: data.getMyPolicy, input: (w) => ({ policyId: w.records.policyA.id }), owner: "A" },
   { read: data.listMyQuotes, input: () => ({}), owner: null },
+  { read: data.getMyCustomerName, input: () => ({}), owner: null },
   { read: data.getQuoteForPayment, input: () => ({ quoteId: purchaseA.quoteId }), owner: "A" },
   { read: data.getPurchase, input: () => ({ quoteId: purchaseA.quoteId }), owner: "A" },
   { read: data.listMyClaims, input: () => ({}), owner: null },

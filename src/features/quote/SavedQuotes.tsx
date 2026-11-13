@@ -97,7 +97,8 @@ function Body({ card }: { card: SavedQuoteCard }) {
           ) : null}
           {card.monthlyPaymentPence !== null ? (
             <p className="quote-outcome__meta">
-              or {formatPounds(card.monthlyPaymentPence)} a month for 12 months
+              Or 12 payments of {formatPounds(card.monthlyPaymentPence)} · Includes Insurance
+              Premium Tax
             </p>
           ) : null}
         </div>

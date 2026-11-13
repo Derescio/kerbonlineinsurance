@@ -45,7 +45,9 @@ describe("Your saved quotes", () => {
     await expect.element(page.getByText("Volkswagen Golf 1.0 TSI Life 5dr")).toBeVisible();
     await expect.element(page.getByText("KR21 ERB · Comprehensive · KRB-Q-12345")).toBeVisible();
     await expect.element(page.getByText("£458.40")).toBeVisible();
-    await expect.element(page.getByText("or £42.02 a month", { exact: false })).toBeVisible();
+    await expect
+      .element(page.getByText("Or 12 payments of £42.02 · Includes Insurance Premium Tax"))
+      .toBeVisible();
     await expect
       .element(
         page.getByText("Price saved for 30 days from issue, provided your details stay the same."),
