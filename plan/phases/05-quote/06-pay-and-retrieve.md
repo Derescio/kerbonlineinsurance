@@ -166,3 +166,9 @@ A priced car quote becomes a real policy:
 ## Notes from the build
 
 - **Task 4, the sign-up probe:** Better Auth keeps the extra `quote` field on the `/sign-up/email` body, so `user.create.after` reads `ctx.body.quote` directly; the `AsyncLocalStorage` fallback was not needed. The cleanup also skips users with a closure row (closed accounts are set unconfirmed and keep RESTRICT rows).
+- **The sign-up's quote save runs after the response** (Task 4), through the same deferred work as the account emails (Vercel's `waitUntil`), so a new email's answer takes no longer than a taken one's (4.4b). Decision 1's "the same request" still holds: it's the sign-up request's own work, just not awaited.
+- **A referred quote, or one with no cover chosen yet, is saved at Comprehensive with the chosen extras** (Save and exit and "Sign in to send this for review" leave from Your quote).
+- **Copy the decisions didn't give** (Tasks 6 and 7): "Your car insurance" as the heading while the price or session loads and while saving; "We couldn’t save your quote"; the gate's switch links "Create an account" and "Sign in"; "Back to your quote" on the way to Your saved quotes; "Cover start date" over the date field, with "From today up to 30 days ahead." and "Choose a start date from today up to 30 days ahead."; "Go to You’re covered" under "You’ve already bought this quote."
+- **Your saved quotes' monthly line** is screen 17's: "Or 12 payments of £X · Includes Insurance Premium Tax".
+- **The rate rules live in `src/server/data/rate-limit-rules.ts`**, not `src/server/db/` as engineering.md said; engineering.md now says so.
+- **The E2E creates its account at the gate** rather than signing in a ready-made E2E user, so it also covers decision 1, and it confirms the email in the database (`e2e/db.ts`, shared with 4.7's delete test). Its address is `delivered+e2e-buy-<time>@resend.dev`. The gate's two halves are also in `e2e/a11y.spec.ts` for a guest.

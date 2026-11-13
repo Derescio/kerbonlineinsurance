@@ -87,6 +87,36 @@ for (const width of widths) {
   });
 }
 
+// The gate (5.6, screens 14 and 15) for a guest: sign in, then create an account. Pay, You're
+// covered and Your saved quotes are signed-in pages, checked in buy.spec.ts.
+for (const auth of ["", "&auth=signup"]) {
+  for (const width of widths) {
+    test(`/quote/car?step=buy${auth} at ${width}px has no serious or critical axe violations`, async ({
+      page,
+    }) => {
+      await withCompleteJourney(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/quote/car?postcode=E8+3RL&step=buy${auth}`);
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: auth ? "Create your account to continue" : "Sign in before you pay",
+        }),
+      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Your cover is waiting" })).toBeVisible();
+      // Turnstile's widget can keep the network busy, so wait for its token, not network idle
+      if (auth) {
+        await expect(page.locator('[name="cf-turnstile-response"]')).not.toHaveValue("", {
+          timeout: 15_000,
+        });
+      } else {
+        await page.waitForLoadState("networkidle");
+      }
+      await expectNoBlockingViolations(page);
+    });
+  }
+}
+
 for (const [path, lands] of redirected) {
   for (const width of widths) {
     test(`${path} signed out at ${width}px lands on log in with no serious or critical axe violations`, async ({
