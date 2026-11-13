@@ -438,6 +438,7 @@ const modules = import.meta.glob(
     "!./postcode-rows.ts",
     "!./quote-rows.ts",
     "!./save-quote.ts",
+    "!./pay-quote.ts",
   ],
   {
     eager: true,

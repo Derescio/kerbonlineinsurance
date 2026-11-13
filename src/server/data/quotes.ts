@@ -1,14 +1,11 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { monthlyPayment } from "#/features/rating/money";
-import { Tables } from "#/features/rating/tables";
 import { AuthzError } from "#/server/auth/errors";
-import type { Db } from "#/server/db/client";
 import { quotes } from "#/server/db/schema";
 
 import { defineRead } from "./define";
-import { getRatingTables } from "./reference";
+import { monthlyPaymentFor } from "./pay-quote";
 
 // The signed-in customer's own saved quotes, the pay page and the purchase (5.6, decisions 6, 9
 // and 10). Every query filters by actor.customerId, so someone else's quote is indistinguishable
@@ -73,11 +70,6 @@ export interface Purchase {
 
 const carColumns = { make: true, model: true, variant: true, registration: true } as const;
 
-async function monthlyFor(db: Db, ratingVersionId: string, totalPence: number): Promise<number> {
-  const tables = await getRatingTables(db, ratingVersionId);
-  return monthlyPayment(totalPence, new Tables(tables).param("monthly_credit_charge_rate"));
-}
-
 /** Accepted is bought; else a lapsed validity is expired; else referred is under review */
 function stateOf(quote: { status: string; validUntil: Date }, now: Date): SavedQuoteState | null {
   if (quote.status === "accepted") return "bought";
@@ -132,7 +124,7 @@ export const listMyQuotes = defineRead(
         coverLevel: item.selectedOption?.coverLevel ?? null,
         annualTotalPence: item.selectedOption ? row.totalPence : null,
         monthlyPaymentPence: item.selectedOption
-          ? await monthlyFor(db, item.ratingVersionId, row.totalPence)
+          ? await monthlyPaymentFor(db, item.ratingVersionId, row.totalPence)
           : null,
         policyReference: row.policies[0]?.reference ?? null,
         postcode: row.postcode,
@@ -175,7 +167,7 @@ export const getQuoteForPayment = defineRead(
       compulsoryExcessPence: item.selectedOption?.compulsoryExcessPence ?? 0,
       voluntaryExcessPence: item.voluntaryExcessPence ?? 0,
       annualTotalPence: quote.totalPence,
-      monthlyPaymentPence: await monthlyFor(db, item.ratingVersionId, quote.totalPence),
+      monthlyPaymentPence: await monthlyPaymentFor(db, item.ratingVersionId, quote.totalPence),
       startDate: item.startDate,
       addons: item.addons.filter((a) => a.selected).map((a) => a.addon),
     };

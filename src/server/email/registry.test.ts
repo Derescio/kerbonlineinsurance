@@ -9,6 +9,11 @@ const params = {
   url: "https://x/r",
   closesOn: "7 December 2026",
   claimReference: "KRB-C-90001",
+  policyReference: "KRB-123456",
+  car: "Volkswagen Golf 1.0 TSI Life 5dr · VW21 GQL",
+  startsOn: "20 November 2026",
+  endsOn: "19 November 2027",
+  amount: "£458.40 paid annually",
 };
 
 describe("renderEmail", () => {
@@ -20,6 +25,7 @@ describe("renderEmail", () => {
       "closure_held",
       "closure_requested",
       "existing_account",
+      "policy_confirmed",
       "reset_password",
       "verify_email",
     ]);
@@ -35,6 +41,23 @@ describe("renderEmail", () => {
     expect(renderEmail("reset_password", { name: "Maya", url: "https://x/r" }).html).toContain(
       "https://x/r",
     );
+  });
+
+  it("confirms a policy with its reference, car, dates, amount and account link (5.6)", () => {
+    const email = renderEmail("policy_confirmed", {
+      ...params,
+      name: "Maya",
+      url: "https://x/account",
+    });
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain("KRB-123456");
+      expect(part).toContain("Volkswagen Golf 1.0 TSI Life 5dr");
+      expect(part).toContain("20 November 2026");
+      expect(part).toContain("19 November 2027");
+      expect(part).toContain("£458.40 paid annually");
+      expect(part).toContain("https://x/account");
+    }
   });
 
   it("refuses missing parameters", () => {

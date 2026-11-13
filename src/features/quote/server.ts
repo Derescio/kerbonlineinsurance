@@ -4,6 +4,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import type { WriteResult } from "#/lib/validation";
 import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
 import type { PostcodeCheck } from "#/server/quote/postcode";
+import type { PayResult } from "#/server/quote/pay";
 import type { CarPriceResult } from "#/server/quote/price";
 import type { SaveCarResult } from "#/server/quote/save";
 import type { StartQuoteInput } from "#/server/quote/start";
@@ -56,4 +57,29 @@ export const saveQuoteFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<WriteResult<SaveCarResult>> => {
     const { saveCarQuote } = await import("#/server/quote/save");
     return saveCarQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+export interface PayEnvelope {
+  input: {
+    quoteId: string;
+    plan: "annual" | "monthly";
+    startsOn: string;
+    card: { name: string; number: string; expiry: string; code: string };
+    detailsConfirmed: boolean;
+    coverAcknowledged: boolean;
+  };
+  idempotencyKey: string;
+}
+
+/**
+ * Pays for a saved quote (5.6, decision 7): the policy, payments, audit and email in one
+ * transaction. The key makes a double click or a retry one policy. The card number and code are
+ * checked on the server and go no further than the parse.
+ */
+export const payFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: PayEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<PayResult>> => {
+    const { payForQuote } = await import("#/server/quote/pay");
+    return payForQuote(context.actor, data, { headers: getRequestHeaders() });
   });

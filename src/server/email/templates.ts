@@ -183,3 +183,37 @@ export function accountClosedEmail(): EmailContent {
     PRIVACY_LINE,
   );
 }
+
+// The policy confirmation (5.6, decision 9): sent once a purchase commits, with what You're
+// covered shows and a link to the account. `car` is empty for a quote with no car on it (5.7).
+export interface PolicyConfirmedParams {
+  name: string;
+  policyReference: string;
+  car: string;
+  startsOn: string;
+  endsOn: string;
+  amount: string;
+  url: string;
+}
+
+export function policyConfirmedEmail(p: PolicyConfirmedParams): EmailContent {
+  const hello = `Hi ${firstName(p.name)},`;
+  const details = [
+    `Policy: ${p.policyReference}`,
+    ...(p.car ? [`Car: ${p.car}`] : []),
+    `Cover starts: ${p.startsOn}`,
+    `Cover ends: ${p.endsOn}`,
+    `Payment: ${p.amount}`,
+  ];
+  const after = "You can see your policy in your account at any time.";
+  return {
+    subject: `You're covered: Kerb policy ${p.policyReference}`,
+    html: layout({
+      heading: "You're covered",
+      body: `${escapeHtml(hello)} your Kerb insurance is confirmed.<br><br>${details.map(escapeHtml).join("<br>")}`,
+      link: { cta: "Go to my account", url: p.url },
+      after,
+    }),
+    text: `${hello}\n\nYour Kerb insurance is confirmed.\n\n${details.join("\n")}\n\nGo to your account:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}
