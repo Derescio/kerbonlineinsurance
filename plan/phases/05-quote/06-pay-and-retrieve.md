@@ -1,6 +1,6 @@
 # 5.6 Pay, policy saved, retrieve a quote
 
-**Status:** approved (Damion, 13 Nov 2026), building
+**Status:** done (#91, approved by Damion, 13 Nov 2026); manual check pending
 **Phase:** 05-quote
 
 ## Goal

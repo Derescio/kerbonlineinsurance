@@ -54,7 +54,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
 - [x] 5.4b **Journey revamp**: the car journey in the Revamp frames, journey header and footer, details tabs, Your car card, pay annually or monthly, named-driver review
 - [x] 5.5 **Cover options + summary**: cover comparison table, voluntary excess, extras, price breakdown with the APR, add-home offer, referred and declined screens
-- [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
+- [x] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
 - [ ] 5.7 **Home steps**: property → contents and security → past claims, then the shared cover, summary and pay; home quote → policy Playwright journey
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
