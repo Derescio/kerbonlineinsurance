@@ -4,12 +4,31 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { accountClosures, files, idempotencyKeys, jobs, rateLimits } from "#/server/db/schema";
+import { recordSecurityEvent } from "#/server/auth/security-events";
+import { deleteExpiredRows } from "#/server/data/job-rows";
+import {
+  accountClosures,
+  customers,
+  files,
+  idempotencyKeys,
+  jobs,
+  quotes,
+  rateLimits,
+  securityEvents,
+  users,
+} from "#/server/db/schema";
 import { setObjectStore } from "#/server/uploads/store";
 import { MemoryObjectStore } from "#/server/uploads/store-memory";
 import { env, sent } from "#/test/auth";
 import { getOwnerDb, truncateAll } from "#/test/db";
-import { makeCustomer, makeFile, makePolicy, makeUser } from "#/test/factories";
+import {
+  makeCustomer,
+  makeFile,
+  makePolicy,
+  makeQuote,
+  makeStaff,
+  makeUser,
+} from "#/test/factories";
 
 import { DAILY_JOBS, queueDailyJobs } from "./daily";
 import { runDueJobs } from "./runner";
@@ -178,5 +197,32 @@ describe("housekeeping.expired_rows", () => {
     expect((await getDb().select().from(rateLimits)).map((r) => r.key)).toEqual(["fresh"]);
     const left = (await allJobs()).filter((j) => j.type === "uploads.cleanup");
     expect(left.map((j) => j.status).sort()).toEqual(["dead", "done"]);
+  });
+
+  it("deletes accounts never confirmed after 7 days, with their quotes, and keeps the rest (5.6, decision 1)", async () => {
+    const aged = (days: number, emailVerified = false) =>
+      makeUser({ emailVerified, createdAt: new Date(now.getTime() - days * DAY) });
+    const stale = await aged(8);
+    const { quote } = await makeQuote({
+      customerId: (await makeCustomer({ userId: stale.id })).id,
+    });
+    // As a real sign-up leaves it: the append-only sign_up event goes with its user by cascade
+    await recordSecurityEvent(getDb(), env.BETTER_AUTH_SECRET, {
+      type: "sign_up",
+      userId: stale.id,
+    });
+    expect(await getDb().select().from(securityEvents)).toHaveLength(1);
+    const recent = await aged(6);
+    const confirmed = await aged(30, true);
+    const staff = await aged(30);
+    await makeStaff({ userId: staff.id });
+
+    expect(await deleteExpiredRows(getDb(), now)).toMatchObject({ unconfirmedUsers: 1 });
+
+    const ids = (await getDb().select({ id: users.id }).from(users)).map((u) => u.id).sort();
+    expect(ids).toEqual([recent.id, confirmed.id, staff.id].sort());
+    expect(await getDb().select().from(customers)).toHaveLength(0);
+    expect(await getDb().select().from(securityEvents)).toHaveLength(0);
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, quote.id))).toHaveLength(0);
   });
 });

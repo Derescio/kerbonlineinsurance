@@ -162,3 +162,7 @@ A priced car quote becomes a real policy:
 - **Figma:** screens 14 (`226:714`), 15 (`226:729`), 17 (`226:759`) and 18 (`226:774`); the `Quote & Policy – Web` Purchase frame (`157:11256`); 5.4b's frame.
 - **Earlier slices:** 5.4 (`saveQuote()`, `quoteTotals()`, `monthlyPayment()`); 5.5 decisions 8, 9 and 11; 4.4 and 4.4b (sign-up, confirming email, `replace-unverified`); 4.10 (the outbox and daily jobs).
 - **Damion, 13 Nov 2026:** creating an account saves the quote on the server against the new account (option A).
+
+## Notes from the build
+
+- **Task 4, the sign-up probe:** Better Auth keeps the extra `quote` field on the `/sign-up/email` body, so `user.create.after` reads `ctx.body.quote` directly; the `AsyncLocalStorage` fallback was not needed. The cleanup also skips users with a closure row (closed accounts are set unconfirmed and keep RESTRICT rows).
