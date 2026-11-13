@@ -146,6 +146,40 @@ describe("sign-up with a quote (5.6, decision 1)", () => {
     });
   });
 
+  it("answers before the quote is saved, so a new email takes no longer than a taken one (4.4b)", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const real = vi.mocked(saveCarQuoteFor).getMockImplementation()!;
+    vi.mocked(saveCarQuoteFor).mockImplementationOnce(async (...args) => {
+      await gate;
+      return real(...args);
+    });
+    const held: Promise<unknown>[] = [];
+    const auth = makeAuth({ defer: (work) => void held.push(work) });
+
+    const request = post(auth, "/sign-up/email", {
+      name: "Maya Patel",
+      email: EMAIL,
+      password: PASSWORD,
+      acceptTerms: true,
+      callbackURL: "/email-confirmed",
+      quote: { journey: await golf() },
+    });
+    // A save inside the response would hold it until the gate opens: give up after 3 seconds
+    const answered = await Promise.race([
+      request,
+      new Promise<"blocked">((resolve) => setTimeout(() => resolve("blocked"), 3000)),
+    ]);
+    const beforeRelease = await getDb().select().from(quotes);
+    release();
+    const response = await request;
+    await Promise.all(held);
+    expect(answered).not.toBe("blocked");
+    expect(response.status).toBe(200);
+    expect(beforeRelease).toHaveLength(0);
+    expect(await getDb().select().from(quotes)).toHaveLength(1);
+  });
+
   it("saves nothing for a sign-up without a quote", async () => {
     await signUp(makeAuth());
     expect(saveCarQuoteFor).not.toHaveBeenCalled();

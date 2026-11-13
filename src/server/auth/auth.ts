@@ -227,21 +227,25 @@ export function createAuth(deps: AuthDeps) {
             });
             // Creating an account mid-quote saves the quote against the new user (5.6, decision
             // 1). Better Auth runs this after its transaction commits, and only for a user it
-            // created, so a sign-up for a taken email attaches nothing. Sign-up never fails
-            // because of the quote: the tab still holds it. The journey is never logged
+            // created, so a sign-up for a taken email attaches nothing. The save runs after the
+            // response, like the emails, so a new email's answer takes no longer than a taken
+            // one's (4.4b). Sign-up never fails because of the quote: the tab still holds it.
+            // The journey is never logged
             const quote = (ctx?.body as { quote?: { journey?: unknown } } | undefined)?.quote;
             if (ctx?.path === "/sign-up/email" && quote) {
-              try {
-                const subject = await rateLimitSubject(
-                  null,
-                  ctx.request?.headers ?? new Headers(),
-                  secret,
-                );
-                await limit(`quote.save:${subject}`, QUOTE_SAVE_RULE);
-                await withTx(db, (tx) => saveCarQuoteFor(tx, user.id, { journey: quote.journey }));
-              } catch (error) {
-                console.error("[auth] sign-up quote save error:", logSafeError(error));
-              }
+              const headers = ctx.request?.headers ?? new Headers();
+              const work = (async () => {
+                try {
+                  const subject = await rateLimitSubject(null, headers, secret);
+                  await limit(`quote.save:${subject}`, QUOTE_SAVE_RULE);
+                  await withTx(db, (tx) =>
+                    saveCarQuoteFor(tx, user.id, { journey: quote.journey }),
+                  );
+                } catch (error) {
+                  console.error("[auth] sign-up quote save error:", logSafeError(error));
+                }
+              })();
+              defer(work);
             }
           },
         },

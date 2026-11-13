@@ -225,4 +225,33 @@ describe("housekeeping.expired_rows", () => {
     expect(await getDb().select().from(securityEvents)).toHaveLength(0);
     expect(await getDb().select().from(quotes).where(eq(quotes.id, quote.id))).toHaveLength(0);
   });
+
+  it("keeps a closed account, unconfirmed with a policy, and the job still finishes", async () => {
+    // Closing an account sets it unconfirmed (4.7); its closure and policy rows RESTRICT a delete.
+    // Older than 7 days, as any closed account is: the 30-day window ended yesterday
+    const closed = await makeUser({ createdAt: new Date(now.getTime() - 40 * DAY) });
+    const customer = await makeCustomer({ userId: closed.id });
+    await makePolicy({ customerId: customer.id });
+    await getDb()
+      .insert(accountClosures)
+      .values({
+        userId: closed.id,
+        requestedAt: new Date(now.getTime() - 31 * DAY),
+        closesAt: new Date(now.getTime() - DAY),
+        closedAt: new Date(now.getTime() - DAY),
+      });
+    await getDb().insert(jobs).values({
+      type: "housekeeping.expired_rows",
+      payload: {},
+      idempotencyKey: "housekeeping",
+      runAfter: now,
+    });
+
+    await runDueJobs(getDb(), deps, now);
+
+    const [job] = (await allJobs()).filter((j) => j.type === "housekeeping.expired_rows");
+    expect(job).toMatchObject({ status: "done", attempts: 1 });
+    expect(await getDb().select().from(users).where(eq(users.id, closed.id))).toHaveLength(1);
+    expect(await getDb().select().from(customers)).toHaveLength(1);
+  });
 });
