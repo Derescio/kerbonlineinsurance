@@ -121,6 +121,10 @@ export const DEFAULT_COVER: CoverChoice = {
   addons: [],
 };
 
+/** The quote this journey was saved as at the gate, and the key of what was saved (5.6, decision 7) */
+const savedSchema = z.object({ quoteId: z.string().min(1), key: z.string().min(1) });
+export type SavedQuote = z.infer<typeof savedSchema>;
+
 /** Read one at a time: a part that fails is dropped alone (call 15) */
 const partSchemas = {
   vehicle: vehicleSchema,
@@ -130,6 +134,7 @@ const partSchemas = {
   namedDrivers: namedDriversSchema,
   payment: paymentSchema,
   cover: coverSchema,
+  saved: savedSchema,
 };
 
 const baseSchema = z.object({
@@ -158,7 +163,38 @@ export type Journey = z.infer<typeof baseSchema> & {
   payment?: Payment;
   /** Car only, from Choose cover (5.5) */
   cover?: CoverChoice;
+  /** Set once the gate saved the quote (5.6); the key says whether the answers have changed since */
+  saved?: SavedQuote;
 };
+
+function stable(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, v]) => v !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => [k, stable(v)]),
+    );
+  }
+  return value;
+}
+
+/**
+ * A stable hash of what the quote prices on: the journey without `lastPlate`, `payment` and
+ * `saved`, cover included (5.6, decision 7). FNV-1a over sorted-key JSON, so it tells "changed"
+ * from "same" and nothing more; it isn't a security check.
+ */
+export function savedQuoteKey(journey: Journey): string {
+  const { lastPlate: _plate, payment: _payment, saved: _saved, ...rest } = journey;
+  const json = JSON.stringify(stable(rest));
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < json.length; i++) {
+    hash ^= json.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
 
 export type JourneyStorage = Pick<Storage, "getItem" | "setItem">;
 
