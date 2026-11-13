@@ -53,11 +53,15 @@ export function DetailsTabs({
   onOpen: (tab: DetailsTab) => void;
 }) {
   const list = useRef<HTMLOListElement>(null);
-  // At phone width the tabs scroll sideways: keep the current one in view (call 12)
+  const current = (Object.keys(states) as DetailsTab[]).find((tab) => states[tab] === "current");
+  // At phone width the tabs scroll sideways: bring the current one into view when it changes. Only
+  // the strip scrolls, never the page, and a re-render with the same current tab does nothing.
   useEffect(() => {
-    const current = list.current?.querySelector<HTMLElement>("[aria-current]");
-    current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }, [states]);
+    const strip = list.current?.parentElement;
+    const item = list.current?.querySelector<HTMLElement>("[aria-current]");
+    if (!strip || !item || strip.scrollWidth <= strip.clientWidth) return;
+    strip.scrollLeft += item.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+  }, [current]);
 
   return (
     <nav aria-label="Your details" className="quote-tabs">

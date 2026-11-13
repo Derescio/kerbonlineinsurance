@@ -34,6 +34,36 @@ describe("DetailsTabs", () => {
   });
 });
 
+describe("DetailsTabs scrolling (5.4b, call 12)", () => {
+  const states = {
+    car: "done",
+    about: "done",
+    driving: "current",
+    claims: "open",
+    drivers: "locked",
+  } as const;
+
+  it("never scrolls the page when it renders again", async () => {
+    const screen = await render(
+      <div>
+        <DetailsTabs states={{ ...states }} onOpen={() => {}} />
+        <div style={{ height: 3000 }} />
+      </div>,
+    );
+    window.scrollTo(0, 2000);
+    const before = window.scrollY;
+    expect(before).toBeGreaterThan(0);
+    await screen.rerender(
+      <div>
+        <DetailsTabs states={{ ...states }} onOpen={() => {}} />
+        <div style={{ height: 3000 }} />
+      </div>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(window.scrollY).toBe(before);
+  });
+});
+
 describe("CarCard", () => {
   afterEach(async () => {
     await page.viewport(414, 896);
