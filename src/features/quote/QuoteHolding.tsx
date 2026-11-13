@@ -2,7 +2,9 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import { Card } from "#/components/display/Card";
 
-import type { Journey } from "./journey-store";
+import { TIERS, usableCover } from "./cover";
+import type { CoverChoice, Journey } from "./journey-store";
+import { CarDeclined, CarReferred } from "./Outcomes";
 import type { NamedDrivers } from "./schemas/driver-steps";
 import { DriverReview, reviewIntro } from "./DriverReview";
 import { QuotePrice, RemovedLine, useQuotePrice } from "./QuotePrice";
@@ -12,7 +14,8 @@ import { StepHeading } from "./step-kit";
 import type { DriverStep } from "./steps";
 
 // The "Your quote" view (5.3, call 17), as Revamp R09 "Your quote is ready" (5.4b, call 10): the
-// price from 5.4 with the pay choice, above "Your details at a glance", one short line per step
+// price from 5.4 with the pay choice, or screen 19 or 20 when the quote is referred or declined
+// for a reason that isn't a named driver (5.5, decisions 9 and 10), above "Your details at a glance", one short line per step
 // (plan P3), each with an Edit button back to that step.
 
 const longDate = new Intl.DateTimeFormat("en-GB", {
@@ -68,6 +71,8 @@ export function QuoteHolding({
   onInvalid,
   onBack,
   onReviewDrivers,
+  onChooseCover,
+  onCover,
   carCard,
 }: {
   journey: Journey;
@@ -75,6 +80,10 @@ export function QuoteHolding({
   onBack: () => void;
   /** R10's "Review named driver details" (5.4b, call 11) */
   onReviewDrivers: () => void;
+  /** R09's "Choose cover" (5.5) */
+  onChooseCover: () => void;
+  /** Saves the cover choice, when the server resets the excess (5.5) */
+  onCover: (cover: CoverChoice) => void;
   /** The "Your car" card (5.4b, call 6); the help card's line changes with the view */
   carCard: ReactNode;
   onEdit: (step: DriverStep) => void;
@@ -84,17 +93,28 @@ export function QuoteHolding({
   onInvalid: (step: "car" | DriverStep) => void;
 }) {
   const car = journey.vehicle;
-  const price = useQuotePrice(journey, onNamedDrivers, onInvalid);
+  const price = useQuotePrice(journey, onNamedDrivers, onInvalid, onCover);
   const stopper = price.stopper;
+  const { result } = price;
+  const outcome =
+    !stopper && (result?.status === "referred" || result?.status === "declined")
+      ? result.status
+      : null;
+  const kind = stopper ? "review" : (outcome ?? "quote");
+  const tier =
+    TIERS[
+      (result?.status === "quoted" ? usableCover(result, price.cover) : price.cover).coverLevel
+    ];
 
-  // R09 and R10 are one view whose heading changes: focus follows it, as a step change does
+  // R09, R10 and screens 19 and 20 are one view whose heading changes: focus follows it, as a step
+  // change does
   const root = useRef<HTMLDivElement>(null);
-  const shown = useRef(stopper !== null);
+  const shown = useRef(kind);
   useEffect(() => {
-    if (shown.current === (stopper !== null)) return;
-    shown.current = stopper !== null;
+    if (shown.current === kind) return;
+    shown.current = kind;
     root.current?.querySelector<HTMLElement>("h1")?.focus();
-  }, [stopper]);
+  }, [kind]);
 
   const aside = (
     <>
@@ -102,7 +122,9 @@ export function QuoteHolding({
       <HelpCard title="Need a hand?">
         {stopper
           ? "You can review your driver details or contact us to talk through the next steps."
-          : "Keep your vehicle documents and driving licence nearby as you complete your details."}
+          : outcome
+            ? "Need to correct something or ask a question? Check your answers, or contact us."
+            : "Keep your vehicle documents and driving licence nearby as you complete your details."}
       </HelpCard>
     </>
   );
@@ -130,7 +152,11 @@ export function QuoteHolding({
 
   return (
     <div ref={root} className="quote-step">
-      {stopper ? (
+      {outcome === "referred" ? (
+        <CarReferred journey={journey} aside={aside} onCheckAnswers={() => onEdit("about")} />
+      ) : outcome === "declined" ? (
+        <CarDeclined journey={journey} aside={aside} onCheckAnswers={() => onEdit("about")} />
+      ) : stopper ? (
         <JourneyPage
           heading={
             <StepHeading
@@ -159,7 +185,7 @@ export function QuoteHolding({
               title="Your quote is ready"
               intro={
                 car
-                  ? `Comprehensive car insurance for your ${car.make} ${car.model} ${car.variant}.`
+                  ? `${tier.name} car insurance for your ${car.make} ${car.model} ${car.variant}.`
                   : undefined
               }
             />
@@ -167,7 +193,7 @@ export function QuoteHolding({
           aside={aside}
         >
           <Card padding="lg" className="quote-slot">
-            <QuotePrice state={price} />
+            <QuotePrice state={price} onChooseCover={onChooseCover} />
           </Card>
           {glance}
           <StepNav onBack={onBack} backLabel="Back to your details" />

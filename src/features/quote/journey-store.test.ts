@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   beginJourney,
+  DEFAULT_COVER,
   journeyKey,
   markStartRecorded,
   readJourney,
   sessionStore,
+  setCover,
   setLastPlate,
   setPayment,
   setStepAnswers,
@@ -285,5 +287,52 @@ describe("the pay choice in the journey (5.4b, call 10)", () => {
     const storage = memoryStorage();
     setPayment("car", "monthly", storage);
     expect(readJourney("car", storage)).toBeNull();
+  });
+});
+
+describe("the cover choice in the journey (5.5, decision 3)", () => {
+  it("starts at Comprehensive, no voluntary excess and no extras", () => {
+    expect(DEFAULT_COVER).toEqual({
+      coverLevel: "comprehensive",
+      voluntaryExcessPence: 0,
+      addons: [],
+    });
+  });
+
+  it("keeps the tier, the excess and the extras, alongside the answers", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("car"), JSON.stringify(completeJourney()));
+    const cover = {
+      coverLevel: "plus",
+      voluntaryExcessPence: 25_000,
+      addons: ["breakdown_uk"],
+    } as const;
+    setCover({ ...cover, addons: [...cover.addons] }, storage);
+    const read = readJourney("car", storage);
+    expect(read?.cover).toEqual(cover);
+    expect(read?.namedDrivers).toEqual(completeJourney().namedDrivers);
+  });
+
+  it("drops only a cover choice that doesn't parse, and reads a 5.4b journey without one", () => {
+    const storage = memoryStorage();
+    const journey = completeJourney();
+    storage.setItem(journeyKey("car"), JSON.stringify(journey));
+    expect(readJourney("car", storage)?.cover).toBeUndefined();
+    storage.setItem(
+      journeyKey("car"),
+      JSON.stringify({
+        ...journey,
+        cover: { coverLevel: "gold", voluntaryExcessPence: 0, addons: [] },
+      }),
+    );
+    const read = readJourney("car", storage);
+    expect(read?.cover).toBeUndefined();
+    expect(read?.mainDriver).toEqual(journey.mainDriver);
+  });
+
+  it("does nothing without a car journey", () => {
+    const storage = memoryStorage();
+    setCover(DEFAULT_COVER, storage);
+    expect(storage.map.size).toBe(0);
   });
 });

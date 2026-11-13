@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { coverLevels } from "#/server/db/schema/values";
+
 import { statusOptions } from "./occupation";
 import type { BuyableProductId } from "./products";
 import {
@@ -104,6 +106,21 @@ const namedDriversSchema = z.object({
 const paymentSchema = z.enum(["annual", "monthly"]);
 export type Payment = z.infer<typeof paymentSchema>;
 
+/** The cover chosen on Choose cover (5.5, decision 3); 5.6 saves it. The server checks the excess. */
+const coverSchema = z.object({
+  coverLevel: z.enum(coverLevels),
+  voluntaryExcessPence: z.number().int(),
+  addons: z.array(z.string()),
+});
+export type CoverChoice = z.infer<typeof coverSchema>;
+
+/** Where Choose cover starts: Comprehensive, no voluntary excess, no extras */
+export const DEFAULT_COVER: CoverChoice = {
+  coverLevel: "comprehensive",
+  voluntaryExcessPence: 0,
+  addons: [],
+};
+
 /** Read one at a time: a part that fails is dropped alone (call 15) */
 const partSchemas = {
   vehicle: vehicleSchema,
@@ -112,6 +129,7 @@ const partSchemas = {
   claims: claimsSchema,
   namedDrivers: namedDriversSchema,
   payment: paymentSchema,
+  cover: coverSchema,
 };
 
 const baseSchema = z.object({
@@ -138,6 +156,8 @@ export type Journey = z.infer<typeof baseSchema> & {
   namedDrivers?: z.infer<typeof namedDriversSchema>;
   /** Kept in the tab for Choose cover and Buy (5.4b) */
   payment?: Payment;
+  /** Car only, from Choose cover (5.5) */
+  cover?: CoverChoice;
 };
 
 export type JourneyStorage = Pick<Storage, "getItem" | "setItem">;
@@ -253,6 +273,15 @@ export function setPayment(
 ): void {
   const stored = readJourney(product, storage);
   if (stored) writeJourney(product, { ...stored, payment }, storage);
+}
+
+/** The car journey's cover choice (5.5, decision 3). Nothing happens without a car journey. */
+export function setCover(
+  cover: CoverChoice,
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney("car", storage);
+  if (stored) writeJourney("car", { ...stored, cover }, storage);
 }
 
 /** What each driver step saves (5.3) */

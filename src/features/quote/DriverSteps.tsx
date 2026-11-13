@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AboutYouStep } from "./AboutYouStep";
+import { AddHome } from "./AddHome";
+import { ChooseCover } from "./ChooseCover";
 import { ClaimsStep } from "./ClaimsStep";
-import { readJourney, setStepAnswers, setVehicle, type Journey } from "./journey-store";
+import {
+  readJourney,
+  setCover,
+  setStepAnswers,
+  setVehicle,
+  type CoverChoice,
+  type Journey,
+} from "./journey-store";
 import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
 import { CarCard, DetailsTabs, HelpCard } from "./page-kit";
@@ -26,7 +35,8 @@ const helpLines: Record<DriverStep, string> = {
   drivers: "Only people listed on your policy will be covered to drive your car.",
 };
 
-// The driver steps in order (5.3, calls 5 and 16): about → driving → claims → drivers → quote.
+// The driver steps in order (5.3, calls 5 and 16): about → driving → claims → drivers → quote, then
+// Choose cover and the home offer (5.5), which also need a quoted price: they check that themselves.
 // The answers live in sessionStorage, so the "can't skip ahead" check runs here in the browser,
 // not in the route's beforeLoad (plan P5). A blocked link is replaced, not added to history.
 
@@ -37,7 +47,9 @@ function reachable(journey: Journey | null, step: QuoteStep, today: string) {
   const first = firstIncompleteStep(journey, today);
   if (first === "car") return { ok: false as const, to: undefined };
   if (first === null) return { ok: true as const };
-  const ok = step !== "quote" && DRIVER_STEPS.indexOf(step) <= DRIVER_STEPS.indexOf(first);
+  const driverStep = DRIVER_STEPS.find((s) => s === step);
+  const ok =
+    driverStep !== undefined && DRIVER_STEPS.indexOf(driverStep) <= DRIVER_STEPS.indexOf(first);
   return ok ? { ok: true as const } : { ok: false as const, to: first };
 }
 
@@ -107,6 +119,19 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
     onStep(next);
   }
 
+  /** The cover choice (5.5): saved in the tab, and the view takes the journey with it */
+  function saveCover(cover: CoverChoice) {
+    setCover(cover);
+    const saved = readJourney("car");
+    if (saved) setView((v) => (v ? { ...v, journey: saved } : v));
+  }
+
+  /** Where the server sends a step that no longer passes: replaced, not pushed */
+  function invalid(s: "car" | DriverStep) {
+    if (s !== "car") fromSummary.current = true;
+    onStep(s === "car" ? undefined : s, { replace: true });
+  }
+
   /** "Change car or postcode": the car is forgotten, the answers stay (5.4b, call 6) */
   function changeCar() {
     setVehicle(null);
@@ -132,6 +157,15 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
       </>
     ),
   });
+
+  const coverAside = (
+    <>
+      <CarCard car={journey.vehicle ?? null} postcode={journey.postcode} onChange={changeCar} />
+      <HelpCard title="Need a hand?">
+        Compare what each level includes, and check the excess you&rsquo;d pay if you claimed.
+      </HelpCard>
+    </>
+  );
 
   return (
     <div ref={root} className="quote-step">
@@ -164,11 +198,31 @@ export function DriverSteps({ step, onStep }: { step: QuoteStep; onStep: Move })
             const saved = readJourney("car");
             if (saved) setView((v) => (v ? { ...v, journey: saved } : v));
           }}
-          onInvalid={(s) => {
-            // Replaced, not pushed: Back would return to the quote, which redirects again
-            if (s !== "car") fromSummary.current = true;
-            onStep(s === "car" ? undefined : s, { replace: true });
-          }}
+          onChooseCover={() => onStep("cover")}
+          onCover={saveCover}
+          // Replaced, not pushed: Back would return to the quote, which redirects again
+          onInvalid={invalid}
+        />
+      ) : null}
+      {step === "cover" ? (
+        <ChooseCover
+          journey={journey}
+          aside={coverAside}
+          onBack={() => onStep("quote")}
+          onContinue={() => onStep("add-home")}
+          onCover={saveCover}
+          onNotQuoted={() => onStep("quote", { replace: true })}
+          onInvalid={invalid}
+        />
+      ) : null}
+      {step === "add-home" ? (
+        <AddHome
+          journey={journey}
+          aside={coverAside}
+          onBack={() => onStep("cover")}
+          onCover={saveCover}
+          onNotQuoted={() => onStep("quote", { replace: true })}
+          onInvalid={invalid}
         />
       ) : null}
     </div>

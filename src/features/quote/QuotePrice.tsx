@@ -6,14 +6,22 @@ import { Alert } from "#/components/feedback/Alert";
 
 import type { CarPriceResult } from "#/server/quote/price";
 
-import { setPayment, type Journey, type Payment } from "./journey-store";
+import { composeCover, TIERS, usableCover } from "./cover";
+import {
+  DEFAULT_COVER,
+  setPayment,
+  type CoverChoice,
+  type Journey,
+  type Payment,
+} from "./journey-store";
 import { PayChoice } from "./PayChoice";
 import { priceQuery } from "./price-query";
 import type { NamedDrivers } from "./schemas/driver-steps";
 import type { DriverStep } from "./steps";
 
-// The price on Your quote (5.4, spec decisions 4 and 14; 5.4b, calls 10 and 11): the Comprehensive
-// price with the pay choice, or why there isn't one. A named driver who stopped the quote gets the
+// The price on Your quote (5.4, spec decisions 4 and 14; 5.4b, calls 10 and 11): the chosen cover's
+// price (Comprehensive, £0 and no extras until Choose cover; 5.5, decision 16) with the pay choice,
+// or why there isn't one. A named driver who stopped the quote gets the
 // review step (R10): they can be removed on the spot, priced again, with "Add back" to put them
 // back; the threshold that stopped them is never shown.
 
@@ -34,6 +42,8 @@ export interface QuotePriceState {
   undo: () => void;
   payment: Payment;
   choosePayment: (value: Payment) => void;
+  /** The cover chosen so far (5.5) */
+  cover: CoverChoice;
 }
 
 /** Held by Your quote, so the state survives the switch between R09 and R10 */
@@ -41,6 +51,8 @@ export function useQuotePrice(
   journey: Journey,
   onNamedDrivers: (namedDrivers: NamedDrivers) => void,
   onInvalid: (step: "car" | DriverStep) => void,
+  /** An excess the server doesn't offer goes back to £0 (5.5, decision 6) */
+  onCover: (cover: CoverChoice) => void,
 ): QuotePriceState {
   const query = useQuery(priceQuery(journey));
   const result = query.data;
@@ -50,14 +62,18 @@ export function useQuotePrice(
 
   // Once per answer: a new callback each render must not send the visitor twice
   const handled = useRef<CarPriceResult | null>(null);
-  const invalid = useRef(onInvalid);
+  const cover = journey.cover ?? DEFAULT_COVER;
+  const moves = useRef({ onInvalid, onCover, cover });
   useEffect(() => {
-    invalid.current = onInvalid;
+    moves.current = { onInvalid, onCover, cover };
   });
   useEffect(() => {
     if (result?.status !== "invalid" || handled.current === result) return;
     handled.current = result;
-    invalid.current(result.step);
+    const { step } = result;
+    if (step === "cover")
+      moves.current.onCover({ ...moves.current.cover, voluntaryExcessPence: 0 });
+    else moves.current.onInvalid(step);
   }, [result]);
 
   let stopper: Stopper | null = null;
@@ -85,6 +101,7 @@ export function useQuotePrice(
       setRemoved(null);
     },
     payment,
+    cover,
     choosePayment(value) {
       setPaymentState(value);
       setPayment("car", value);
@@ -107,13 +124,21 @@ export function RemovedLine({ state }: { state: QuotePriceState }) {
 }
 
 /** R09's price card. One live region stays mounted and only its content changes, so the price is announced. */
-export function QuotePrice({ state }: { state: QuotePriceState }) {
+export function QuotePrice({
+  state,
+  onChooseCover,
+}: {
+  state: QuotePriceState;
+  onChooseCover: () => void;
+}) {
   const { query, result } = state;
   return (
     <>
       <div role="status" className="quote-price">
         <RemovedLine state={state} />
-        {query.isError ? null : <PriceContent state={state} result={result} />}
+        {query.isError ? null : (
+          <PriceContent state={state} result={result} onChooseCover={onChooseCover} />
+        )}
       </div>
       {query.isError ? (
         <Alert tone="warning" announce>
@@ -130,47 +155,39 @@ export function QuotePrice({ state }: { state: QuotePriceState }) {
 function PriceContent({
   state,
   result,
+  onChooseCover,
 }: {
   state: QuotePriceState;
   result: CarPriceResult | undefined;
+  onChooseCover: () => void;
 }) {
   if (!result || result.status === "invalid") return <p>Working out your price&hellip;</p>;
 
   switch (result.status) {
-    case "quoted":
+    case "quoted": {
+      const chosen = usableCover(result, state.cover);
+      const composed = composeCover(result, chosen.coverLevel, chosen.addons)!;
       return (
         <>
-          <h2 className="kb-h3 quote-price__title">Your Comprehensive price</h2>
+          <h2 className="kb-h3 quote-price__title">Your {TIERS[chosen.coverLevel].name} price</h2>
           <PayChoice
-            annualPence={result.annualPence}
-            monthlyPaymentPence={result.monthlyPaymentPence}
+            annualPence={composed.totalPence}
+            monthlyPaymentPence={composed.monthlyPaymentPence}
             value={state.payment}
             onChange={state.choosePayment}
           />
           <p>Premiums include Insurance Premium Tax.</p>
-          <ChooseCover />
+          <Button variant="accent" iconRight="arrow-right" onClick={onChooseCover}>
+            Choose cover
+          </Button>
         </>
       );
+    }
     case "rate_limited":
       return <p>You&rsquo;ve asked for a lot of prices in a short time. Try again in an hour.</p>;
-    // A named driver's outcome is R10's (DriverReview); these are the plain lines until 5.5 builds
-    // screens 19 and 20 (5.4b, call 11)
+    // Your quote shows R10 (a named driver) or screens 19 and 20 in place of the price (5.5)
     case "referred":
-      return <p>We need to check a couple of things, usually within a day.</p>;
     case "declined":
-      return <p>We can&rsquo;t offer car cover for these details.</p>;
+      return null;
   }
-}
-
-/** Choose cover is 5.5's screen; until then the button says so (5.4b, call 10). Staging only. */
-function ChooseCover() {
-  const [asked, setAsked] = useState(false);
-  return (
-    <>
-      <Button variant="accent" iconRight="arrow-right" onClick={() => setAsked(true)}>
-        Choose cover
-      </Button>
-      {asked ? <p className="quote-price__soon">Choosing your cover arrives in 5.5</p> : null}
-    </>
-  );
 }

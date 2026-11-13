@@ -18,7 +18,13 @@ function need<T>(value: T | undefined, part: string): T {
   return value;
 }
 
-export function carInputsFromJourney(journey: Journey, car: RatedCar, today: string): CarInputs {
+export function carInputsFromJourney(
+  journey: Journey,
+  car: RatedCar,
+  today: string,
+  /** Chosen on Choose cover (5.5); the server has checked it is offered */
+  voluntaryExcessPence = 0,
+): CarInputs {
   const main = need(journey.mainDriver, "mainDriver");
   const usage = need(journey.usage, "usage");
   const claims = need(journey.claims, "claims");
@@ -47,6 +53,6 @@ export function carInputsFromJourney(journey: Journey, car: RatedCar, today: str
     annualMileage: usage.annualMileage,
     usage: usage.usage,
     overnightLocation: usage.overnight,
-    voluntaryExcessPence: 0,
+    voluntaryExcessPence,
   };
 }

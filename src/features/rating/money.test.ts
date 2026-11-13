@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { formatPounds, ipt, monthlyPayment, storedMonthly } from "./money";
+import { formatPounds, ipt, monthlyPayment, representativeApr, storedMonthly } from "./money";
 
 describe("money", () => {
   it("spreads a total with IPT over 12 payments, 10% more", () => {
@@ -24,5 +24,17 @@ describe("money", () => {
     expect(formatPounds(123_456)).toBe("£1,234.56");
     expect(formatPounds(4_202)).toBe("£42.02");
     expect(formatPounds(45_840)).toBe("£458.40");
+  });
+
+  it("works out the representative APR with the first payment at the start (5.5, decision 8)", () => {
+    // £458.40 is 12 payments of £42.02, at 0, 1, … 11 months. By hand, at 1.7824% a month the 12
+    // payments are worth 4202 × (1 − 1.017824^−12) ÷ (0.017824 ÷ 1.017824) = 45840 today, and
+    // 1.017824^12 − 1 = 23.61%
+    expect(representativeApr(45_840, 4_202)).toBe(23.6);
+    expect(representativeApr(175_379, monthlyPayment(175_379, 0.1))).toBe(23.6);
+  });
+
+  it("is 0% when paying monthly costs nothing more", () => {
+    expect(representativeApr(120_000, 10_000)).toBe(0);
   });
 });

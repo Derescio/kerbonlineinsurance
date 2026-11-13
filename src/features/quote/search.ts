@@ -21,8 +21,16 @@ export interface StartSearch {
 /** The car step's three views: none is the registration (screen 08) (5.2, call 9) */
 export type VehicleView = "manual" | "not-found";
 
-/** The driver steps and the holding quote view (5.3, call 5); none is the car step */
-export const QUOTE_STEPS = ["about", "driving", "claims", "drivers", "quote"] as const;
+/** The driver steps, Your quote (5.3, call 5), Choose cover and the home offer (5.5); none is the car step */
+export const QUOTE_STEPS = [
+  "about",
+  "driving",
+  "claims",
+  "drivers",
+  "quote",
+  "cover",
+  "add-home",
+] as const;
 export type QuoteStep = (typeof QUOTE_STEPS)[number];
 
 export interface CarSearch {

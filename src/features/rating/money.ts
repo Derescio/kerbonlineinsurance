@@ -24,3 +24,27 @@ const pounds = new Intl.NumberFormat("en-GB", {
 export function formatPounds(pence: number): string {
   return pounds.format(pence / 100);
 }
+
+/**
+ * The representative APR on paying monthly (5.5, decision 8), as a percentage to one decimal place.
+ * The credit is the annual total, repaid by 12 payments at 0, 1, … 11 months: the first is taken
+ * when cover starts. The rate solves CONC App 1.1's equation, compounded monthly to a year.
+ */
+export function representativeApr(totalPence: number, paymentPence: number): number {
+  const presentValue = (monthly: number) => {
+    let sum = 0;
+    for (let month = 0; month < 12; month++) sum += paymentPence / (1 + monthly) ** month;
+    return sum;
+  };
+  if (paymentPence * 12 <= totalPence) return 0;
+  // The present value falls as the rate rises: halve the gap until it settles
+  let low = 0;
+  let high = 1;
+  for (let i = 0; i < 100; i++) {
+    const mid = (low + high) / 2;
+    if (presentValue(mid) > totalPence) low = mid;
+    else high = mid;
+  }
+  const annual = (1 + (low + high) / 2) ** 12 - 1;
+  return Math.round(annual * 1000) / 10;
+}

@@ -45,8 +45,8 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 |---|---|---|---|
 | 01 | Quote start: type picker + postcode from the link | `222:6702` | 5.1 |
 | 02 | Coming soon, with car and home offered instead | `222:6717` | 5.1 |
-| 03 | Home quote referred | `222:6732` | 5.5 |
-| 04 | Bundle partially declined (home declined, car buyable) | `222:6747` | 5.5 |
+| 03 | Home quote referred. Built in 5.5 with sample home answers; "Your quote is saved" becomes "Sign in to send this for review" until 5.6 (5.5, decision 12) | `222:6732` | 5.5 |
+| 04 | Bundle partially declined (home declined, car buyable). Built in 5.5 with sample home answers; shown by 5.7 | `222:6747` | 5.5 |
 | 05 | Home · Property | `222:6762` | 5.7 |
 | 06 | Home · Contents & security | `222:6777` | 5.7 |
 | 07 | Home · Past claims | `222:6792` | 5.7 |
@@ -56,15 +56,15 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 11 | Car · Licence & driving. Replaced by Revamp R04 (5.4b) | `226:669` | 5.3 |
 | 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too. Replaced by Revamp R05/R06 (5.4b) | `226:684` | 5.3 |
 | 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3). Replaced by Revamp R07/R08 (5.4b) | `235:1638` | 5.3 |
-| 13 | Cover cards & comparison (1440 wide). Its monthly figures (annual ÷ 12) and footnote are out of date: paying monthly costs 10% more, so £458.40 a year is 12 payments of £42.02 (5.4, decision 1) | `226:699` | 5.5 |
+| 13 | Cover cards & comparison (1440 wide). Its monthly figures (annual ÷ 12) and footnote are out of date: paying monthly costs 10% more, so £458.40 a year is 12 payments of £42.02 (5.4, decision 1). Built in 5.5 with the real figures, a voluntary excess, the pay cards and a price breakdown; the table is hidden on a phone | `226:699` | 5.5 |
 | 14 | Before payment · Sign in | `226:714` | 5.6 |
 | 15 | Before payment · Create account | `226:729` | 5.6 |
 | 16 | Retrieve quote · Access (email link): **not built**, sign-in only (Damion, 9 Nov 2026) | `226:744` | — |
 | 17 | Retrieve quote · Saved quotes | `226:759` | 5.6 |
 | 18 | You're covered | `226:774` | 5.6 |
-| 19 | Car · Referred | `226:789` | 5.5 |
-| 20 | Car declined · Home available | `226:804` | 5.5 |
-| 21 | Start a car + home bundle | `230:1434` | 5.5 / 5.7 |
+| 19 | Car · Referred. "Your car quote is saved" becomes "What happens next?" and "Sign in to send this for review" until 5.6 (5.5, decision 9) | `226:789` | 5.5 |
+| 20 | Car declined · Home available. On the car journey the home card offers "Get a home quote"; the half as drawn waits for a home quote (5.7) (5.5, decision 10) | `226:804` | 5.5 |
+| 21 | Start a car + home bundle. Built in 5.5 after Choose cover: "Car quote saved" reads "Your car quote", and the footnote shows the 8% saving; "Add home insurance" waits for 5.7 (5.5, decision 11) | `230:1434` | 5.5 / 5.7 |
 | 22 | Home quote & choose cover (1440 wide) | `230:1449` | 5.7 |
 
 **About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12). Replaced by Revamp R03 (5.4b).
