@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { withCompleteJourney } from "./quote-journey";
+
 // The quote start (5.1): every way in, with and without JavaScript. The quote.started call can
 // fail where there's no database (a local preview); the journey must not notice.
 
@@ -82,3 +84,26 @@ test.describe("without JavaScript", () => {
     await expect(page.getByRole("textbox", { name: "Your postcode" })).toHaveValue("E8");
   });
 });
+
+// Nothing scrolls sideways at 360px on any car view (5.4b, call 12)
+const carViews = [
+  "/quote/car?postcode=E8+3RL",
+  "/quote/car?postcode=E8+3RL&vehicle=manual",
+  "/quote/car?postcode=E8+3RL&vehicle=not-found",
+  ...["about", "driving", "claims", "drivers", "quote"].map(
+    (step) => `/quote/car?postcode=E8+3RL&step=${step}`,
+  ),
+];
+
+for (const path of carViews) {
+  test(`${path} has no horizontal scroll at 360px`, async ({ page }) => {
+    // The car views open on an empty journey; the driver steps need the earlier answers
+    if (path.includes("step=")) await withCompleteJourney(page);
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width).toBeLessThanOrEqual(360);
+  });
+}

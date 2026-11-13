@@ -1,6 +1,6 @@
 # 5.4b Journey revamp
 
-**Status:** approved (Damion, 12 Nov 2026). Plan in [04b-journey-revamp-plan.md](04b-journey-revamp-plan.md)
+**Status:** done (PR pending; the manual check on the preview is still to record). Approved by Damion, 12 Nov 2026. Plan in [04b-journey-revamp-plan.md](04b-journey-revamp-plan.md)
 **Phase:** 05-quote
 
 ## Goal

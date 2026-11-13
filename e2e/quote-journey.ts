@@ -61,17 +61,50 @@ interface CatalogueCar {
   variant: string;
 }
 
-/** Puts the complete journey in sessionStorage before the page's own scripts run */
-export async function withCompleteJourney(page: Page): Promise<void> {
+/** The Tesla (group 32) with a 19-year-old named driver: declined, naming him (5.4, decision 14) */
+const tesla = {
+  make: "Tesla",
+  model: "Model 3",
+  year: 2024,
+  variant: "RWD",
+  fuelType: "electric",
+  doors: 4,
+};
+
+function nineteenYearOld() {
+  const dob = new Date();
+  dob.setUTCFullYear(dob.getUTCFullYear() - 19);
+  dob.setUTCMonth(0, 15);
+  return {
+    ...journey.namedDrivers.drivers[0],
+    firstName: "Sam",
+    dateOfBirth: dob.toISOString().slice(0, 10),
+    licenceDate: `${dob.getUTCFullYear() + 17}-06-01`,
+  };
+}
+
+/**
+ * Puts the complete journey in sessionStorage before the page's own scripts run. `declined` swaps
+ * in the Tesla and a 19-year-old named driver, so Your quote shows the review step (5.4b, R10).
+ */
+export async function withCompleteJourney(
+  page: Page,
+  { declined = false }: { declined?: boolean } = {},
+): Promise<void> {
   const { cars } = (await (await page.request.get("/api/catalogue")).json()) as {
     cars: CatalogueCar[];
   };
-  const v = journey.vehicle;
-  const golf = cars.find(
+  const v = declined ? { ...journey.vehicle, ...tesla } : journey.vehicle;
+  const car = cars.find(
     (c) => c.make === v.make && c.model === v.model && c.year === v.year && c.variant === v.variant,
   );
-  if (!golf) throw new Error("The 2021 Golf 1.0 TSI Life isn't in the catalogue");
-  const stored = { ...journey, vehicle: { ...v, catalogueVariantId: golf.id } };
+  if (!car)
+    throw new Error(`The ${v.year} ${v.make} ${v.model} ${v.variant} isn't in the catalogue`);
+  const stored = {
+    ...journey,
+    vehicle: { ...v, catalogueVariantId: car.id },
+    ...(declined && { namedDrivers: { any: true, drivers: [nineteenYearOld()] } }),
+  };
   await page.addInitScript((value) => {
     sessionStorage.setItem("kerb.quote.v1.car", value);
   }, JSON.stringify(stored));
