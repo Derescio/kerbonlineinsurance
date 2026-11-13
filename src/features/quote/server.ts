@@ -1,8 +1,11 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { getRequestHeaders, setResponseHeader } from "@tanstack/react-start/server";
 
 import type { WriteResult } from "#/lib/validation";
+import { AuthzError } from "#/server/auth/errors";
 import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
+import type { PaymentSummary, Purchase } from "#/server/data/quotes";
 import type { PostcodeCheck } from "#/server/quote/postcode";
 import type { PayResult } from "#/server/quote/pay";
 import type { CarPriceResult } from "#/server/quote/price";
@@ -82,4 +85,35 @@ export const payFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<WriteResult<PayResult>> => {
     const { payForQuote } = await import("#/server/quote/pay");
     return payForQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+/** Someone else's quote, or a missing one, is the site's not-found page (5.6, decision 2) */
+async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
+  setResponseHeader("Cache-Control", "private, no-store");
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof AuthzError && error.code === "NOT_FOUND") throw notFound();
+    throw error;
+  }
+}
+
+const quoteIdInput = (input: { quoteId: string }) => ({ quoteId: String(input?.quoteId ?? "") });
+
+/** Confirm and pay's quote, read from the saved rows (5.6, decision 6). Owner only. */
+export const getQuoteForPaymentFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator(quoteIdInput)
+  .handler(async ({ context, data }): Promise<PaymentSummary> => {
+    const { getQuoteForPayment } = await import("#/server/data/quotes");
+    return orNotFound(() => getQuoteForPayment(context.actor, data));
+  });
+
+/** What You're covered shows: the policies and payment bought from a quote (5.6, decision 9) */
+export const getPurchaseFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator(quoteIdInput)
+  .handler(async ({ context, data }): Promise<Purchase> => {
+    const { getPurchase } = await import("#/server/data/quotes");
+    return orNotFound(() => getPurchase(context.actor, data));
   });

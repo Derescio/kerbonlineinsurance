@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 import { checkCard, DECLINED_TEST_CARD, type CardBrand } from "#/features/quote/card";
+import {
+  ACCOUNT_CLOSING,
+  ALREADY_BOUGHT,
+  CARD_DECLINED,
+  NOT_BUYABLE,
+  QUOTE_EXPIRED,
+  START_DATE_RANGE,
+} from "#/features/quote/pay-copy";
 import { paymentSchedule, policyEndDate, startDateBounds } from "#/features/quote/policy-terms";
 import { todayIso } from "#/features/quote/schemas/dates";
 import { formatPounds } from "#/features/rating/money";
@@ -45,12 +53,14 @@ import { STAFF_CANT_BUY } from "./save";
 // the accepted quote, the audit rows and the email job. Any failure rolls all of it back, and a
 // second payment from another tab waits on the quote's lock and then finds it accepted.
 
-export const CARD_DECLINED = "Your card was declined. Try another card.";
-export const ACCOUNT_CLOSING = "Your account is closing, so you can’t buy a policy.";
-export const ALREADY_BOUGHT = "You’ve already bought this quote.";
-export const QUOTE_EXPIRED = "This quote has expired. Get a new quote to see today’s price.";
-export const NOT_BUYABLE = "This quote can’t be bought online.";
-export const START_DATE_RANGE = "Choose a start date from today up to 30 days ahead.";
+export {
+  ACCOUNT_CLOSING,
+  ALREADY_BOUGHT,
+  CARD_DECLINED,
+  NOT_BUYABLE,
+  QUOTE_EXPIRED,
+  START_DATE_RANGE,
+};
 
 export type PayResult = { quoteId: string; policyReferences: string[] };
 

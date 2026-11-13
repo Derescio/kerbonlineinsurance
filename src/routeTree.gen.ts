@@ -40,6 +40,8 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
+import { Route as QuoteQuoteCoveredQuoteIdRouteImport } from './routes/_quote/quote.covered.$quoteId'
+import { Route as QuoteQuotePayQuoteIdRouteImport } from './routes/_quote/quote.pay.$quoteId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -192,6 +194,17 @@ const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   path: '/api/webhooks/resend',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QuoteQuoteCoveredQuoteIdRoute =
+  QuoteQuoteCoveredQuoteIdRouteImport.update({
+    id: '/quote/covered/$quoteId',
+    path: '/quote/covered/$quoteId',
+    getParentRoute: () => QuoteRoute,
+  } as any)
+const QuoteQuotePayQuoteIdRoute = QuoteQuotePayQuoteIdRouteImport.update({
+  id: '/quote/pay/$quoteId',
+  path: '/quote/pay/$quoteId',
+  getParentRoute: () => QuoteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
@@ -221,6 +234,8 @@ export interface FileRoutesByFullPath {
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/quote/': typeof QuoteQuoteIndexRoute
+  '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
+  '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
@@ -250,6 +265,8 @@ export interface FileRoutesByTo {
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/quote': typeof QuoteQuoteIndexRoute
+  '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
+  '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -284,6 +301,8 @@ export interface FileRoutesById {
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/_quote/quote/': typeof QuoteQuoteIndexRoute
+  '/_quote/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
+  '/_quote/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -315,6 +334,8 @@ export interface FileRouteTypes {
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
     | '/quote/'
+    | '/quote/covered/$quoteId'
+    | '/quote/pay/$quoteId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -344,6 +365,8 @@ export interface FileRouteTypes {
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
     | '/quote'
+    | '/quote/covered/$quoteId'
+    | '/quote/pay/$quoteId'
   id:
     | '__root__'
     | '/_auth'
@@ -377,6 +400,8 @@ export interface FileRouteTypes {
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
     | '/_quote/quote/'
+    | '/_quote/quote/covered/$quoteId'
+    | '/_quote/quote/pay/$quoteId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -617,6 +642,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksResendRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_quote/quote/covered/$quoteId': {
+      id: '/_quote/quote/covered/$quoteId'
+      path: '/quote/covered/$quoteId'
+      fullPath: '/quote/covered/$quoteId'
+      preLoaderRoute: typeof QuoteQuoteCoveredQuoteIdRouteImport
+      parentRoute: typeof QuoteRoute
+    }
+    '/_quote/quote/pay/$quoteId': {
+      id: '/_quote/quote/pay/$quoteId'
+      path: '/quote/pay/$quoteId'
+      fullPath: '/quote/pay/$quoteId'
+      preLoaderRoute: typeof QuoteQuotePayQuoteIdRouteImport
+      parentRoute: typeof QuoteRoute
+    }
   }
 }
 
@@ -647,6 +686,8 @@ interface QuoteRouteChildren {
   QuoteQuoteComingSoonRoute: typeof QuoteQuoteComingSoonRoute
   QuoteQuoteHomeRoute: typeof QuoteQuoteHomeRoute
   QuoteQuoteIndexRoute: typeof QuoteQuoteIndexRoute
+  QuoteQuoteCoveredQuoteIdRoute: typeof QuoteQuoteCoveredQuoteIdRoute
+  QuoteQuotePayQuoteIdRoute: typeof QuoteQuotePayQuoteIdRoute
 }
 
 const QuoteRouteChildren: QuoteRouteChildren = {
@@ -654,6 +695,8 @@ const QuoteRouteChildren: QuoteRouteChildren = {
   QuoteQuoteComingSoonRoute: QuoteQuoteComingSoonRoute,
   QuoteQuoteHomeRoute: QuoteQuoteHomeRoute,
   QuoteQuoteIndexRoute: QuoteQuoteIndexRoute,
+  QuoteQuoteCoveredQuoteIdRoute: QuoteQuoteCoveredQuoteIdRoute,
+  QuoteQuotePayQuoteIdRoute: QuoteQuotePayQuoteIdRoute,
 }
 
 const QuoteRouteWithChildren = QuoteRoute._addFileChildren(QuoteRouteChildren)

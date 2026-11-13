@@ -335,6 +335,18 @@ export function journeyToSave(journey: Journey): Omit<Journey, "lastPlate" | "sa
   return rest;
 }
 
+/**
+ * Forgets the product's journey (5.6, decision 9): after a payment, so a shared computer doesn't
+ * keep the answers, and Back to the gate finds nothing to save.
+ */
+export function clearJourney(product: BuyableProductId): void {
+  try {
+    (sessionStore() as Storage | null)?.removeItem(journeyKey(product));
+  } catch {
+    // Blocked: there was nothing stored to clear
+  }
+}
+
 const CAR_WITHDRAWN_KEY = "kerb.quote.v1.car.withdrawn";
 
 /** The save found the car withdrawn (5.6, decision 5): the car step says so, once */
