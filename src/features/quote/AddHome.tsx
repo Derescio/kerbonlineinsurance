@@ -10,13 +10,14 @@ import { formatPounds } from "#/features/rating/money";
 import { useCoverPrice, type CoverMoves } from "./ChooseCover";
 import { composeCover, TIERS, usableCover } from "./cover";
 import { DEFAULT_COVER, type Journey } from "./journey-store";
-import { HoldingButton, JourneyPage, StepNav } from "./page-kit";
+import { JourneyPage, StepNav } from "./page-kit";
 import { normalisePostcode, postcodeError } from "./postcode";
 import { StepHeading } from "./step-kit";
 
 // "Add home insurance to your car quote?" (5.5, decision 11; screen 21, 230:1434, in 5.4b's frame),
-// after Choose cover. Nothing is saved before 5.6, so the car quote is "kept", not "saved", and the
-// footnote shows the bundle saving that v1 keeps. The home journey arrives in 5.7.
+// after Choose cover. The car quote is "kept", not "saved": it's saved at the gate (5.6), which
+// "Continue with car only" goes to. The footnote shows the bundle saving that v1 keeps. The home
+// journey arrives in 5.7.
 
 const whole = (pence: number) => formatPounds(pence).replace(".00", "");
 
@@ -24,12 +25,15 @@ export function AddHome({
   journey,
   aside,
   onBack,
+  onCarOnly,
   ...moves
 }: {
   journey: Journey;
   aside: ReactNode;
   /** "Back to car quote": Choose cover */
   onBack: () => void;
+  /** "Continue with car only": the gate (5.6, decision 2) */
+  onCarOnly: () => void;
 } & CoverMoves) {
   const { result } = useCoverPrice(journey, moves);
   const [postcode, setPostcode] = useState(journey.postcode);
@@ -150,9 +154,9 @@ export function AddHome({
         onBack={onBack}
         backLabel="Back to car quote"
         next={
-          <HoldingButton variant="secondary" line="Buying arrives in 5.6">
+          <Button variant="secondary" onClick={onCarOnly}>
             Continue with car only
-          </HoldingButton>
+          </Button>
         }
       />
     </JourneyPage>

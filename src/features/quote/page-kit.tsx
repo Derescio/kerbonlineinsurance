@@ -64,8 +64,10 @@ export function DetailsTabs({
     strip.scrollLeft += item.getBoundingClientRect().left - strip.getBoundingClientRect().left;
   }, [current]);
 
+  // The nav is what scrolls at phone width, so it takes focus: a keyboard can then scroll it even
+  // when every tab is plain text, as on a fresh journey (axe: scrollable-region-focusable)
   return (
-    <nav aria-label="Your details" className="quote-tabs">
+    <nav aria-label="Your details" className="quote-tabs" tabIndex={0}>
       <ol ref={list}>
         {(Object.keys(tabLabels) as DetailsTab[]).map((tab, i) => {
           const state = states[tab];

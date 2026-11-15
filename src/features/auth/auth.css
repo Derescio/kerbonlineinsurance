@@ -337,20 +337,47 @@
   align-items: center;
   gap: var(--space-2);
 }
-.account__placeholder {
+.account__policies {
   display: grid;
-  place-items: center;
-  min-height: 240px;
-  border: 1px dashed var(--border-2);
-  border-radius: var(--radius-xl);
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  font: 400 var(--text-body-s) / var(--lh-body-s) var(--font-body);
-  color: var(--fg-3);
-  text-align: center;
-  padding: var(--space-6);
 }
-.account__placeholder p {
+.account__policies-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+.account__policies-head .account__ways-title {
   margin: 0;
+}
+.account__policies-head .kb-btn > span {
+  display: inline-flex;
+  align-items: center;
+}
+.account__policy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.account__policy {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-1);
+}
+.account__policy p {
+  margin: 0;
+}
+.account__policy-ref {
+  font: 600 var(--text-body-s) / var(--lh-body-s) var(--font-mono);
+  color: var(--fg-1);
 }
 
 /* Two-factor screens (4.6; Figma Account · Web (two-factor) 205:4701) */

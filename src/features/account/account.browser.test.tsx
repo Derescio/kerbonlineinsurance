@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
+import { AccountPage } from "#/features/auth/AccountPage";
+import type { AccountSummary } from "#/features/auth/session";
 import { PublicError } from "#/server/auth/errors";
+import type { PolicySummary } from "#/server/data/policies";
 import { renderWithRouter } from "#/test/router";
 
 import { ClosePage } from "./ClosePage";
@@ -307,4 +310,60 @@ describe("delete: an UNAUTHENTICATED answer", () => {
       await expect.poll(() => router.state.location.pathname).toBe("/login");
     },
   );
+});
+
+describe("the account page's policies (5.6, decision 12)", () => {
+  const summary: AccountSummary = {
+    user: { id: "u1", name: "Alex Morgan", email: "alex@example.com", emailVerified: true },
+    providers: ["credential"],
+    greeting: "Good morning",
+    twoFactorEnabled: false,
+  };
+  const policy = (over: Partial<PolicySummary>): PolicySummary => ({
+    id: "p1",
+    reference: "KRB-482913",
+    product: "car",
+    coverLevel: "comprehensive",
+    status: "active",
+    startsOn: "2026-11-20",
+    endsOn: "2027-11-19",
+    ...over,
+  });
+
+  it("lists each policy and links to saved quotes", async () => {
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[
+          policy({}),
+          policy({
+            id: "p2",
+            reference: "KRB-123456",
+            coverLevel: "essential",
+            status: "lapsed",
+            startsOn: "2025-03-01",
+            endsOn: "2026-02-28",
+          }),
+        ]}
+      />,
+    );
+    await expect.element(page.getByRole("heading", { name: "Your policies" })).toBeVisible();
+    await expect.element(page.getByText("KRB-482913")).toBeVisible();
+    await expect.element(page.getByText("Car · Comprehensive")).toBeVisible();
+    await expect.element(page.getByText("Active", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("20 Nov 2026 to 19 Nov 2027")).toBeVisible();
+    await expect.element(page.getByText("KRB-123456")).toBeVisible();
+    await expect.element(page.getByText("Car · Essential")).toBeVisible();
+    await expect.element(page.getByText("Lapsed", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("1 Mar 2025 to 28 Feb 2026")).toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Your saved quotes" }))
+      .toHaveAttribute("href", "/quote/retrieve");
+  });
+
+  it("says so when there are no policies", async () => {
+    await renderWithRouter(<AccountPage summary={summary} notice={{}} policies={[]} />);
+    await expect.element(page.getByText("You don’t have any policies yet.")).toBeVisible();
+  });
 });

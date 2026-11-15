@@ -7,6 +7,7 @@ import {
   closureHeldEmail,
   closureRequestedEmail,
   existingAccountEmail,
+  policyConfirmedEmail,
   resetPasswordEmail,
   verifyEmail,
   type EmailContent,
@@ -35,6 +36,18 @@ export const EMAIL_TEMPLATES = {
   closure_cancelled: entry(none, closureCancelledEmail),
   closure_held: entry(z.object({ claimReference: z.string() }), closureHeldEmail),
   account_closed: entry(none, accountClosedEmail),
+  policy_confirmed: entry(
+    z.object({
+      name: z.string(),
+      policyReference: z.string(),
+      car: z.string(),
+      startsOn: z.string(),
+      endsOn: z.string(),
+      amount: z.string(),
+      url: z.string(),
+    }),
+    policyConfirmedEmail,
+  ),
 };
 
 export type EmailTemplate = keyof typeof EMAIL_TEMPLATES;

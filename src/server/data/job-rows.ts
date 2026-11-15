@@ -1,10 +1,17 @@
-import { and, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, lte, notExists, sql } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
 import { MAX_ATTEMPTS } from "#/server/jobs/backoff";
 
 export type { Db };
-import { idempotencyKeys, jobs, rateLimits } from "#/server/db/schema";
+import {
+  accountClosures,
+  idempotencyKeys,
+  jobs,
+  rateLimits,
+  staffMembers,
+  users,
+} from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
 
 // The jobs table's row helpers behind src/server/jobs/ (4.11). Plain functions, not defineRead:
@@ -136,16 +143,20 @@ export interface ExpiredRows {
   rateLimits: number;
   doneJobs: number;
   deadJobs: number;
+  unconfirmedUsers: number;
 }
 
 /**
  * The daily housekeeping (4.5c call 20, 4.11 call 13): expired idempotency keys, rate-limit windows
  * over a day old (the longest window is an hour), done jobs after 7 days and dead jobs after 30.
+ * Accounts whose email is still unconfirmed 7 days after sign-up go too (5.6, decision 1), their
+ * customer and quotes by cascade. Staff are never touched; nor is a user with a closure row, whose
+ * RESTRICT would fail the whole statement (an unconfirmed account can't sign in to make one).
  */
 export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows> {
   const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
   const ids = { id: jobs.id };
-  const [keys, windows, done, dead] = await Promise.all([
+  const [keys, windows, done, dead, unconfirmed] = await Promise.all([
     db
       .delete(idempotencyKeys)
       .where(lt(idempotencyKeys.expiresAt, now))
@@ -162,11 +173,23 @@ export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows>
       .delete(jobs)
       .where(and(eq(jobs.status, "dead"), lt(jobs.updatedAt, before(30))))
       .returning(ids),
+    db
+      .delete(users)
+      .where(
+        and(
+          eq(users.emailVerified, false),
+          lt(users.createdAt, before(7)),
+          notExists(db.select().from(staffMembers).where(eq(staffMembers.userId, users.id))),
+          notExists(db.select().from(accountClosures).where(eq(accountClosures.userId, users.id))),
+        ),
+      )
+      .returning({ id: users.id }),
   ]);
   return {
     idempotencyKeys: keys.length,
     rateLimits: windows.length,
     doneJobs: done.length,
     deadJobs: dead.length,
+    unconfirmedUsers: unconfirmed.length,
   };
 }

@@ -21,6 +21,8 @@ import { priceCar } from "./server";
 
 vi.mock("./server", () => ({ priceCar: vi.fn() }));
 const price = vi.mocked(priceCar);
+// The gate (5.6) has its own tests, with a router and a session
+vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
 
 /** The Golf's prices at an excess: every level × the band's multiplier, as v1 prices them */
 function pricesAt(voluntaryExcessPence: number): CarPriceResult {
@@ -275,10 +277,15 @@ describe("Add home insurance (screen 21)", () => {
     await field.fill("n1 9gu");
     await page.getByRole("button", { name: "Add home insurance" }).click();
     await expect.element(page.getByText("Home quotes are coming soon")).toBeVisible();
-    await page.getByRole("button", { name: "Continue with car only" }).click();
-    await expect.element(page.getByText("Buying arrives in 5.6")).toBeVisible();
     await page.getByRole("button", { name: "Back to car quote" }).click();
     expect(moves.at(-1)).toEqual({ step: "cover", replace: false });
+  });
+
+  it("goes to the gate with the car only (5.6, decision 2)", async () => {
+    await show("add-home");
+    await page.getByRole("button", { name: "Continue with car only" }).click();
+    expect(moves.at(-1)).toEqual({ step: "buy", replace: false });
+    await expect.element(page.getByText("The gate")).toBeVisible();
   });
 });
 
@@ -292,15 +299,21 @@ describe("the bundle screens, with sample home answers (screens 03, 04 and 20)",
 
   it("screen 03: a home quote under review, sent for review once signed in", async () => {
     const onCheckAnswers = vi.fn();
-    await render(<HomeReferred home={home} aside={aside} onCheckAnswers={onCheckAnswers} />);
+    const onSendForReview = vi.fn();
+    await render(
+      <HomeReferred
+        home={home}
+        aside={aside}
+        onCheckAnswers={onCheckAnswers}
+        onSendForReview={onSendForReview}
+      />,
+    );
     await expect.element(heading()).toHaveTextContent("We need to check a couple of things…");
     await expect.element(page.getByText("18 Albion Road, London")).toBeVisible();
     await expect.element(page.getByText("E8 3RL · Buildings and contents")).toBeVisible();
     await expect.element(page.getByText(/saved/)).not.toBeInTheDocument();
     await page.getByRole("button", { name: "Sign in to send this for review" }).click();
-    await expect
-      .element(page.getByText("Sending your quote for review arrives in 5.6"))
-      .toBeVisible();
+    expect(onSendForReview).toHaveBeenCalled();
     await page.getByRole("button", { name: "Check your answers" }).click();
     expect(onCheckAnswers).toHaveBeenCalled();
   });
@@ -348,7 +361,9 @@ describe("the bundle screens, with sample home answers (screens 03, 04 and 20)",
   });
 
   it("never shows a reason code or threshold", async () => {
-    await render(<HomeReferred home={home} aside={aside} onCheckAnswers={vi.fn()} />);
+    await render(
+      <HomeReferred home={home} aside={aside} onCheckAnswers={vi.fn()} onSendForReview={vi.fn()} />,
+    );
     const text = document.body.textContent ?? "";
     for (const word of ["premium_above_max", "threshold", "reason"]) {
       expect(text).not.toContain(word);

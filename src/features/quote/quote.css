@@ -549,6 +549,10 @@ button.quote-tabs__tab:focus-visible {
     scroll-snap-type: x proximity;
     scrollbar-width: none;
   }
+  .quote-tabs:focus-visible {
+    outline: 2px solid var(--green-600);
+    outline-offset: -2px;
+  }
   .quote-tabs ol {
     display: flex;
     padding-inline: var(--site-gutter);
@@ -987,4 +991,134 @@ button.quote-tabs__tab:focus-visible {
   margin: 0;
   color: var(--fg-2);
   font-size: 14px;
+}
+
+/* The gate (5.6, decisions 2 and 3; screens 14 and 15): 4.4's forms on a card, "Your cover is
+   waiting" beside them */
+.quote-nav__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.quote-gate {
+  display: grid;
+  gap: var(--space-5);
+}
+.quote-gate__switch {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.quote-waiting {
+  display: grid;
+  gap: var(--space-2);
+}
+.quote-waiting h2,
+.quote-waiting p {
+  margin: 0;
+}
+.quote-waiting__amount {
+  font: 700 22px/28px var(--font-display);
+}
+.quote-waiting__note {
+  margin-top: var(--space-2);
+  color: var(--fg-2);
+  font-size: 14px;
+}
+
+/* Confirm and pay and You're covered (5.6, decisions 6 and 9; the Purchase frame and screen 18):
+   the summary card's rows, the button row with a refusal under it, and the covered column */
+.quote-paysum {
+  display: grid;
+  gap: var(--space-3);
+}
+.quote-paysum p {
+  margin: 0;
+}
+.quote-paysum__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.quote-paysum__head h2 {
+  margin: 0;
+}
+.quote-paysum__rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.quote-paysum__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-1);
+}
+.quote-paysum__row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.quote-paysum__row dt {
+  color: var(--fg-2);
+}
+.quote-paysum__row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.quote-pay-submit {
+  display: grid;
+  gap: var(--space-4);
+}
+.quote-covered .quote-heading {
+  justify-items: start;
+}
+.quote-covered__body {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 640px;
+}
+.quote-covered__body > p {
+  margin: 0;
+}
+.quote-covered__payment {
+  font-weight: 600;
+}
+
+/* Your saved quotes (5.6, decision 10) */
+.quote-saved__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-5);
+  max-width: 720px;
+}
+.quote-saved__card,
+.quote-saved__empty {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+}
+.quote-saved__card p,
+.quote-saved__card h2,
+.quote-saved__empty p {
+  margin: 0;
+}
+.quote-saved__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+  justify-self: stretch;
+}
+.quote-saved__head > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

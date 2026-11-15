@@ -3,6 +3,8 @@ import { useState } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Wordmark } from "#/components/display/Wordmark";
+import { tierName } from "#/features/quote/labels";
+import type { PolicySummary } from "#/server/data/policies";
 
 import { ClosureBanner } from "../account/ClosureBanner";
 import { authClient } from "./auth-client";
@@ -22,9 +24,11 @@ export interface AccountNotice {
 
 export function AccountPage({
   summary,
+  policies,
   notice,
 }: {
   summary: AccountSummary;
+  policies: PolicySummary[];
   notice: AccountNotice;
 }) {
   const navigate = useNavigate();
@@ -82,14 +86,55 @@ export function AccountPage({
         <h1 className="account__title">
           {greeting}, {firstName}
         </h1>
+        <YourPolicies policies={policies} />
         <WaysToLogIn providers={providers} />
         <TwoFactor enabled={summary.twoFactorEnabled} />
         <CloseAccount />
-        <section className="account__placeholder" aria-label="Your account">
-          <p>Your policies, documents and claims will appear here.</p>
-        </section>
       </main>
     </div>
+  );
+}
+
+const POLICY_DATE = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const policyDay = (iso: string) => POLICY_DATE.format(new Date(`${iso}T00:00:00Z`));
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** Your policies (5.6, decision 12), from listMyPolicies until 6.1's dashboard replaces it */
+function YourPolicies({ policies }: { policies: PolicySummary[] }) {
+  return (
+    <section className="account__policies" aria-labelledby="policies-title">
+      <div className="account__policies-head">
+        <h2 id="policies-title" className="account__ways-title">
+          Your policies
+        </h2>
+        <Link to="/quote/retrieve" className="kb-btn kb-btn--secondary kb-btn--md">
+          <span>Your saved quotes</span>
+        </Link>
+      </div>
+      {policies.length === 0 ? (
+        <p className="account__ways-text">You don’t have any policies yet.</p>
+      ) : (
+        <ul className="account__policy-list">
+          {policies.map((policy) => (
+            <li key={policy.id} className="account__policy">
+              <p className="account__policy-ref">{policy.reference}</p>
+              <p className="account__ways-text">
+                {capitalise(policy.product)} · {tierName(policy.coverLevel)}
+              </p>
+              <p className="account__ways-text">{capitalise(policy.status)}</p>
+              <p className="account__ways-text">
+                {policyDay(policy.startsOn)} to {policyDay(policy.endsOn)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

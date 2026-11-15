@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
 import { CarCard, DetailsTabs, HelpCard, StepNav } from "./page-kit";
@@ -35,6 +35,28 @@ describe("DetailsTabs", () => {
 });
 
 describe("DetailsTabs scrolling (5.4b, call 12)", () => {
+  it("lets a keyboard reach the strip that scrolls, even when no tab is a button", async () => {
+    const fresh = {
+      car: "current",
+      about: "locked",
+      driving: "locked",
+      claims: "locked",
+      drivers: "locked",
+    } as const;
+    await render(
+      <>
+        <button type="button">Before</button>
+        <DetailsTabs states={fresh} onOpen={() => {}} />
+      </>,
+    );
+    const nav = page.getByRole("navigation", { name: "Your details" });
+    await expect.element(nav.getByRole("button")).not.toBeInTheDocument();
+    await expect.element(nav).toHaveAttribute("tabindex", "0");
+    page.getByRole("button", { name: "Before" }).element().focus();
+    await userEvent.tab();
+    await expect.element(nav).toHaveFocus();
+  });
+
   const states = {
     car: "done",
     about: "done",

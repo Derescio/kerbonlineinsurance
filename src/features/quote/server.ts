@@ -1,9 +1,15 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { getRequestHeaders, setResponseHeader } from "@tanstack/react-start/server";
 
-import { publicMiddleware } from "#/server/auth/middleware";
+import type { WriteResult } from "#/lib/validation";
+import { AuthzError } from "#/server/auth/errors";
+import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
+import type { PaymentSummary, Purchase, SavedQuoteCard } from "#/server/data/quotes";
 import type { PostcodeCheck } from "#/server/quote/postcode";
+import type { PayResult } from "#/server/quote/pay";
 import type { CarPriceResult } from "#/server/quote/price";
+import type { SaveCarResult } from "#/server/quote/save";
 import type { StartQuoteInput } from "#/server/quote/start";
 
 // The quote journey's server functions. Server modules are imported inside the handlers, which
@@ -37,4 +43,96 @@ export const priceCar = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CarPriceResult> => {
     const { priceCarJourney } = await import("#/server/quote/price");
     return priceCarJourney(data, getRequestHeaders());
+  });
+
+export interface SaveQuoteEnvelope {
+  input: { journey: unknown };
+  idempotencyKey: string;
+}
+
+/**
+ * Saves the signed-in user's car journey at the gate (5.6, decision 5). The server checks and
+ * prices it again; the key makes a double click or a retry one save.
+ */
+export const saveQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveQuoteEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveCarResult>> => {
+    const { saveCarQuote } = await import("#/server/quote/save");
+    return saveCarQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+export interface PayEnvelope {
+  input: {
+    quoteId: string;
+    plan: "annual" | "monthly";
+    startsOn: string;
+    card: { name: string; number: string; expiry: string; code: string };
+    detailsConfirmed: boolean;
+    coverAcknowledged: boolean;
+  };
+  idempotencyKey: string;
+}
+
+/**
+ * Pays for a saved quote (5.6, decision 7): the policy, payments, audit and email in one
+ * transaction. The key makes a double click or a retry one policy. The card number and code are
+ * checked on the server and go no further than the parse.
+ */
+export const payFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: PayEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<PayResult>> => {
+    const { payForQuote } = await import("#/server/quote/pay");
+    return payForQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+/** Someone else's quote, or a missing one, is the site's not-found page (5.6, decision 2) */
+async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
+  setResponseHeader("Cache-Control", "private, no-store");
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof AuthzError && error.code === "NOT_FOUND") throw notFound();
+    throw error;
+  }
+}
+
+const quoteIdInput = (input: { quoteId: string }) => ({ quoteId: String(input?.quoteId ?? "") });
+
+/** Confirm and pay's quote, read from the saved rows (5.6, decision 6). Owner only. */
+export const getQuoteForPaymentFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator(quoteIdInput)
+  .handler(async ({ context, data }): Promise<PaymentSummary> => {
+    const { getQuoteForPayment } = await import("#/server/data/quotes");
+    return orNotFound(() => getQuoteForPayment(context.actor, data));
+  });
+
+/** What You're covered shows: the policies and payment bought from a quote (5.6, decision 9) */
+export const getPurchaseFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator(quoteIdInput)
+  .handler(async ({ context, data }): Promise<Purchase> => {
+    const { getPurchase } = await import("#/server/data/quotes");
+    return orNotFound(() => getPurchase(context.actor, data));
+  });
+
+export interface SavedQuotes {
+  owner: { firstName: string; lastName: string };
+  cards: SavedQuoteCard[];
+}
+
+/** Your saved quotes: the customer's own, newest first, and their name for the eyebrow (decision 10) */
+export const listMyQuotesFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .handler(async ({ context }): Promise<SavedQuotes> => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    const { getMyCustomerName, listMyQuotes } = await import("#/server/data/quotes");
+    const [name, cards] = await Promise.all([
+      getMyCustomerName(context.actor, {}),
+      listMyQuotes(context.actor, {}),
+    ]);
+    // No customer row yet means nothing saved; a blank name leaves the overline "Saved quotes"
+    return { owner: name ?? { firstName: "", lastName: "" }, cards };
   });

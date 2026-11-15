@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_quote/quote/car")({
 });
 
 function CarQuotePage() {
-  const { postcode, vehicle, step } = Route.useSearch();
+  const { postcode, vehicle, step, after } = Route.useSearch();
   const navigate = Route.useNavigate();
   if (!postcode) return null;
 
@@ -44,12 +44,21 @@ function CarQuotePage() {
         </noscript>
         <DriverSteps
           step={step}
+          after={after}
           onStep={(next, opts) =>
             void navigate({
-              search: (current) => ({ ...current, vehicle: undefined, step: next }),
+              // The gate's own params go with every move (5.6)
+              search: (current) => ({
+                ...current,
+                vehicle: undefined,
+                step: next,
+                auth: undefined,
+                after: opts?.after,
+              }),
               replace: opts?.replace,
             })
           }
+          onRestart={() => void navigate({ to: "/quote", search: { type: "car" }, replace: true })}
         />
       </JourneyShell>
     );

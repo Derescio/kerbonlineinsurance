@@ -164,10 +164,10 @@ describe("carSearch", () => {
     expect(carSearch({ postcode: "E8 3RL", vehicle: "not-found" }).vehicle).toBe("not-found");
   });
 
-  it("drops a bad view quietly, and always returns both keys", () => {
+  it("drops a bad view quietly, and always returns every key", () => {
     expect(carSearch({ vehicle: "garage" }).vehicle).toBeUndefined();
     expect(carSearch({ vehicle: 1 }).vehicle).toBeUndefined();
-    expect(Object.keys(carSearch({}))).toEqual(["postcode", "vehicle", "step"]);
+    expect(Object.keys(carSearch({}))).toEqual(["postcode", "vehicle", "step", "auth", "after"]);
   });
 
   it("keeps a known driver step and drops anything else (5.3, call 5)", () => {
@@ -179,5 +179,21 @@ describe("carSearch", () => {
     expect(carSearch({ step: 1 }).step).toBeUndefined();
     expect(carSearch({}).step).toBeUndefined();
     expect(carSearch({ vehicle: "manual", step: "about" }).vehicle).toBe("manual");
+  });
+
+  it("keeps the gate's auth and after on the gate only (5.6, decision 2)", () => {
+    expect(carSearch({ step: "buy", auth: "signup", after: "retrieve" })).toMatchObject({
+      step: "buy",
+      auth: "signup",
+      after: "retrieve",
+    });
+    expect(carSearch({ step: "buy", auth: "login", after: "pay" })).toMatchObject({
+      auth: undefined,
+      after: undefined,
+    });
+    expect(carSearch({ step: "cover", auth: "signup", after: "retrieve" })).toMatchObject({
+      auth: undefined,
+      after: undefined,
+    });
   });
 });

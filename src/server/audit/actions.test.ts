@@ -23,6 +23,10 @@ describe("AUDIT_ACTIONS", () => {
     expect(AUDIT_ACTIONS["file.viewed"].entityType).toBe("file");
   });
 
+  it("records a purchase against the policy bought (5.6)", () => {
+    expect(AUDIT_ACTIONS["policy.purchased"].entityType).toBe("policy");
+  });
+
   it("every name is area.verb", () => {
     // The same pattern as audit_log_action_check in 0001
     for (const name of Object.keys(AUDIT_ACTIONS)) {

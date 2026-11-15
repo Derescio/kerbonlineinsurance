@@ -6,6 +6,7 @@ import type { PricedQuote } from "#/features/rating/price-quote";
 import { getDb, type Db } from "#/server/db/client";
 import {
   businesses,
+  customers,
   drivers,
   properties,
   quoteItemAddons,
@@ -17,12 +18,14 @@ import {
   vehicles,
 } from "#/server/db/schema";
 
-import { withTx } from "#/server/db/tx";
+import { isTx, withSavepoint, withTx, type Tx } from "#/server/db/tx";
 
 import { quoteRows, type SaveItem } from "./quote-rows";
 
 // saveQuote() (5.4, spec decision 2): a priced quote and everything under it, in one transaction.
-// Built and tested here; 5.6 calls it after sign-in and adds its idempotency key and rate limit.
+// Given a Tx (5.6, decision 5), it runs inside it, so the customer row, the quote and the
+// idempotency record commit together; each attempt is then a savepoint, so a reference clash
+// rolls back that attempt alone and the next one can run. Given a Db, it opens its own.
 
 const VALID_DAYS = 30;
 const REFERENCE_TRIES = 5;
@@ -72,7 +75,7 @@ export interface SaveQuoteInput {
 }
 
 export async function saveQuote(
-  db: Db = getDb(),
+  db: Db | Tx = getDb(),
   input: SaveQuoteInput,
   deps: { drawReference?: () => string } = {},
 ): Promise<{ quoteId: string; reference: string }> {
@@ -91,7 +94,7 @@ export async function saveQuote(
       items: input.items,
     });
     try {
-      await withTx(db, async (tx) => {
+      const write = async (tx: Tx) => {
         await tx.insert(quotes).values(rows.quote);
         // The selection points at one of the item's options, so it's set once they exist
         await tx
@@ -112,11 +115,38 @@ export async function saveQuote(
         if (rows.properties.length) await tx.insert(properties).values(rows.properties);
         if (rows.businesses.length) await tx.insert(businesses).values(rows.businesses);
         await tx.insert(underwritingDecisions).values(rows.decisions);
-      });
+      };
+      await (isTx(db) ? withSavepoint(db, write) : withTx(db, write));
       return { quoteId: rows.quote.id, reference: rows.quote.reference };
     } catch (error) {
       if (attempt < REFERENCE_TRIES && isReferenceClash(error)) continue;
       throw error;
     }
   }
+}
+
+export type NewCustomer = Omit<
+  typeof customers.$inferInsert,
+  "id" | "userId" | "phone" | "paperless" | "createdAt" | "updatedAt"
+>;
+
+/**
+ * The user's customer row, made from `details` at their first saved quote (5.6, decision 4). An
+ * existing row is kept unchanged: a later quote's details live on its own driver rows. A save
+ * racing the first one (two tabs) finds the row the first made.
+ */
+export async function customerForQuote(
+  tx: Tx,
+  userId: string,
+  details: NewCustomer,
+): Promise<string> {
+  await tx
+    .insert(customers)
+    .values({ ...details, userId })
+    .onConflictDoNothing({ target: customers.userId });
+  const [row] = await tx
+    .select({ id: customers.id })
+    .from(customers)
+    .where(eq(customers.userId, userId));
+  return row!.id;
 }

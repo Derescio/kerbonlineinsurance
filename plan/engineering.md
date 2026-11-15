@@ -424,8 +424,8 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
 |---|---|---|
 | Edge | Vercel Firewall rate-limit rules on `/api/*` **and the TanStack server-function path** (it's not under `/api`; confirm the exact prefix in 1.5), plus auth routes | 1.5 |
 | Auth | Better Auth limiter (DB-backed) on sign-in, sign-up, reset, 2FA | 4.4 |
-| App | One shared limiter, `limit(key, rule)` in `src/server/db/rate-limit.ts`, a Postgres sliding window in a `rate_limits` table. It returns a friendly 429 ("You're going a bit fast. Try again in a minute."). Signed-in callers are keyed by user id; guests by a keyed hash of their IP (IPv6 addresses grouped by /64), never the IP itself. The first feature that needs a rule creates `src/server/db/rate-limit-rules.ts`, and every later rule goes in it | 4.5c |
-| Per feature | Quote saves, review posts, uploads (`createUpload`), Kerbie messages (+ the daily spend cap) | 5.6, 6.7, 4.10, 7.3 |
+| App | One shared limiter, `limit(key, rule)` in `src/server/db/rate-limit.ts`, a Postgres sliding window in a `rate_limits` table. It returns a friendly 429 ("You're going a bit fast. Try again in a minute."). Signed-in callers are keyed by user id; guests by a keyed hash of their IP (IPv6 addresses grouped by /64), never the IP itself. The first feature that needs a rule creates `src/server/data/rate-limit-rules.ts` (5.6), and every later rule goes in it | 4.5c |
+| Per feature | Quote saves (`quote.save`, 20 per user per hour) and payments (`quote.pay`, 10 per user per hour), review posts, uploads (`createUpload`), Kerbie messages (+ the daily spend cap) | 5.6, 6.7, 4.10, 7.3 |
 | Bots | Turnstile on the riskiest forms (§9) | 4.4, 6.7, 7.2 |
 
 No Redis unless the load test shows a need (§5).

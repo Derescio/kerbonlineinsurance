@@ -11,8 +11,9 @@ import { StepHeading } from "./step-kit";
 
 // The referred and declined screens (5.5, decisions 9, 10 and 12), adapted to 5.4b's frame:
 // screen 19 (car referred, 226:789), 20 (car declined, 226:804), 03 (home referred, 222:6732) and
-// 04 (home declined in a bundle, 222:6747). Nothing is saved before 5.6, so none says it is, and
-// none shows a reason code or threshold. The home halves take a home quote's summary: 5.7 shows
+// 04 (home declined in a bundle, 222:6747). None says the quote is saved, because it isn't until
+// "Sign in to send this for review" runs the gate (5.6, decision 11), and none shows a reason code
+// or threshold. The home halves take a home quote's summary: 5.7 shows
 // them; until then they're tested with sample home answers.
 
 /** What the bundle screens show of a home quote */
@@ -23,8 +24,6 @@ export interface HomeSummary {
   /** "Buildings and contents" */
   cover: string;
 }
-
-const reviewLine = "Sending your quote for review arrives in 5.6";
 
 function OutcomeHeading({
   badge,
@@ -73,10 +72,13 @@ export function CarReferred({
   journey,
   aside,
   onCheckAnswers,
+  onSendForReview,
 }: {
   journey: Journey;
   aside: ReactNode;
   onCheckAnswers: () => void;
+  /** The gate and the save, then Your saved quotes (5.6, decision 11) */
+  onSendForReview: () => void;
 }) {
   return (
     <JourneyPage
@@ -106,9 +108,9 @@ export function CarReferred({
         </p>
       </Card>
       <div className="quote-outcome__actions">
-        <HoldingButton variant="primary" line={reviewLine}>
+        <Button variant="primary" onClick={onSendForReview}>
           Sign in to send this for review
-        </HoldingButton>
+        </Button>
         <Button variant="secondary" onClick={onCheckAnswers}>
           Check your answers
         </Button>
@@ -207,10 +209,13 @@ export function HomeReferred({
   home,
   aside,
   onCheckAnswers,
+  onSendForReview,
 }: {
   home: HomeSummary;
   aside: ReactNode;
   onCheckAnswers: () => void;
+  /** The gate and the save, then Your saved quotes (5.6, decision 11); 5.7 wires it */
+  onSendForReview: () => void;
 }) {
   return (
     <JourneyPage
@@ -246,9 +251,9 @@ export function HomeReferred({
         </p>
       </Card>
       <div className="quote-outcome__actions">
-        <HoldingButton variant="primary" line={reviewLine}>
+        <Button variant="primary" onClick={onSendForReview}>
           Sign in to send this for review
-        </HoldingButton>
+        </Button>
         <Button variant="secondary" onClick={onCheckAnswers}>
           Check your answers
         </Button>
