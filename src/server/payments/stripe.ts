@@ -14,7 +14,10 @@ export interface StripeClient {
   };
   customers: Pick<Stripe.CustomerResource, "create" | "retrieve">;
   subscriptions: Pick<Stripe.SubscriptionResource, "retrieve" | "update" | "cancel">;
-  invoices: Pick<Stripe.InvoiceResource, "retrieve" | "pay" | "finalizeInvoice" | "voidInvoice">;
+  invoices: Pick<
+    Stripe.InvoiceResource,
+    "retrieve" | "list" | "pay" | "finalizeInvoice" | "voidInvoice"
+  >;
   refunds: Pick<Stripe.RefundResource, "create">;
   paymentIntents: Pick<Stripe.PaymentIntentResource, "retrieve">;
   paymentMethods: Pick<Stripe.PaymentMethodResource, "retrieve">;

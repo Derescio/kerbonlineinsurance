@@ -135,6 +135,15 @@ async function lapsedPlan(lapsedAt = LAPSED_AT, month2 = "in_month_2") {
   return bought;
 }
 
+/** Kerb's row for an instalment recorded paid (what invoice.paid writes), without the handler */
+async function recordPaid(subscriptionId: string, instalment: number, paidAt: number) {
+  const row = (await instalments(subscriptionId))[instalment - 1]!;
+  await getDb()
+    .update(payments)
+    .set({ status: "succeeded", paidAt: new Date(paidAt * 1000) })
+    .where(eq(payments.id, row.id));
+}
+
 /** The customer as Stripe holds it, with a default card */
 function presetCustomer(id: string, defaultCard: string | null) {
   const object = {
@@ -225,6 +234,60 @@ describe("customer.subscription.updated: unpaid", () => {
     expect(await emails("cover_lapsed")).toHaveLength(0);
   });
 
+  it("doesn't lapse when nothing is owed at Stripe (no open invoice): a stale unpaid after the owed one was paid (R18)", async () => {
+    const { quoteId, subscriptionId } = await boughtMonthly();
+    // Month 2 failed, then was paid; Stripe may leave the subscription unpaid after that
+    presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId,
+      periodStart: MONTH_2,
+      status: "paid",
+    });
+    const unpaid = presetSubscription(subscriptionId, { status: "unpaid" });
+    expect(
+      (await deliver(subscriptionEvent("customer.subscription.updated", unpaid, LAPSED_AT))).status,
+    ).toBe(200);
+    expect((await policyOf(quoteId)).status).toBe("active");
+    expect(await audits("policy.lapsed")).toHaveLength(0);
+  });
+
+  it("voids, on lapsing, a later month's invoice that invoice.created left alone while still covered (R18)", async () => {
+    const bought = await boughtMonthly();
+    // Month 3's invoice arrives while the policy is still active (past_due): left alone
+    const month3 = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId: bought.subscriptionId,
+      periodStart: MONTH_3,
+      status: "draft",
+    });
+    await deliver(stripeEvent("invoice.created", month3));
+    expect(stripe.calls["invoices.voidInvoice"]).toBeUndefined();
+
+    // Then month 2 fails for good and Stripe gives up, after month 3 was invoiced
+    const failed = presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId: bought.subscriptionId,
+      periodStart: MONTH_2,
+      status: "open",
+    });
+    await deliver(stripeEvent("invoice.payment_failed", failed));
+    const unpaid = presetSubscription(bought.subscriptionId, { status: "unpaid" });
+    await deliver(subscriptionEvent("customer.subscription.updated", unpaid, MONTH_3 - DAY));
+
+    expect((await policyOf(bought.quoteId)).status).toBe("lapsed");
+    // Month 3's is voided; month 2's, owed from while covered, stays open
+    expect(stripe.calls["invoices.finalizeInvoice"]!.map((c) => c[0])).toEqual(["in_month_3"]);
+    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual(["in_month_3"]);
+    expect(stripe.calls["invoices.list"]!.map((c) => c[0])).toContainEqual({
+      subscription: bought.subscriptionId,
+      status: "draft",
+      limit: 100,
+    });
+    const rows = await instalments(bought.subscriptionId);
+    expect(rows[1]).toMatchObject({ status: "failed", stripeInvoiceId: "in_month_2" });
+    expect(rows[2]).toMatchObject({ status: "failed", stripeInvoiceId: "in_month_3" });
+  });
+
   it("leaves an active policy alone while the subscription is past_due (Stripe still retrying)", async () => {
     const { quoteId, subscriptionId } = await boughtMonthly();
     const pastDue = presetSubscription(subscriptionId, { status: "past_due" });
@@ -233,9 +296,10 @@ describe("customer.subscription.updated: unpaid", () => {
   });
 });
 
-describe("customer.subscription.updated: active again (fix F1)", () => {
-  it("resumes a lapsed policy once, audited and emailed", async () => {
+describe("customer.subscription.updated: Kerb's rows decide a resume (R18)", () => {
+  it("resumes a lapsed policy once its owed instalment is paid, audited and emailed", async () => {
     const { quoteId, subscriptionId } = await lapsedPlan();
+    await recordPaid(subscriptionId, 2, LAPSED_AT + DAY / 2);
     const active = presetSubscription(subscriptionId, { status: "active" });
     await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + DAY));
     await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + DAY + 60));
@@ -244,6 +308,33 @@ describe("customer.subscription.updated: active again (fix F1)", () => {
     expect(policy).toMatchObject({ status: "active", lapsedAt: null, cancelledAt: null });
     expect(await audits("policy.resumed")).toMatchObject([{ entityId: policy.id }]);
     expect(await emails("cover_resumed")).toHaveLength(1);
+  });
+
+  it("doesn't resume when Stripe says active but the owed instalment is still failed (Kerb voided a newer invoice)", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    // Voiding the newest invoice can flip Stripe's status to active with nothing paid
+    const active = presetSubscription(subscriptionId, { status: "active" });
+    await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + DAY));
+    expect((await policyOf(quoteId)).status).toBe("lapsed");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+    expect(await emails("cover_resumed")).toHaveLength(0);
+  });
+
+  it("resumes on any status once the owed instalment is paid, Stripe still saying unpaid", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    await recordPaid(subscriptionId, 2, LAPSED_AT + DAY / 2);
+    // Nothing open at Stripe any more: month 2 is paid
+    presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId,
+      periodStart: MONTH_2,
+      status: "paid",
+    });
+    const unpaid = presetSubscription(subscriptionId, { status: "unpaid" });
+    await deliver(subscriptionEvent("customer.subscription.updated", unpaid, LAPSED_AT + DAY));
+    expect((await policyOf(quoteId)).status).toBe("active");
+    expect(await audits("policy.resumed")).toHaveLength(1);
+    expect(await audits("policy.lapsed")).toHaveLength(1);
   });
 
   it("is a no-op for an active policy", async () => {
@@ -419,6 +510,35 @@ describe("a new card", () => {
     expect(rows[2]).toMatchObject({ status: "failed", stripeInvoiceId: "in_month_3" });
   });
 
+  it("invoice.paid for the owed month resumes the cover while Stripe still says unpaid (R18)", async () => {
+    const { quoteId, subscriptionId } = await lapsedWithVoidedMonth();
+    presetSubscription(subscriptionId, { status: "unpaid" });
+    const paid = presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId,
+      periodStart: MONTH_2,
+      paidAt: LAPSED_AT + DAY,
+    });
+    expect((await deliver(stripeEvent("invoice.paid", paid))).status).toBe(200);
+    expect(await policyOf(quoteId)).toMatchObject({ status: "active", lapsedAt: null });
+    expect(await emails("cover_resumed")).toHaveLength(1);
+  });
+
+  it("invoice.paid for a later month doesn't resume while the owed one is still failed", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    presetSubscription(subscriptionId, { status: "active" });
+    // Month 3 (after the lapse) paid somehow; month 2, owed from while covered, still failed
+    const paid = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      paidAt: MONTH_3 + DAY,
+    });
+    expect((await deliver(stripeEvent("invoice.paid", paid))).status).toBe(200);
+    expect((await policyOf(quoteId)).status).toBe("lapsed");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+  });
+
   it("attached as a payment method (resolved through its customer) does the same", async () => {
     const { subscriptionId } = await lapsedWithVoidedMonth();
     presetCustomer("cus_test_1", "pm_old");
@@ -503,10 +623,30 @@ describe("customer.subscription.deleted", () => {
     expect(policy).toMatchObject({ status: "cancelled", lapsedAt: null });
     expect(policy.cancelledAt).toEqual(new Date(at * 1000));
     expect(await audits("policy.cancelled_unpaid")).toMatchObject([{ entityId: policy.id }]);
+    // A lapsed policy cancelled: the customer is told, once
+    const sent = await emails("policy_cancelled_unpaid");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.payload).toMatchObject({ params: { url: billingUrl() } });
 
     // A redelivery as a new event (or Kerb's own job's cancel arriving): already cancelled
     await deliver(subscriptionEvent("customer.subscription.deleted", deleted, at + 60));
     expect(await audits("policy.cancelled_unpaid")).toHaveLength(1);
+    expect(await emails("policy_cancelled_unpaid")).toHaveLength(1);
+  });
+
+  it("cancels an active policy (cancelled in Stripe's dashboard, say) without the unpaid email", async () => {
+    const { quoteId, subscriptionId } = await boughtMonthly();
+    const at = MONTH_2 + DAY;
+    const deleted = presetSubscription(subscriptionId, {
+      status: "canceled",
+      cancel_at: PERIOD_START + 365 * DAY,
+      ended_at: at,
+    });
+    expect(
+      (await deliver(subscriptionEvent("customer.subscription.deleted", deleted, at))).status,
+    ).toBe(200);
+    expect((await policyOf(quoteId)).status).toBe("cancelled");
+    expect(await emails("policy_cancelled_unpaid")).toHaveLength(0);
   });
 });
 
@@ -588,9 +728,10 @@ describe("the daily 30-day cancellation (payments.lapsed_cancellations)", () => 
     expect((await policyOf(first.quoteId)).status).toBe("cancelled");
   });
 
-  it("resumes, rather than cancels, a policy lapsed 31 days whose subscription Stripe has active (fix F1)", async () => {
+  it("resumes, rather than cancels, a policy lapsed 31 days whose owed instalment Kerb has paid, whatever Stripe's status (R18)", async () => {
     const { quoteId, subscriptionId } = await lapsedPlan();
-    presetSubscription(subscriptionId, { status: "active" });
+    await recordPaid(subscriptionId, 2, LAPSED_AT + DAY);
+    presetSubscription(subscriptionId, { status: "unpaid" });
     expect(await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps)).toEqual({
       cancelled: 0,
       resumed: 1,
@@ -602,6 +743,20 @@ describe("the daily 30-day cancellation (payments.lapsed_cancellations)", () => 
     expect(await audits("policy.cancelled_unpaid")).toHaveLength(0);
     expect(await emails("cover_resumed")).toHaveLength(1);
     expect(await emails("policy_cancelled_unpaid")).toHaveLength(0);
+  });
+
+  it("cancels a policy lapsed 31 days whose owed instalment is still failed, though Stripe says active (R18)", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    presetSubscription(subscriptionId, { status: "active" });
+    expect(await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps)).toEqual({
+      cancelled: 1,
+      resumed: 0,
+      failed: 0,
+    });
+    expect(stripe.calls["subscriptions.cancel"]!.map((c) => c[0])).toEqual([subscriptionId]);
+    expect((await policyOf(quoteId)).status).toBe("cancelled");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+    expect(await emails("policy_cancelled_unpaid")).toHaveLength(1);
   });
 
   it("leaves a policy cancelled by the job cancelled on a late invoice.paid or updated → active", async () => {

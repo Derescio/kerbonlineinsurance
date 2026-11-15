@@ -1,6 +1,5 @@
 import type Stripe from "stripe";
 
-import { todayIso } from "#/features/quote/schemas/dates";
 import {
   isKnownQuote,
   lockCheckoutBySessionId,
@@ -17,9 +16,13 @@ import { fulfilCheckout } from "#/server/quote/fulfil";
 
 import {
   cancelSubscriptionPolicies,
+  emailOnce,
   lapseSubscription,
+  markVoidedMonth,
   queueBillingEmail,
   resumeSubscription,
+  rowForInvoice,
+  voidUncoveredInvoice,
 } from "./lapse";
 import type { StripeClient } from "./stripe";
 
@@ -132,13 +135,9 @@ export async function instalmentFor(
     }
     return null;
   }
-  const byId = rows.find((row) => row.stripeInvoiceId === invoice.id);
-  if (byId) return byId;
-  const start = invoice.lines?.data[0]?.period.start;
-  const dueOn = start === undefined ? null : todayIso(new Date(start * 1000));
-  const byPeriod = rows.find((row) => row.dueOn === dueOn);
-  if (!byPeriod) throw new StripeEventNotReady("No instalment is due on the invoice's period");
-  return byPeriod;
+  const row = rowForInvoice(rows, invoice);
+  if (!row) throw new StripeEventNotReady("No instalment is due on the invoice's period");
+  return row;
 }
 
 /** The warning for an invoice whose subscription this database doesn't know (ids only) */
@@ -200,9 +199,9 @@ async function invoicePaid(
       stripeInvoiceId: invoice.id,
     });
   }
-  // The invoice owed from while covered is paid: a lapsed policy resumes if Stripe has the
-  // subscription active again (decision 8)
-  return { emailJobs: await resumeSubscription(tx, subscriptionId, deps.stripe, deps.now) };
+  // A lapsed policy resumes once what it owed from while covered is paid (decision 8), going by
+  // Kerb's rows rather than Stripe's subscription status (ruling R18)
+  return { emailJobs: await resumeSubscription(tx, subscriptionId, deps.now) };
 }
 
 async function invoicePaymentFailed(
@@ -257,34 +256,30 @@ async function invoiceCreated(
   if (lapsedSince.length === 0) return;
   // Only a month that starts once the cover had stopped (R14's period). An earlier month's invoice
   // (a late or retried event for the one that failed while covered) is what the customer owes to
-  // resume, so it's left open; with no line to go by, it's left alone too.
-  const start = invoice.lines?.data[0]?.period.start;
-  if (start === undefined || start * 1000 < Math.min(...lapsedSince)) return;
-
-  if (invoice.status === "draft") {
-    // auto_advance off, so Stripe never tries to charge it in the moment before the void
-    await deps.stripe.invoices.finalizeInvoice(invoice.id, { auto_advance: false });
-  }
-  if (invoice.status === "draft" || invoice.status === "open") {
-    await deps.stripe.invoices.voidInvoice(invoice.id);
-  } else if (invoice.status !== "void") {
-    return; // paid or uncollectible: Stripe has moved on, and invoice.paid records a payment
-  }
-
-  const row = await instalmentFor(tx, invoice, subscriptionId);
-  if (!row || row.status === "succeeded") return;
-  await markInstalment(tx, row.id, {
-    status: "failed",
-    paidAt: null,
-    // Never replace another invoice's id on the row (one that failed while covered, say)
-    ...(row.stripeInvoiceId === null ? { stripeInvoiceId: invoice.id } : {}),
-  });
+  // resume, so it's left open; with no line to go by, it's left alone too. One Stripe has paid or
+  // marked uncollectible has moved on, and invoice.paid records a payment.
+  if (!(await voidUncoveredInvoice(deps.stripe, invoice, Math.min(...lapsedSince)))) return;
+  await markVoidedMonth(tx, await instalmentFor(tx, invoice, subscriptionId), invoice.id);
 }
 
 /**
- * The subscription changed, fetched again. Unpaid (Stripe gave up on a payment): the policies
- * lapse at the event's time. Active: a lapsed policy resumes, as on invoice.paid, should that
- * event have found the subscription not yet active.
+ * Is anything owed at Stripe: an invoice on the subscription still open (or marked uncollectible)?
+ * Once the one owed from while covered is paid and later months are void, nothing is, though
+ * Stripe may still have the subscription `unpaid` (ruling R18).
+ */
+async function owesAtStripe(stripe: StripeClient, subscriptionId: string): Promise<boolean> {
+  for (const status of ["open", "uncollectible"] as const) {
+    const listed = await stripe.invoices.list({ subscription: subscriptionId, status, limit: 1 });
+    if (listed.data.length > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * The subscription changed, fetched again. Unpaid (Stripe gave up on a payment) with an invoice
+ * still owed: the active policies lapse at the event's time. Whatever the status, a lapsed policy
+ * whose owed instalment is paid resumes, as on invoice.paid (ruling R18: Kerb's rows decide, since
+ * Stripe's status follows the newest invoice, which Kerb may have voided).
  */
 async function subscriptionUpdated(
   tx: Tx,
@@ -293,32 +288,38 @@ async function subscriptionUpdated(
 ): Promise<HandlerResult | void> {
   const subscriptionId = event.data.object.id;
   const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
-  if (subscription.status === "active") {
-    const emailJobs = await resumeSubscription(tx, subscriptionId, deps.stripe, deps.now, "active");
-    return { emailJobs };
+  // past_due is the grace period: Stripe is still retrying and the cover stays. An unpaid
+  // subscription with nothing owed is one whose owed invoice was paid but which Stripe left
+  // unpaid: lapsing it again would undo the resume.
+  if (subscription.status === "unpaid" && (await owesAtStripe(deps.stripe, subscriptionId))) {
+    const lapsedAt = new Date(event.created * 1000);
+    const emailJobs = await lapseSubscription(tx, subscriptionId, lapsedAt, deps.now, deps.stripe);
+    // Just lapsed: what's owed can't be paid yet
+    if (emailJobs.length > 0) return { emailJobs };
   }
-  // past_due is the grace period: Stripe is still retrying and the cover stays
-  if (subscription.status !== "unpaid") return;
-  const lapsedAt = new Date(event.created * 1000);
-  return { emailJobs: await lapseSubscription(tx, subscriptionId, lapsedAt, deps.now) };
+  return { emailJobs: await resumeSubscription(tx, subscriptionId, deps.now) };
 }
 
 /**
  * The subscription ended. At its cancel_at the term is simply over; after Kerb's 30-day job every
  * policy is already cancelled. Anything else (cancelled in Stripe's dashboard, say) cancels the
- * policies that are still active or lapsed.
+ * policies that are still active or lapsed. A lapsed one's customer gets "Your policy has been
+ * cancelled" (once for the subscription); an active one's doesn't, as that email says it was for
+ * unpaid payments.
  */
 async function subscriptionDeleted(
   tx: Tx,
   event: EventOf<"customer.subscription.deleted">,
   deps: HandlerDeps,
-): Promise<void> {
+): Promise<HandlerResult | void> {
   const subscriptionId = event.data.object.id;
   const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
   const { cancel_at: cancelAt, ended_at: endedAt } = subscription;
   if (cancelAt !== null && endedAt !== null && endedAt >= cancelAt) return;
   const cancelledAt = new Date((endedAt ?? event.created) * 1000);
-  await cancelSubscriptionPolicies(tx, subscriptionId, cancelledAt);
+  const moved = await cancelSubscriptionPolicies(tx, subscriptionId, cancelledAt);
+  const wasLapsed = moved.filter((policy) => policy.status === "lapsed");
+  return { emailJobs: await emailOnce(tx, wasLapsed, "policy_cancelled_unpaid", deps.now) };
 }
 
 /** A Stripe error that is the card's (declined, say), not Kerb's or Stripe's */

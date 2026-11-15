@@ -13,6 +13,8 @@ import type { StripeClient } from "#/server/payments/stripe";
 //   Presets win over objects the fake created.
 // - `fail(method, error, when?)` makes a method throw: every time, or only when `when(...args)` is
 //   true (e.g. `(id, params) => "cancel_at" in params`). `failOnce` throws on the first match only.
+// - `invoices.list` returns the invoices the fake holds (preset or changed), filtered as Stripe's
+//   list is: by `subscription` (the invoice's parent.subscription_details) and `status`.
 // - `webhooks` is the real Stripe library's (constructEvent, generateTestHeaderString), so tests
 //   sign payloads with the real implementation.
 type Obj = Record<string, unknown>;
@@ -29,6 +31,7 @@ export type StripeMethod =
   | "subscriptions.update"
   | "subscriptions.cancel"
   | "invoices.retrieve"
+  | "invoices.list"
   | "invoices.pay"
   | "invoices.finalizeInvoice"
   | "invoices.voidInvoice"
@@ -132,6 +135,29 @@ export function fakeStripe(): StripeClient & FakeStripeControls {
         return next;
       });
 
+  // Stripe's invoice list: every invoice the fake holds, filtered by subscription and status
+  const listInvoices = (params: Obj = {}, ...rest: Args) =>
+    run("invoices.list", [params, ...rest], () => {
+      const held = new Map<string, Obj>();
+      for (const store of [made, presets]) {
+        for (const [name, object] of store) {
+          if (name.startsWith("invoices:")) held.set(name, object);
+        }
+      }
+      const data = [...held.values()].filter((invoice) => {
+        const parent = invoice.parent as
+          | { subscription_details?: { subscription?: unknown } }
+          | undefined;
+        if (
+          params.subscription &&
+          parent?.subscription_details?.subscription !== params.subscription
+        )
+          return false;
+        return !params.status || invoice.status === params.status;
+      });
+      return { object: "list", data, has_more: false, url: "/v1/invoices" };
+    });
+
   const fake = {
     checkout: {
       sessions: {
@@ -156,6 +182,7 @@ export function fakeStripe(): StripeClient & FakeStripeControls {
     },
     invoices: {
       retrieve: retrieve("invoices.retrieve"),
+      list: listInvoices,
       pay: change("invoices.pay", () => ({ status: "paid" })),
       finalizeInvoice: change("invoices.finalizeInvoice", () => ({ status: "open" })),
       voidInvoice: change("invoices.voidInvoice", () => ({ status: "void" })),

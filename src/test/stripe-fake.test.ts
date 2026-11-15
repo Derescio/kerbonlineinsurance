@@ -42,6 +42,24 @@ describe("fakeStripe", () => {
     });
   });
 
+  it("lists invoices by subscription and status, as Stripe does, seeing later changes", async () => {
+    const stripe = fakeStripe();
+    const invoice = (subscription: string, status: string) => ({
+      status,
+      parent: { subscription_details: { subscription } },
+    });
+    stripe.set("invoices.retrieve", "in_1", invoice("sub_1", "draft"));
+    stripe.set("invoices.retrieve", "in_2", invoice("sub_1", "open"));
+    stripe.set("invoices.retrieve", "in_3", invoice("sub_2", "draft"));
+    const ids = async (params: object) =>
+      (await stripe.invoices.list(params)).data.map((i) => i.id);
+    expect(await ids({ subscription: "sub_1", status: "draft" })).toEqual(["in_1"]);
+    expect(await ids({ subscription: "sub_1" })).toEqual(["in_1", "in_2"]);
+    await stripe.invoices.voidInvoice("in_1");
+    expect(await ids({ subscription: "sub_1", status: "draft" })).toEqual([]);
+    expect(await ids({ status: "void" })).toEqual(["in_1"]);
+  });
+
   it("delegates webhooks to the real library", () => {
     const stripe = fakeStripe();
     const payload = JSON.stringify({ id: "evt_1", object: "event", type: "x" });
