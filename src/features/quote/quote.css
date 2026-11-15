@@ -1075,6 +1075,32 @@ button.quote-tabs__tab:focus-visible {
   display: grid;
   gap: var(--space-4);
 }
+/* Stripe's embedded form (5.6b, decision 10): Stripe draws its own fields, so the panel only frames
+   it, with room held for the form while it loads and a narrower frame at phone width */
+.quote-stripe-panel {
+  gap: var(--space-4);
+  scroll-margin-top: var(--space-4);
+}
+.quote-stripe {
+  min-height: 320px;
+}
+@media (max-width: 599px) {
+  .quote-stripe-panel {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+/* You're covered while the payment is confirmed (5.6b, decision 11) */
+.quote-covered__wait {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.quote-covered__wait .kb-spinner {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--fg-brand);
+}
 .quote-covered .quote-heading {
   justify-items: start;
 }

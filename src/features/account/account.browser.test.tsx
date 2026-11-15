@@ -4,7 +4,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { AccountPage } from "#/features/auth/AccountPage";
 import type { AccountSummary } from "#/features/auth/session";
 import { PublicError } from "#/server/auth/errors";
-import type { PolicySummary } from "#/server/data/policies";
+import type { PolicyListItem } from "#/server/data/policies";
 import { renderWithRouter } from "#/test/router";
 
 import { ClosePage } from "./ClosePage";
@@ -319,7 +319,7 @@ describe("the account page's policies (5.6, decision 12)", () => {
     greeting: "Good morning",
     twoFactorEnabled: false,
   };
-  const policy = (over: Partial<PolicySummary>): PolicySummary => ({
+  const policy = (over: Partial<PolicyListItem>): PolicyListItem => ({
     id: "p1",
     reference: "KRB-482913",
     product: "car",
@@ -327,6 +327,7 @@ describe("the account page's policies (5.6, decision 12)", () => {
     status: "active",
     startsOn: "2026-11-20",
     endsOn: "2027-11-19",
+    monthly: false,
     ...over,
   });
 
@@ -360,6 +361,45 @@ describe("the account page's policies (5.6, decision 12)", () => {
     await expect
       .element(page.getByRole("link", { name: "Your saved quotes" }))
       .toHaveAttribute("href", "/quote/retrieve");
+  });
+
+  it("links a monthly policy to /account/billing to update the card, and only a monthly one (5.6b, decision 9)", async () => {
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[policy({ monthly: true }), policy({ id: "p2", reference: "KRB-123456" })]}
+      />,
+    );
+    const links = page.getByRole("link", { name: "Update your payment card" });
+    await expect.element(links).toHaveAttribute("href", "/account/billing");
+    expect(links.elements()).toHaveLength(1);
+    const monthly = page.getByRole("listitem").filter({ hasText: "KRB-482913" });
+    await expect
+      .element(monthly.getByRole("link", { name: "Update your payment card" }))
+      .toBeVisible();
+  });
+
+  it("shows no billing link when nothing is paid monthly", async () => {
+    await renderWithRouter(<AccountPage summary={summary} notice={{}} policies={[policy({})]} />);
+    await expect.element(page.getByText("KRB-482913")).toBeVisible();
+    expect(page.getByRole("link", { name: "Update your payment card" }).elements()).toHaveLength(0);
+  });
+
+  it("shows Lapsed in the warning style, and Active not", async () => {
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[policy({}), policy({ id: "p2", reference: "KRB-123456", status: "lapsed" })]}
+      />,
+    );
+    await expect
+      .element(page.getByText("Lapsed", { exact: true }))
+      .toHaveClass("kb-badge--warning");
+    await expect
+      .element(page.getByText("Active", { exact: true }))
+      .not.toHaveClass("kb-badge--warning");
   });
 
   it("says so when there are no policies", async () => {

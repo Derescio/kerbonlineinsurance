@@ -2,9 +2,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Button } from "#/components/actions/Button";
+import { Badge } from "#/components/display/Badge";
 import { Wordmark } from "#/components/display/Wordmark";
 import { tierName } from "#/features/quote/labels";
-import type { PolicySummary } from "#/server/data/policies";
+import type { PolicyListItem } from "#/server/data/policies";
 
 import { ClosureBanner } from "../account/ClosureBanner";
 import { authClient } from "./auth-client";
@@ -28,7 +29,7 @@ export function AccountPage({
   notice,
 }: {
   summary: AccountSummary;
-  policies: PolicySummary[];
+  policies: PolicyListItem[];
   notice: AccountNotice;
 }) {
   const navigate = useNavigate();
@@ -104,8 +105,11 @@ const POLICY_DATE = new Intl.DateTimeFormat("en-GB", {
 const policyDay = (iso: string) => POLICY_DATE.format(new Date(`${iso}T00:00:00Z`));
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** Your policies (5.6, decision 12), from listMyPolicies until 6.1's dashboard replaces it */
-function YourPolicies({ policies }: { policies: PolicySummary[] }) {
+/**
+ * Your policies (5.6, decision 12), from listMyPolicies until 6.1's dashboard replaces it. A monthly
+ * policy links to /account/billing to update the card, and a lapsed one says so (5.6b, decision 9)
+ */
+function YourPolicies({ policies }: { policies: PolicyListItem[] }) {
   return (
     <section className="account__policies" aria-labelledby="policies-title">
       <div className="account__policies-head">
@@ -126,10 +130,23 @@ function YourPolicies({ policies }: { policies: PolicySummary[] }) {
               <p className="account__ways-text">
                 {capitalise(policy.product)} · {tierName(policy.coverLevel)}
               </p>
-              <p className="account__ways-text">{capitalise(policy.status)}</p>
+              {policy.status === "lapsed" ? (
+                <p>
+                  <Badge tone="warning">Lapsed</Badge>
+                </p>
+              ) : (
+                <p className="account__ways-text">{capitalise(policy.status)}</p>
+              )}
               <p className="account__ways-text">
                 {policyDay(policy.startsOn)} to {policyDay(policy.endsOn)}
               </p>
+              {policy.monthly ? (
+                // A full page load, never a preload: /account/billing makes a Stripe portal
+                // session each time it loads (5.6b, decision 9)
+                <Link to="/account/billing" reloadDocument className="auth__link">
+                  Update your payment card
+                </Link>
+              ) : null}
             </li>
           ))}
         </ul>

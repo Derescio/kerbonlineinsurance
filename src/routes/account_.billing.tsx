@@ -9,10 +9,17 @@ import { AuthShell } from "#/features/auth/AuthShell";
 // `account_` name). A monthly customer is sent on to Stripe's customer portal, made on the server
 // for their own Stripe customer, which returns them to /account; anyone else sees why there's no
 // card to update.
+//
+// Each load makes a portal session, so a preload must never run it: the session is made in the
+// loader, which `preload: false` skips on a preload (beforeLoad would still run), and /account's
+// link is a full page load, which the router never preloads.
 export const Route = createFileRoute("/account_/billing")({
   headers: () => ({ "Cache-Control": "private, no-store" }),
+  preload: false,
   beforeLoad: async ({ location }) => {
     await requireSignedIn(location);
+  },
+  loader: async () => {
     const billing = await getBillingPortal();
     // An external URL: the router answers with a redirect on the server, a full load in the browser
     if (billing.kind === "portal") throw redirect({ href: billing.url });

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Badge } from "#/components/display/Badge";
@@ -16,7 +16,13 @@ import type { PaymentSummary } from "#/server/data/quotes";
 import { readJourney, type Payment } from "./journey-store";
 import { tierName } from "./labels";
 import { JourneyPage, StepNav } from "./page-kit";
-import { ALREADY_BOUGHT, NOT_BUYABLE, QUOTE_EXPIRED, START_DATE_RANGE } from "./pay-copy";
+import {
+  ALREADY_BOUGHT,
+  NOT_BUYABLE,
+  QUOTE_EXPIRED,
+  START_DATE_RANGE,
+  TEST_CARDS,
+} from "./pay-copy";
 import { PayChoice } from "./PayChoice";
 import { startDateBounds } from "./policy-terms";
 import { todayIso } from "./schemas/dates";
@@ -25,8 +31,16 @@ import { StepHeading } from "./step-kit";
 
 // Confirm and pay (5.6, decision 6; the Purchase frame, 157:11256, in 5.4b's frame). It reads the
 // saved quote, never the tab, so it works from Your saved quotes too; the tab only says which plan
-// to start on and where Back goes. The card is Stripe's (5.6b, decision 10): the button starts a
-// Stripe checkout for the answers here and holds its client secret for Stripe's embedded form.
+// to start on and where Back goes. The card is Stripe's (5.6b, decisions 1 and 10): "Continue to
+// payment" checks the answers, starts a Stripe Checkout Session for them, and mounts Stripe's
+// embedded form for it. Changing an answer after that unmounts the form, since the session was made
+// for the old answers, and the button starts a new one (as it does when Stripe's form says a session
+// has expired).
+
+// Stripe's JS is loaded only here, and only once there's a session to show
+const StripeCheckout = lazy(() =>
+  import("./StripeCheckout").then((module) => ({ default: module.StripeCheckout })),
+);
 
 type Errors = Record<string, string | undefined>;
 
@@ -121,8 +135,9 @@ function PayForm({
   const [failure, setFailure] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   // The started checkout's client secret, for Stripe's embedded form (5.6b, decision 10)
-  const [, setClientSecret] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const stripeRef = useRef<HTMLElement>(null);
   const { key: idempotencyKey, rotate } = useIdempotencyKey(`quote.pay:${summary.quoteId}`);
 
   // Start on the plan the tab chose for this quote; annual from Your saved quotes (decision 6)
@@ -131,10 +146,16 @@ function PayForm({
     if (tabPayment) setPlan(tabPayment);
   }, [tabPayment]);
 
-  const amount =
-    plan === "monthly"
-      ? `Pay ${formatPounds(summary.monthlyPaymentPence)} today`
-      : `Pay ${formatPounds(summary.annualTotalPence)}`;
+  // The form mounts below the button: bring it into view
+  useEffect(() => {
+    if (clientSecret) stripeRef.current?.scrollIntoView?.({ block: "start" });
+  }, [clientSecret]);
+
+  /** An answer changed: the session was for the old ones, so its form goes and the next is new */
+  function changed() {
+    if (clientSecret) setClientSecret(null);
+    rotate();
+  }
 
   function check(): Errors {
     const found: Errors = {};
@@ -156,6 +177,8 @@ function PayForm({
       focusFirstError(formRef.current);
       return;
     }
+    // A new session expires the last one (decision 5), so its form goes now
+    setClientSecret(null);
     setPaying(true);
     try {
       const result = await startCheckoutFn({
@@ -215,7 +238,10 @@ function PayForm({
             max={bounds.max}
             value={startsOn}
             error={errors.startsOn}
-            onChange={(e) => setStartsOn(e.target.value)}
+            onChange={(e) => {
+              setStartsOn(e.target.value);
+              changed();
+            }}
           />
         </section>
 
@@ -225,7 +251,10 @@ function PayForm({
             annualPence={summary.annualTotalPence}
             monthlyPaymentPence={summary.monthlyPaymentPence}
             value={plan}
-            onChange={setPlan}
+            onChange={(next) => {
+              setPlan(next);
+              changed();
+            }}
           />
         </section>
 
@@ -236,7 +265,10 @@ function PayForm({
               checked={detailsConfirmed}
               aria-invalid={errors.detailsConfirmed ? true : undefined}
               aria-describedby={errors.detailsConfirmed ? "pay-details-error" : undefined}
-              onChange={(e) => setDetailsConfirmed(e.target.checked)}
+              onChange={(e) => {
+                setDetailsConfirmed(e.target.checked);
+                changed();
+              }}
             />
             <FieldMessage id="pay-details" error={errors.detailsConfirmed} />
           </div>
@@ -246,22 +278,16 @@ function PayForm({
               checked={coverAcknowledged}
               aria-invalid={errors.coverAcknowledged ? true : undefined}
               aria-describedby={errors.coverAcknowledged ? "pay-terms-error" : undefined}
-              onChange={(e) => setCoverAcknowledged(e.target.checked)}
+              onChange={(e) => {
+                setCoverAcknowledged(e.target.checked);
+                changed();
+              }}
             />
             <FieldMessage id="pay-terms" error={errors.coverAcknowledged} />
           </div>
         </section>
 
         <div className="quote-pay-submit">
-          <StepNav
-            onBack={onBack}
-            backLabel="Back to choose cover"
-            next={
-              <Button type="submit" variant="primary" size="lg" loading={paying}>
-                {amount}
-              </Button>
-            }
-          />
           {failure ? (
             <Alert tone="warning" announce>
               <p>{failure}</p>
@@ -276,8 +302,26 @@ function PayForm({
               ) : null}
             </Alert>
           ) : null}
+          <StepNav
+            onBack={onBack}
+            backLabel="Back to choose cover"
+            next={
+              <Button type="submit" variant="primary" size="lg" loading={paying}>
+                Continue to payment
+              </Button>
+            }
+          />
         </div>
       </form>
+
+      {clientSecret ? (
+        <section ref={stripeRef} className="quote-panel quote-stripe-panel" aria-label="Payment">
+          <Suspense fallback={null}>
+            <StripeCheckout key={clientSecret} clientSecret={clientSecret} />
+          </Suspense>
+          <p className="quote-note">{TEST_CARDS}</p>
+        </section>
+      ) : null}
     </JourneyPage>
   );
 }
