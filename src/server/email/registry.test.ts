@@ -14,6 +14,7 @@ const params = {
   startsOn: "20 November 2026",
   endsOn: "19 November 2027",
   amount: "£458.40 paid annually",
+  reason: "You’d already bought this quote.",
 };
 
 describe("renderEmail", () => {
@@ -25,6 +26,7 @@ describe("renderEmail", () => {
       "closure_held",
       "closure_requested",
       "existing_account",
+      "payment_refunded",
       "policy_confirmed",
       "reset_password",
       "verify_email",
@@ -58,6 +60,22 @@ describe("renderEmail", () => {
       expect(part).toContain("£458.40 paid annually");
       expect(part).toContain("https://x/account");
     }
+  });
+
+  it("tells the customer a payment was refunded, why, with the account link (5.6b)", () => {
+    const email = renderEmail("payment_refunded", {
+      name: "Maya Patel",
+      reason: "The amount taken didn’t match your quote.",
+      url: "https://x/account",
+    });
+    expect(email.subject).toBe("We’ve refunded your payment");
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain("refunded your payment in full");
+      expect(part).toContain("The amount taken didn’t match your quote.");
+      expect(part).toContain("https://x/account");
+    }
+    expect(email.html).not.toContain("Patel");
   });
 
   it("refuses missing parameters", () => {

@@ -7,6 +7,7 @@ import {
   closureHeldEmail,
   closureRequestedEmail,
   existingAccountEmail,
+  paymentRefundedEmail,
   policyConfirmedEmail,
   resetPasswordEmail,
   verifyEmail,
@@ -47,6 +48,10 @@ export const EMAIL_TEMPLATES = {
       url: z.string(),
     }),
     policyConfirmedEmail,
+  ),
+  payment_refunded: entry(
+    z.object({ name: z.string(), reason: z.string(), url: z.string() }),
+    paymentRefundedEmail,
   ),
 };
 

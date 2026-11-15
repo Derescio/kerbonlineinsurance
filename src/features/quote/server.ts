@@ -7,6 +7,7 @@ import { AuthzError } from "#/server/auth/errors";
 import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
 import type { PaymentSummary, Purchase, SavedQuoteCard } from "#/server/data/quotes";
 import type { StartCheckoutResult } from "#/server/quote/checkout";
+import type { FulfilStatus } from "#/server/quote/fulfil";
 import type { PostcodeCheck } from "#/server/quote/postcode";
 import type { CarPriceResult } from "#/server/quote/price";
 import type { SaveCarResult } from "#/server/quote/save";
@@ -97,6 +98,22 @@ async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
     throw error;
   }
 }
+
+/**
+ * The return page's fulfilment (5.6b, decision 6): You're covered sends Stripe's session id, and
+ * the server reads the session from Stripe and fulfils it now rather than waiting on the webhook.
+ * Only the signed-in customer's own session for their own quote; anyone else's is not found.
+ */
+export const confirmCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((input: { quoteId: string; sessionId: string }) => ({
+    quoteId: String(input?.quoteId ?? ""),
+    sessionId: String(input?.sessionId ?? ""),
+  }))
+  .handler(async ({ context, data }): Promise<{ status: FulfilStatus }> => {
+    const { confirmCheckout } = await import("#/server/quote/fulfil");
+    return orNotFound(() => confirmCheckout(context.actor, data));
+  });
 
 const quoteIdInput = (input: { quoteId: string }) => ({ quoteId: String(input?.quoteId ?? "") });
 

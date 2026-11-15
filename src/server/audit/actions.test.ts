@@ -27,6 +27,10 @@ describe("AUDIT_ACTIONS", () => {
     expect(AUDIT_ACTIONS["policy.purchased"].entityType).toBe("policy");
   });
 
+  it("records a refund against the checkout session (5.6b)", () => {
+    expect(AUDIT_ACTIONS["payment.refunded"].entityType).toBe("checkout_session");
+  });
+
   it("every name is area.verb", () => {
     // The same pattern as audit_log_action_check in 0001
     for (const name of Object.keys(AUDIT_ACTIONS)) {

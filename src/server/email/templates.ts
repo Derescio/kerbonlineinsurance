@@ -217,3 +217,30 @@ export function policyConfirmedEmail(p: PolicyConfirmedParams): EmailContent {
     text: `${hello}\n\nYour Kerb insurance is confirmed.\n\n${details.join("\n")}\n\nGo to your account:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
   };
 }
+
+// A payment Kerb couldn't honour (5.6b, decision 6): the purchase didn't go through, so the money
+// went back. `reason` says why in plain words; nothing to act on, so the link is the account.
+export interface PaymentRefundedParams {
+  name: string;
+  reason: string;
+  url: string;
+}
+
+export function paymentRefundedEmail(p: PaymentRefundedParams): EmailContent {
+  const hello = `Hi ${firstName(p.name)},`;
+  const lines = [
+    "We couldn’t complete your purchase, so we’ve refunded your payment in full and won’t take any more.",
+    p.reason,
+  ];
+  const after = "A refund can take 5 to 10 working days to reach your account.";
+  return {
+    subject: "We’ve refunded your payment",
+    html: layout({
+      heading: "We’ve refunded your payment",
+      body: `${escapeHtml(hello)} ${lines.map(escapeHtml).join("<br><br>")}`,
+      link: { cta: "Go to my account", url: p.url },
+      after,
+    }),
+    text: `${hello}\n\n${lines.join("\n\n")}\n\nGo to your account:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}

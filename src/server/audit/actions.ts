@@ -27,6 +27,10 @@ export const AUDIT_ACTIONS = {
   "account.closed": { entityType: "user", description: "An account was closed" },
   "file.viewed": { entityType: "file", description: "A staff member opened a claim file" },
   "policy.purchased": { entityType: "policy", description: "A customer bought a policy" },
+  "payment.refunded": {
+    entityType: "checkout_session",
+    description: "A checkout's payment was refunded because it couldn't be honoured",
+  },
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

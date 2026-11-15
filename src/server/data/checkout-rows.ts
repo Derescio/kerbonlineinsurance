@@ -1,7 +1,14 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 
-import type { Db } from "#/server/db/client";
-import { checkoutSessions, customers, payments, policies, stripeEvents } from "#/server/db/schema";
+import { getDb, type Db } from "#/server/db/client";
+import {
+  checkoutSessions,
+  customers,
+  payments,
+  policies,
+  quotes,
+  stripeEvents,
+} from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
 
 // The rows behind Stripe payments (5.6b): checkout sessions, the event gate, the Stripe ids on
@@ -48,6 +55,47 @@ export async function openCheckoutFor(
     .from(checkoutSessions)
     .where(and(eq(checkoutSessions.quoteId, quoteId), eq(checkoutSessions.status, "open")));
   return row ?? null;
+}
+
+/** The app's database, for fulfilment's own transactions (it runs outside defineWrite) */
+export function checkoutDb(): Db {
+  return getDb();
+}
+
+/**
+ * Who a session's checkout is for and until when its quote was valid, read without a lock, so
+ * fulfilment can lock the users row before the session's (the order startCheckout takes them in)
+ */
+export async function checkoutContext(
+  tx: Db | Tx,
+  stripeSessionId: string,
+): Promise<{ userId: string; quoteValidUntil: Date } | null> {
+  const [row] = await tx
+    .select({ userId: customers.userId, quoteValidUntil: quotes.validUntil })
+    .from(checkoutSessions)
+    .innerJoin(customers, eq(customers.id, checkoutSessions.customerId))
+    .innerJoin(quotes, eq(quotes.id, checkoutSessions.quoteId))
+    .where(eq(checkoutSessions.stripeSessionId, stripeSessionId));
+  if (!row?.userId) return null;
+  return { userId: row.userId, quoteValidUntil: row.quoteValidUntil };
+}
+
+/** Is the session one of this customer's, for this quote? (the return page's ownership check) */
+export async function isOwnCheckout(
+  tx: Db | Tx,
+  input: { customerId: string; quoteId: string; stripeSessionId: string },
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: checkoutSessions.id })
+    .from(checkoutSessions)
+    .where(
+      and(
+        eq(checkoutSessions.stripeSessionId, input.stripeSessionId),
+        eq(checkoutSessions.quoteId, input.quoteId),
+        eq(checkoutSessions.customerId, input.customerId),
+      ),
+    );
+  return Boolean(row);
 }
 
 /** The session row `FOR UPDATE`, so the return page and the webhook can't fulfil it together */
