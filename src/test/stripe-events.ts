@@ -74,6 +74,8 @@ export interface InvoiceShape {
   /** Unix seconds */
   paidAt?: number | null;
   kerbEnv?: string | null;
+  /** The quote the subscription was made for (subscription_data.metadata.quote_id) */
+  quoteId?: string;
 }
 
 /** An invoice as this API version shapes it: the subscription under parent.subscription_details */
@@ -95,7 +97,10 @@ export function invoiceObject(shape: InvoiceShape): Obj {
       quote_details: null,
       subscription_details: {
         subscription: shape.subscriptionId,
-        metadata: kerbEnv === null ? {} : { kerb_env: kerbEnv },
+        metadata: {
+          ...(kerbEnv === null ? {} : { kerb_env: kerbEnv }),
+          ...(shape.quoteId ? { quote_id: shape.quoteId } : {}),
+        },
       },
     },
     lines: {

@@ -180,6 +180,24 @@ export async function lockPaymentsForSubscription(
     .for("update");
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Does this database know the quote a Stripe object was made for: the quote itself, or a checkout
+ * session for it? False for anything that isn't a uuid (another database's or a made-up id).
+ */
+export async function isKnownQuote(tx: Db | Tx, quoteId: string): Promise<boolean> {
+  if (!UUID.test(quoteId)) return false;
+  const [quote] = await tx.select({ id: quotes.id }).from(quotes).where(eq(quotes.id, quoteId));
+  if (quote) return true;
+  const [session] = await tx
+    .select({ id: checkoutSessions.id })
+    .from(checkoutSessions)
+    .where(eq(checkoutSessions.quoteId, quoteId))
+    .limit(1);
+  return Boolean(session);
+}
+
 /** Who to email about a customer's payments: first name and sign-in email; null with no user */
 export async function customerContact(
   tx: Db | Tx,

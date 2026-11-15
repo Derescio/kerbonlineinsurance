@@ -4,6 +4,7 @@ import { todayIso } from "#/features/quote/schemas/dates";
 import { authUrls } from "#/server/auth/origins";
 import {
   customerContact,
+  isKnownQuote,
   lockCheckoutBySessionId,
   lockPaymentsForSubscription,
   markCheckout,
@@ -93,15 +94,27 @@ const subscriptionOf = (invoice: Stripe.Invoice): string | null =>
  * The instalment row an invoice pays, its subscription's rows locked: by the invoice id once a
  * row has it, otherwise by billing period, the London date of the line item's period start being
  * the row's due date (ruling R14; fulfilment dates rows the same way). Never "the next row".
- * No rows yet means the checkout isn't fulfilled: throw, so Stripe retries (Review Focus 4).
+ *
+ * With no rows for the subscription (ruling R15), the quote id the subscription was tagged with
+ * decides. A quote, or a checkout for it, this database knows means the checkout isn't fulfilled
+ * yet: throw, so Stripe retries (Review Focus 4). Nothing known (a database since reset, or
+ * another one sharing the tag) is an unknown subscription: null, and the caller does nothing
+ * (decision 2), so Stripe doesn't retry for days and disable the endpoint.
+ * Rows but no match still throws.
  */
 export async function instalmentFor(
   tx: Tx,
   invoice: Stripe.Invoice,
   subscriptionId: string,
-): Promise<PaymentRow> {
+): Promise<PaymentRow | null> {
   const rows = await lockPaymentsForSubscription(tx, subscriptionId);
-  if (rows.length === 0) throw new StripeEventNotReady("The subscription has no instalments yet");
+  if (rows.length === 0) {
+    const quoteId = invoice.parent?.subscription_details?.metadata?.quote_id;
+    if (quoteId && (await isKnownQuote(tx, quoteId))) {
+      throw new StripeEventNotReady("The subscription has no instalments yet");
+    }
+    return null;
+  }
   const byId = rows.find((row) => row.stripeInvoiceId === invoice.id);
   if (byId) return byId;
   const start = invoice.lines?.data[0]?.period.start;
@@ -109,6 +122,11 @@ export async function instalmentFor(
   const byPeriod = rows.find((row) => row.dueOn === dueOn);
   if (!byPeriod) throw new StripeEventNotReady("No instalment is due on the invoice's period");
   return byPeriod;
+}
+
+/** The warning for an invoice whose subscription this database doesn't know (ids only) */
+function warnUnknownSubscription(event: Stripe.Event): void {
+  console.warn(`[stripe] ${event.type} ${event.id}: no instalments or quote for the subscription`);
 }
 
 // ---- The handlers ----------------------------------------------------------------------------
@@ -155,6 +173,7 @@ async function invoicePaid(
   if (!subscriptionId) return;
 
   const row = await instalmentFor(tx, invoice, subscriptionId);
+  if (!row) return warnUnknownSubscription(event);
   if (row.status === "succeeded" && row.stripeInvoiceId === invoice.id) return;
   // Stripe's paid time, so a test clock's month lines up with the rows
   const paidAt = invoice.status_transitions.paid_at ?? event.created;
@@ -180,6 +199,7 @@ async function invoicePaymentFailed(
   if (!subscriptionId) return;
 
   const row = await instalmentFor(tx, invoice, subscriptionId);
+  if (!row) return warnUnknownSubscription(event);
   if (row.status === "succeeded") return;
   const failedBefore = row.status === "failed" && row.stripeInvoiceId === invoice.id;
   await markInstalment(tx, row.id, {

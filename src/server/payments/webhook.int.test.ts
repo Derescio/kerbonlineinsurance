@@ -308,12 +308,14 @@ describe("handleStripeWebhook: invoice.paid", () => {
   });
 
   it("answers 500 for month 2 paid before the checkout is fulfilled, then marks it on Stripe's retry", async () => {
-    const { row, subscriptionId } = await paidMonthlyCheckout();
+    const { row, subscriptionId, quoteId } = await paidMonthlyCheckout();
+    // The subscription carries its quote id (subscription_data.metadata), which this database knows
     const invoice = presetInvoice(stripe, {
       id: "in_month_2",
       subscriptionId,
       periodStart: MONTH_2,
       paidAt: PAID_AT,
+      quoteId,
     });
     const early = stripeEvent("invoice.paid", invoice);
     expect((await deliver(early)).status).toBe(500);
@@ -324,6 +326,58 @@ describe("handleStripeWebhook: invoice.paid", () => {
     expect((await deliver(early)).status).toBe(200);
     expect((await instalments(subscriptionId))[1]!.status).toBe("succeeded");
   });
+});
+
+describe("handleStripeWebhook: an invoice for a subscription with no instalments (R15)", () => {
+  const OTHER_DB_QUOTE = "6f1c2a4e-0b7d-4c1a-9e55-3d2f8a9b0c11";
+
+  for (const type of ["invoice.paid", "invoice.payment_failed"] as const) {
+    it(`${type}: a subscription this database doesn't know is 200, recorded, warned, and changes nothing`, async () => {
+      const { subscriptionId } = await boughtMonthly();
+      const before = await getDb().select().from(payments);
+      const jobsBefore = (await getDb().select().from(jobs)).length;
+      for (const [id, quoteId] of [
+        ["in_reset_1", OTHER_DB_QUOTE],
+        ["in_reset_2", undefined],
+        ["in_reset_3", "not-a-uuid"],
+      ] as const) {
+        const invoice = presetInvoice(stripe, {
+          id,
+          subscriptionId: "sub_from_a_reset_db",
+          periodStart: MONTH_2,
+          paidAt: PAID_AT,
+          status: type === "invoice.paid" ? "paid" : "open",
+          quoteId,
+        });
+        const event = stripeEvent(type, invoice);
+        expect((await deliver(event)).status).toBe(200);
+        expect((await recordedEvents()).map((e) => e.eventId)).toContain(event.id);
+      }
+      expect(warn).toHaveBeenCalledTimes(3);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(OTHER_DB_QUOTE);
+      expect(await getDb().select().from(payments)).toEqual(before);
+      expect(await getDb().select().from(jobs)).toHaveLength(jobsBefore);
+      expect(error).not.toHaveBeenCalled();
+      expect(
+        (await instalments(subscriptionId)).slice(1).every((r) => r.status === "scheduled"),
+      ).toBe(true);
+    });
+
+    it(`${type}: a known quote with no instalments yet is 500 and records nothing (Review Focus 4)`, async () => {
+      const { subscriptionId, quoteId } = await paidMonthlyCheckout();
+      const invoice = presetInvoice(stripe, {
+        id: "in_month_2",
+        subscriptionId,
+        periodStart: MONTH_2,
+        paidAt: PAID_AT,
+        status: type === "invoice.paid" ? "paid" : "open",
+        quoteId,
+      });
+      expect((await deliver(stripeEvent(type, invoice))).status).toBe(500);
+      expect(await recordedEvents()).toHaveLength(0);
+      expect(error).toHaveBeenCalledWith(expect.any(String), { name: "StripeEventNotReady" });
+    });
+  }
 });
 
 describe("handleStripeWebhook: invoice.payment_failed", () => {
