@@ -12,6 +12,7 @@ import {
   accountClosures,
   accounts,
   auditLog,
+  checkoutSessions,
   customers,
   deletedRows,
   files,
@@ -37,11 +38,12 @@ import {
 } from "#/test/auth";
 import { tamper, truncateAll } from "#/test/db";
 import { makeCustomer, makeFile, makePolicy, makeQuote, makeStaff } from "#/test/factories";
+import { fakeStripe } from "#/test/stripe-fake";
 import { setObjectStore } from "#/server/uploads/store";
 import { MemoryObjectStore } from "#/server/uploads/store-memory";
 
 import { cancelClosure, requestClosure } from "./closure";
-import { clearSessionCookies, deleteAccount } from "./delete";
+import { clearSessionCookies, deleteAccount, PAYMENT_PROCESSING } from "./delete";
 import type { AccountDeps } from "./emails";
 import { filesHook } from "./files";
 
@@ -72,6 +74,7 @@ beforeEach(async () => {
   await truncateAll();
   sent.length = 0;
   pending.length = 0;
+  stripe.reset();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -92,8 +95,12 @@ async function member(auth: TestAuth) {
 
 const headersFor = (cookie: string) => ({ headers: requestHeaders({ cookie }) });
 
+const stripe = fakeStripe();
+
 function del(auth: TestAuth, actor: Actor | null, cookie: string, password = PASSWORD) {
-  return deleteAccount(actor, { input: { password } }, headersFor(cookie), deps, auth as never);
+  return deleteAccount(actor, { input: { password } }, headersFor(cookie), deps, auth as never, {
+    stripe,
+  });
 }
 
 function request(auth: TestAuth, actor: Actor, cookie: string, key: string = randomUUID()) {
@@ -398,6 +405,81 @@ describe("deleteAccount", () => {
     expect(await limitedOf(del(auth, actor, cookie))).toBe("RATE_LIMITED");
     expect(verify).not.toHaveBeenCalled();
     expect(await userExists(user.id)).toBe(true);
+  });
+});
+
+describe("deleteAccount with checkout sessions (5.6b, ruling R17)", () => {
+  /** A signed-up member with a quote and a checkout session for it in `status` */
+  async function withCheckout(auth: TestAuth, status: "open" | "expired" | "refunded") {
+    const { user, cookie } = await member(auth);
+    const customer = await makeCustomer({ userId: user.id });
+    const { quote } = await makeQuote({ customerId: customer.id });
+    await getDb()
+      .insert(checkoutSessions)
+      .values({
+        quoteId: quote.id,
+        customerId: customer.id,
+        stripeSessionId: `cs_test_${status}`,
+        plan: "annual",
+        startsOn: "2026-12-01",
+        detailsConfirmedAt: new Date(),
+        coverAcknowledgedAt: new Date(),
+        amountPence: 45_840,
+        status,
+      });
+    const actor = (await resolveActor(getDb(), user.id))!;
+    return { user, cookie, actor, quote };
+  }
+  const checkoutRows = () => getDb().select().from(checkoutSessions);
+
+  it("deletes an account that abandoned a checkout (expired or refunded), its sessions with it", async () => {
+    const auth = makeAuth();
+    const { user, cookie, actor, quote } = await withCheckout(auth, "expired");
+
+    expect(await del(auth, actor, cookie)).toEqual({ ok: true, data: { deleted: true } });
+    expect(await userExists(user.id)).toBe(false);
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, quote.id))).toHaveLength(0);
+    expect(await checkoutRows()).toHaveLength(0);
+    // Nothing open, so Stripe isn't asked
+    expect(stripe.calls["checkout.sessions.expire"]).toBeUndefined();
+  });
+
+  it("expires an open session at Stripe, then deletes", async () => {
+    const auth = makeAuth();
+    const { user, cookie, actor } = await withCheckout(auth, "open");
+
+    expect((await del(auth, actor, cookie)).ok).toBe(true);
+    expect(stripe.calls["checkout.sessions.expire"]!.map((c) => c[0])).toEqual(["cs_test_open"]);
+    expect(await userExists(user.id)).toBe(false);
+    expect(await checkoutRows()).toHaveLength(0);
+  });
+
+  it("deletes when Stripe had already expired the open session", async () => {
+    const auth = makeAuth();
+    const { user, cookie, actor } = await withCheckout(auth, "open");
+    stripe.fail("checkout.sessions.expire", new Error("Only open sessions can be expired"));
+    stripe.set("checkout.sessions.retrieve", "cs_test_open", { status: "expired" });
+
+    expect((await del(auth, actor, cookie)).ok).toBe(true);
+    expect(await userExists(user.id)).toBe(false);
+  });
+
+  it("refuses, deleting nothing, while Stripe has the session complete (a payment being processed)", async () => {
+    const auth = makeAuth();
+    const { user, cookie, actor, quote } = await withCheckout(auth, "open");
+    stripe.fail("checkout.sessions.expire", new Error("Only open sessions can be expired"));
+    stripe.set("checkout.sessions.retrieve", "cs_test_open", { status: "complete" });
+
+    expect(await del(auth, actor, cookie)).toEqual({
+      ok: false,
+      error: { code: "VALIDATION", message: PAYMENT_PROCESSING, fields: {} },
+    });
+    await flush();
+    expect(await userExists(user.id)).toBe(true);
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, quote.id))).toHaveLength(1);
+    expect((await checkoutRows()).map((r) => r.status)).toEqual(["open"]);
+    expect(await actionRows("account.deleted")).toHaveLength(0);
+    expect(sent).toHaveLength(0);
   });
 });
 

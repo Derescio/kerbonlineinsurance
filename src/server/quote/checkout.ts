@@ -20,6 +20,7 @@ import { QUOTE_PAY_RULE } from "#/server/data/rate-limit-rules";
 import type { Tx } from "#/server/db/tx";
 import { getAuthEnv, getStripeEnv } from "#/server/env";
 import { checkoutParams } from "#/server/payments/checkout-params";
+import { expireAtStripe } from "#/server/payments/expire-session";
 import { kerbEnv } from "#/server/payments/kerb-env";
 import { getStripe, type StripeClient } from "#/server/payments/stripe";
 
@@ -114,13 +115,10 @@ async function expireOpenSession(
 ): Promise<void> {
   const open = await openCheckoutFor(tx, quoteId);
   if (!open) return;
-  try {
-    await stripe.checkout.sessions.expire(open.stripeSessionId);
-  } catch (error) {
-    // Stripe expired it already (its 30 minutes ran out): only the row is behind. Anything else,
-    // a completed session above all, isn't safe to replace, so the start fails.
-    const session = await stripe.checkout.sessions.retrieve(open.stripeSessionId);
-    if (session.status !== "expired") throw error;
+  // Stripe may have expired it already (its 30 minutes ran out): only the row is behind. A
+  // completed session isn't safe to replace, so the start fails.
+  if ((await expireAtStripe(stripe, open.stripeSessionId)) === "complete") {
+    throw new Error("The quote's open checkout session has completed");
   }
   await markCheckout(tx, open.id, "expired", now);
 }

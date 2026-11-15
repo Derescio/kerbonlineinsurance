@@ -181,6 +181,33 @@ export async function hasAnyClosure(tx: Tx, userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** The Stripe ids of the user's open checkout sessions (5.6b), to expire before a delete */
+export async function openCheckoutsOfUser(tx: Tx, userId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ stripeSessionId: checkoutSessions.stripeSessionId })
+    .from(checkoutSessions)
+    .innerJoin(customers, eq(customers.id, checkoutSessions.customerId))
+    .where(and(eq(customers.userId, userId), eq(checkoutSessions.status, "open")))
+    .orderBy(asc(checkoutSessions.createdAt));
+  return rows.map((row) => row.stripeSessionId);
+}
+
+/**
+ * Deletes the user's checkout sessions (5.6b). An account deleted at once bought nothing, so each is
+ * an attempt abandoned, expired or refunded; they go before the user because
+ * checkout_sessions_quote_fk is RESTRICT and the user's quotes cascade from the users row.
+ */
+export async function deleteCheckoutsOfUser(tx: Tx, userId: string): Promise<void> {
+  await tx
+    .delete(checkoutSessions)
+    .where(
+      inArray(
+        checkoutSessions.customerId,
+        tx.select({ id: customers.id }).from(customers).where(eq(customers.userId, userId)),
+      ),
+    );
+}
+
 /** Deletes the user; the foreign keys cascade to the rest and record_delete tombstones them */
 export async function deleteUserRow(tx: Tx, userId: string): Promise<void> {
   await tx.delete(users).where(eq(users.id, userId));
