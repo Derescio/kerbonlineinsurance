@@ -7,6 +7,7 @@ import {
   closureHeldEmail,
   closureRequestedEmail,
   existingAccountEmail,
+  paymentFailedEmail,
   paymentRefundedEmail,
   policyConfirmedEmail,
   resetPasswordEmail,
@@ -53,6 +54,7 @@ export const EMAIL_TEMPLATES = {
     z.object({ name: z.string(), reason: z.string(), url: z.string() }),
     paymentRefundedEmail,
   ),
+  payment_failed: entry(nameAndUrl, paymentFailedEmail),
 };
 
 export type EmailTemplate = keyof typeof EMAIL_TEMPLATES;

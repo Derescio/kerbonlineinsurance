@@ -244,3 +244,21 @@ export function paymentRefundedEmail(p: PaymentRefundedParams): EmailContent {
     text: `${hello}\n\n${lines.join("\n\n")}\n\nGo to your account:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
   };
 }
+
+// A monthly instalment Stripe couldn't take (5.6b, decision 8). Stripe retries for a while and the
+// cover stays in force, so this asks for a new card; sent once per failed invoice.
+export function paymentFailedEmail({ name, url }: { name: string; url: string }): EmailContent {
+  const hello = `Hi ${firstName(name)},`;
+  const line = "Update your card so your cover continues.";
+  const after = "We’ll try the payment again over the next few days.";
+  return {
+    subject: "We couldn’t take this month’s payment",
+    html: layout({
+      heading: "We couldn’t take this month’s payment",
+      body: `${escapeHtml(hello)} ${escapeHtml(line)}`,
+      link: { cta: "Update my card", url },
+      after,
+    }),
+    text: `${hello}\n\nWe couldn’t take this month’s payment. ${line}\n\nUpdate your card:\n${url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}

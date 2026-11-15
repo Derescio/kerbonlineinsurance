@@ -26,6 +26,7 @@ describe("renderEmail", () => {
       "closure_held",
       "closure_requested",
       "existing_account",
+      "payment_failed",
       "payment_refunded",
       "policy_confirmed",
       "reset_password",
@@ -74,6 +75,21 @@ describe("renderEmail", () => {
       expect(part).toContain("refunded your payment in full");
       expect(part).toContain("The amount taken didn’t match your quote.");
       expect(part).toContain("https://x/account");
+    }
+    expect(email.html).not.toContain("Patel");
+  });
+
+  it("asks for a new card when a monthly payment fails, linking to billing (5.6b)", () => {
+    const email = renderEmail("payment_failed", {
+      name: "Maya Patel",
+      url: "https://x/account/billing",
+    });
+    expect(email.subject).toBe("We couldn’t take this month’s payment");
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain("We couldn’t take this month’s payment");
+      expect(part).toContain("Update your card so your cover continues.");
+      expect(part).toContain("https://x/account/billing");
     }
     expect(email.html).not.toContain("Patel");
   });

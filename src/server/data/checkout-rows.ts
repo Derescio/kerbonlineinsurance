@@ -8,6 +8,7 @@ import {
   policies,
   quotes,
   stripeEvents,
+  users,
 } from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
 
@@ -161,6 +162,35 @@ export async function paymentsForSubscription(
     .from(payments)
     .where(eq(payments.stripeSubscriptionId, subscriptionId))
     .orderBy(asc(payments.instalmentNumber));
+}
+
+/**
+ * A subscription's instalment rows, in instalment order, locked `FOR UPDATE`: two webhook events
+ * about one subscription (a failure and the retry that paid) then apply one after the other
+ */
+export async function lockPaymentsForSubscription(
+  tx: Tx,
+  subscriptionId: string,
+): Promise<PaymentRow[]> {
+  return tx
+    .select()
+    .from(payments)
+    .where(eq(payments.stripeSubscriptionId, subscriptionId))
+    .orderBy(asc(payments.instalmentNumber))
+    .for("update");
+}
+
+/** Who to email about a customer's payments: first name and sign-in email; null with no user */
+export async function customerContact(
+  tx: Db | Tx,
+  customerId: string,
+): Promise<{ firstName: string; email: string } | null> {
+  const [row] = await tx
+    .select({ firstName: customers.firstName, email: users.email })
+    .from(customers)
+    .innerJoin(users, eq(users.id, customers.userId))
+    .where(eq(customers.id, customerId));
+  return row ?? null;
 }
 
 /** Every policy on the quote the subscription pays for (a bundle has more than one) */

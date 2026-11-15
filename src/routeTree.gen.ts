@@ -41,6 +41,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as QuoteQuoteCoveredQuoteIdRouteImport } from './routes/_quote/quote.covered.$quoteId'
 import { Route as QuoteQuotePayQuoteIdRouteImport } from './routes/_quote/quote.pay.$quoteId'
 
@@ -200,6 +201,11 @@ const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   path: '/api/webhooks/resend',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuoteQuoteCoveredQuoteIdRoute =
   QuoteQuoteCoveredQuoteIdRouteImport.update({
     id: '/quote/covered/$quoteId',
@@ -240,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/quote/': typeof QuoteQuoteIndexRoute
   '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
@@ -272,6 +279,7 @@ export interface FileRoutesByTo {
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/quote': typeof QuoteQuoteIndexRoute
   '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
@@ -309,6 +317,7 @@ export interface FileRoutesById {
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_quote/quote/': typeof QuoteQuoteIndexRoute
   '/_quote/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/_quote/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/api/cron/daily'
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
     | '/quote/'
     | '/quote/covered/$quoteId'
     | '/quote/pay/$quoteId'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/api/cron/daily'
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
     | '/quote'
     | '/quote/covered/$quoteId'
     | '/quote/pay/$quoteId'
@@ -411,6 +422,7 @@ export interface FileRouteTypes {
     | '/api/cron/daily'
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
     | '/_quote/quote/'
     | '/_quote/quote/covered/$quoteId'
     | '/_quote/quote/pay/$quoteId'
@@ -433,6 +445,7 @@ export interface RootRouteChildren {
   ApiCronDailyRoute: typeof ApiCronDailyRoute
   ApiCronJobsRoute: typeof ApiCronJobsRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
+  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -661,6 +674,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksResendRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_quote/quote/covered/$quoteId': {
       id: '/_quote/quote/covered/$quoteId'
       path: '/quote/covered/$quoteId'
@@ -763,6 +783,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDailyRoute: ApiCronDailyRoute,
   ApiCronJobsRoute: ApiCronJobsRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
+  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
