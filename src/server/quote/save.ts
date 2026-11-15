@@ -7,8 +7,7 @@ import { startDateBounds } from "#/features/quote/policy-terms";
 import type { DriverStep } from "#/features/quote/steps";
 import { carDetailsFromJourney } from "#/features/rating/car-details";
 import { priceQuote } from "#/features/rating/price-quote";
-import { hasStaffRow } from "#/server/data/account";
-import { defineWrite, rejected, type DataWrite } from "#/server/data/define";
+import { defineWrite, type DataWrite } from "#/server/data/define";
 import { QUOTE_SAVE_RULE } from "#/server/data/rate-limit-rules";
 import { customerForQuote, saveQuote } from "#/server/data/save-quote";
 import type { Tx } from "#/server/db/tx";
@@ -19,16 +18,14 @@ import { carPrices } from "./price";
 // Saving a car quote at the gate (5.6, decisions 4 and 5). The browser's prices are never trusted:
 // the journey is checked again as priceCar checks it, and priced again with the chosen cover from
 // the catalogue and the active rating version. The customer row is made at the first save. A
-// declined quote isn't saved, and staff can't buy. The journey holds names and dates of birth, so
+// declined quote isn't saved. Staff buy like anyone else: 4.5's conflict-of-interest rule keeps
+// them off their own claims and referrals. The journey holds names and dates of birth, so
 // it's never logged; the answer holds ids and statuses only, as the idempotency record stores it.
-
-export const STAFF_CANT_BUY = "Staff accounts can't buy policies.";
 
 export type SaveCarResult =
   | { status: "saved"; quoteId: string; reference: string; outcome: "quoted" | "referred" }
   | { status: "invalid"; step: "car" | DriverStep | "cover" }
-  | { status: "declined" }
-  | { status: "staff" };
+  | { status: "declined" };
 
 /**
  * Saves the user's car journey inside `tx`. Used by saveCarQuote and by the sign-up hook, which
@@ -39,7 +36,6 @@ export async function saveCarQuoteFor(
   userId: string,
   input: { journey: unknown; now?: Date },
 ): Promise<SaveCarResult> {
-  if (await hasStaffRow(tx, userId)) return { status: "staff" };
   const now = input.now ?? new Date();
 
   // Choose cover's choice, or its starting point when the save comes from Your quote (decision 13)
@@ -99,7 +95,6 @@ export const saveCarQuote: DataWrite<SaveCarResult> = defineWrite(
     idempotent: { action: "quote.save" },
   },
   async (actor, { journey }, tx) => {
-    const result = await saveCarQuoteFor(tx, actor.userId, { journey });
-    return result.status === "staff" ? rejected(STAFF_CANT_BUY) : result;
+    return saveCarQuoteFor(tx, actor.userId, { journey });
   },
 );

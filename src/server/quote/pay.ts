@@ -44,8 +44,6 @@ import { jobDeps } from "#/server/jobs/deps";
 import { queueEmail, runSoon } from "#/server/jobs/email";
 import type { JobDeps } from "#/server/jobs/types";
 
-import { STAFF_CANT_BUY } from "./save";
-
 // Paying for a saved quote (5.6, decision 7). The card is checked in the input schema and only its
 // brand and last four survive the parse (ruling 1), so the idempotency hash, the payment rows, the
 // audit row and the email never see the number or the code. A declined demo card is refused
@@ -151,7 +149,6 @@ async function pay(
       idempotent: { action: "quote.pay" },
     },
     async (actor, input: PayInput, tx): Promise<PayResult | Rejected> => {
-      if (actor.staff) return rejected(STAFF_CANT_BUY);
       if (input.card.declined) return rejected(CARD_DECLINED, { "card.number": CARD_DECLINED });
 
       // 1. The user and the customer, locked, and an account that isn't closing. The users row

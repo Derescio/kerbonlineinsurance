@@ -468,14 +468,17 @@ describe("payForQuote: refusals", () => {
     expect((await getDb().select().from(policies)).length).toBe(0);
   });
 
-  it("refuses staff", async () => {
+  it("lets staff buy like anyone else", async () => {
     const staff = await makeStaff();
+    const journey = await golf();
+    const saved = await withTx(getDb(), (tx) =>
+      saveCarQuoteFor(tx, staff.userId, { journey, now: NOW }),
+    );
+    if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
     const actor = (await resolveActor(getDb(), staff.userId))!;
     const verified = { ...actor, twoFactor: { enabled: true, verifiedAt: new Date() } };
-    await expect(pay(verified, randomUUID())).resolves.toMatchObject({
-      ok: false,
-      error: { message: "Staff accounts can't buy policies." },
-    });
+    await expect(pay(verified, saved.quoteId)).resolves.toMatchObject({ ok: true });
+    expect(await getDb().select().from(policies)).toHaveLength(1);
   });
 });
 

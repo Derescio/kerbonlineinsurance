@@ -39,7 +39,7 @@ import { saveCarQuote, saveCarQuoteFor } from "./save";
 
 // Saving a car quote on the server (5.6, decisions 4 and 5): the journey is checked and priced
 // again with the chosen cover, the customer row is made at the first save, and a declined quote
-// or a staff user saves nothing.
+// saves nothing. Staff save like anyone else.
 
 // The fixture's dates hold on 11 Nov 2026
 const NOW = new Date("2026-11-11T12:00:00Z");
@@ -218,11 +218,11 @@ describe("saveCarQuoteFor", () => {
     expect(await getDb().select().from(customers)).toEqual([]);
   });
 
-  it("refuses staff, with no customer row", async () => {
+  it("saves for staff like anyone else, making their customer row", async () => {
     const staff = await makeStaff();
-    await expect(save(staff.userId, await golf())).resolves.toEqual({ status: "staff" });
-    expect(await getDb().select().from(customers)).toEqual([]);
-    expect(await getDb().select().from(quotes)).toEqual([]);
+    await expect(save(staff.userId, await golf())).resolves.toMatchObject({ status: "saved" });
+    expect(await getDb().select().from(customers)).toHaveLength(1);
+    expect(await getDb().select().from(quotes)).toHaveLength(1);
   });
 });
 
@@ -238,7 +238,7 @@ describe("saveCarQuote", () => {
     expect(await getDb().select().from(quotes)).toHaveLength(1);
   });
 
-  it("rejects a staff user", async () => {
+  it("saves for a staff user", async () => {
     const staff = await makeStaff();
     const actor = (await resolveActor(getDb(), staff.userId))!;
     const result = await saveCarQuote(
@@ -246,11 +246,8 @@ describe("saveCarQuote", () => {
       { input: { journey: await golf() }, idempotencyKey: randomUUID() },
       ctx,
     );
-    expect(result).toMatchObject({
-      ok: false,
-      error: { message: "Staff accounts can't buy policies." },
-    });
-    expect(await getDb().select().from(customers)).toEqual([]);
+    expect(result).toMatchObject({ ok: true, data: { status: "saved" } });
+    expect(await getDb().select().from(customers)).toHaveLength(1);
   });
 
   it("allows 20 saves an hour", async () => {

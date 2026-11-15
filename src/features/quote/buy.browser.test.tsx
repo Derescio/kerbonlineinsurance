@@ -359,13 +359,13 @@ describe("the gate, signed in (decision 2)", () => {
     await expect.poll(() => moves.at(-1)).toEqual({ step: "claims", replace: true });
   });
 
-  it("shows a refusal, such as a staff account's", async () => {
+  it("shows a refusal from the server", async () => {
     save.mockResolvedValue({
       ok: false,
-      error: { code: "VALIDATION", message: "Staff accounts can't buy policies.", fields: {} },
+      error: { code: "VALIDATION", message: "Check the highlighted answers.", fields: {} },
     } as WriteResult<SaveCarResult>);
     const { router } = await show("buy");
-    await expect.element(page.getByText("Staff accounts can't buy policies.")).toBeVisible();
+    await expect.element(page.getByText("Check the highlighted answers.")).toBeVisible();
     expect(router.state.location.pathname).toBe("/quote/car");
   });
 });
