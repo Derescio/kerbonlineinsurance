@@ -25,6 +25,7 @@ import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as SiteCookiesRouteImport } from './routes/_site/cookies'
 import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as AccountBillingRouteImport } from './routes/account_.billing'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
@@ -120,6 +121,11 @@ const StaffStaffRoute = StaffStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
   getParentRoute: () => StaffRoute,
+} as any)
+const AccountBillingRoute = AccountBillingRouteImport.update({
+  id: '/account_/billing',
+  path: '/account/billing',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AccountCloseRoute = AccountCloseRouteImport.update({
   id: '/account_/close',
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
+  '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
+  '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/_site/cookies': typeof SiteCookiesRoute
   '/_site/privacy': typeof SitePrivacyRoute
   '/_staff/staff': typeof StaffStaffRoute
+  '/account_/billing': typeof AccountBillingRoute
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/privacy'
     | '/staff'
+    | '/account/billing'
     | '/account/close'
     | '/account/two-factor'
     | '/api/catalogue'
@@ -370,6 +380,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/privacy'
     | '/staff'
+    | '/account/billing'
     | '/account/close'
     | '/account/two-factor'
     | '/api/catalogue'
@@ -406,6 +417,7 @@ export interface FileRouteTypes {
     | '/_site/cookies'
     | '/_site/privacy'
     | '/_staff/staff'
+    | '/account_/billing'
     | '/account_/close'
     | '/account_/two-factor'
     | '/api/catalogue'
@@ -435,6 +447,7 @@ export interface RootRouteChildren {
   StaffRoute: typeof StaffRouteWithChildren
   AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
+  AccountBillingRoute: typeof AccountBillingRoute
   AccountCloseRoute: typeof AccountCloseRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
@@ -561,6 +574,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/staff'
       preLoaderRoute: typeof StaffStaffRouteImport
       parentRoute: typeof StaffRoute
+    }
+    '/account_/billing': {
+      id: '/account_/billing'
+      path: '/account/billing'
+      fullPath: '/account/billing'
+      preLoaderRoute: typeof AccountBillingRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/account_/close': {
       id: '/account_/close'
@@ -773,6 +793,7 @@ const rootRouteChildren: RootRouteChildren = {
   StaffRoute: StaffRouteWithChildren,
   AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
+  AccountBillingRoute: AccountBillingRoute,
   AccountCloseRoute: AccountCloseRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,

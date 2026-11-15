@@ -31,6 +31,18 @@ export const AUDIT_ACTIONS = {
     entityType: "checkout_session",
     description: "A checkout's payment was refunded because it couldn't be honoured",
   },
+  "policy.lapsed": {
+    entityType: "policy",
+    description: "A monthly policy's cover stopped because Stripe couldn't take its payments",
+  },
+  "policy.resumed": {
+    entityType: "policy",
+    description: "A lapsed policy's cover resumed once the payment owed went through",
+  },
+  "policy.cancelled_unpaid": {
+    entityType: "policy",
+    description: "A policy was cancelled because its payments couldn't be taken",
+  },
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

@@ -70,14 +70,21 @@ afterEach(() => {
 });
 
 describe("queueDailyJobs", () => {
-  it("queues the four daily jobs once per day, in order", async () => {
-    expect(await queueDailyJobs(getDb(), now)).toBe(4);
+  it("queues the five daily jobs once per day, in order", async () => {
+    expect(DAILY_JOBS).toEqual([
+      "account.closures",
+      "payments.lapsed_cancellations",
+      "uploads.cleanup",
+      "housekeeping.expired_rows",
+      "audit.anchor",
+    ]);
+    expect(await queueDailyJobs(getDb(), now)).toBe(5);
     expect(await queueDailyJobs(getDb(), new Date(now.getTime() + 60_000))).toBe(0);
     expect((await allJobs()).map((j) => [j.type, j.idempotencyKey])).toEqual(
       DAILY_JOBS.map((type) => [type, `${type}:2026-11-09`]),
     );
-    expect(await queueDailyJobs(getDb(), new Date(now.getTime() + DAY))).toBe(4);
-    expect(await allJobs()).toHaveLength(8);
+    expect(await queueDailyJobs(getDb(), new Date(now.getTime() + DAY))).toBe(5);
+    expect(await allJobs()).toHaveLength(10);
   });
 });
 

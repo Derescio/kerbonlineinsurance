@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
 import {
@@ -229,6 +229,92 @@ export async function policiesForSubscription(
       ),
     )
     .orderBy(asc(policies.createdAt), asc(policies.id));
+}
+
+/**
+ * The subscription's policies `FOR UPDATE`, in the same order as policiesForSubscription. Callers
+ * lock the subscription's payment rows first (lockPaymentsForSubscription), so the webhook and the
+ * daily lapse job take the two in one order.
+ */
+export async function lockPoliciesForSubscription(
+  tx: Tx,
+  subscriptionId: string,
+): Promise<PolicyRow[]> {
+  return tx
+    .select()
+    .from(policies)
+    .where(
+      inArray(
+        policies.quoteId,
+        tx
+          .select({ quoteId: payments.quoteId })
+          .from(payments)
+          .where(eq(payments.stripeSubscriptionId, subscriptionId)),
+      ),
+    )
+    .orderBy(asc(policies.createdAt), asc(policies.id))
+    .for("update");
+}
+
+/** Lapsed policies whose cover stopped at or before `cutoff` (the daily 30-day cancellation) */
+export async function lapsedPoliciesSince(
+  db: Db | Tx,
+  cutoff: Date,
+): Promise<{ id: string; quoteId: string }[]> {
+  return db
+    .select({ id: policies.id, quoteId: policies.quoteId })
+    .from(policies)
+    .where(and(eq(policies.status, "lapsed"), lte(policies.lapsedAt, cutoff)))
+    .orderBy(asc(policies.lapsedAt), asc(policies.id));
+}
+
+/** The Stripe subscription paying for a quote's policies, or null for one paid in full */
+export async function subscriptionForQuote(db: Db | Tx, quoteId: string): Promise<string | null> {
+  const [row] = await db
+    .selectDistinct({ id: payments.stripeSubscriptionId })
+    .from(payments)
+    .where(and(eq(payments.quoteId, quoteId), isNotNull(payments.stripeSubscriptionId)));
+  return row?.id ?? null;
+}
+
+/** Every subscription Kerb holds for a Stripe customer, from its instalment rows */
+export async function subscriptionsForStripeCustomer(
+  db: Db | Tx,
+  stripeCustomerId: string,
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ id: payments.stripeSubscriptionId })
+    .from(payments)
+    .innerJoin(customers, eq(customers.id, payments.customerId))
+    .where(
+      and(
+        eq(customers.stripeCustomerId, stripeCustomerId),
+        isNotNull(payments.stripeSubscriptionId),
+      ),
+    );
+  return rows.map((row) => row.id!).sort();
+}
+
+/**
+ * What /account/billing needs about a customer: their Stripe customer, and whether they pay
+ * monthly (a payments row with a subscription). A customer who paid in full has a Stripe customer
+ * too, but no card on file to update (ruling R12).
+ */
+export async function billingCustomer(
+  db: Db | Tx,
+  customerId: string,
+): Promise<{ stripeCustomerId: string | null; monthly: boolean }> {
+  const [customer] = await db
+    .select({ stripeCustomerId: customers.stripeCustomerId })
+    .from(customers)
+    .where(eq(customers.id, customerId));
+  if (!customer) return { stripeCustomerId: null, monthly: false };
+  const [monthly] = await db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(and(eq(payments.customerId, customerId), isNotNull(payments.stripeSubscriptionId)))
+    .limit(1);
+  return { stripeCustomerId: customer.stripeCustomerId, monthly: Boolean(monthly) };
 }
 
 export interface InstalmentPatch {

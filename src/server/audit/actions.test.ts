@@ -31,6 +31,12 @@ describe("AUDIT_ACTIONS", () => {
     expect(AUDIT_ACTIONS["payment.refunded"].entityType).toBe("checkout_session");
   });
 
+  it("records a lapse, a resume and a cancellation for non-payment against the policy (5.6b)", () => {
+    for (const name of ["policy.lapsed", "policy.resumed", "policy.cancelled_unpaid"] as const) {
+      expect(AUDIT_ACTIONS[name].entityType).toBe("policy");
+    }
+  });
+
   it("every name is area.verb", () => {
     // The same pattern as audit_log_action_check in 0001
     for (const name of Object.keys(AUDIT_ACTIONS)) {

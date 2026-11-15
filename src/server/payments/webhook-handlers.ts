@@ -1,22 +1,26 @@
 import type Stripe from "stripe";
 
 import { todayIso } from "#/features/quote/schemas/dates";
-import { authUrls } from "#/server/auth/origins";
 import {
-  customerContact,
   isKnownQuote,
   lockCheckoutBySessionId,
   lockPaymentsForSubscription,
+  lockPoliciesForSubscription,
   markCheckout,
   markInstalment,
+  subscriptionsForStripeCustomer,
   type PaymentRow,
 } from "#/server/data/checkout-rows";
 import type { Tx } from "#/server/db/tx";
-import { getAuthEnv } from "#/server/env";
-import { queueEmail } from "#/server/jobs/email";
 import type { JobDeps } from "#/server/jobs/types";
 import { fulfilCheckout } from "#/server/quote/fulfil";
 
+import {
+  cancelSubscriptionPolicies,
+  lapseSubscription,
+  queueBillingEmail,
+  resumeSubscription,
+} from "./lapse";
 import type { StripeClient } from "./stripe";
 
 // What Kerb does for each Stripe event (5.6b, decision 7), one entry per event type. Each entry
@@ -58,8 +62,6 @@ export type EventEntry<E> =
   | { kerbEnv: KerbEnvOf<E>; ownTransaction: (event: E, deps: HandlerDeps) => Promise<void> };
 
 // ---- Where each kind of object keeps its kerb_env (ruling R4) --------------------------------
-// Task 6 adds customer.* (the customer's metadata) and payment_method.attached (the customer,
-// retrieved, since a payment method carries no Kerb metadata).
 
 const tag = (metadata: Stripe.Metadata | null | undefined): string | null =>
   metadata?.kerb_env || null;
@@ -75,6 +77,21 @@ export const invoiceKerbEnv = (event: { data: { object: Stripe.Invoice } }) =>
 /** A subscription's own metadata */
 export const subscriptionKerbEnv = (event: { data: { object: Stripe.Subscription } }) =>
   tag(event.data.object.metadata);
+
+/** A customer's own metadata (startCheckout tags every Stripe customer it makes) */
+export const customerKerbEnv = (event: { data: { object: Stripe.Customer } }) =>
+  tag(event.data.object.metadata);
+
+/** A payment method carries no Kerb metadata: its customer's, retrieved */
+export async function paymentMethodKerbEnv(
+  event: { data: { object: Stripe.PaymentMethod } },
+  deps: HandlerDeps,
+): Promise<string | null> {
+  const customerId = idOf(event.data.object.customer);
+  if (!customerId) return null;
+  const customer = await deps.stripe.customers.retrieve(customerId);
+  return customer.deleted ? null : tag(customer.metadata);
+}
 
 // ---- Instalments -----------------------------------------------------------------------------
 
@@ -165,7 +182,7 @@ async function invoicePaid(
   tx: Tx,
   event: EventOf<"invoice.paid">,
   deps: HandlerDeps,
-): Promise<void> {
+): Promise<HandlerResult | void> {
   // The first invoice is payment 1, which fulfilment records
   if (event.data.object.billing_reason === "subscription_create") return;
   const invoice = await deps.stripe.invoices.retrieve(event.data.object.id);
@@ -174,15 +191,18 @@ async function invoicePaid(
 
   const row = await instalmentFor(tx, invoice, subscriptionId);
   if (!row) return warnUnknownSubscription(event);
-  if (row.status === "succeeded" && row.stripeInvoiceId === invoice.id) return;
-  // Stripe's paid time, so a test clock's month lines up with the rows
-  const paidAt = invoice.status_transitions.paid_at ?? event.created;
-  await markInstalment(tx, row.id, {
-    status: "succeeded",
-    paidAt: new Date(paidAt * 1000),
-    stripeInvoiceId: invoice.id,
-  });
-  // Task 6: a lapsed policy whose subscription is active again resumes here
+  if (!(row.status === "succeeded" && row.stripeInvoiceId === invoice.id)) {
+    // Stripe's paid time, so a test clock's month lines up with the rows
+    const paidAt = invoice.status_transitions.paid_at ?? event.created;
+    await markInstalment(tx, row.id, {
+      status: "succeeded",
+      paidAt: new Date(paidAt * 1000),
+      stripeInvoiceId: invoice.id,
+    });
+  }
+  // The invoice owed from while covered is paid: a lapsed policy resumes if Stripe has the
+  // subscription active again (decision 8)
+  return { emailJobs: await resumeSubscription(tx, subscriptionId, deps.stripe, deps.now) };
 }
 
 async function invoicePaymentFailed(
@@ -209,21 +229,158 @@ async function invoicePaymentFailed(
   });
   // One email per failed invoice, however many of Stripe's retries fail (decision 8)
   if (failedBefore) return;
-  const contact = await customerContact(tx, row.customerId);
-  if (!contact) return;
-  const jobId = await queueEmail(
-    tx,
-    {
-      to: contact.email,
-      template: "payment_failed",
-      params: {
-        name: contact.firstName,
-        url: `${authUrls(getAuthEnv()).baseURL}/account/billing`,
-      },
-    },
-    deps.now,
-  );
-  return { emailJobs: [jobId] };
+  const jobId = await queueBillingEmail(tx, row.customerId, "payment_failed", deps.now);
+  return jobId === null ? undefined : { emailJobs: [jobId] };
+}
+
+/**
+ * An invoice Stripe made for a lapsed policy's subscription: no cover that month, so no charge.
+ * It's finalised (Stripe leaves an unpaid subscription's invoices as drafts) and voided, and that
+ * month's instalment row stays or becomes failed. A resume then never pays for it (decision 8).
+ */
+async function invoiceCreated(
+  tx: Tx,
+  event: EventOf<"invoice.created">,
+  deps: HandlerDeps,
+): Promise<void> {
+  // The first invoice is the checkout's; its policy doesn't exist yet
+  if (event.data.object.billing_reason === "subscription_create") return;
+  const invoice = await deps.stripe.invoices.retrieve(event.data.object.id);
+  const subscriptionId = subscriptionOf(invoice);
+  if (!subscriptionId) return;
+  // The payment rows, then the policies (the lock order); only a lapsed policy's invoice is voided
+  await lockPaymentsForSubscription(tx, subscriptionId);
+  const policies = await lockPoliciesForSubscription(tx, subscriptionId);
+  if (!policies.some((p) => p.status === "lapsed")) return;
+
+  if (invoice.status === "draft") {
+    // auto_advance off, so Stripe never tries to charge it in the moment before the void
+    await deps.stripe.invoices.finalizeInvoice(invoice.id, { auto_advance: false });
+  }
+  if (invoice.status === "draft" || invoice.status === "open") {
+    await deps.stripe.invoices.voidInvoice(invoice.id);
+  } else if (invoice.status !== "void") {
+    return; // paid or uncollectible: Stripe has moved on, and invoice.paid records a payment
+  }
+
+  const row = await instalmentFor(tx, invoice, subscriptionId);
+  if (!row || row.status === "succeeded") return;
+  await markInstalment(tx, row.id, {
+    status: "failed",
+    paidAt: null,
+    // Never replace another invoice's id on the row (one that failed while covered, say)
+    ...(row.stripeInvoiceId === null ? { stripeInvoiceId: invoice.id } : {}),
+  });
+}
+
+/** Stripe gave up on a payment (unpaid, fetched again): the policies lapse at the event's time */
+async function subscriptionUpdated(
+  tx: Tx,
+  event: EventOf<"customer.subscription.updated">,
+  deps: HandlerDeps,
+): Promise<HandlerResult | void> {
+  const subscriptionId = event.data.object.id;
+  const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
+  // past_due is the grace period: Stripe is still retrying and the cover stays
+  if (subscription.status !== "unpaid") return;
+  const lapsedAt = new Date(event.created * 1000);
+  return { emailJobs: await lapseSubscription(tx, subscriptionId, lapsedAt, deps.now) };
+}
+
+/**
+ * The subscription ended. At its cancel_at the term is simply over; after Kerb's 30-day job every
+ * policy is already cancelled. Anything else (cancelled in Stripe's dashboard, say) cancels the
+ * policies that are still active or lapsed.
+ */
+async function subscriptionDeleted(
+  tx: Tx,
+  event: EventOf<"customer.subscription.deleted">,
+  deps: HandlerDeps,
+): Promise<void> {
+  const subscriptionId = event.data.object.id;
+  const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
+  const { cancel_at: cancelAt, ended_at: endedAt } = subscription;
+  if (cancelAt !== null && endedAt !== null && endedAt >= cancelAt) return;
+  const cancelledAt = new Date((endedAt ?? event.created) * 1000);
+  await cancelSubscriptionPolicies(tx, subscriptionId, cancelledAt);
+}
+
+/** A Stripe error that is the card's (declined, say), not Kerb's or Stripe's */
+const isCardError = (error: unknown) =>
+  (error as { type?: unknown } | null)?.type === "StripeCardError";
+
+/**
+ * A new card for a Stripe customer: each of their subscriptions that is `unpaid` gets it as its
+ * card, and the invoice that failed while the policy was covered (the earliest of its failed
+ * instalments whose invoice is still open; lapsed months' are void) is paid with it. Stripe
+ * doesn't retry an unpaid subscription itself. A past_due one is left to Stripe's own retries
+ * (Review Focus 5). invoice.paid then resumes the cover.
+ */
+async function payUnpaidWith(
+  tx: Tx,
+  stripeCustomerId: string,
+  card: string,
+  deps: HandlerDeps,
+): Promise<void> {
+  for (const subscriptionId of await subscriptionsForStripeCustomer(tx, stripeCustomerId)) {
+    // Locked first, so the portal's two events for one card (attached, then made the default)
+    // apply one after the other: the second finds the invoice paid
+    const rows = await lockPaymentsForSubscription(tx, subscriptionId);
+    const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
+    if (subscription.status !== "unpaid") continue;
+    await deps.stripe.subscriptions.update(subscriptionId, { default_payment_method: card });
+
+    let owed: string | null = null;
+    for (const row of rows) {
+      if (row.status !== "failed" || !row.stripeInvoiceId) continue;
+      const invoice = await deps.stripe.invoices.retrieve(row.stripeInvoiceId);
+      if (invoice.status === "open") {
+        owed = invoice.id;
+        break;
+      }
+    }
+    if (!owed) {
+      console.warn(`[stripe] no open invoice to pay on ${subscriptionId}`);
+      continue;
+    }
+    try {
+      await deps.stripe.invoices.pay(
+        owed,
+        { payment_method: card },
+        { idempotencyKey: `kerb-resume-${owed}-${card}` },
+      );
+    } catch (error) {
+      // Declined: Stripe sends invoice.payment_failed, and the customer can try another card
+      if (!isCardError(error)) throw error;
+      console.warn(`[stripe] the new card on ${subscriptionId} was declined`);
+    }
+  }
+}
+
+/** The customer's default card changed (the portal's "update card") */
+async function customerUpdated(
+  tx: Tx,
+  event: EventOf<"customer.updated">,
+  deps: HandlerDeps,
+): Promise<void> {
+  const previous = event.data.previous_attributes?.invoice_settings;
+  if (!previous || !("default_payment_method" in previous)) return;
+  const customer = await deps.stripe.customers.retrieve(event.data.object.id);
+  if (customer.deleted) return;
+  const card = idOf(customer.invoice_settings?.default_payment_method);
+  if (!card) return;
+  await payUnpaidWith(tx, customer.id, card, deps);
+}
+
+/** A card attached to the customer (the portal attaches one before making it the default) */
+async function paymentMethodAttached(
+  tx: Tx,
+  event: EventOf<"payment_method.attached">,
+  deps: HandlerDeps,
+): Promise<void> {
+  const customerId = idOf(event.data.object.customer);
+  if (!customerId) return;
+  await payUnpaidWith(tx, customerId, event.data.object.id, deps);
 }
 
 // ---- The table -------------------------------------------------------------------------------
@@ -235,6 +392,11 @@ export const EVENT_HANDLERS: EventTable = {
   "checkout.session.expired": { kerbEnv: sessionKerbEnv, handle: checkoutExpired },
   "invoice.paid": { kerbEnv: invoiceKerbEnv, handle: invoicePaid },
   "invoice.payment_failed": { kerbEnv: invoiceKerbEnv, handle: invoicePaymentFailed },
+  "invoice.created": { kerbEnv: invoiceKerbEnv, handle: invoiceCreated },
+  "customer.subscription.updated": { kerbEnv: subscriptionKerbEnv, handle: subscriptionUpdated },
+  "customer.subscription.deleted": { kerbEnv: subscriptionKerbEnv, handle: subscriptionDeleted },
+  "customer.updated": { kerbEnv: customerKerbEnv, handle: customerUpdated },
+  "payment_method.attached": { kerbEnv: paymentMethodKerbEnv, handle: paymentMethodAttached },
 };
 
 /** The entry for an event's type, or undefined for a type Kerb ignores */
