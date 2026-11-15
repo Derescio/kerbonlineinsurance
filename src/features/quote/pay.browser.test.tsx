@@ -431,23 +431,46 @@ describe("You're covered after Stripe's form (5.6b, decision 11)", () => {
     await expect.element(page.getByText("KRB-482913")).toBeVisible();
   });
 
-  it("says it's confirming while the payment is pending, and polls until the policy is there", async () => {
+  it("says it's confirming while the payment is pending, and confirms again until it's fulfilled (no webhook needed)", async () => {
     let answer: (value: { status: "pending" }) => void = () => undefined;
-    confirm.mockReturnValue(new Promise((resolve) => (answer = resolve)));
-    purchaseFn
-      .mockRejectedValueOnce(notFound())
-      .mockRejectedValueOnce(notFound())
-      .mockResolvedValue(PURCHASE);
+    confirm
+      .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+      .mockResolvedValueOnce({ status: "pending" })
+      .mockResolvedValue({ status: "fulfilled" });
+    purchaseFn.mockResolvedValue(PURCHASE);
     await showReturn();
     await expect.element(page.getByText("Confirming your payment…")).toBeVisible();
     answer({ status: "pending" });
     await expect.element(page.getByText("KRB-482913")).toBeVisible();
-    expect(purchaseFn).toHaveBeenCalledTimes(3);
+    // Each poll confirms again (idempotent), so the return page itself fulfils the payment
+    expect(confirm).toHaveBeenCalledTimes(3);
+    expect(confirm).toHaveBeenLastCalledWith({ data: { quoteId: QUOTE_ID, sessionId: SESSION } });
+    expect(purchaseFn).toHaveBeenCalledTimes(1);
     expect(page.getByText("Confirming your payment…").elements()).toHaveLength(0);
   });
 
+  it("after a confirm fails, confirms again and looks for the purchase the webhook may have made", async () => {
+    confirm.mockRejectedValueOnce(new Error("Stripe is down")).mockResolvedValue({
+      status: "already",
+    });
+    purchaseFn.mockRejectedValueOnce(notFound()).mockResolvedValue(PURCHASE);
+    await showReturn();
+    await expect.element(page.getByText("KRB-482913")).toBeVisible();
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops polling when the page goes away", async () => {
+    confirm.mockResolvedValue({ status: "pending" });
+    const { screen } = await showReturn();
+    await expect.poll(() => confirm.mock.calls.length).toBeGreaterThanOrEqual(2);
+    await screen.unmount();
+    const calls = confirm.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, POLL.everyMs * 4));
+    expect(confirm.mock.calls.length).toBe(calls);
+  });
+
   it("gives up polling after its time and says the payment is being confirmed", async () => {
-    confirm.mockResolvedValue({ status: "unknown" });
+    confirm.mockRejectedValue(new Error("Stripe is down"));
     purchaseFn.mockRejectedValue(notFound());
     await showReturn();
     await expect
@@ -457,7 +480,9 @@ describe("You're covered after Stripe's form (5.6b, decision 11)", () => {
         ),
       )
       .toBeVisible();
-    expect(purchaseFn).toHaveBeenCalledTimes(POLL.attempts);
+    // The first try and then one per poll: 20 seconds' worth at the page's own timing
+    expect(confirm).toHaveBeenCalledTimes(POLL.attempts + 1);
+    expect(purchaseFn).toHaveBeenCalledTimes(POLL.attempts + 1);
     await expect
       .element(page.getByRole("link", { name: "Go to my account" }))
       .toHaveAttribute("href", "/account");

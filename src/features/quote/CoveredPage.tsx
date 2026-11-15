@@ -16,8 +16,8 @@ import { confirmCheckoutFn, getPurchaseFn } from "./server";
 // documents" and "View policy" wait for 6.2.
 //
 // Stripe's form returns here with its session id (5.6b, decisions 6 and 11). The page confirms the
-// session once, which fulfils it now rather than waiting on the webhook, then shows the purchase.
-// While the payment is still settling it says so and looks again every 2 seconds for 20 seconds,
+// session, which fulfils it now rather than waiting on the webhook, then shows the purchase. While
+// the payment is still settling it says so and confirms again every 2 seconds for 20 seconds,
 // then leaves it to the email. A purchase that couldn't be completed was refunded, and says so.
 
 /** How often You're covered looks for the purchase while the payment settles, and how many times */
@@ -120,7 +120,8 @@ export function CoveredPage({
 
 /**
  * What the page shows: the purchase given, or, with Stripe's session id, what confirming it found.
- * The confirm is a write, so it's sent once however often React runs the effect.
+ * The confirm and its polls start once however often React runs the effect, and stop when the page
+ * goes away.
  */
 function useConfirmedPurchase(
   quoteId: string,
@@ -144,6 +145,7 @@ function useConfirmedPurchase(
   useEffect(() => {
     if (!sessionId || started.current) return;
     started.current = true;
+    const session = sessionId;
 
     /** Shows the purchase if it's there yet: it isn't found until the quote is bought */
     async function load(): Promise<boolean> {
@@ -159,10 +161,33 @@ function useConfirmedPurchase(
       }
     }
 
+    /**
+     * Confirms the session and shows what that found; true when there's nothing more to wait for.
+     * Confirming is idempotent (fulfilCheckout once per session, whoever asks), so each poll asks
+     * again: a payment still settling at the first try is fulfilled from here once Stripe has it,
+     * with no webhook needed (a preview Stripe can't reach).
+     */
+    async function confirmOnce(): Promise<boolean> {
+      let status: string;
+      try {
+        ({ status } = await confirmCheckoutFn({ data: { quoteId, sessionId: session } }));
+      } catch {
+        // Not confirmed from here this time; the webhook may have fulfilled it, so look
+        status = "error";
+      }
+      if (!alive.current) return true;
+      if (status === "refunded") {
+        setShown({ kind: "refunded" });
+        return true;
+      }
+      if (status === "fulfilled" || status === "already" || status === "error") return load();
+      return false;
+    }
+
     function retry(attempt: number) {
       timer.current = setTimeout(() => {
         void (async () => {
-          if (!alive.current || (await load()) || !alive.current) return;
+          if (!alive.current || (await confirmOnce()) || !alive.current) return;
           if (attempt >= poll.attempts) setShown({ kind: "still_confirming" });
           else retry(attempt + 1);
         })();
@@ -170,19 +195,7 @@ function useConfirmedPurchase(
     }
 
     void (async () => {
-      let status: string;
-      try {
-        ({ status } = await confirmCheckoutFn({ data: { quoteId, sessionId } }));
-      } catch {
-        // Not confirmed from here; the webhook still fulfils it, so look for the purchase
-        status = "unknown";
-      }
-      if (!alive.current) return;
-      if (status === "refunded") {
-        setShown({ kind: "refunded" });
-        return;
-      }
-      if ((status === "fulfilled" || status === "already") && (await load())) return;
+      if ((await confirmOnce()) || !alive.current) return;
       retry(1);
     })();
   }, [quoteId, sessionId, poll]);
