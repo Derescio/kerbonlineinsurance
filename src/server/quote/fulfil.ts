@@ -53,6 +53,12 @@ export interface FulfilOptions {
   now?: Date;
   stripe?: StripeClient;
   jobs?: JobDeps;
+  /**
+   * When setting the subscription's cancel_at fails after the purchase committed: the return page
+   * logs it ("log", the default), the webhook throws ("throw"), so it answers 500 and Stripe's
+   * retry sets it again
+   */
+  cancelAtFailure?: "log" | "throw";
 }
 
 type Session = Awaited<ReturnType<StripeClient["checkout"]["sessions"]["retrieve"]>>;
@@ -87,44 +93,70 @@ const AMOUNT_MISMATCH = {
 const reasonFor = (message: string) =>
   REFUND_REASONS[message] ?? { code: "refused", words: "We couldn’t complete your purchase." };
 
+// Stripe's card brand codes, as the brands write their own names
 const KNOWN_BRANDS: Record<string, string> = {
   visa: "Visa",
   mastercard: "Mastercard",
-  amex: "Amex",
+  amex: "American Express",
+  cartes_bancaires: "Cartes Bancaires",
+  diners: "Diners Club",
+  discover: "Discover",
+  eftpos_au: "eftpos Australia",
+  interac: "Interac",
+  jcb: "JCB",
+  link: "Link",
+  unionpay: "UnionPay",
 };
 
-/** Stripe's "visa" as 5.6 showed it, "Visa"; an unknown brand title-cased; none is "Card" */
+/**
+ * Stripe's "visa" as 5.6 showed it, "Visa"; a brand not listed title-cased word by word
+ * ("some_brand" → "Some Brand"); none is "Card"
+ */
 function brandName(brand: string | null | undefined): string {
   if (!brand || brand === "unknown") return "Card";
-  return KNOWN_BRANDS[brand] ?? brand.charAt(0).toUpperCase() + brand.slice(1);
+  return (
+    KNOWN_BRANDS[brand] ??
+    brand
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  );
 }
 
 const idOf = (value: string | { id: string } | null | undefined): string | null =>
   value == null ? null : typeof value === "string" ? value : value.id;
 
-/** The card's brand and last four, from the expanded payment method or Stripe again */
+/**
+ * The card's brand and last four, from the expanded payment method or Stripe again. Cards only
+ * (decision 3), so a payment with no card is something Kerb can't record honestly: it throws, and
+ * the caller fails (the webhook answers 500 and Stripe retries; the return page shows its error
+ * and keeps checking), rather than writing a made-up last four.
+ */
 async function cardOf(
   stripe: StripeClient,
   method: string | PaymentMethodCard | null | undefined,
 ): Promise<{ brand: string; last4: string }> {
   const pm = typeof method === "string" ? await stripe.paymentMethods.retrieve(method) : method;
-  return { brand: brandName(pm?.card?.brand), last4: pm?.card?.last4 ?? "0000" };
+  if (!pm?.card?.last4) throw new Error("Stripe returned a payment without a card");
+  return { brand: brandName(pm.card.brand), last4: pm.card.last4 };
 }
 
 /**
- * The first invoice's payment intent. Since 2025-03-31 an invoice's payments are a list of
- * invoice payments (`invoice.payments`, only when expanded), each naming its payment intent.
+ * The checkout's own (first) invoice: its payment intent and its line's period start. Since
+ * 2025-03-31 an invoice's payments are a list of invoice payments (`invoice.payments`, only when
+ * expanded), each naming its payment intent. The period is the line item's (ruling R14).
  */
-async function firstInvoicePaymentIntent(
+async function firstInvoice(
   stripe: StripeClient,
   invoiceId: string,
-): Promise<string | null> {
+): Promise<{ paymentIntentId: string | null; periodStart: number | null }> {
   const invoice = await stripe.invoices.retrieve(invoiceId, { expand: ["payments"] });
+  let paymentIntentId: string | null = null;
   for (const entry of invoice.payments?.data ?? []) {
-    const intent = idOf(entry.payment.payment_intent);
-    if (intent) return intent;
+    paymentIntentId = idOf(entry.payment.payment_intent);
+    if (paymentIntentId) break;
   }
-  return null;
+  return { paymentIntentId, periodStart: invoice.lines?.data[0]?.period.start ?? null };
 }
 
 /** The amount, card and ids Stripe took for the session */
@@ -139,12 +171,20 @@ async function paidFor(stripe: StripeClient, session: Session): Promise<Paid> {
     // In this API version a subscription's period is on its item
     const item = subscription.items.data[0];
     if (!item) throw new Error("Stripe returned a subscription without an item");
-    const invoiceId = idOf(subscription.latest_invoice) ?? idOf(session.invoice);
+    // The session's own invoice, not the subscription's latest: a late fulfilment (a month on, a
+    // webhook retried for days) would otherwise take month 2's invoice and period for row 1
+    const invoiceId = idOf(session.invoice) ?? idOf(subscription.latest_invoice);
+    const first = invoiceId ? await firstInvoice(stripe, invoiceId) : null;
     return {
       amountPence: item.price.unit_amount,
       card: await cardOf(stripe, subscription.default_payment_method),
-      paymentIntentId: invoiceId ? await firstInvoicePaymentIntent(stripe, invoiceId) : null,
-      subscription: { id: subscription.id, invoiceId, periodStart: item.current_period_start },
+      paymentIntentId: first?.paymentIntentId ?? null,
+      subscription: {
+        id: subscription.id,
+        invoiceId,
+        // The first invoice's period; the item's current period only when it has no line
+        periodStart: first?.periodStart ?? item.current_period_start,
+      },
     };
   }
   const intent =
@@ -284,8 +324,16 @@ async function refund(
   });
 }
 
-/** Ends a monthly plan after its 12th period. Idempotent; a failure is logged and left for the webhook */
-async function endAfterTwelve(stripe: StripeClient, paid: Paid): Promise<void> {
+/**
+ * Ends a monthly plan after its 12th period. Idempotent. A failure from the return page is logged
+ * and left for the webhook; the webhook's own failure is thrown, so it answers 500 and Stripe
+ * retries the event (which finds the purchase done and sets cancel_at again).
+ */
+async function endAfterTwelve(
+  stripe: StripeClient,
+  paid: Paid,
+  onFailure: "log" | "throw",
+): Promise<void> {
   if (!paid.subscription) return;
   try {
     await stripe.subscriptions.update(paid.subscription.id, {
@@ -293,6 +341,7 @@ async function endAfterTwelve(stripe: StripeClient, paid: Paid): Promise<void> {
       proration_behavior: "none",
     });
   } catch (error) {
+    if (onFailure === "throw") throw error;
     console.error("[stripe] setting cancel_at failed:", logSafeError(error));
   }
 }
@@ -374,7 +423,9 @@ export async function fulfilCheckout(
   // 8. After the commit: the email, and a monthly plan told to end after 12 periods. A second
   // caller sets cancel_at again, which is how a failed first attempt is retried.
   if (outcome.kind === "fulfilled") sendSoon(outcome.jobId, opts.jobs);
-  if (outcome.kind !== "refunded") await endAfterTwelve(stripe, paid);
+  if (outcome.kind !== "refunded") {
+    await endAfterTwelve(stripe, paid, opts.cancelAtFailure ?? "log");
+  }
   return { status: outcome.kind, quoteId: outcome.quoteId };
 }
 

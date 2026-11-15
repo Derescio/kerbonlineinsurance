@@ -156,6 +156,8 @@ async function checkoutCompleted(
     now: deps.now,
     stripe: deps.stripe,
     jobs: deps.jobs,
+    // A failure to set cancel_at is a 500, so Stripe retries the event (decision 3)
+    cancelAtFailure: "throw",
   });
   // A session from a database since reset, say (decision 2)
   if (result.status === "unknown") {

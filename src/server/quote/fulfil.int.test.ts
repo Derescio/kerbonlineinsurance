@@ -169,6 +169,10 @@ function paidMonthly(
   stripe.set("invoices.retrieve", invoiceId, {
     object: "invoice",
     parent: { subscription_details: { subscription: subscriptionId } },
+    lines: {
+      object: "list",
+      data: [{ id: "il_1", period: { start: periodStart, end: periodStart } }],
+    },
     payments: {
       object: "list",
       data: [{ payment: { type: "payment_intent", payment_intent: `pi_for_${invoiceId}` } }],
@@ -361,7 +365,7 @@ describe("fulfilCheckout: buying", () => {
     expect(twelfthPeriodEnd(leapDay)).toBe(Math.floor(Date.parse("2029-02-28T00:00:00Z") / 1000));
   });
 
-  it("keeps the purchase when ending the subscription fails, and logs it", async () => {
+  it("from the return page, keeps the purchase when ending the subscription fails, and logs it", async () => {
     const { actor, quoteId } = await pricedCarQuote();
     const row = await started(actor, quoteId, "monthly");
     paidMonthly(row.stripeSessionId, row.amountPence);
@@ -378,6 +382,119 @@ describe("fulfilCheckout: buying", () => {
       name: "Error",
     });
     logged.mockRestore();
+  });
+
+  it("for the webhook, keeps the purchase but throws when ending the subscription fails, so Stripe retries", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    const row = await started(actor, quoteId, "monthly");
+    const ids = paidMonthly(row.stripeSessionId, row.amountPence);
+    stripe.failOnce("subscriptions.update");
+
+    await expect(
+      fulfilCheckout(row.stripeSessionId, opts({ cancelAtFailure: "throw" })),
+    ).rejects.toThrow("Stripe is down");
+    // The purchase committed before cancel_at was set
+    expect(await countPolicies()).toBe(1);
+    expect((await rowOf(row.id)).status).toBe("completed");
+
+    // Stripe's retry: already fulfilled, and cancel_at set this time
+    await expect(
+      fulfilCheckout(row.stripeSessionId, opts({ cancelAtFailure: "throw" })),
+    ).resolves.toEqual({ status: "already", quoteId });
+    expect(stripe.calls["subscriptions.update"]!.map((c) => c[0])).toEqual([
+      ids.subscriptionId,
+      ids.subscriptionId,
+    ]);
+    expect(await countPolicies()).toBe(1);
+  });
+
+  it("uses the session's own invoice and its period, though the subscription has moved on to month 2", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    const row = await started(actor, quoteId, "monthly");
+    const ids = paidMonthly(row.stripeSessionId, row.amountPence);
+    // A late fulfilment: Stripe's subscription now points at month 2's invoice and period
+    const month2 = billingTime(PERIOD_START, 1);
+    const session = await stripe.checkout.sessions.retrieve(row.stripeSessionId);
+    const subscription = session.subscription as unknown as Record<string, unknown>;
+    stripe.set("checkout.sessions.retrieve", row.stripeSessionId, {
+      ...session,
+      subscription: {
+        ...subscription,
+        latest_invoice: "in_month_2",
+        items: {
+          object: "list",
+          data: [
+            {
+              id: "si_test_1",
+              current_period_start: month2,
+              current_period_end: billingTime(PERIOD_START, 2),
+              price: { unit_amount: row.amountPence, recurring: { interval: "month" } },
+            },
+          ],
+        },
+      },
+    });
+    stripe.calls["checkout.sessions.retrieve"]!.splice(0);
+
+    await expect(fulfilCheckout(row.stripeSessionId, opts())).resolves.toMatchObject({
+      status: "fulfilled",
+    });
+    const rows = await getDb().select().from(payments).orderBy(asc(payments.instalmentNumber));
+    expect(rows[0]).toMatchObject({
+      stripeInvoiceId: ids.invoiceId,
+      stripePaymentIntentId: ids.paymentIntentId,
+      dueOn: "2026-11-11",
+    });
+    expect(rows.map((r) => r.dueOn)).toEqual(stripeInstalmentDates(PERIOD_START));
+    expect(stripe.calls["subscriptions.update"]![0]![1]).toMatchObject({
+      cancel_at: twelfthPeriodEnd(PERIOD_START),
+    });
+  });
+
+  it("reads the card brand as people know it", async () => {
+    const cases: [string, string][] = [
+      ["amex", "American Express"],
+      ["jcb", "JCB"],
+      ["unionpay", "UnionPay"],
+      ["cartes_bancaires", "Cartes Bancaires"],
+      ["diners", "Diners Club"],
+      ["discover", "Discover"],
+      ["eftpos_au", "eftpos Australia"],
+      ["interac", "Interac"],
+      ["some_new_brand", "Some New Brand"],
+    ];
+    for (const [brand, shown] of cases) {
+      await truncateExcept(REFERENCE_TABLES);
+      const { actor, quoteId } = await pricedCarQuote();
+      const row = await started(actor, quoteId);
+      paidAnnual(row.stripeSessionId, row.amountPence, {
+        payment_intent: {
+          id: `pi_for_${row.stripeSessionId}`,
+          object: "payment_intent",
+          payment_method: { id: "pm_x", object: "payment_method", card: { brand, last4: "1117" } },
+        },
+      });
+      await fulfilCheckout(row.stripeSessionId, opts());
+      const [paid] = await getDb().select().from(payments);
+      expect([brand, paid!.cardBrand, paid!.cardLast4]).toEqual([brand, shown, "1117"]);
+    }
+  });
+
+  it("throws, writing nothing, when Stripe gives no card (never a made-up last four)", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    const row = await started(actor, quoteId);
+    paidAnnual(row.stripeSessionId, row.amountPence, {
+      payment_intent: {
+        id: `pi_for_${row.stripeSessionId}`,
+        object: "payment_intent",
+        payment_method: { id: "pm_x", object: "payment_method", card: null },
+      },
+    });
+
+    await expect(fulfilCheckout(row.stripeSessionId, opts())).rejects.toThrow(/card/);
+    expect(await countPolicies()).toBe(0);
+    expect(await getDb().select().from(payments)).toHaveLength(0);
+    expect((await rowOf(row.id)).status).toBe("open");
   });
 
   it("honours an expired quote when the checkout started before it expired", async () => {
@@ -606,6 +723,20 @@ describe("confirmCheckout (the return page)", () => {
       confirmCheckout(actor, { quoteId, sessionId: row.stripeSessionId }, rest),
     ).resolves.toEqual({ status: "fulfilled" });
     expect(await countPolicies()).toBe(1);
+  });
+
+  it("still answers fulfilled when setting cancel_at fails, and logs it (the webhook retries it)", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    const row = await started(actor, quoteId, "monthly");
+    paidMonthly(row.stripeSessionId, row.amountPence);
+    stripe.fail("subscriptions.update");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { auditActor: _, ...rest } = opts();
+    await expect(
+      confirmCheckout(actor, { quoteId, sessionId: row.stripeSessionId }, rest),
+    ).resolves.toEqual({ status: "fulfilled" });
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining("cancel_at"), { name: "Error" });
+    logged.mockRestore();
   });
 
   it("is not found for another customer's quote, and fulfils nothing", async () => {

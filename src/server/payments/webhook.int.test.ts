@@ -212,6 +212,26 @@ describe("handleStripeWebhook: checkout sessions", () => {
     expect(await recordedEvents()).toHaveLength(1);
   });
 
+  it("answers 500 when setting cancel_at fails, recording no event, so Stripe retries", async () => {
+    const { row, subscriptionId } = await paidMonthlyCheckout();
+    const event = stripeEvent("checkout.session.completed", sessionObject(row.stripeSessionId));
+    stripe.failOnce("subscriptions.update");
+
+    expect((await deliver(event)).status).toBe(500);
+    // The purchase stands; the event isn't recorded
+    expect(await getDb().select().from(policies)).toHaveLength(1);
+    expect(await recordedEvents()).toHaveLength(0);
+
+    // Stripe's retry sets cancel_at and records the event
+    expect((await deliver(event)).status).toBe(200);
+    expect(stripe.calls["subscriptions.update"]!.map((c) => c[0])).toEqual([
+      subscriptionId,
+      subscriptionId,
+    ]);
+    expect(await recordedEvents()).toHaveLength(1);
+    expect(await getDb().select().from(policies)).toHaveLength(1);
+  });
+
   it("answers a session Kerb has no row for with 200 and a warning", async () => {
     paidMonthlySession(stripe, "cs_test_gone", 5000, PERIOD_START);
     const event = stripeEvent("checkout.session.completed", sessionObject("cs_test_gone"));

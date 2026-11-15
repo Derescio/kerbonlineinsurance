@@ -210,6 +210,10 @@ export function paidMonthlySession(
     object: "invoice",
     billing_reason: "subscription_create",
     parent: { subscription_details: { subscription: subscriptionId, metadata: {} } },
+    lines: {
+      object: "list",
+      data: [{ id: "il_1", period: { start: periodStart, end: periodStart } }],
+    },
     payments: {
       object: "list",
       data: [{ payment: { type: "payment_intent", payment_intent: `pi_for_${invoiceId}` } }],
