@@ -40,6 +40,7 @@ export type ReasonCode = (typeof reasonCodes)[number];
 export const ratingVersionStatuses = ["draft", "active", "retired"] as const;
 export const paymentPlans = ["annual", "monthly"] as const;
 export const paymentStatuses = ["scheduled", "succeeded", "failed", "refunded"] as const;
+export const checkoutSessionStatuses = ["open", "completed", "expired", "refunded"] as const;
 
 export const fuelTypes = ["petrol", "diesel", "hybrid", "electric"] as const;
 export const vehicleUsages = ["social", "commuting", "business"] as const;

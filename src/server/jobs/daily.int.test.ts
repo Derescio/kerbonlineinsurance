@@ -15,6 +15,7 @@ import {
   quotes,
   rateLimits,
   securityEvents,
+  stripeEvents,
   users,
 } from "#/server/db/schema";
 import { setObjectStore } from "#/server/uploads/store";
@@ -197,6 +198,25 @@ describe("housekeeping.expired_rows", () => {
     expect((await getDb().select().from(rateLimits)).map((r) => r.key)).toEqual(["fresh"]);
     const left = (await allJobs()).filter((j) => j.type === "uploads.cleanup");
     expect(left.map((j) => j.status).sort()).toEqual(["dead", "done"]);
+  });
+
+  it("deletes Stripe event ids after 30 days and keeps newer ones (5.6b, decision 13)", async () => {
+    await getDb()
+      .insert(stripeEvents)
+      .values([
+        {
+          eventId: "evt_old",
+          type: "invoice.paid",
+          receivedAt: new Date(now.getTime() - 31 * DAY),
+        },
+        {
+          eventId: "evt_new",
+          type: "invoice.paid",
+          receivedAt: new Date(now.getTime() - 29 * DAY),
+        },
+      ]);
+    expect(await deleteExpiredRows(getDb(), now)).toMatchObject({ stripeEvents: 1 });
+    expect((await getDb().select().from(stripeEvents)).map((e) => e.eventId)).toEqual(["evt_new"]);
   });
 
   it("deletes accounts never confirmed after 7 days, with their quotes, and keeps the rest (5.6, decision 1)", async () => {
