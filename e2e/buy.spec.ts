@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { expectNoSeriousAxeViolations } from "./axe";
 import { confirmEmailInDatabase, databaseUrl } from "./db";
@@ -27,6 +27,16 @@ async function expectNoSeriousAxeViolationsAtEachWidth(page: Page) {
     await expectNoSeriousAxeViolations(page);
   }
   await page.setViewportSize(PHONE);
+}
+
+/** Stripe reveals some fields (a postcode) only after the card number: wait briefly for each */
+async function fillIfShown(field: Locator, value: string) {
+  try {
+    await field.waitFor({ state: "visible", timeout: 3_000 });
+  } catch {
+    return;
+  }
+  await field.fill(value);
 }
 
 test("a guest creates an account mid-quote, pays monthly, and finds the policy on their account", async ({
@@ -132,12 +142,14 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await stripe.getByLabel(/expir/i).fill("12 / 30");
   await stripe.getByLabel(/cvc|security code/i).fill("123");
   const name = stripe.getByLabel(/cardholder name|name on card/i);
-  if (await name.isVisible()) await name.fill("Alex Morgan");
+  await fillIfShown(name, "Alex Morgan");
   const stripeEmail = stripe.getByLabel(/^email/i);
-  if (await stripeEmail.isVisible()) await stripeEmail.fill(email);
+  await fillIfShown(stripeEmail, email);
   const postcode = stripe.getByLabel(/zip|postal code|postcode/i);
-  if (await postcode.isVisible()) await postcode.fill("E8 3RL");
+  await fillIfShown(postcode, "E8 3RL");
   await stripe.getByTestId("hosted-payment-submit-button").click();
+  // A rejected submit (a missed field) fails here, not at You're covered
+  await expect(page).toHaveURL(/\/quote\/covered\//, { timeout: 60_000 });
 
   // 7. You're covered, with the policy reference
   await expect(page).toHaveURL(/\/quote\/covered\//);
