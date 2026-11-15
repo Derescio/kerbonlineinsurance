@@ -198,6 +198,21 @@
 
 `feat: pay with Stripe, in full or monthly by subscription, with webhooks that mark each payment, warn about a failed one, lapse and resume cover, and cancel it after 30 days unpaid`
 
+## Notes from the build
+
+- **The API version is pinned** to `2026-10-28.endive` (`stripe@23.1.0`), written as a literal in `stripe.ts`. In that version an invoice's subscription is under `parent.subscription_details` and a subscription's period end is on its item.
+- **Cards only** is `allowed_payment_method_types: ["card"]` (R10): `SessionCreateParams` has no `payment_method_types` in this version.
+- **`kerbEnv()` reads `VERCEL_TARGET_ENV`** (R9), because `VERCEL_ENV` can't tell Staging from a preview (`env.ts`).
+- **Annual checkouts also create a Stripe customer**, so `stripe_customer_id` doesn't mean a monthly plan. `/account/billing` goes by having a monthly policy (a payment row with a subscription id), and otherwise says "You don’t pay monthly, so there’s no card to update." (R12).
+- **Closing an account deletes the `checkout_sessions` of the quotes it deletes** (R13).
+- **Instalment due dates are the London dates of Stripe's UTC billing times**, and an invoice matches its instalment by its line item's period, not `invoice.period_start`, which is the earliest item timestamp (R14).
+- **An invoice for a subscription this database doesn't know gets `200` and a warning** (R15), not a retry for days.
+- **`invoice.created` voids only months at or after `lapsed_at`**, and an active subscription resumes a lapsed policy rather than letting the 30-day job cancel it (Task 6 fixes).
+- **`/account/billing`'s portal session is created in the route loader** with preload off, and the link is a full-page link, so hovering never creates a portal session.
+- **Stripe is called while row locks are held** (starting a session, refunding, lapsing). That serialises the calls on a quote or policy, which is wanted, and holds the lock for one API round trip.
+- **The E2E skips without `E2E_DATABASE_URL` and a `pk_test_` `VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY`**, so `e2e.yml` (which sets only the first) skips it. It fills Stripe's embedded iframe by label, and wasn't run against a live form in the build, so a label may need a tweak the first time.
+- **Copy written during the build, for Damion to sign off:** the `NO_STRIPE_KEY` message, the "Car insurance · Purchase" overline above the form, and the refunded heading.
+
 ## Sources
 
 - **Builder check (14 Nov 2026):** setting `cancel_at` in fulfilment, cards only, event order, Kerb paying the invoice on resume, Stripe's times, the API version, refunds cancelling the subscription.

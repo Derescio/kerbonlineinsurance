@@ -50,7 +50,9 @@ describe("a seeded database", () => {
     for (const [table, contract] of Object.entries(dataContract)) {
       // Uploads (4.10) are real objects in R2, and a row without its object would be a broken
       // file on a cast member's claim, so the seed writes none
-      if (!contract.copied || table === "files") continue;
+      // Checkout sessions (5.6b) are ids of real Stripe Checkout Sessions, so a seeded row would
+      // point at nothing in Stripe: the seed writes none
+      if (!contract.copied || table === "files" || table === "checkout_sessions") continue;
       const { rows } = await getOwnerDb().execute<{ n: string }>(
         sql.raw(`select count(*) as n from "${table}"`),
       );

@@ -386,6 +386,15 @@ Permission tests (Vitest integration tests, `*.int.test.ts`, against the test da
 - **Kerbie approvals are single-use:** a confirm card can execute once. A second tap shows "already done".
 - **Jobs and crons are safe to run twice** (§11).
 
+### Payments (Stripe, 5.6b)
+
+- **Test mode only, one sandbox.** Every environment uses the same Stripe test keys, and `getStripe()` refuses a key that doesn't start `sk_test_`. Live keys wait for go-live. The sandbox is shared, so every Session, Subscription, Customer and the metadata of their payment objects carries `kerb_env` (`VERCEL_TARGET_ENV`: `production`, `staging` or `preview`; `local` when unset). A webhook object with another `kerb_env` is ignored with `200`.
+- **Env vars:** `STRIPE_SECRET_KEY`, `VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY` (renamed from `NEXT_PUBLIC_…`: Vite only exposes `VITE_` variables to the browser), `STRIPE_WEBHOOK_SECRET` (one per endpoint) and `STRIPE_TEST_CLOCKS=true` on Staging only. `.env.example` has empty placeholders.
+- **The webhook** is `/api/webhooks/stripe`, signed with `STRIPE_WEBHOOK_SECRET`. Staging's endpoint URL ends `?x-vercel-protection-bypass=<VERCEL_AUTOMATION_BYPASS_SECRET>` because Staging is behind Vercel Authentication; Production's has none. PR previews have no endpoint: their purchases complete through the return page, and their later events are ignored by Staging. Handled events are recorded in `stripe_events` (30 days) so a redelivery acts once.
+- **Locally:** `stripe listen --forward-to localhost:3000/api/webhooks/stripe`, with the secret it prints in `.env.local`.
+- **Test clocks:** with `STRIPE_TEST_CLOCKS=true`, Staging attaches each customer to a Stripe test clock, so a later month can be fast-forwarded for the manual check.
+- **Stripe's event bodies and card data are never stored or logged.** Kerb keeps ids, the card brand and last four, and the structured payment rows.
+
 ## 9. Security
 
 - **Covered elsewhere:**
