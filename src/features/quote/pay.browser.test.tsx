@@ -252,6 +252,32 @@ describe("Confirm and pay (decision 6)", () => {
     await expect.poll(() => stripeForm().elements().length).toBe(0);
   });
 
+  it("drops a session that was started for answers changed while it was starting", async () => {
+    let answer: (value: WriteResult<StartCheckoutResult>) => void = () => undefined;
+    pay
+      .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+      .mockResolvedValueOnce(secret(2));
+    await showPay();
+    await tickBoth();
+    await payButton().click();
+    await expect.poll(() => pay.mock.calls.length).toBe(1);
+    // The plan changes before Stripe's session for the annual payment comes back
+    await page.getByRole("radio", { name: /Pay monthly/ }).click();
+    answer(paid);
+    await expect.element(page.getByText("12 payments of £42.02")).toBeVisible();
+    // The payment panel renders straight away (the form inside it loads lazily)
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(page.getByRole("region", { name: "Payment" }).elements()).toHaveLength(0);
+    expect(stripeForm().elements()).toHaveLength(0);
+
+    await payButton().click();
+    await expect.element(stripeForm()).toHaveTextContent("cs_test_2_secret");
+    expect(keyOf(1)).not.toBe(keyOf(0));
+    expect((pay.mock.calls[1]![0] as { data: { input: { plan: string } } }).data.input.plan).toBe(
+      "monthly",
+    );
+  });
+
   it("can start again from the button when Stripe's form says its session has expired", async () => {
     pay.mockResolvedValueOnce(paid).mockResolvedValueOnce(secret(2));
     await showPay();

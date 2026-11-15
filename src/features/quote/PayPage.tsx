@@ -138,6 +138,8 @@ function PayForm({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const stripeRef = useRef<HTMLElement>(null);
+  // Counts answer changes, so a session started for answers since changed is dropped
+  const answersVersion = useRef(0);
   const { key: idempotencyKey, rotate } = useIdempotencyKey(`quote.pay:${summary.quoteId}`);
 
   // Start on the plan the tab chose for this quote; annual from Your saved quotes (decision 6)
@@ -153,6 +155,7 @@ function PayForm({
 
   /** An answer changed: the session was for the old ones, so its form goes and the next is new */
   function changed() {
+    answersVersion.current += 1;
     if (clientSecret) setClientSecret(null);
     rotate();
   }
@@ -180,6 +183,7 @@ function PayForm({
     // A new session expires the last one (decision 5), so its form goes now
     setClientSecret(null);
     setPaying(true);
+    const startedFor = answersVersion.current;
     try {
       const result = await startCheckoutFn({
         data: {
@@ -207,6 +211,9 @@ function PayForm({
       }
       // The key's write is done: pressing again starts a new session, expiring this one
       rotate();
+      // An answer changed while it started: the session is for the old answers, so no form. The
+      // next press starts one for the new answers (decision 10)
+      if (answersVersion.current !== startedFor) return;
       setClientSecret(result.data.clientSecret);
     } catch (thrown) {
       setPaying(false);
