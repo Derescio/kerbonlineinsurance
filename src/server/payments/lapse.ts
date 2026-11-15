@@ -80,18 +80,25 @@ export async function lapseSubscription(
 
 /**
  * Every lapsed policy on the subscription → active, when Stripe has the subscription `active`
- * again; the email ids. Stripe is asked only when a policy is lapsed.
+ * again; the email ids. Stripe is asked only when a policy is lapsed, unless the caller has just
+ * fetched the subscription and passes its status. A cancelled policy is never touched.
  */
 export async function resumeSubscription(
   tx: Tx,
   subscriptionId: string,
   stripe: StripeClient,
   now: Date,
+  knownStatus?: string,
 ): Promise<number[]> {
   const lapsed = (await lockSubscription(tx, subscriptionId)).filter((p) => p.status === "lapsed");
   if (lapsed.length === 0) return [];
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  if (subscription.status !== "active") return [];
+  const status = knownStatus ?? (await stripe.subscriptions.retrieve(subscriptionId)).status;
+  if (status !== "active") return [];
+  return resumePolicies(tx, lapsed, now);
+}
+
+/** Lapsed policies (locked by the caller) → active, audited; the one cover_resumed email */
+async function resumePolicies(tx: Tx, lapsed: PolicyRow[], now: Date): Promise<number[]> {
   for (const policy of lapsed) {
     await setPolicyStatus(tx, policy.id, "active");
     await audit(tx, {
@@ -146,13 +153,23 @@ async function emailOnce(
 
 export interface LapseRunResult {
   cancelled: number;
+  /** Lapsed long enough, but Stripe has the subscription active again: paid, so resumed */
+  resumed: number;
   failed: number;
+}
+
+interface LapseOutcome {
+  cancelled: number;
+  resumed: number;
+  emailJob: number | null;
 }
 
 /**
  * One due policy's subscription, in its own transaction: cancelled at Stripe (at once, no
  * proration; not again if Stripe already has it cancelled), then every policy on it lapsed since
  * `cutoff` → cancelled. Stripe's customer.subscription.deleted that follows finds them cancelled.
+ * A subscription Stripe has `active` again was paid (a resume Kerb missed): its lapsed policies
+ * resume instead, and nothing is cancelled.
  */
 async function cancelLapsed(
   db: Db,
@@ -160,28 +177,34 @@ async function cancelLapsed(
   cutoff: Date,
   now: Date,
   stripe: () => StripeClient,
-): Promise<{ cancelled: number; emailJob: number | null }> {
+): Promise<LapseOutcome> {
+  const nothing: LapseOutcome = { cancelled: 0, resumed: 0, emailJob: null };
   return withTx(db, async (tx) => {
     const subscriptionId = await subscriptionForQuote(tx, policy.quoteId);
     if (!subscriptionId) {
       // A lapse only ever comes from a subscription; nothing to cancel at Stripe or to match on
       console.warn("[payments] lapsed policy with no subscription:", policy.id);
-      return { cancelled: 0, emailJob: null };
+      return nothing;
     }
     const due = (p: PolicyRow) =>
       p.status === "lapsed" && p.lapsedAt !== null && p.lapsedAt <= cutoff;
     // Lock first and check again: a resume may have committed since the list was read
     const policies = await lockSubscription(tx, subscriptionId);
-    if (!policies.some(due)) return { cancelled: 0, emailJob: null };
+    if (!policies.some(due)) return nothing;
 
     const client = stripe();
     const subscription = await client.subscriptions.retrieve(subscriptionId);
+    if (subscription.status === "active") {
+      const lapsed = policies.filter((p) => p.status === "lapsed");
+      const [emailJob = null] = await resumePolicies(tx, lapsed, now);
+      return { cancelled: 0, resumed: lapsed.length, emailJob };
+    }
     if (subscription.status !== "canceled") {
       await client.subscriptions.cancel(subscriptionId, { prorate: false, invoice_now: false });
     }
     const moved = await cancelSubscriptionPolicies(tx, subscriptionId, now, due);
     const [emailJob = null] = await emailOnce(tx, moved, "policy_cancelled_unpaid", now);
-    return { cancelled: moved.length, emailJob };
+    return { cancelled: moved.length, resumed: 0, emailJob };
   });
 }
 
@@ -195,13 +218,13 @@ export async function runLapsedCancellations(
   now: Date,
   deps: JobDeps,
 ): Promise<LapseRunResult> {
-  const result: LapseRunResult = { cancelled: 0, failed: 0 };
+  const result: LapseRunResult = { cancelled: 0, resumed: 0, failed: 0 };
   const cutoff = new Date(now.getTime() - LAPSE_CANCEL_DAYS * DAY_MS);
   // Built on first use, so a day with nothing lapsed needs no Stripe key
   let client: StripeClient | undefined;
   const stripe = () => (client ??= deps.stripe ?? getStripe());
   for (const policy of await lapsedPoliciesSince(db, cutoff)) {
-    let outcome: Awaited<ReturnType<typeof cancelLapsed>>;
+    let outcome: LapseOutcome;
     try {
       outcome = await cancelLapsed(db, policy, cutoff, now, stripe);
     } catch (error) {
@@ -211,6 +234,7 @@ export async function runLapsedCancellations(
       continue;
     }
     result.cancelled += outcome.cancelled;
+    result.resumed += outcome.resumed;
     if (outcome.emailJob !== null) runSoon(db, outcome.emailJob, deps);
   }
   return result;

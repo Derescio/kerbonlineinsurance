@@ -251,7 +251,15 @@ async function invoiceCreated(
   // The payment rows, then the policies (the lock order); only a lapsed policy's invoice is voided
   await lockPaymentsForSubscription(tx, subscriptionId);
   const policies = await lockPoliciesForSubscription(tx, subscriptionId);
-  if (!policies.some((p) => p.status === "lapsed")) return;
+  const lapsedSince = policies
+    .filter((p) => p.status === "lapsed" && p.lapsedAt !== null)
+    .map((p) => p.lapsedAt!.getTime());
+  if (lapsedSince.length === 0) return;
+  // Only a month that starts once the cover had stopped (R14's period). An earlier month's invoice
+  // (a late or retried event for the one that failed while covered) is what the customer owes to
+  // resume, so it's left open; with no line to go by, it's left alone too.
+  const start = invoice.lines?.data[0]?.period.start;
+  if (start === undefined || start * 1000 < Math.min(...lapsedSince)) return;
 
   if (invoice.status === "draft") {
     // auto_advance off, so Stripe never tries to charge it in the moment before the void
@@ -273,7 +281,11 @@ async function invoiceCreated(
   });
 }
 
-/** Stripe gave up on a payment (unpaid, fetched again): the policies lapse at the event's time */
+/**
+ * The subscription changed, fetched again. Unpaid (Stripe gave up on a payment): the policies
+ * lapse at the event's time. Active: a lapsed policy resumes, as on invoice.paid, should that
+ * event have found the subscription not yet active.
+ */
 async function subscriptionUpdated(
   tx: Tx,
   event: EventOf<"customer.subscription.updated">,
@@ -281,6 +293,10 @@ async function subscriptionUpdated(
 ): Promise<HandlerResult | void> {
   const subscriptionId = event.data.object.id;
   const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
+  if (subscription.status === "active") {
+    const emailJobs = await resumeSubscription(tx, subscriptionId, deps.stripe, deps.now, "active");
+    return { emailJobs };
+  }
   // past_due is the grace period: Stripe is still retrying and the cover stays
   if (subscription.status !== "unpaid") return;
   const lapsedAt = new Date(event.created * 1000);

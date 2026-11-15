@@ -233,6 +233,43 @@ describe("customer.subscription.updated: unpaid", () => {
   });
 });
 
+describe("customer.subscription.updated: active again (fix F1)", () => {
+  it("resumes a lapsed policy once, audited and emailed", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    const active = presetSubscription(subscriptionId, { status: "active" });
+    await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + DAY));
+    await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + DAY + 60));
+
+    const policy = await policyOf(quoteId);
+    expect(policy).toMatchObject({ status: "active", lapsedAt: null, cancelledAt: null });
+    expect(await audits("policy.resumed")).toMatchObject([{ entityId: policy.id }]);
+    expect(await emails("cover_resumed")).toHaveLength(1);
+  });
+
+  it("is a no-op for an active policy", async () => {
+    const { quoteId, subscriptionId } = await boughtMonthly();
+    const active = presetSubscription(subscriptionId, { status: "active" });
+    await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT));
+    expect((await policyOf(quoteId)).status).toBe("active");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+    expect(await emails("cover_resumed")).toHaveLength(0);
+  });
+
+  it("leaves a cancelled policy cancelled", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    const deleted = presetSubscription(subscriptionId, {
+      status: "canceled",
+      cancel_at: PERIOD_START + 365 * DAY,
+      ended_at: LAPSED_AT + DAY,
+    });
+    await deliver(subscriptionEvent("customer.subscription.deleted", deleted, LAPSED_AT + DAY));
+    const active = presetSubscription(subscriptionId, { status: "active" });
+    await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + 2 * DAY));
+    expect((await policyOf(quoteId)).status).toBe("cancelled");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+  });
+});
+
 describe("invoice.created while lapsed", () => {
   it("finalises and voids the invoice, and that month's row is failed", async () => {
     const { subscriptionId } = await lapsedPlan();
@@ -252,6 +289,70 @@ describe("invoice.created while lapsed", () => {
       status: "failed",
       stripeInvoiceId: "in_month_3",
       paidAt: null,
+    });
+  });
+
+  it("leaves alone an invoice for a period before the lapse: the one owed from while covered (fix F2)", async () => {
+    const { subscriptionId } = await lapsedPlan();
+    // A late or retried invoice.created for month 2, which failed while covered
+    const owed = presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId,
+      periodStart: MONTH_2,
+      status: "open",
+    });
+    expect((await deliver(stripeEvent("invoice.created", owed))).status).toBe(200);
+    expect(stripe.calls["invoices.finalizeInvoice"]).toBeUndefined();
+    expect(stripe.calls["invoices.voidInvoice"]).toBeUndefined();
+    expect((await instalments(subscriptionId))[1]).toMatchObject({
+      status: "failed",
+      stripeInvoiceId: "in_month_2",
+    });
+  });
+
+  it("voids an invoice for a period starting exactly at the lapse", async () => {
+    const { subscriptionId } = await lapsedPlan(MONTH_3);
+    const draft = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "draft",
+    });
+    await deliver(stripeEvent("invoice.created", draft));
+    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual(["in_month_3"]);
+  });
+
+  it("only voids an invoice Stripe has already finalised (open)", async () => {
+    const { subscriptionId } = await lapsedPlan();
+    const open = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "open",
+    });
+    await deliver(stripeEvent("invoice.created", open));
+    expect(stripe.calls["invoices.finalizeInvoice"]).toBeUndefined();
+    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual(["in_month_3"]);
+    expect((await instalments(subscriptionId))[2]).toMatchObject({
+      status: "failed",
+      stripeInvoiceId: "in_month_3",
+    });
+  });
+
+  it("makes no Stripe call for an invoice already void, and its row is failed", async () => {
+    const { subscriptionId } = await lapsedPlan();
+    const voided = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "void",
+    });
+    await deliver(stripeEvent("invoice.created", voided));
+    expect(stripe.calls["invoices.finalizeInvoice"]).toBeUndefined();
+    expect(stripe.calls["invoices.voidInvoice"]).toBeUndefined();
+    expect((await instalments(subscriptionId))[2]).toMatchObject({
+      status: "failed",
+      stripeInvoiceId: "in_month_3",
     });
   });
 
@@ -418,7 +519,7 @@ describe("the daily 30-day cancellation (payments.lapsed_cancellations)", () => 
     stripe.calls["subscriptions.cancel"]?.splice(0);
 
     const result = await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps);
-    expect(result).toEqual({ cancelled: 1, failed: 0 });
+    expect(result).toEqual({ cancelled: 1, resumed: 0, failed: 0 });
 
     expect(stripe.calls["subscriptions.cancel"]!.map((c) => c[0])).toEqual([old.subscriptionId]);
     // No proration, no refund of the unused part
@@ -447,6 +548,7 @@ describe("the daily 30-day cancellation (payments.lapsed_cancellations)", () => 
     // Run again: nothing left to do
     expect(await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps)).toEqual({
       cancelled: 0,
+      resumed: 0,
       failed: 0,
     });
   });
@@ -480,9 +582,45 @@ describe("the daily 30-day cancellation (payments.lapsed_cancellations)", () => 
     // The retry cancels the first
     expect(await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps)).toEqual({
       cancelled: 1,
+      resumed: 0,
       failed: 0,
     });
     expect((await policyOf(first.quoteId)).status).toBe("cancelled");
+  });
+
+  it("resumes, rather than cancels, a policy lapsed 31 days whose subscription Stripe has active (fix F1)", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    presetSubscription(subscriptionId, { status: "active" });
+    expect(await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps)).toEqual({
+      cancelled: 0,
+      resumed: 1,
+      failed: 0,
+    });
+    expect(stripe.calls["subscriptions.cancel"]).toBeUndefined();
+    expect(await policyOf(quoteId)).toMatchObject({ status: "active", lapsedAt: null });
+    expect(await audits("policy.resumed")).toHaveLength(1);
+    expect(await audits("policy.cancelled_unpaid")).toHaveLength(0);
+    expect(await emails("cover_resumed")).toHaveLength(1);
+    expect(await emails("policy_cancelled_unpaid")).toHaveLength(0);
+  });
+
+  it("leaves a policy cancelled by the job cancelled on a late invoice.paid or updated → active", async () => {
+    const { quoteId, subscriptionId } = await lapsedPlan();
+    await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps);
+    expect((await policyOf(quoteId)).status).toBe("cancelled");
+
+    const active = presetSubscription(subscriptionId, { status: "active" });
+    const paid = presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId,
+      periodStart: MONTH_2,
+      paidAt: LAPSED_AT + 32 * DAY,
+    });
+    expect((await deliver(stripeEvent("invoice.paid", paid))).status).toBe(200);
+    await deliver(subscriptionEvent("customer.subscription.updated", active, LAPSED_AT + 32 * DAY));
+    expect((await policyOf(quoteId)).status).toBe("cancelled");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+    expect(await emails("cover_resumed")).toHaveLength(0);
   });
 
   it("doesn't call Stripe's cancel again for a subscription Stripe already cancelled", async () => {
@@ -490,6 +628,7 @@ describe("the daily 30-day cancellation (payments.lapsed_cancellations)", () => 
     presetSubscription(subscriptionId, { status: "canceled", ended_at: LAPSED_AT + 30 * DAY });
     expect(await runLapsedCancellations(getDb(), JOB_NOW, jobsDeps)).toEqual({
       cancelled: 1,
+      resumed: 0,
       failed: 0,
     });
     expect(stripe.calls["subscriptions.cancel"]).toBeUndefined();
