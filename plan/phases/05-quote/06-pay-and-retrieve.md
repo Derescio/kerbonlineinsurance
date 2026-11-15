@@ -1,6 +1,6 @@
 # 5.6 Pay, policy saved, retrieve a quote
 
-**Status:** done (#91, approved by Damion, 13 Nov 2026); manual check pending
+**Status:** done (#91, approved by Damion, 13 Nov 2026)
 **Phase:** 05-quote
 
 ## Goal
@@ -149,8 +149,15 @@ A priced car quote becomes a real policy:
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` and `e2e` are green on the PR.
-- [ ] The manual check passes, with the results recorded here.
+- [x] `vp check`, `vp test` and `vp build` pass (1,966 tests), and `ci` is green on the PR (#91). `e2e` didn't run on the PR: it only starts from a dispatch from `main`. `e2e/buy.spec.ts` passed locally against the test database.
+- [x] The manual check passes, with the results recorded here.
+
+**Manual check** (Damion, 14–15 Nov 2026, on the PR #91 preview):
+- **A staff account was refused at Buy** ("Staff accounts can't buy policies."). Damion ruled staff can buy, and the gate was removed (57057da; see Notes from the build).
+- **A quote started as a guest, then an account created at the gate:** the quote was saved to the new account (decision 1).
+- **Paid, then `/account`:** "Your policies" lists `KRB-216891`, Car · Comprehensive, Active, 16 Nov 2026 to 15 Nov 2027. Your saved quotes shows it as Bought, with the policy reference.
+- **Neon:** the customer row was made from About you and the journey's postcode (decision 4). The payment rows weren't checked.
+- **Not run:** the video shot at 393 px (left for the recording, not a merge blocker, Damion), the declined card, and "Sign in to send this for review" on a referred quote. All three are covered by component and integration tests.
 
 ## Commit message
 
