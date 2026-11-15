@@ -13,41 +13,25 @@ import { focusFirstError } from "#/lib/validation";
 import { useIdempotencyKey, writeOutcome } from "#/lib/writes";
 import type { PaymentSummary } from "#/server/data/quotes";
 
-import { checkCard } from "./card";
-import { clearJourney, readJourney, type Payment } from "./journey-store";
+import { readJourney, type Payment } from "./journey-store";
 import { tierName } from "./labels";
 import { JourneyPage, StepNav } from "./page-kit";
 import { ALREADY_BOUGHT, NOT_BUYABLE, QUOTE_EXPIRED, START_DATE_RANGE } from "./pay-copy";
 import { PayChoice } from "./PayChoice";
 import { startDateBounds } from "./policy-terms";
 import { todayIso } from "./schemas/dates";
-import { payFn } from "./server";
+import { startCheckoutFn } from "./server";
 import { StepHeading } from "./step-kit";
 
 // Confirm and pay (5.6, decision 6; the Purchase frame, 157:11256, in 5.4b's frame). It reads the
 // saved quote, never the tab, so it works from Your saved quotes too; the tab only says which plan
-// to start on and where Back goes. The card is checked here and again on the server, which keeps
-// nothing of it but the brand and last four. A paid quote clears the tab's car journey (decision 9).
+// to start on and where Back goes. The card is Stripe's (5.6b, decision 10): the button starts a
+// Stripe checkout for the answers here and holds its client secret for Stripe's embedded form.
 
 type Errors = Record<string, string | undefined>;
 
-interface CardForm {
-  name: string;
-  number: string;
-  expiry: string;
-  code: string;
-}
-
 /** The server's field paths this form has a place for */
-const FORM_FIELDS = [
-  "startsOn",
-  "card.name",
-  "card.number",
-  "card.expiry",
-  "card.code",
-  "detailsConfirmed",
-  "coverAcknowledged",
-];
+const FORM_FIELDS = ["startsOn", "detailsConfirmed", "coverAcknowledged"];
 
 const whole = (pence: number) => formatPounds(pence).replace(".00", "");
 
@@ -131,17 +115,13 @@ function PayForm({
   const bounds = startDateBounds(today);
   const [plan, setPlan] = useState<Payment>("annual");
   const [startsOn, setStartsOn] = useState(bounds.fallback);
-  const [card, setCard] = useState<CardForm>({
-    name: `${summary.policyholder.firstName} ${summary.policyholder.lastName}`.trim(),
-    number: "",
-    expiry: "",
-    code: "",
-  });
   const [detailsConfirmed, setDetailsConfirmed] = useState(false);
   const [coverAcknowledged, setCoverAcknowledged] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  // The started checkout's client secret, for Stripe's embedded form (5.6b, decision 10)
+  const [, setClientSecret] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const { key: idempotencyKey, rotate } = useIdempotencyKey(`quote.pay:${summary.quoteId}`);
 
@@ -156,17 +136,10 @@ function PayForm({
       ? `Pay ${formatPounds(summary.monthlyPaymentPence)} today`
       : `Pay ${formatPounds(summary.annualTotalPence)}`;
 
-  const setCardField = (key: keyof CardForm) => (e: { target: { value: string } }) =>
-    setCard((current) => ({ ...current, [key]: e.target.value }));
-
   function check(): Errors {
     const found: Errors = {};
     if (!startsOn || startsOn < bounds.min || startsOn > bounds.max) {
       found.startsOn = START_DATE_RANGE;
-    }
-    const checked = checkCard(card, today);
-    if (!checked.ok) {
-      for (const [name, message] of Object.entries(checked.fields)) found[`card.${name}`] = message;
     }
     if (!detailsConfirmed) found.detailsConfirmed = "Confirm your details are correct.";
     if (!coverAcknowledged) found.coverAcknowledged = "Agree to the policy terms to continue.";
@@ -185,23 +158,22 @@ function PayForm({
     }
     setPaying(true);
     try {
-      const result = await payFn({
+      const result = await startCheckoutFn({
         data: {
           input: {
             quoteId: summary.quoteId,
             plan,
             startsOn,
-            card,
             detailsConfirmed: true,
             coverAcknowledged: true,
           },
           idempotencyKey,
         },
       });
+      setPaying(false);
       if (!result.ok) {
-        setPaying(false);
         const fields = result.error.fields;
-        // A field the form shows (a declined card is on the number); anything else under the button
+        // A field the form shows; anything else under the button
         if (Object.keys(fields).some((name) => FORM_FIELDS.includes(name))) {
           setErrors(fields);
           focusFirstError(formRef.current);
@@ -210,14 +182,9 @@ function PayForm({
         }
         return;
       }
-      // The key's write is done, and the tab forgets the journey (decision 9)
+      // The key's write is done: pressing again starts a new session, expiring this one
       rotate();
-      clearJourney("car");
-      void navigate({
-        to: "/quote/covered/$quoteId",
-        params: { quoteId: result.data.quoteId },
-        replace: true,
-      });
+      setClientSecret(result.data.clientSecret);
     } catch (thrown) {
       setPaying(false);
       const outcome = writeOutcome(thrown);
@@ -260,51 +227,6 @@ function PayForm({
             value={plan}
             onChange={setPlan}
           />
-        </section>
-
-        <section className="quote-panel" aria-labelledby="pay-card-heading">
-          <h2 id="pay-card-heading" className="kb-h3 quote-panel__title">
-            Payment card
-          </h2>
-          <Input
-            label="Name on card"
-            autoComplete="cc-name"
-            value={card.name}
-            error={errors["card.name"]}
-            onChange={setCardField("name")}
-          />
-          <Input
-            label="Card number"
-            autoComplete="cc-number"
-            inputMode="numeric"
-            maxLength={23}
-            value={card.number}
-            error={errors["card.number"]}
-            onChange={setCardField("number")}
-          />
-          <div className="quote-fields">
-            <Input
-              label="Expiry (MM / YY)"
-              autoComplete="cc-exp"
-              inputMode="numeric"
-              maxLength={7}
-              value={card.expiry}
-              error={errors["card.expiry"]}
-              onChange={setCardField("expiry")}
-            />
-            <Input
-              label="Security code"
-              autoComplete="cc-csc"
-              inputMode="numeric"
-              maxLength={4}
-              value={card.code}
-              error={errors["card.code"]}
-              onChange={setCardField("code")}
-            />
-          </div>
-          <p className="quote-note">
-            Demo cards: 4242 4242 4242 4242 pays, 4000 0000 0000 0002 is declined.
-          </p>
         </section>
 
         <section className="quote-panel" aria-label="Confirm">
