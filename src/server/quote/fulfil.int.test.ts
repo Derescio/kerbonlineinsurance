@@ -28,7 +28,14 @@ import { makeUser } from "#/test/factories";
 import { fakeStripe } from "#/test/stripe-fake";
 
 import { startCheckout } from "./checkout";
-import { confirmCheckout, fulfilCheckout, twelfthPeriodEnd, type FulfilOptions } from "./fulfil";
+import {
+  billingTime,
+  confirmCheckout,
+  fulfilCheckout,
+  stripeInstalmentDates,
+  twelfthPeriodEnd,
+  type FulfilOptions,
+} from "./fulfil";
 import { purchase } from "./purchase";
 import { saveCarQuoteFor } from "./save";
 
@@ -120,7 +127,12 @@ function paidAnnual(sessionId: string, amount: number, extra: Record<string, unk
 }
 
 /** Stripe's completed subscription session, the subscription and its card expanded */
-function paidMonthly(sessionId: string, amount: number, unitAmount = amount) {
+function paidMonthly(
+  sessionId: string,
+  amount: number,
+  unitAmount = amount,
+  periodStart = PERIOD_START,
+) {
   const subscriptionId = `sub_for_${sessionId}`;
   const invoiceId = `in_for_${sessionId}`;
   stripe.set("checkout.sessions.retrieve", sessionId, {
@@ -146,8 +158,8 @@ function paidMonthly(sessionId: string, amount: number, unitAmount = amount) {
         data: [
           {
             id: "si_test_1",
-            current_period_start: PERIOD_START,
-            current_period_end: PERIOD_START + 30 * 86_400,
+            current_period_start: periodStart,
+            current_period_end: periodStart + 30 * 86_400,
             price: { unit_amount: unitAmount, recurring: { interval: "month" } },
           },
         ],
@@ -291,6 +303,54 @@ describe("fulfilCheckout: buying", () => {
           proration_behavior: "none",
         },
       ],
+    ]);
+  });
+
+  it("dates each instalment by the London date of Stripe's UTC billing time", () => {
+    // 23:30 UTC on 30 June is 00:30 on 1 July in London (BST)
+    const anchor = Math.floor(Date.parse("2026-06-30T23:30:00Z") / 1000);
+    expect(new Date(billingTime(anchor, 8) * 1000).toISOString()).toBe("2027-02-28T23:30:00.000Z");
+    expect(stripeInstalmentDates(anchor)).toEqual([
+      "2026-07-01", // BST: the next London day
+      "2026-07-31",
+      "2026-08-31",
+      "2026-10-01",
+      "2026-10-30", // GMT: the same day as Stripe's
+      "2026-11-30",
+      "2026-12-30",
+      "2027-01-30",
+      "2027-02-28", // the 30th clamped to February's end
+      "2027-03-31", // BST again from 28 March
+      "2027-05-01",
+      "2027-05-31",
+    ]);
+    // The 31st clamps to each short month and comes back
+    const jan31 = Math.floor(Date.parse("2027-01-31T10:00:00Z") / 1000);
+    expect(stripeInstalmentDates(jan31).slice(0, 4)).toEqual([
+      "2027-01-31",
+      "2027-02-28",
+      "2027-03-31",
+      "2027-04-30",
+    ]);
+  });
+
+  it("writes Stripe's billing dates on the rows for a summer-evening purchase", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    const row = await started(actor, quoteId, "monthly");
+    const anchor = Math.floor(Date.parse("2026-06-30T23:30:00Z") / 1000);
+    const ids = paidMonthly(row.stripeSessionId, row.amountPence, row.amountPence, anchor);
+
+    await fulfilCheckout(row.stripeSessionId, opts());
+
+    const rows = await getDb().select().from(payments).orderBy(asc(payments.instalmentNumber));
+    expect(rows.map((r) => r.dueOn)).toEqual(stripeInstalmentDates(anchor));
+    expect(rows[4]!.dueOn).toBe("2026-10-30");
+    expect(stripe.calls["subscriptions.update"]![0]).toEqual([
+      ids.subscriptionId,
+      {
+        cancel_at: Math.floor(Date.parse("2027-06-30T23:30:00Z") / 1000),
+        proration_behavior: "none",
+      },
     ]);
   });
 

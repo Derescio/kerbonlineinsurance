@@ -10,6 +10,7 @@ import {
   accountClosures,
   accounts,
   auditLog,
+  checkoutSessions,
   claims,
   customers,
   files,
@@ -295,6 +296,45 @@ describe("runClosures", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]!.to).toBe(EMAIL);
     expect(sent[0]!.subject).toBe(accountClosedEmail().subject);
+  });
+
+  it("deletes the checkout sessions of the quotes it deletes, and keeps a bought quote's (5.6b)", async () => {
+    const { userId, customer, policy } = await insured();
+    const { quote: unbought } = await makeQuote({ customerId: customer.id });
+    const session = (stripeSessionId: string, quoteId: string, status: string) => ({
+      quoteId,
+      customerId: customer.id,
+      stripeSessionId,
+      plan: "annual",
+      startsOn: "2026-11-20",
+      detailsConfirmedAt: new Date(),
+      coverAcknowledgedAt: new Date(),
+      amountPence: 45_840,
+      status,
+    });
+    await getDb()
+      .insert(checkoutSessions)
+      .values([
+        session("cs_test_expired", unbought.id, "expired"),
+        session("cs_test_refunded", unbought.id, "refunded"),
+        session("cs_test_completed", policy.quoteId, "completed"),
+      ]);
+
+    const closure = await openClosure(userId);
+    expect(await runClosures(getDb(), dueAt(closure), deps)).toEqual({
+      closed: 1,
+      held: 0,
+      failed: 0,
+    });
+    await flush();
+
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, unbought.id))).toHaveLength(0);
+    expect((await getDb().select().from(checkoutSessions)).map((r) => r.stripeSessionId)).toEqual([
+      "cs_test_completed",
+    ]);
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, policy.quoteId))).toHaveLength(
+      1,
+    );
   });
 
   it("holds once for an open claim, then closes after it settles", async () => {

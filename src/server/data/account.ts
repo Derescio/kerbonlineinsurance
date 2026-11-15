@@ -18,6 +18,7 @@ import {
   accountClosures,
   accounts,
   bundles,
+  checkoutSessions,
   claims,
   customers,
   idempotencyKeys,
@@ -359,24 +360,28 @@ export async function closeAccountRows(tx: Tx, userId: string): Promise<void> {
       .delete(claims)
       .where(and(eq(claims.customerId, customerId), eq(claims.status, "draft")));
     // Quotes that never became a policy and have no payment or bundle (their items, options,
-    // details and decisions cascade). A quote any of those point at is kept, so RESTRICT is
-    // never hit.
+    // details and decisions cascade). A quote any of those point at is kept. Their checkout
+    // sessions (5.6b) go first: attempts abandoned, expired or refunded, nothing bought, and
+    // checkout_sessions_quote_fk is RESTRICT. With them gone, RESTRICT is never hit.
+    const unbought = and(
+      eq(quotes.customerId, customerId),
+      notExists(
+        tx.select({ id: policies.id }).from(policies).where(eq(policies.quoteId, quotes.id)),
+      ),
+      notExists(
+        tx.select({ id: payments.id }).from(payments).where(eq(payments.quoteId, quotes.id)),
+      ),
+      notExists(tx.select({ id: bundles.id }).from(bundles).where(eq(bundles.quoteId, quotes.id))),
+    );
     await tx
-      .delete(quotes)
+      .delete(checkoutSessions)
       .where(
-        and(
-          eq(quotes.customerId, customerId),
-          notExists(
-            tx.select({ id: policies.id }).from(policies).where(eq(policies.quoteId, quotes.id)),
-          ),
-          notExists(
-            tx.select({ id: payments.id }).from(payments).where(eq(payments.quoteId, quotes.id)),
-          ),
-          notExists(
-            tx.select({ id: bundles.id }).from(bundles).where(eq(bundles.quoteId, quotes.id)),
-          ),
+        inArray(
+          checkoutSessions.quoteId,
+          tx.select({ id: quotes.id }).from(quotes).where(unbought),
         ),
       );
+    await tx.delete(quotes).where(unbought);
   }
 
   // The row stays (customers, audit_log and security_events point at it); the address is freed

@@ -6,7 +6,6 @@ import {
   NOT_BUYABLE,
   QUOTE_EXPIRED,
 } from "#/features/quote/pay-copy";
-import { instalmentDates } from "#/features/quote/policy-terms";
 import { todayIso } from "#/features/quote/schemas/dates";
 import { audit } from "#/server/audit/audit";
 import type { Actor } from "#/server/auth/actor";
@@ -163,15 +162,17 @@ async function paidFor(stripe: StripeClient, session: Session): Promise<Paid> {
 }
 
 /**
- * The end of the 12th monthly period from a subscription's first period start (Unix seconds): the
- * same time 12 months on, the day clamped to the month's end (5.6's instalment-date rule).
+ * Stripe's billing time `months` after a subscription's anchor (Unix seconds): the same UTC time
+ * that many months on, the anchor's day clamped to the month's end (5.6's instalment-date rule).
+ * Stripe bills on the UTC anchor, so the arithmetic is in UTC, never in London dates.
  */
-export function twelfthPeriodEnd(periodStart: number): number {
-  const start = new Date(periodStart * 1000);
-  const year = start.getUTCFullYear() + 1;
-  const month = start.getUTCMonth();
+export function billingTime(anchor: number, months: number): number {
+  const start = new Date(anchor * 1000);
+  const total = start.getUTCMonth() + months;
+  const year = start.getUTCFullYear() + Math.floor(total / 12);
+  const month = total % 12;
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const end = Date.UTC(
+  const at = Date.UTC(
     year,
     month,
     Math.min(start.getUTCDate(), lastDay),
@@ -179,7 +180,22 @@ export function twelfthPeriodEnd(periodStart: number): number {
     start.getUTCMinutes(),
     start.getUTCSeconds(),
   );
-  return Math.floor(end / 1000);
+  return Math.floor(at / 1000);
+}
+
+/** The end of the 12th monthly period from a subscription's first period start */
+export function twelfthPeriodEnd(periodStart: number): number {
+  return billingTime(periodStart, 12);
+}
+
+/**
+ * The 12 instalments' due dates: the London date of each of Stripe's billing times, so a
+ * purchase late on a summer evening (UTC still the day before) dates every row by Stripe's charge
+ */
+export function stripeInstalmentDates(periodStart: number): string[] {
+  return Array.from({ length: 12 }, (_, i) =>
+    todayIso(new Date(billingTime(periodStart, i) * 1000)),
+  );
 }
 
 /**
@@ -333,7 +349,7 @@ export async function fulfilCheckout(
         invoiceId: paid.subscription?.invoiceId ?? undefined,
         // Stripe's billing dates: the first period's start, then a month apart
         instalmentDates: paid.subscription
-          ? instalmentDates(todayIso(new Date(paid.subscription.periodStart * 1000)), 12)
+          ? stripeInstalmentDates(paid.subscription.periodStart)
           : undefined,
       },
       auditActor: opts.auditActor,
