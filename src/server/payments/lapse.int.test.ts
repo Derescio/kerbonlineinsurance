@@ -52,6 +52,7 @@ const STARTS_ON = "2026-11-20";
 const PERIOD_START = Math.floor(NOW.getTime() / 1000);
 const MONTH_2 = billingTime(PERIOD_START, 1);
 const MONTH_3 = billingTime(PERIOD_START, 2);
+const MONTH_4 = billingTime(PERIOD_START, 3);
 const MONTH_5 = billingTime(PERIOD_START, 4);
 // Stripe gives up on month 2 a couple of weeks after it failed
 const LAPSED_AT = MONTH_2 + 14 * DAY;
@@ -384,7 +385,7 @@ describe("invoice.created while lapsed", () => {
     });
   });
 
-  it("leaves alone an invoice for a period before the lapse: the one owed from while covered (fix F2)", async () => {
+  it("leaves alone the month that failed while covered: it's owed (fix F2, R20)", async () => {
     const { subscriptionId } = await lapsedPlan();
     // A late or retried invoice.created for month 2, which failed while covered
     const owed = presetInvoice(stripe, {
@@ -402,8 +403,10 @@ describe("invoice.created while lapsed", () => {
     });
   });
 
-  it("voids an invoice for a period starting exactly at the lapse", async () => {
-    const { subscriptionId } = await lapsedPlan(MONTH_3);
+  it("voids a month whose row is still scheduled, though its period began before lapsed_at (R20)", async () => {
+    // lapsed_at is a Stripe event's created time, wall-clock even under a test clock, so it says
+    // nothing about which months were covered
+    const { subscriptionId } = await lapsedPlan(MONTH_3 + DAY);
     const draft = presetInvoice(stripe, {
       id: "in_month_3",
       subscriptionId,
@@ -550,7 +553,7 @@ describe("lapsing again, and more than one invoice owed (second-lapse fix)", () 
     expect(await emails("cover_resumed")).toHaveLength(1);
   });
 
-  it("counts as owed a month that began earlier on the lapse's own London day, and voids one from the lapse on", async () => {
+  it("counts as owed every month that failed while covered, whatever the lapse's time", async () => {
     const { quoteId, subscriptionId } = await boughtMonthly();
     await failMonth(subscriptionId, "in_month_2", MONTH_2);
     // Month 3 began at 12:00 UTC and failed; Stripe gives up an hour later, the same London day
@@ -567,23 +570,70 @@ describe("lapsing again, and more than one invoice owed (second-lapse fix)", () 
     await paid(subscriptionId, "in_month_3", MONTH_3, MONTH_3 + 3 * 3600);
     expect((await policyOf(quoteId)).status).toBe("active");
   });
+});
 
-  it("voids, and doesn't count, a month starting later on the lapse's own London day", async () => {
+describe("the live test-clock run (R20)", () => {
+  it("never voids the owed month though lapsed_at (wall time) is before its period; Stripe flipping to active doesn't resume; a new card then pays it and resumes", async () => {
     const { quoteId, subscriptionId } = await boughtMonthly();
-    await failMonth(subscriptionId, "in_month_2", MONTH_2);
-    // Stripe gives up an hour before month 3's billing time, the same London day
-    await giveUp(subscriptionId, MONTH_3 - 3600);
-    const draft = presetInvoice(stripe, {
+    // Month 3 fails while covered (past_due), its row failed
+    const owed = presetInvoice(stripe, {
       id: "in_month_3",
       subscriptionId,
       periodStart: MONTH_3,
+      status: "open",
+    });
+    await deliver(stripeEvent("invoice.payment_failed", owed));
+    // Stripe gives up. The event's created is wall-clock time, months before the test clock's
+    // month 3; invoice periods follow the clock
+    const wallTime = PERIOD_START + 5 * DAY;
+    const unpaid = presetSubscription(subscriptionId, { status: "unpaid", customer: "cus_test_1" });
+    await deliver(subscriptionEvent("customer.subscription.updated", unpaid, wallTime));
+    expect(await policyOf(quoteId)).toMatchObject({
+      status: "lapsed",
+      lapsedAt: new Date(wallTime * 1000),
+    });
+    // The owed month is not voided by the lapse's sweep
+    expect(stripe.calls["invoices.voidInvoice"]).toBeUndefined();
+    expect((await instalments(subscriptionId))[2]).toMatchObject({
+      status: "failed",
+      stripeInvoiceId: "in_month_3",
+      voidedAt: null,
+    });
+
+    // Month 4's invoice, made while lapsed: no cover, so voided and stamped
+    const month4 = presetInvoice(stripe, {
+      id: "in_month_4",
+      subscriptionId,
+      periodStart: MONTH_4,
       status: "draft",
     });
-    await deliver(stripeEvent("invoice.created", draft));
-    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual(["in_month_3"]);
-    // Month 2 paid is all that was owed
-    await paid(subscriptionId, "in_month_2", MONTH_2, MONTH_3 + DAY);
-    expect((await policyOf(quoteId)).status).toBe("active");
+    await deliver(stripeEvent("invoice.created", month4));
+    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual(["in_month_4"]);
+    expect((await instalments(subscriptionId))[3]!.voidedAt).not.toBeNull();
+
+    // Voiding Stripe's newest invoice flips the subscription to active: no resume, nothing paid
+    const active = presetSubscription(subscriptionId, { status: "active", customer: "cus_test_1" });
+    await deliver(subscriptionEvent("customer.subscription.updated", active, wallTime + 60));
+    expect((await policyOf(quoteId)).status).toBe("lapsed");
+    expect(await audits("policy.resumed")).toHaveLength(0);
+    expect(await emails("cover_resumed")).toHaveLength(0);
+
+    // A new card while Stripe says active: made the subscription's card, and month 3 is paid
+    expect((await deliver(newDefaultCardEvent("cus_test_1", "pm_new"))).status).toBe(200);
+    expect(stripe.calls["subscriptions.update"]!.at(-1)!.slice(0, 2)).toEqual([
+      subscriptionId,
+      { default_payment_method: "pm_new" },
+    ]);
+    expect(stripe.calls["invoices.pay"]!.map((c) => c[0])).toEqual(["in_month_3"]);
+    const paidInvoice = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      paidAt: wallTime + 120,
+    });
+    expect((await deliver(stripeEvent("invoice.paid", paidInvoice))).status).toBe(200);
+    expect(await policyOf(quoteId)).toMatchObject({ status: "active", lapsedAt: null });
+    expect(await emails("cover_resumed")).toHaveLength(1);
   });
 });
 

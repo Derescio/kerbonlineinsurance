@@ -76,8 +76,9 @@ export const isOwed = (row: PaymentRow): boolean => row.status === "failed" && !
 
 /**
  * Has the customer paid what they owed while covered (ruling R18)? True when no instalment is
- * owed (isOwed). Which months were covered is decided once, by the void's timestamp comparison
- * against lapsed_at (voidUncoveredInvoice), so there's one boundary. Kerb's own rows decide, not
+ * owed (isOwed). Which months were covered is decided by the rows too (voidUncoveredInvoice,
+ * ruling R20): a month whose payment failed while covered is owed and never voided, and any other
+ * invoice made while lapsed is voided and stamped. Kerb's own rows decide, not
  * Stripe's subscription status: that follows the newest invoice, which Kerb may have voided, so it
  * can say `active` with nothing paid, or stay `unpaid` once the older invoice is.
  */
@@ -96,19 +97,23 @@ export function rowForInvoice(rows: PaymentRow[], invoice: Stripe.Invoice): Paym
 }
 
 /**
- * Voids an invoice for a month with no cover: one whose line period starts at or after
- * `lapsedSince` (ms). A draft is finalised first with auto_advance off, so Stripe never tries to
- * charge it in the moment before the void. True when the invoice is now void (or already was);
- * false when it's left alone (an earlier month's, owed from while covered; no line to go by; or
- * paid or uncollectible, where Stripe has moved on).
+ * Voids an invoice, for a subscription whose policy is lapsed, unless its month is owed (ruling
+ * R20). `row` is its instalment (rowForInvoice). A month whose row failed while covered is what the
+ * customer owes to resume, so it's left alone, as is one already paid. Any other (its row
+ * `scheduled`, or no row matches) is a month without cover. The decision goes by Kerb's rows, not
+ * by comparing the invoice's period with lapsed_at: lapsed_at is a Stripe event's `created`, which
+ * is wall-clock time even under a test clock, while invoice periods follow the clock.
+ *
+ * A draft is finalised first with auto_advance off, so Stripe never tries to charge it in the
+ * moment before the void. True when the invoice is now void (or already was); false when it's
+ * left alone (owed, paid, or marked uncollectible, where Stripe has moved on).
  */
 export async function voidUncoveredInvoice(
   stripe: StripeClient,
   invoice: Stripe.Invoice,
-  lapsedSince: number,
+  row: PaymentRow | null,
 ): Promise<boolean> {
-  const start = invoice.lines?.data[0]?.period.start;
-  if (start === undefined || start * 1000 < lapsedSince) return false;
+  if (row && (isOwed(row) || row.status === "succeeded")) return false;
   if (invoice.status === "draft") {
     await stripe.invoices.finalizeInvoice(invoice.id, { auto_advance: false });
   }
@@ -140,16 +145,15 @@ export async function markVoidedMonth(
 }
 
 /**
- * The lapse's sweep (ruling R18): every draft or open invoice on the subscription for a month
- * from the lapse on is voided, so an invoice.created handled while the policy was still active
- * (and so left alone) doesn't stay chargeable. With invoice.created voiding the ones made after,
- * the order Stripe's events arrive in doesn't matter.
+ * The lapse's sweep (rulings R18 and R20): every draft or open invoice on the subscription that
+ * isn't owed (voidUncoveredInvoice) is voided, so an invoice.created handled while the policy was
+ * still active (and so left alone) doesn't stay chargeable. With invoice.created voiding the ones
+ * made after, the order Stripe's events arrive in doesn't matter.
  */
-async function voidMonthsSinceLapse(
+async function voidUncoveredMonths(
   tx: Tx,
   subscriptionId: string,
   rows: PaymentRow[],
-  lapsedAt: Date,
   stripe: StripeClient,
   now: Date,
 ): Promise<void> {
@@ -159,8 +163,9 @@ async function voidMonthsSinceLapse(
       if (!id) continue;
       // Fetched again: the list's copy may not carry its lines
       const invoice = await stripe.invoices.retrieve(id);
-      if (await voidUncoveredInvoice(stripe, invoice, lapsedAt.getTime())) {
-        await markVoidedMonth(tx, rowForInvoice(rows, invoice), invoice.id, now);
+      const row = rowForInvoice(rows, invoice);
+      if (await voidUncoveredInvoice(stripe, invoice, row)) {
+        await markVoidedMonth(tx, row, invoice.id, now);
       }
     }
   }
@@ -189,7 +194,7 @@ export async function lapseSubscription(
       changes: { from: "active", to: "lapsed", lapsedAt: lapsedAt.toISOString() },
     });
   }
-  await voidMonthsSinceLapse(tx, subscriptionId, rows, lapsedAt, stripe, now);
+  await voidUncoveredMonths(tx, subscriptionId, rows, stripe, now);
   return emailOnce(tx, moving, "cover_lapsed", now);
 }
 

@@ -251,18 +251,14 @@ async function invoiceCreated(
   const subscriptionId = subscriptionOf(invoice);
   if (!subscriptionId) return;
   // The payment rows, then the policies (the lock order); only a lapsed policy's invoice is voided
-  await lockPaymentsForSubscription(tx, subscriptionId);
+  const rows = await lockPaymentsForSubscription(tx, subscriptionId);
   const policies = await lockPoliciesForSubscription(tx, subscriptionId);
-  const lapsedSince = policies
-    .filter((p) => p.status === "lapsed" && p.lapsedAt !== null)
-    .map((p) => p.lapsedAt!.getTime());
-  if (lapsedSince.length === 0) return;
-  // Only a month that starts once the cover had stopped (R14's period). An earlier month's invoice
-  // (a late or retried event for the one that failed while covered) is what the customer owes to
-  // resume, so it's left open; with no line to go by, it's left alone too. One Stripe has paid or
+  if (!policies.some((p) => p.status === "lapsed")) return;
+  // Kerb's rows decide (ruling R20): the month that failed while covered (a late or retried event
+  // for it) is owed, so it's left open; any other is a month without cover. One Stripe has paid or
   // marked uncollectible has moved on, and invoice.paid records a payment.
-  if (!(await voidUncoveredInvoice(deps.stripe, invoice, Math.min(...lapsedSince)))) return;
-  const row = await instalmentFor(tx, invoice, subscriptionId);
+  const row = rowForInvoice(rows, invoice);
+  if (!(await voidUncoveredInvoice(deps.stripe, invoice, row))) return;
   await markVoidedMonth(tx, row, invoice.id, deps.now);
 }
 
@@ -331,13 +327,15 @@ const isCardError = (error: unknown) =>
   (error as { type?: unknown } | null)?.type === "StripeCardError";
 
 /**
- * A new card for a Stripe customer: each of their subscriptions that is `unpaid` gets it as its
- * card, and every invoice that failed while the policy was covered (its owed instalments whose
- * invoice is still open; lapsed months' are void) is paid with it, earliest first. Stripe
- * doesn't retry an unpaid subscription itself. A past_due one is left to Stripe's own retries
+ * A new card for a Stripe customer: each of their subscriptions with a lapsed policy (Kerb's rows,
+ * ruling R20: voiding Stripe's newest invoice can flip its status to `active`, so `unpaid` isn't a
+ * reliable sign) gets it as its card, and every invoice that failed while the policy was covered
+ * (its owed instalments whose invoice is still open or uncollectible; lapsed months' are void) is
+ * paid with it, earliest first. Stripe doesn't retry such a subscription itself. While the policy
+ * is still active (past_due, the grace period) nothing is paid: Stripe's own retries handle it
  * (Review Focus 5). invoice.paid then resumes the cover.
  */
-async function payUnpaidWith(
+async function payOwedWith(
   tx: Tx,
   stripeCustomerId: string,
   card: string,
@@ -347,8 +345,8 @@ async function payUnpaidWith(
     // Locked first, so the portal's two events for one card (attached, then made the default)
     // apply one after the other: the second finds the invoice paid
     const rows = await lockPaymentsForSubscription(tx, subscriptionId);
-    const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
-    if (subscription.status !== "unpaid") continue;
+    const policies = await lockPoliciesForSubscription(tx, subscriptionId);
+    if (!policies.some((p) => p.status === "lapsed")) continue;
     await deps.stripe.subscriptions.update(subscriptionId, { default_payment_method: card });
 
     // Every invoice owed from while covered (isOwed: failed, not voided), earliest first: Stripe's
@@ -358,7 +356,7 @@ async function payUnpaidWith(
     for (const row of rows) {
       if (!isOwed(row) || !row.stripeInvoiceId) continue;
       const invoice = await deps.stripe.invoices.retrieve(row.stripeInvoiceId);
-      if (invoice.status === "open") owed.push(invoice.id);
+      if (invoice.status === "open" || invoice.status === "uncollectible") owed.push(invoice.id);
     }
     if (owed.length === 0) {
       console.warn(`[stripe] no open invoice to pay on ${subscriptionId}`);
@@ -394,7 +392,7 @@ async function customerUpdated(
   if (customer.deleted) return;
   const card = idOf(customer.invoice_settings?.default_payment_method);
   if (!card) return;
-  await payUnpaidWith(tx, customer.id, card, deps);
+  await payOwedWith(tx, customer.id, card, deps);
 }
 
 /** A card attached to the customer (the portal attaches one before making it the default) */
@@ -405,7 +403,7 @@ async function paymentMethodAttached(
 ): Promise<void> {
   const customerId = idOf(event.data.object.customer);
   if (!customerId) return;
-  await payUnpaidWith(tx, customerId, event.data.object.id, deps);
+  await payOwedWith(tx, customerId, event.data.object.id, deps);
 }
 
 // ---- The table -------------------------------------------------------------------------------
