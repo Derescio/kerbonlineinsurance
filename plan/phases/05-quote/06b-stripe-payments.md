@@ -1,6 +1,6 @@
 # 5.6b Stripe payments: pay in full or monthly, with billing from webhooks
 
-**Status:** approved (Damion, 14 Nov 2026), building
+**Status:** done (#92); the Staging manual check follows after merge
 **Phase:** 05-quote
 
 ## Goal
@@ -191,8 +191,48 @@
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR.
+- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#92).
+  - Locally (`4d99c21`) `vp check` and `vp build` pass, and `vp test` passes 2,129 of 2,131.
+  - The 2 failures are component click timeouts in files this slice didn't touch (`system.browser`, `vehicle.browser`). Both pass on their own (31/31).
 - [ ] Damion's Stripe and Vercel setup is done and the manual check passes, with the results recorded here.
+  - The Stripe dashboard billing settings are done: unpaid after the last retry, invoices left past-due, and 4 retries in a week.
+  - The Vercel env vars and the two webhook endpoints are still to do.
+  - The Staging run follows after merge.
+
+**Local live run** (Claude with Damion, 15 Nov 2026). It used Stripe test mode, `stripe listen` against `vp dev`, `STRIPE_TEST_CLOCKS=true`, and the Neon `dev` database rebuilt with `db:reset-dev`.
+
+What it showed:
+- **Buy monthly** through Stripe's embedded form (`e2e/buy.spec.ts` with `4242…`) reached You're covered and then `/account`.
+- **The purchase was recorded:**
+  - 12 payment rows; row 1 is paid, with Stripe's ids and `Visa ending 4242`.
+  - The due dates fall on Stripe's billing day.
+  - `cancel_at` is set exactly 12 months out.
+  - `session.invoice` is set.
+- **Month 2:** charged, and the row moved to `succeeded`.
+- **Month 3**, after switching to a card that fails later (`pm_card_chargeCustomerFail`):
+  - it was declined;
+  - the subscription went `past_due`;
+  - the row moved to `failed`;
+  - the policy stayed active;
+  - the "couldn't take" email was sent.
+- **Retries exhausted:**
+  - the subscription became `unpaid`;
+  - the policy `lapsed`, with the "no longer covered" email;
+  - January stayed owed (once R20 was fixed).
+- **February, while lapsed:** voided, never owed.
+- **A new card on the customer, as the portal sets it:**
+  - Kerb set it on the subscription and paid January only;
+  - the policy is active again;
+  - `policy.resumed` was audited and the "Your cover has resumed" email was sent.
+- **March:** Kerb charged it, since Stripe still had the subscription `unpaid` (R21). Stripe then returned the subscription to `active`.
+- **April:** charged by Stripe itself.
+
+Every webhook was answered `200` apart from one transient `invoice.created` failure, which Stripe's redelivery resolved.
+
+Not run yet:
+- pay in full with the 3-D Secure card;
+- `/account` showing Lapsed and the portal;
+- Kerb's retries, which run on Kerb's clock: tests prove them.
 
 ## Commit message
 

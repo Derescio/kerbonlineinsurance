@@ -55,7 +55,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 5.4b **Journey revamp**: the car journey in the Revamp frames, journey header and footer, details tabs, Your car card, pay annually or monthly, named-driver review
 - [x] 5.5 **Cover options + summary**: cover comparison table, voluntary excess, extras, price breakdown with the APR, add-home offer, referred and declined screens
 - [x] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
-- [ ] 5.6b **Pay with Stripe**: Stripe's embedded Checkout in test mode in place of the demo card; paying in full or monthly by subscription; a webhook that marks each payment, warns about a failed one, lapses and resumes cover and cancels it after 30 days unpaid; billing link on the account; Stripe buy-journey Playwright test
+- [x] 5.6b **Pay with Stripe**: Stripe's embedded Checkout in test mode in place of the demo card; paying in full or monthly by subscription; a webhook that marks each payment, warns about a failed one, lapses and resumes cover and cancels it after 30 days unpaid; billing link on the account; Stripe buy-journey Playwright test
 - [ ] 5.7 **Home steps**: property → contents and security → past claims, then the shared cover, summary and pay; home quote → policy Playwright journey
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
