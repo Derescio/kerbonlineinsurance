@@ -23,6 +23,8 @@ vi.mock("./server", () => ({ priceCar: vi.fn() }));
 const price = vi.mocked(priceCar);
 // The gate (5.6) has its own tests, with a router and a session
 vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
+// Your quote asks whether someone is signed in (5.7): a guest here
+vi.mock("#/features/auth/session", () => ({ getSessionUser: vi.fn(async () => null) }));
 const QUOTED: CarPriceResult = { status: "quoted", ...GOLF_PRICES };
 
 // The driver steps' screens (5.3): About you, Licence and driving (11), Claims (12) and Named

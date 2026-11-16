@@ -17,6 +17,7 @@ import { LicenceStep } from "./LicenceStep";
 import { NamedDriversStep } from "./NamedDriversStep";
 import { CarCard, DetailsTabs, HelpCard } from "./page-kit";
 import { QuoteHolding } from "./QuoteHolding";
+import { restartTarget, type RestartTo } from "./restart";
 import { todayIso } from "./schemas/dates";
 import type { QuoteStep } from "./search";
 import {
@@ -74,7 +75,7 @@ export function DriverSteps({
   after?: "retrieve";
   onStep: Move;
   /** The start page, for the gate with no journey in the tab (a paid quote clears it, 5.6) */
-  onRestart?: () => void;
+  onRestart?: (to: RestartTo) => void;
 }) {
   const [view, setView] = useState<{ step: QuoteStep; journey: Journey; today: string } | null>(
     null,
@@ -99,7 +100,8 @@ export function DriverSteps({
     const today = todayIso();
     // Never a save of an empty journey: Back to the gate after paying starts again (5.6)
     if (step === "buy" && !journey && restart.current) {
-      restart.current();
+      const go = restart.current;
+      void restartTarget().then(go);
       return;
     }
     const check = reachable(journey, step, today);

@@ -23,6 +23,7 @@ import {
 } from "./journey-store";
 import { DetailsTabs, HelpCard, HomeCard } from "./page-kit";
 import { PropertyStep } from "./PropertyStep";
+import { restartTarget, type RestartTo } from "./restart";
 import { todayIso } from "./schemas/dates";
 import type { HomeQuoteStep } from "./search";
 
@@ -81,7 +82,7 @@ export function HomeSteps({
   after?: "retrieve";
   onStep: Move;
   /** The start page, for the gate with no journey in the tab (a paid quote clears it) */
-  onRestart?: () => void;
+  onRestart?: (to: RestartTo) => void;
   /** The URL follows a postcode changed on Property (decision 4) */
   onPostcode: (postcode: string) => void;
 }) {
@@ -106,7 +107,8 @@ export function HomeSteps({
     const stored = readJourney("home");
     const today = todayIso();
     if (step === "buy" && !stored && restart.current) {
-      restart.current();
+      const go = restart.current;
+      void restartTarget().then(go);
       return;
     }
     // Home's first step needs no earlier answers, so a first visit starts the journey here, and a

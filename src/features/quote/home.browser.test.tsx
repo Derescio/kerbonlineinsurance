@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import type { HomePriceResult } from "#/server/quote/price";
+import { getSessionUser } from "#/features/auth/session";
 import { renderWithRouter } from "#/test/router";
 
 import { GOLF_PRICES } from "./cover-fixtures";
@@ -23,10 +24,12 @@ vi.mock("./server", () => ({
   priceHome: vi.fn(),
   saveHomeQuoteFn: vi.fn(),
 }));
+vi.mock("#/features/auth/session", () => ({ getSessionUser: vi.fn() }));
 // The gate has its own tests
 vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
 
 const lookup = vi.mocked(findAddresses);
+const session = vi.mocked(getSessionUser);
 const price = vi.mocked(priceHome);
 
 const QUOTED: HomePriceResult = { status: "quoted", ...GOLF_PRICES, addons: [] };
@@ -96,6 +99,7 @@ beforeEach(() => {
     addresses: demoAddresses(data.postcode, "Hackney"),
   }));
   price.mockResolvedValue(QUOTED);
+  session.mockResolvedValue(null);
 });
 
 describe("About you (decision 3)", () => {
@@ -292,6 +296,26 @@ describe("Your quote (decisions 7 and 8)", () => {
           .getByText("18 Albion Road, Hackney"),
       )
       .toBeVisible();
+  });
+
+  it("asks a guest to sign in to send it for review, and not someone signed in", async () => {
+    price.mockResolvedValue({ status: "referred", namedDriver: null });
+    await show("quote", completeHomeJourney());
+    await expect.element(button("Sign in to send this for review")).toBeVisible();
+  });
+
+  it("offers someone signed in to send it for review", async () => {
+    price.mockResolvedValue({ status: "referred", namedDriver: null });
+    session.mockResolvedValue({
+      id: "u1",
+      name: "Priya Shah",
+      email: "priya@example.com",
+      emailVerified: true,
+    });
+    await show("quote", completeHomeJourney());
+    await expect.element(button("Send this for review")).toBeVisible();
+    await button("Send this for review").click();
+    expect(moves.at(-1)).toEqual({ step: "buy", replace: false });
   });
 
   it("sends a step the server refuses back to it", async () => {

@@ -55,7 +55,13 @@ function HomeQuotePage() {
             replace: opts?.replace,
           })
         }
-        onRestart={() => void navigate({ to: "/quote", search: { type: "home" }, replace: true })}
+        onRestart={(to) =>
+          void navigate(
+            to === "retrieve"
+              ? { to: "/quote/retrieve", replace: true }
+              : { to: "/quote", search: { type: "home" }, replace: true },
+          )
+        }
         onPostcode={(next) =>
           void navigate({ search: (current) => ({ ...current, postcode: next }), replace: true })
         }

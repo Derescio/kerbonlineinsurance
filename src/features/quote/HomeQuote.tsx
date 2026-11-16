@@ -9,6 +9,7 @@ import type { CoverChoice, Journey } from "./journey-store";
 import { HomeDeclined, HomeReferred, type HomeSummary } from "./Outcomes";
 import { HelpCard, JourneyPage, StepNav } from "./page-kit";
 import { QuotePrice, usePrice } from "./QuotePrice";
+import { useSignedIn } from "./restart";
 import { alarmOptions, propertyTypeLabel } from "./schemas/home-steps";
 import { StepHeading } from "./step-kit";
 
@@ -102,6 +103,7 @@ export function HomeQuote({
 }) {
   const price = usePrice("home", journey, (step) => onInvalid(step as HomeStep), onCover);
   const { result } = price;
+  const signedIn = useSignedIn();
   const outcome =
     result?.status === "referred" || result?.status === "declined" ? result.status : null;
   const kind = outcome ?? "quote";
@@ -158,6 +160,7 @@ export function HomeQuote({
         <HomeReferred
           home={homeSummary(journey)}
           aside={aside}
+          signedIn={signedIn}
           onCheckAnswers={() => onEdit("about")}
           onSendForReview={onSaveAndExit}
         />

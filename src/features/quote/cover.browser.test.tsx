@@ -23,6 +23,8 @@ vi.mock("./server", () => ({ priceCar: vi.fn() }));
 const price = vi.mocked(priceCar);
 // The gate (5.6) has its own tests, with a router and a session
 vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
+// Your quote asks whether someone is signed in (5.7): a guest here
+vi.mock("#/features/auth/session", () => ({ getSessionUser: vi.fn(async () => null) }));
 
 /** The Golf's prices at an excess: every level × the band's multiplier, as v1 prices them */
 function pricesAt(voluntaryExcessPence: number): CarPriceResult {
