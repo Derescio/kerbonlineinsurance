@@ -217,3 +217,108 @@ export function policyConfirmedEmail(p: PolicyConfirmedParams): EmailContent {
     text: `${hello}\n\nYour Kerb insurance is confirmed.\n\n${details.join("\n")}\n\nGo to your account:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
   };
 }
+
+// A payment Kerb couldn't honour (5.6b, decision 6): the purchase didn't go through, so the money
+// went back. `reason` says why in plain words; nothing to act on, so the link is the account.
+export interface PaymentRefundedParams {
+  name: string;
+  reason: string;
+  url: string;
+}
+
+export function paymentRefundedEmail(p: PaymentRefundedParams): EmailContent {
+  const hello = `Hi ${firstName(p.name)},`;
+  const lines = [
+    "We couldn’t complete your purchase, so we’ve refunded your payment in full and won’t take any more.",
+    p.reason,
+  ];
+  const after = "A refund can take 5 to 10 working days to reach your account.";
+  return {
+    subject: "We’ve refunded your payment",
+    html: layout({
+      heading: "We’ve refunded your payment",
+      body: `${escapeHtml(hello)} ${lines.map(escapeHtml).join("<br><br>")}`,
+      link: { cta: "Go to my account", url: p.url },
+      after,
+    }),
+    text: `${hello}\n\n${lines.join("\n\n")}\n\nGo to your account:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}
+
+// A monthly instalment Stripe couldn't take (5.6b, decision 8). Stripe retries for a while and the
+// cover stays in force, so this asks for a new card; sent once per failed invoice.
+export function paymentFailedEmail({ name, url }: { name: string; url: string }): EmailContent {
+  const hello = `Hi ${firstName(name)},`;
+  const line = "Update your card so your cover continues.";
+  const after = "We’ll try the payment again over the next few days.";
+  return {
+    subject: "We couldn’t take this month’s payment",
+    html: layout({
+      heading: "We couldn’t take this month’s payment",
+      body: `${escapeHtml(hello)} ${escapeHtml(line)}`,
+      link: { cta: "Update my card", url },
+      after,
+    }),
+    text: `${hello}\n\nWe couldn’t take this month’s payment. ${line}\n\nUpdate your card:\n${url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}
+
+// Stripe gave up on a failed instalment, so the subscription is unpaid and the policy lapsed
+// (5.6b, decision 8). A new card pays what was owed while covered and resumes the cover.
+export function coverLapsedEmail({ name, url }: { name: string; url: string }): EmailContent {
+  const hello = `Hi ${firstName(name)},`;
+  const line = "Update your card to resume your cover.";
+  const stopped = "We couldn’t take your payments, so your cover has stopped.";
+  const after = "If you don’t, we’ll cancel your policy 30 days after your cover stopped.";
+  return {
+    subject: "You’re no longer covered",
+    html: layout({
+      heading: "You’re no longer covered",
+      body: `${escapeHtml(hello)} ${escapeHtml(stopped)} ${escapeHtml(line)}`,
+      link: { cta: "Update my card", url },
+      after,
+    }),
+    text: `${hello}\n\nYou’re no longer covered. We couldn’t take your payments, so your cover has stopped. ${line}\n\nUpdate your card:\n${url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}
+
+// The payment owed from while they were covered went through, so a lapsed policy is active again
+// (5.6b, decision 8).
+export function coverResumedEmail({ name, url }: { name: string; url: string }): EmailContent {
+  const hello = `Hi ${firstName(name)},`;
+  const line = "Thanks for updating your card. Your payment went through, so you’re covered again.";
+  const after = "Your monthly payments carry on from your new card.";
+  return {
+    subject: "Your cover has resumed",
+    html: layout({
+      heading: "Your cover has resumed",
+      body: `${escapeHtml(hello)} ${escapeHtml(line)}`,
+      link: { cta: "See my payments", url },
+      after,
+    }),
+    text: `${hello}\n\nYour cover has resumed. ${line}\n\nSee your payments:\n${url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}
+
+// A policy lapsed for 30 days, cancelled by the daily job (5.6b, decision 8). It can't be resumed.
+export function policyCancelledUnpaidEmail({
+  name,
+  url,
+}: {
+  name: string;
+  url: string;
+}): EmailContent {
+  const hello = `Hi ${firstName(name)},`;
+  const line = "Your policy has been cancelled because we couldn’t take your payments.";
+  const after = "You won’t be charged again. You can get a new quote at any time.";
+  return {
+    subject: "Your policy has been cancelled",
+    html: layout({
+      heading: "Your policy has been cancelled",
+      body: `${escapeHtml(hello)} ${escapeHtml(line)}`,
+      link: { cta: "See my payments", url },
+      after,
+    }),
+    text: `${hello}\n\n${line}\n\nSee your payments:\n${url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}

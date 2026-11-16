@@ -1,8 +1,10 @@
 import { runClosures } from "#/server/account/run-closures";
 import { accountDb } from "#/server/data/account";
 import { deleteExpiredRows, type Db } from "#/server/data/job-rows";
+import { checkoutDb } from "#/server/data/checkout-rows";
 import { uploadsDb } from "#/server/data/file-rows";
 import { withTx } from "#/server/db/tx";
+import { runLapsedCancellations } from "#/server/payments/lapse";
 import { runUploadsCleanup } from "#/server/uploads/cleanup";
 import { getObjectStore } from "#/server/uploads/store";
 
@@ -14,9 +16,11 @@ import type { HandlerResult, JobDeps, JobRow, JobType } from "./types";
 // their keys, and the runner takes them in this order: closures before the cleanup (a closure
 // marks files for it), the anchor last (it records the day's final audit row). Every one is safe
 // to run twice: each works from the rows as they are, and the anchor checks for today's first.
+// 5.6b adds the cancellation of policies lapsed 30 days, before the anchor (it writes audit rows).
 
 export const DAILY_JOBS = [
   "account.closures",
+  "payments.lapsed_cancellations",
   "uploads.cleanup",
   "housekeeping.expired_rows",
   "audit.anchor",
@@ -49,6 +53,15 @@ export async function closuresHandler(
 ): Promise<HandlerResult> {
   const result = await runClosures(accountDb(), now, deps);
   if (result.failed > 0) throw new Error(`${result.failed} closures failed`);
+}
+
+/** Throws when any lapsed policy couldn't be cancelled, so the job is retried (5.6b) */
+export async function lapsedCancellationsHandler(
+  _job: JobRow,
+  { now, deps }: { now: Date; deps: JobDeps },
+): Promise<HandlerResult> {
+  const result = await runLapsedCancellations(checkoutDb(), now, deps);
+  if (result.failed > 0) throw new Error(`${result.failed} lapsed cancellations failed`);
 }
 
 /** Throws when any file's objects couldn't be deleted, so the job is retried */

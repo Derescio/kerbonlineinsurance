@@ -15,6 +15,7 @@ import {
   quotes,
   rateLimits,
   securityEvents,
+  stripeEvents,
   users,
 } from "#/server/db/schema";
 import { setObjectStore } from "#/server/uploads/store";
@@ -69,14 +70,21 @@ afterEach(() => {
 });
 
 describe("queueDailyJobs", () => {
-  it("queues the four daily jobs once per day, in order", async () => {
-    expect(await queueDailyJobs(getDb(), now)).toBe(4);
+  it("queues the five daily jobs once per day, in order", async () => {
+    expect(DAILY_JOBS).toEqual([
+      "account.closures",
+      "payments.lapsed_cancellations",
+      "uploads.cleanup",
+      "housekeeping.expired_rows",
+      "audit.anchor",
+    ]);
+    expect(await queueDailyJobs(getDb(), now)).toBe(5);
     expect(await queueDailyJobs(getDb(), new Date(now.getTime() + 60_000))).toBe(0);
     expect((await allJobs()).map((j) => [j.type, j.idempotencyKey])).toEqual(
       DAILY_JOBS.map((type) => [type, `${type}:2026-11-09`]),
     );
-    expect(await queueDailyJobs(getDb(), new Date(now.getTime() + DAY))).toBe(4);
-    expect(await allJobs()).toHaveLength(8);
+    expect(await queueDailyJobs(getDb(), new Date(now.getTime() + DAY))).toBe(5);
+    expect(await allJobs()).toHaveLength(10);
   });
 });
 
@@ -197,6 +205,25 @@ describe("housekeeping.expired_rows", () => {
     expect((await getDb().select().from(rateLimits)).map((r) => r.key)).toEqual(["fresh"]);
     const left = (await allJobs()).filter((j) => j.type === "uploads.cleanup");
     expect(left.map((j) => j.status).sort()).toEqual(["dead", "done"]);
+  });
+
+  it("deletes Stripe event ids after 30 days and keeps newer ones (5.6b, decision 13)", async () => {
+    await getDb()
+      .insert(stripeEvents)
+      .values([
+        {
+          eventId: "evt_old",
+          type: "invoice.paid",
+          receivedAt: new Date(now.getTime() - 31 * DAY),
+        },
+        {
+          eventId: "evt_new",
+          type: "invoice.paid",
+          receivedAt: new Date(now.getTime() - 29 * DAY),
+        },
+      ]);
+    expect(await deleteExpiredRows(getDb(), now)).toMatchObject({ stripeEvents: 1 });
+    expect((await getDb().select().from(stripeEvents)).map((e) => e.eventId)).toEqual(["evt_new"]);
   });
 
   it("deletes accounts never confirmed after 7 days, with their quotes, and keeps the rest (5.6, decision 1)", async () => {

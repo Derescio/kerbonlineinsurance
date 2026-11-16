@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { expectNoSeriousAxeViolations } from "./axe";
 import { confirmEmailInDatabase, databaseUrl } from "./db";
@@ -6,10 +6,15 @@ import { withCompleteJourney } from "./quote-journey";
 
 // Buying a car quote (5.6): a complete journey → Choose cover → the gate, where a guest creates an
 // account (the sign-up saves the quote against it, decision 1) → confirm the email → log in to Your
-// saved quotes → Confirm and pay, monthly, with the demo card that pays → You're covered → the
+// saved quotes → Confirm and pay, monthly → Continue to payment → Stripe's embedded form, with the card that pays → You're covered → the
 // policy on /account → the saved quote shows "Bought". At phone width, with axe on the gate, pay,
 // You're covered and Your saved quotes at 390, 768 and 1440 px. Like 4.7's delete test, it needs
-// E2E_DATABASE_URL (e2e/db.ts) to confirm its own sign-up, and skips without it.
+// E2E_DATABASE_URL (e2e/db.ts) to confirm its own sign-up and a Stripe test publishable key, and
+// skips without either.
+
+// The deploy under test must be built with the same test publishable key (5.6b), and its webhook
+// must reach it (`stripe listen`, or the sandbox's endpoint), so You're covered can confirm
+const STRIPE_KEY = process.env.VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 
 const PASSWORD = "kerb e2e password 2026";
 const PHONE = { width: 390, height: 900 };
@@ -24,6 +29,16 @@ async function expectNoSeriousAxeViolationsAtEachWidth(page: Page) {
   await page.setViewportSize(PHONE);
 }
 
+/** Stripe reveals some fields (a postcode) only after the card number: wait briefly for each */
+async function fillIfShown(field: Locator, value: string) {
+  try {
+    await field.waitFor({ state: "visible", timeout: 3_000 });
+  } catch {
+    return;
+  }
+  await field.fill(value);
+}
+
 test("a guest creates an account mid-quote, pays monthly, and finds the policy on their account", async ({
   page,
 }) => {
@@ -31,7 +46,11 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
     !databaseUrl,
     "E2E_DATABASE_URL isn't set, so the run can't confirm the new account's email",
   );
-  test.setTimeout(120_000);
+  test.skip(
+    !STRIPE_KEY.startsWith("pk_test_"),
+    "VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY isn't a test publishable key (pk_test_…), so Stripe's form can't be filled",
+  );
+  test.setTimeout(180_000);
   const email = `delivered+e2e-buy-${Date.now()}@resend.dev`;
 
   await page.setViewportSize(PHONE);
@@ -105,7 +124,7 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await expectNoSeriousAxeViolationsAtEachWidth(page);
   await saved.getByRole("link", { name: "Continue quote" }).click();
 
-  // 6. Confirm and pay: monthly, the demo card that pays, both boxes
+  // 6. Confirm and pay: monthly, both boxes, then Stripe's embedded form
   await expect(page).toHaveURL(/\/quote\/pay\//);
   await expect(page.getByRole("heading", { level: 1, name: "Confirm and pay" })).toBeVisible();
   await page.waitForLoadState("networkidle");
@@ -113,13 +132,22 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
 
   await page.getByText("Pay monthly").click();
   await expect(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
-  await expect(page.getByLabel("Name on card")).toHaveValue("Alex Morgan");
-  await page.getByLabel("Card number").fill("4242 4242 4242 4242");
-  await page.getByLabel("Expiry (MM / YY)").fill("12/30");
-  await page.getByLabel("Security code").fill("123");
   await page.getByText("I confirm my details are correct").click();
   await page.getByText("I agree to the policy terms and understand my cover").click();
-  await page.getByRole("button", { name: /^Pay £[\d,]+\.\d{2} today$/ }).click();
+  await page.getByRole("button", { name: "Continue to payment" }).click();
+
+  // Stripe's iframe (test mode): the card that pays, a name, an email if it asks, a postcode. Its
+  // inputs' ids are steadier than their labels (the CVC label is shared with an icon).
+  const stripe = page.frameLocator('iframe[name="embedded-checkout"]');
+  await stripe.locator("#cardNumber").fill("4242 4242 4242 4242", { timeout: 60_000 });
+  await stripe.locator("#cardExpiry").fill("12 / 30");
+  await stripe.locator("#cardCvc").fill("123");
+  await fillIfShown(stripe.locator("#billingName"), "Alex Morgan");
+  await fillIfShown(stripe.locator("#email"), email);
+  await fillIfShown(stripe.locator("#billingPostalCode"), "E8 3RL");
+  await stripe.getByTestId("hosted-payment-submit-button").click();
+  // A rejected submit (a missed field) fails here, not at You're covered
+  await expect(page).toHaveURL(/\/quote\/covered\//, { timeout: 60_000 });
 
   // 7. You're covered, with the policy reference
   await expect(page).toHaveURL(/\/quote\/covered\//);

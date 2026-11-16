@@ -30,8 +30,24 @@ exports[`AUDIT_ACTIONS > pins the list 1`] = `
     "description": "A staff member opened a claim file",
     "entityType": "file",
   },
+  "payment.refunded": {
+    "description": "A checkout's payment was refunded because it couldn't be honoured",
+    "entityType": "checkout_session",
+  },
+  "policy.cancelled_unpaid": {
+    "description": "A policy was cancelled because its payments couldn't be taken",
+    "entityType": "policy",
+  },
+  "policy.lapsed": {
+    "description": "A monthly policy's cover stopped because Stripe couldn't take its payments",
+    "entityType": "policy",
+  },
   "policy.purchased": {
     "description": "A customer bought a policy",
+    "entityType": "policy",
+  },
+  "policy.resumed": {
+    "description": "A lapsed policy's cover resumed once the payment owed went through",
     "entityType": "policy",
   },
   "referral.viewed": {

@@ -6,7 +6,12 @@ import {
   closureCancelledEmail,
   closureHeldEmail,
   closureRequestedEmail,
+  coverLapsedEmail,
+  coverResumedEmail,
   existingAccountEmail,
+  paymentFailedEmail,
+  paymentRefundedEmail,
+  policyCancelledUnpaidEmail,
   policyConfirmedEmail,
   resetPasswordEmail,
   verifyEmail,
@@ -48,6 +53,14 @@ export const EMAIL_TEMPLATES = {
     }),
     policyConfirmedEmail,
   ),
+  payment_refunded: entry(
+    z.object({ name: z.string(), reason: z.string(), url: z.string() }),
+    paymentRefundedEmail,
+  ),
+  payment_failed: entry(nameAndUrl, paymentFailedEmail),
+  cover_lapsed: entry(nameAndUrl, coverLapsedEmail),
+  cover_resumed: entry(nameAndUrl, coverResumedEmail),
+  policy_cancelled_unpaid: entry(nameAndUrl, policyCancelledUnpaidEmail),
 };
 
 export type EmailTemplate = keyof typeof EMAIL_TEMPLATES;

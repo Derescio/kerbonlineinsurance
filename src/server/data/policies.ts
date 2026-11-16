@@ -1,8 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { AuthzError } from "#/server/auth/errors";
-import { policies } from "#/server/db/schema";
+import { payments, policies } from "#/server/db/schema";
 
 import type { ClaimSummary } from "./claims";
 import { defineRead } from "./define";
@@ -20,6 +20,9 @@ export interface PolicySummary {
   startsOn: string;
   endsOn: string;
 }
+
+/** A listed policy, and whether it's paid monthly by a Stripe subscription (5.6b, decision 9) */
+export type PolicyListItem = PolicySummary & { monthly: boolean };
 
 export type PolicyDetail = PolicySummary & {
   annualPremiumPence: number;
@@ -42,13 +45,26 @@ const summaryColumns = {
 export const listMyPolicies = defineRead(
   "signed_in",
   z.object({}),
-  async (actor, _input, db): Promise<PolicySummary[]> => {
+  async (actor, _input, db): Promise<PolicyListItem[]> => {
     if (!actor.customerId) return [];
-    return db.query.policies.findMany({
-      columns: summaryColumns,
+    const rows = await db.query.policies.findMany({
+      columns: { ...summaryColumns, quoteId: true },
       where: eq(policies.customerId, actor.customerId),
       orderBy: desc(policies.createdAt),
     });
+    // Monthly means a Stripe subscription, which the portal can change the card on: 5.6's demo
+    // monthly rows have none (ruling R12, as /account/billing decides)
+    const subscribed = await db
+      .selectDistinct({ quoteId: payments.quoteId })
+      .from(payments)
+      .where(
+        and(eq(payments.customerId, actor.customerId), isNotNull(payments.stripeSubscriptionId)),
+      );
+    const monthlyQuotes = new Set(subscribed.map((row) => row.quoteId));
+    return rows.map(({ quoteId, ...policy }) => ({
+      ...policy,
+      monthly: monthlyQuotes.has(quoteId),
+    }));
   },
 );
 

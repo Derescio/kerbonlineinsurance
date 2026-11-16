@@ -23,6 +23,8 @@ export const customers = pgTable(
     postcode: text().notNull(),
     postcodeDistrict: text().generatedAlwaysAs(postcodeDistrictSql),
     paperless: boolean().notNull().default(true),
+    // Created at the first checkout and reused after (5.6b, decision 4)
+    stripeCustomerId: text().unique("customers_stripe_customer_id_unique"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

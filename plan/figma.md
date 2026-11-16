@@ -71,6 +71,8 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 
 **Confirm and pay (5.6):** the `Quote & Policy – Web` Purchase frame (`157:11256`) is built as "Confirm and pay" in 5.4b's frame, after screens 14 and 15. It adds a cover start date (today up to 30 days ahead, tomorrow by default), "How would you like to pay?" with 5.4b's annual and monthly cards, and the demo cards under the card form. The frame's one confirmation line becomes two tick boxes: "I confirm my details are correct" and "I agree to the policy terms and understand my cover" (5.6, decision 6).
 
+**Confirm and pay, the card column (5.6b):** the Purchase frame's card form is now Stripe's embedded Checkout form, mounted under "Continue to payment" (the "Car insurance · Purchase" overline above it is Kerb's copy). Its fields are Stripe's, so they aren't drawn in Figma; the test-card line sits under the form.
+
 **Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
 
 **To update in Figma:** screens 21 and 22 say "no bundle discount", but bundles keep the 8% discount from rating tables v1 (Damion, 9 Nov 2026). Show the saving instead.

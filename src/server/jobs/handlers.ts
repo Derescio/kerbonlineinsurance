@@ -1,6 +1,12 @@
 import { anchorHandler } from "#/server/audit/anchor";
+import { retryInvoiceHandler } from "#/server/payments/charge";
 
-import { cleanupHandler, closuresHandler, housekeepingHandler } from "./daily";
+import {
+  cleanupHandler,
+  closuresHandler,
+  housekeepingHandler,
+  lapsedCancellationsHandler,
+} from "./daily";
 import { emailHandler } from "./email";
 import type { Handlers } from "./runner";
 
@@ -11,6 +17,8 @@ import type { Handlers } from "./runner";
 export const HANDLERS: Handlers = {
   "email.send": emailHandler,
   "account.closures": closuresHandler,
+  "payments.lapsed_cancellations": lapsedCancellationsHandler,
+  "payments.retry_invoice": retryInvoiceHandler,
   "uploads.cleanup": cleanupHandler,
   "housekeeping.expired_rows": housekeepingHandler,
   "audit.anchor": anchorHandler,

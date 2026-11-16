@@ -89,11 +89,11 @@ describe.each(routes)("/api/cron/%s", (name, handlers) => {
 });
 
 describe("/api/cron/daily", () => {
-  it("queues and runs the four daily jobs", async () => {
+  it("queues and runs the five daily jobs", async () => {
     const response = await call(handlersOf(DailyRoute), "daily", `Bearer ${SECRET}`);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({ queued: 4, ran: 4, done: 4, failed: 0, dead: 0 });
+    expect(await response.json()).toEqual({ queued: 5, ran: 5, done: 5, failed: 0, dead: 0 });
     const rows = await getDb().select().from(jobs).orderBy(jobs.id);
     expect(rows.map((j) => [j.type, j.status])).toEqual(DAILY_JOBS.map((t) => [t, "done"]));
   });

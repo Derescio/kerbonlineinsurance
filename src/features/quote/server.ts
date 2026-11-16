@@ -6,8 +6,9 @@ import type { WriteResult } from "#/lib/validation";
 import { AuthzError } from "#/server/auth/errors";
 import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
 import type { PaymentSummary, Purchase, SavedQuoteCard } from "#/server/data/quotes";
+import type { StartCheckoutResult } from "#/server/quote/checkout";
+import type { FulfilStatus } from "#/server/quote/fulfil";
 import type { PostcodeCheck } from "#/server/quote/postcode";
-import type { PayResult } from "#/server/quote/pay";
 import type { CarPriceResult } from "#/server/quote/price";
 import type { SaveCarResult } from "#/server/quote/save";
 import type { StartQuoteInput } from "#/server/quote/start";
@@ -62,12 +63,11 @@ export const saveQuoteFn = createServerFn({ method: "POST" })
     return saveCarQuote(context.actor, data, { headers: getRequestHeaders() });
   });
 
-export interface PayEnvelope {
+export interface CheckoutEnvelope {
   input: {
     quoteId: string;
     plan: "annual" | "monthly";
     startsOn: string;
-    card: { name: string; number: string; expiry: string; code: string };
     detailsConfirmed: boolean;
     coverAcknowledged: boolean;
   };
@@ -75,16 +75,17 @@ export interface PayEnvelope {
 }
 
 /**
- * Pays for a saved quote (5.6, decision 7): the policy, payments, audit and email in one
- * transaction. The key makes a double click or a retry one policy. The card number and code are
- * checked on the server and go no further than the parse.
+ * Starts a Stripe checkout for a saved quote (5.6b, decision 5): the 5.6 checks, then an embedded
+ * Checkout Session recorded in checkout_sessions. It returns the session's client secret for
+ * Stripe's form; nothing is bought until the payment is fulfilled. The key makes a double click or
+ * a retry one session.
  */
-export const payFn = createServerFn({ method: "POST" })
+export const startCheckoutFn = createServerFn({ method: "POST" })
   .middleware([actorMiddleware])
-  .validator((data: PayEnvelope) => data)
-  .handler(async ({ context, data }): Promise<WriteResult<PayResult>> => {
-    const { payForQuote } = await import("#/server/quote/pay");
-    return payForQuote(context.actor, data, { headers: getRequestHeaders() });
+  .validator((data: CheckoutEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<StartCheckoutResult>> => {
+    const { startCheckout } = await import("#/server/quote/checkout");
+    return startCheckout(context.actor, data, { headers: getRequestHeaders() });
   });
 
 /** Someone else's quote, or a missing one, is the site's not-found page (5.6, decision 2) */
@@ -97,6 +98,22 @@ async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
     throw error;
   }
 }
+
+/**
+ * The return page's fulfilment (5.6b, decision 6): You're covered sends Stripe's session id, and
+ * the server reads the session from Stripe and fulfils it now rather than waiting on the webhook.
+ * Only the signed-in customer's own session for their own quote; anyone else's is not found.
+ */
+export const confirmCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((input: { quoteId: string; sessionId: string }) => ({
+    quoteId: String(input?.quoteId ?? ""),
+    sessionId: String(input?.sessionId ?? ""),
+  }))
+  .handler(async ({ context, data }): Promise<{ status: FulfilStatus }> => {
+    const { confirmCheckout } = await import("#/server/quote/fulfil");
+    return orNotFound(() => confirmCheckout(context.actor, data));
+  });
 
 const quoteIdInput = (input: { quoteId: string }) => ({ quoteId: String(input?.quoteId ?? "") });
 

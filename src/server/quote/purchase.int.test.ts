@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { eq, sql } from "drizzle-orm";
 import {
   afterAll,
@@ -35,7 +33,6 @@ import {
   accountClosures,
   auditLog,
   bundles,
-  idempotencyKeys,
   jobs,
   payments,
   policies,
@@ -46,14 +43,13 @@ import {
 } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
 import { renderEmail } from "#/server/email/registry";
-import type { JobDeps } from "#/server/jobs/types";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { SECRET } from "#/test/auth";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
 import { makeCustomer, makeStaff, makeUser } from "#/test/factories";
 
-import { payForQuote } from "./pay";
+import { purchase, type PurchaseInput, type PurchaseResult } from "./purchase";
 import { saveCarQuoteFor } from "./save";
 
 // The real audit(), with a spy so one test can make it throw after the policy insert
@@ -62,22 +58,27 @@ vi.mock("#/server/audit/audit", async (original) => {
   return { ...real, audit: vi.fn(real.audit) };
 });
 
-// Paying for a saved quote (5.6, decision 7): one transaction writes the policies, the payments,
-// a bundle for two items, the accepted quote, the audit rows and the email job. A double click or
-// a retry makes one policy, and a failure part-way leaves nothing.
+// The purchase (5.6, decision 7; moved into purchase() by 5.6b, decision 6): one transaction
+// writes the policies, the payments, a bundle for two items, the accepted quote, the audit rows
+// and the email job. Two purchases at once make one policy, and a failure part-way leaves nothing.
+// The card is what Stripe's payment method says (brand and last four), and the Stripe ids go on
+// the payments.
 
 // The journey fixture's dates hold on 11 Nov 2026; cover may start up to 30 days on
 const NOW = new Date("2026-11-11T12:00:00Z");
 const STARTS_ON = "2026-11-20";
-const CARD = { name: "Alex Morgan", number: "4242 4242 4242 4242", expiry: "12 / 30", code: "123" };
-const ctx = { headers: new Headers() };
-// Leaves the email job queued, so the test can read it
-const deps: JobDeps & { now: Date } = {
-  sendEmail: vi.fn(),
-  defer: () => undefined,
-  holdEmails: true,
-  now: NOW,
+const CARD = { brand: "Visa", last4: "4242" };
+const ANNUAL_STRIPE = { paymentIntentId: "pi_test_1" };
+// Stripe bills from the purchase day, not the cover start (5.6b, decision 3)
+const BILLING_DATES = instalmentDates("2026-11-11", 12);
+const MONTHLY_STRIPE = {
+  subscriptionId: "sub_test_1",
+  invoiceId: "in_test_1",
+  paymentIntentId: "pi_test_2",
+  instalmentDates: BILLING_DATES,
 };
+// A customer id no row has
+const NO_CUSTOMER = "00000000-0000-7000-8000-000000000000";
 
 async function golf(): Promise<Journey> {
   const journey = completeJourney();
@@ -102,28 +103,31 @@ async function pricedCarQuote(
   return { actor, quoteId: saved.quoteId, reference: saved.reference, email: user.email };
 }
 
-const input = (quoteId: string, overrides: Record<string, unknown> = {}) => ({
+const input = (
+  actor: Actor,
+  quoteId: string,
+  overrides: Partial<PurchaseInput> = {},
+): PurchaseInput => ({
+  userId: actor.userId,
+  customerId: actor.customerId ?? NO_CUSTOMER,
   quoteId,
   plan: "annual",
   startsOn: STARTS_ON,
+  detailsConfirmedAt: NOW,
+  coverAcknowledgedAt: NOW,
   card: CARD,
-  detailsConfirmed: true,
-  coverAcknowledged: true,
+  stripe: overrides.plan === "monthly" ? MONTHLY_STRIPE : ANNUAL_STRIPE,
+  auditActor: actor,
+  now: NOW,
   ...overrides,
 });
 
-const pay = (
+const buy = (
   actor: Actor,
   quoteId: string,
-  overrides: Record<string, unknown> = {},
-  key?: string,
-) =>
-  payForQuote(
-    actor,
-    { input: input(quoteId, overrides), idempotencyKey: key ?? randomUUID() },
-    ctx,
-    deps,
-  );
+  overrides: Partial<PurchaseInput> = {},
+): Promise<PurchaseResult> =>
+  withTx(getDb(), (tx) => purchase(tx, input(actor, quoteId, overrides)));
 
 async function rowCounts() {
   const db = getDb();
@@ -133,15 +137,14 @@ async function rowCounts() {
     bundles: (await db.select().from(bundles)).length,
     audit: (await db.select().from(auditLog)).length,
     jobs: (await db.select().from(jobs)).length,
-    idempotencyKeys: (await db.select().from(idempotencyKeys)).length,
   };
 }
 
-const NOTHING = { policies: 0, payments: 0, bundles: 0, audit: 0, jobs: 0, idempotencyKeys: 0 };
+const NOTHING = { policies: 0, payments: 0, bundles: 0, audit: 0, jobs: 0 };
 
 let warn: ReturnType<typeof vi.spyOn>;
 beforeAll(async () => {
-  // rateLimitSubject and the email's link read the whole auth env, which this project doesn't set
+  // The email's link reads the whole auth env, which this project doesn't set
   vi.stubEnv("BETTER_AUTH_SECRET", SECRET);
   vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000");
   vi.stubEnv("GOOGLE_CLIENT_ID", "test-client");
@@ -168,15 +171,15 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("payForQuote: annual", () => {
+describe("purchase: annual", () => {
   it("writes one policy, one payment, the accepted quote, an audit row and the email", async () => {
     const { actor, quoteId, reference, email } = await pricedCarQuote();
-    const result = await pay(actor, quoteId);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.quoteId).toBe(quoteId);
-    expect(result.data.policyReferences).toHaveLength(1);
-    expect(result.data.policyReferences[0]).toMatch(/^KRB-\d{6}$/);
+    const result = await buy(actor, quoteId);
+    expect(result.status).toBe("bought");
+    if (result.status !== "bought") return;
+    expect(result.quoteId).toBe(quoteId);
+    expect(result.policyReferences).toHaveLength(1);
+    expect(result.policyReferences[0]).toMatch(/^KRB-\d{6}$/);
 
     const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
     expect(quote).toMatchObject({
@@ -202,7 +205,7 @@ describe("payForQuote: annual", () => {
     const rows = await getDb().select().from(policies);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      reference: result.data.policyReferences[0],
+      reference: result.policyReferences[0],
       customerId: actor.customerId,
       quoteId,
       quoteItemId: item!.id,
@@ -231,6 +234,9 @@ describe("payForQuote: annual", () => {
       cardBrand: "Visa",
       cardLast4: "4242",
       dueOn: STARTS_ON,
+      stripePaymentIntentId: "pi_test_1",
+      stripeInvoiceId: null,
+      stripeSubscriptionId: null,
     });
 
     const audits = await getDb().select().from(auditLog);
@@ -246,6 +252,7 @@ describe("payForQuote: annual", () => {
 
     const queued = await getDb().select().from(jobs);
     expect(queued).toHaveLength(1);
+    expect(queued[0]!.id).toBe(result.jobId);
     expect(queued[0]!.type).toBe("email.send");
     const payload = queued[0]!.payload as {
       to: string;
@@ -257,7 +264,7 @@ describe("payForQuote: annual", () => {
       template: "policy_confirmed",
       params: {
         name: "Alex",
-        policyReference: result.data.policyReferences[0],
+        policyReference: result.policyReferences[0],
         startsOn: "20 November 2026",
         endsOn: "19 November 2027",
         url: "http://localhost:3000/account",
@@ -267,16 +274,34 @@ describe("payForQuote: annual", () => {
     expect(payload.params.amount).toContain("paid annually");
     // The job renders
     expect(renderEmail("policy_confirmed", payload.params).text).toContain(
-      result.data.policyReferences[0],
+      result.policyReferences[0],
     );
+  });
+
+  it("keeps each confirmation time the checkout recorded", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    const details = new Date("2026-11-11T11:50:00Z");
+    const cover = new Date("2026-11-11T11:51:00Z");
+    await buy(actor, quoteId, { detailsConfirmedAt: details, coverAcknowledgedAt: cover });
+    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
+    expect(quote).toMatchObject({ detailsConfirmedAt: details, coverAcknowledgedAt: cover });
+    const [policy] = await getDb().select().from(policies);
+    expect(policy!.termsAcceptedAt).toEqual(cover);
+  });
+
+  it("audits as the system when there's no actor (the webhook)", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    expect((await buy(actor, quoteId, { auditActor: null })).status).toBe("bought");
+    const [row] = await getDb().select().from(auditLog);
+    expect(row).toMatchObject({ action: "policy.purchased", actorUserId: null });
   });
 });
 
-describe("payForQuote: monthly", () => {
-  it("writes 12 payments: the first taken now, 2 to 12 scheduled a month apart", async () => {
+describe("purchase: monthly", () => {
+  it("writes 12 payments on Stripe's billing dates: the first taken now, 2 to 12 scheduled", async () => {
     const { actor, quoteId } = await pricedCarQuote();
-    const result = await pay(actor, quoteId, { plan: "monthly" });
-    expect(result.ok).toBe(true);
+    const result = await buy(actor, quoteId, { plan: "monthly" });
+    expect(result.status).toBe("bought");
 
     const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
     expect(quote!.paymentPlan).toBe("monthly");
@@ -287,7 +312,6 @@ describe("payForQuote: monthly", () => {
 
     const paid = await getDb().select().from(payments).orderBy(payments.instalmentNumber);
     expect(paid).toHaveLength(12);
-    const due = instalmentDates(STARTS_ON, 12);
     paid.forEach((p, i) => {
       expect(p).toMatchObject({
         plan: "monthly",
@@ -295,60 +319,57 @@ describe("payForQuote: monthly", () => {
         amountPence: each,
         status: i === 0 ? "succeeded" : "scheduled",
         paidAt: i === 0 ? NOW : null,
-        dueOn: due[i],
+        dueOn: BILLING_DATES[i],
         cardBrand: "Visa",
         cardLast4: "4242",
+        stripeSubscriptionId: "sub_test_1",
+        // Only the first invoice exists yet
+        stripeInvoiceId: i === 0 ? "in_test_1" : null,
+        stripePaymentIntentId: i === 0 ? "pi_test_2" : null,
       });
     });
     const [row] = await getDb().select().from(auditLog);
     expect(row!.changes).toMatchObject({ plan: "monthly", amountPence: each });
   });
+
+  it("dates the payments from the cover start when no billing dates are given", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    await buy(actor, quoteId, { plan: "monthly", stripe: { subscriptionId: "sub_test_1" } });
+    const paid = await getDb().select().from(payments).orderBy(payments.instalmentNumber);
+    expect(paid.map((p) => p.dueOn)).toEqual(instalmentDates(STARTS_ON, 12));
+  });
 });
 
-describe("payForQuote: once", () => {
-  it("makes one policy for one key, however often it's sent, with the same answer", async () => {
+describe("purchase: once", () => {
+  it("refuses a second purchase", async () => {
     const { actor, quoteId } = await pricedCarQuote();
-    const key = randomUUID();
-    const first = await pay(actor, quoteId, {}, key);
-    const second = await pay(actor, quoteId, {}, key);
-    expect(first.ok).toBe(true);
-    expect(second).toEqual(first);
-    expect(await rowCounts()).toEqual({
-      policies: 1,
-      payments: 1,
-      bundles: 0,
-      audit: 1,
-      jobs: 1,
-      idempotencyKeys: 1,
-    });
-  });
-
-  it("refuses a second purchase with another key", async () => {
-    const { actor, quoteId } = await pricedCarQuote();
-    expect((await pay(actor, quoteId)).ok).toBe(true);
-    await expect(pay(actor, quoteId)).resolves.toMatchObject({
-      ok: false,
-      error: { message: "You’ve already bought this quote." },
-    });
+    expect((await buy(actor, quoteId)).status).toBe("bought");
+    await expect(
+      buy(actor, quoteId, { stripe: { paymentIntentId: "pi_test_9" } }),
+    ).resolves.toEqual({ status: "refused", message: "You’ve already bought this quote." });
     expect((await getDb().select().from(policies)).length).toBe(1);
   });
 
-  it("makes exactly one policy from two tabs paying at once with different keys", async () => {
+  it("makes exactly one policy from two purchases at once", async () => {
     const { actor, quoteId } = await pricedCarQuote();
-    const results = await Promise.all([pay(actor, quoteId), pay(actor, quoteId)]);
-    expect(results.filter((r) => r.ok)).toHaveLength(1);
-    expect(results.find((r) => !r.ok)).toMatchObject({
-      error: { message: "You’ve already bought this quote." },
+    const results = await Promise.all([
+      buy(actor, quoteId),
+      buy(actor, quoteId, { stripe: { paymentIntentId: "pi_test_9" } }),
+    ]);
+    expect(results.filter((r) => r.status === "bought")).toHaveLength(1);
+    expect(results.find((r) => r.status !== "bought")).toEqual({
+      status: "refused",
+      message: "You’ve already bought this quote.",
     });
     expect(await rowCounts()).toMatchObject({ policies: 1, payments: 1, audit: 1, jobs: 1 });
   });
 });
 
-describe("payForQuote: failures", () => {
+describe("purchase: failures", () => {
   it("rolls everything back when a step after the policy insert fails", async () => {
     const { actor, quoteId } = await pricedCarQuote();
     vi.mocked(audit).mockRejectedValueOnce(new Error("forced"));
-    await expect(pay(actor, quoteId)).rejects.toThrow("forced");
+    await expect(buy(actor, quoteId)).rejects.toThrow("forced");
     expect(await rowCounts()).toEqual(NOTHING);
     const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
     expect(quote).toMatchObject({ status: "priced", paymentPlan: null, detailsConfirmedAt: null });
@@ -356,76 +377,39 @@ describe("payForQuote: failures", () => {
     // The save's tomorrow, unchanged
     expect(item!.startDate).toBe("2026-11-12");
   });
-
-  it("refuses the declined demo card and writes nothing", async () => {
-    const { actor, quoteId } = await pricedCarQuote();
-    await expect(
-      pay(actor, quoteId, { card: { ...CARD, number: "4000 0000 0000 0002" } }),
-    ).resolves.toEqual({
-      ok: false,
-      error: {
-        code: "VALIDATION",
-        message: "Your card was declined. Try another card.",
-        fields: { "card.number": "Your card was declined. Try another card." },
-      },
-    });
-    expect(await rowCounts()).toEqual(NOTHING);
-    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
-    expect(quote!.status).toBe("priced");
-  });
-
-  it("checks the card and the start date, and writes nothing", async () => {
-    const { actor, quoteId } = await pricedCarQuote();
-    const result = await pay(actor, quoteId, {
-      startsOn: "2026-12-12",
-      card: { name: " ", number: "4242 4242 4242 4241", expiry: "10 / 26", code: "12" },
-    });
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "VALIDATION",
-        fields: {
-          "card.name": "Enter the name on the card.",
-          "card.number": "Enter a valid card number.",
-          "card.expiry": "This card has expired.",
-          "card.code": "Enter the 3 or 4 digit security code.",
-          startsOn: expect.any(String),
-        },
-      },
-    });
-    // Today is the earliest start
-    const yesterday = await pay(actor, quoteId, { startsOn: "2026-11-10" });
-    expect(yesterday).toMatchObject({
-      ok: false,
-      error: { fields: { startsOn: expect.any(String) } },
-    });
-    expect(await rowCounts()).toEqual(NOTHING);
-  });
-
-  it("needs both boxes ticked", async () => {
-    const { actor, quoteId } = await pricedCarQuote();
-    const result = await pay(actor, quoteId, { detailsConfirmed: false, coverAcknowledged: false });
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        fields: { detailsConfirmed: expect.any(String), coverAcknowledged: expect.any(String) },
-      },
-    });
-  });
 });
 
-describe("payForQuote: refusals", () => {
+describe("purchase: refusals", () => {
+  const EXPIRED = "This quote has expired. Get a new quote to see today’s price.";
+
   it("refuses an expired quote", async () => {
     const { actor, quoteId } = await pricedCarQuote();
     await getDb()
       .update(quotes)
       .set({ validUntil: new Date(NOW.getTime() - 1000) })
       .where(eq(quotes.id, quoteId));
-    await expect(pay(actor, quoteId)).resolves.toMatchObject({
-      ok: false,
-      error: { message: "This quote has expired. Get a new quote to see today’s price." },
-    });
+    await expect(buy(actor, quoteId)).resolves.toEqual({ status: "refused", message: EXPIRED });
     expect(await rowCounts()).toEqual(NOTHING);
+  });
+
+  it("honours an expired quote when the checkout started before it expired", async () => {
+    const { actor, quoteId } = await pricedCarQuote();
+    await getDb()
+      .update(quotes)
+      .set({ validUntil: new Date(NOW.getTime() - 1000) })
+      .where(eq(quotes.id, quoteId));
+    await expect(buy(actor, quoteId, { allowExpired: true })).resolves.toMatchObject({
+      status: "bought",
+    });
+    // The daily job's "expired" status too
+    const other = await pricedCarQuote();
+    await getDb().update(quotes).set({ status: "expired" }).where(eq(quotes.id, other.quoteId));
+    await expect(
+      buy(other.actor, other.quoteId, {
+        allowExpired: true,
+        stripe: { paymentIntentId: "pi_test_9" },
+      }),
+    ).resolves.toMatchObject({ status: "bought" });
   });
 
   it("refuses a referred quote", async () => {
@@ -435,9 +419,9 @@ describe("payForQuote: refusals", () => {
       id: `i${n}`,
     }));
     const { actor, quoteId } = await pricedCarQuote(journey);
-    await expect(pay(actor, quoteId)).resolves.toMatchObject({
-      ok: false,
-      error: { message: "This quote can’t be bought online." },
+    await expect(buy(actor, quoteId)).resolves.toEqual({
+      status: "refused",
+      message: "This quote can’t be bought online.",
     });
     expect(await rowCounts()).toEqual(NOTHING);
   });
@@ -445,10 +429,10 @@ describe("payForQuote: refusals", () => {
   it("treats another customer's quote as not found", async () => {
     const { quoteId } = await pricedCarQuote();
     const { actor: other } = await pricedCarQuote();
-    await expect(pay(other, quoteId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(buy(other, quoteId)).rejects.toMatchObject({ code: "NOT_FOUND" });
     // A user with no customer row at all
     const stranger = (await resolveActor(getDb(), (await makeUser()).id))!;
-    await expect(pay(stranger, quoteId)).rejects.toBeInstanceOf(AuthzError);
+    await expect(buy(stranger, quoteId)).rejects.toBeInstanceOf(AuthzError);
     expect(await rowCounts()).toEqual(NOTHING);
   });
 
@@ -461,9 +445,9 @@ describe("payForQuote: refusals", () => {
         requestedAt: NOW,
         closesAt: new Date(NOW.getTime() + 30 * 86_400_000),
       });
-    await expect(pay(actor, quoteId)).resolves.toMatchObject({
-      ok: false,
-      error: { message: "Your account is closing, so you can’t buy a policy." },
+    await expect(buy(actor, quoteId)).resolves.toEqual({
+      status: "refused",
+      message: "Your account is closing, so you can’t buy a policy.",
     });
     expect((await getDb().select().from(policies)).length).toBe(0);
   });
@@ -476,8 +460,7 @@ describe("payForQuote: refusals", () => {
     );
     if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
     const actor = (await resolveActor(getDb(), staff.userId))!;
-    const verified = { ...actor, twoFactor: { enabled: true, verifiedAt: new Date() } };
-    await expect(pay(verified, saved.quoteId)).resolves.toMatchObject({ ok: true });
+    await expect(buy(actor, saved.quoteId)).resolves.toMatchObject({ status: "bought" });
     expect(await getDb().select().from(policies)).toHaveLength(1);
   });
 });
@@ -533,7 +516,7 @@ const homeDetails = (): HomeDetails => ({
   },
 });
 
-describe("payForQuote: a bundle", () => {
+describe("purchase: a bundle", () => {
   it("writes one bundle and two policies pointing at it", async () => {
     const customer = await makeCustomer();
     const requests: Omit<QuoteItemRequest, "tables">[] = [
@@ -560,10 +543,10 @@ describe("payForQuote: a bundle", () => {
       now: NOW,
     });
     const actor = (await resolveActor(getDb(), customer.userId))!;
-    const result = await pay(actor, saved.quoteId);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.policyReferences).toHaveLength(2);
+    const result = await buy(actor, saved.quoteId);
+    expect(result.status).toBe("bought");
+    if (result.status !== "bought") return;
+    expect(result.policyReferences).toHaveLength(2);
 
     const bundleRows = await getDb().select().from(bundles);
     expect(bundleRows).toHaveLength(1);
@@ -577,16 +560,12 @@ describe("payForQuote: a bundle", () => {
   });
 });
 
-describe("payForQuote: card details", () => {
-  it("never stores the card number or security code", async () => {
+describe("purchase: card details", () => {
+  it("keeps only the brand and last four, never a card number", async () => {
     const { actor, quoteId } = await pricedCarQuote();
-    const code = "9876";
-    expect((await pay(actor, quoteId, { card: { ...CARD, code } })).ok).toBe(true);
-    expect((await pay(actor, quoteId, { plan: "monthly", card: { ...CARD, code } })).ok).toBe(
-      false,
-    );
+    expect((await buy(actor, quoteId)).status).toBe("bought");
 
-    for (const table of ["idempotency_keys", "audit_log", "jobs", "payments"]) {
+    for (const table of ["audit_log", "jobs", "payments"]) {
       // Every column as text, so a json or numeric column is searched too
       const { rows } = await getOwnerDb().execute<{ row: string }>(
         sql.raw(`select t::text as row from ${table} t`),
@@ -595,9 +574,7 @@ describe("payForQuote: card details", () => {
       for (const { row } of rows) {
         expect(row, table).not.toContain("4242424242424242");
         expect(row, table).not.toContain("4242 4242 4242 4242");
-        // As a value or under a card key; a bare search would match digits in hashes and times
-        expect(row, table).not.toContain(`"${code}"`);
-        expect(row, table).not.toMatch(/"(code|number|expiry)"/);
+        expect(row, table).not.toMatch(/"(code|number|expiry|cvc)"/);
       }
     }
   });

@@ -25,6 +25,7 @@ import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as SiteCookiesRouteImport } from './routes/_site/cookies'
 import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as AccountBillingRouteImport } from './routes/account_.billing'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
@@ -41,6 +42,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as QuoteQuoteCoveredQuoteIdRouteImport } from './routes/_quote/quote.covered.$quoteId'
 import { Route as QuoteQuotePayQuoteIdRouteImport } from './routes/_quote/quote.pay.$quoteId'
 
@@ -119,6 +121,11 @@ const StaffStaffRoute = StaffStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
   getParentRoute: () => StaffRoute,
+} as any)
+const AccountBillingRoute = AccountBillingRouteImport.update({
+  id: '/account_/billing',
+  path: '/account/billing',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AccountCloseRoute = AccountCloseRouteImport.update({
   id: '/account_/close',
@@ -200,6 +207,11 @@ const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
   path: '/api/webhooks/resend',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuoteQuoteCoveredQuoteIdRoute =
   QuoteQuoteCoveredQuoteIdRouteImport.update({
     id: '/quote/covered/$quoteId',
@@ -225,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
+  '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -240,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/quote/': typeof QuoteQuoteIndexRoute
   '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
@@ -257,6 +271,7 @@ export interface FileRoutesByTo {
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
+  '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -272,6 +287,7 @@ export interface FileRoutesByTo {
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/quote': typeof QuoteQuoteIndexRoute
   '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
@@ -293,6 +309,7 @@ export interface FileRoutesById {
   '/_site/cookies': typeof SiteCookiesRoute
   '/_site/privacy': typeof SitePrivacyRoute
   '/_staff/staff': typeof StaffStaffRoute
+  '/account_/billing': typeof AccountBillingRoute
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -309,6 +326,7 @@ export interface FileRoutesById {
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_quote/quote/': typeof QuoteQuoteIndexRoute
   '/_quote/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/_quote/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
@@ -328,6 +346,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/privacy'
     | '/staff'
+    | '/account/billing'
     | '/account/close'
     | '/account/two-factor'
     | '/api/catalogue'
@@ -343,6 +362,7 @@ export interface FileRouteTypes {
     | '/api/cron/daily'
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
     | '/quote/'
     | '/quote/covered/$quoteId'
     | '/quote/pay/$quoteId'
@@ -360,6 +380,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/privacy'
     | '/staff'
+    | '/account/billing'
     | '/account/close'
     | '/account/two-factor'
     | '/api/catalogue'
@@ -375,6 +396,7 @@ export interface FileRouteTypes {
     | '/api/cron/daily'
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
     | '/quote'
     | '/quote/covered/$quoteId'
     | '/quote/pay/$quoteId'
@@ -395,6 +417,7 @@ export interface FileRouteTypes {
     | '/_site/cookies'
     | '/_site/privacy'
     | '/_staff/staff'
+    | '/account_/billing'
     | '/account_/close'
     | '/account_/two-factor'
     | '/api/catalogue'
@@ -411,6 +434,7 @@ export interface FileRouteTypes {
     | '/api/cron/daily'
     | '/api/cron/jobs'
     | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
     | '/_quote/quote/'
     | '/_quote/quote/covered/$quoteId'
     | '/_quote/quote/pay/$quoteId'
@@ -423,6 +447,7 @@ export interface RootRouteChildren {
   StaffRoute: typeof StaffRouteWithChildren
   AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
+  AccountBillingRoute: typeof AccountBillingRoute
   AccountCloseRoute: typeof AccountCloseRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
@@ -433,6 +458,7 @@ export interface RootRouteChildren {
   ApiCronDailyRoute: typeof ApiCronDailyRoute
   ApiCronJobsRoute: typeof ApiCronJobsRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
+  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -549,6 +575,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffStaffRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/account_/billing': {
+      id: '/account_/billing'
+      path: '/account/billing'
+      fullPath: '/account/billing'
+      preLoaderRoute: typeof AccountBillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account_/close': {
       id: '/account_/close'
       path: '/account/close'
@@ -661,6 +694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksResendRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_quote/quote/covered/$quoteId': {
       id: '/_quote/quote/covered/$quoteId'
       path: '/quote/covered/$quoteId'
@@ -753,6 +793,7 @@ const rootRouteChildren: RootRouteChildren = {
   StaffRoute: StaffRouteWithChildren,
   AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
+  AccountBillingRoute: AccountBillingRoute,
   AccountCloseRoute: AccountCloseRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,
@@ -763,6 +804,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDailyRoute: ApiCronDailyRoute,
   ApiCronJobsRoute: ApiCronJobsRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
+  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

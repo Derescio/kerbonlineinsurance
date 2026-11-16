@@ -379,6 +379,9 @@
   font: 600 var(--text-body-s) / var(--lh-body-s) var(--font-mono);
   color: var(--fg-1);
 }
+.account__policy .auth__link {
+  justify-self: start;
+}
 
 /* Two-factor screens (4.6; Figma Account · Web (two-factor) 205:4701) */
 

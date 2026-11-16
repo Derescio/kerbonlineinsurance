@@ -5,17 +5,21 @@ import { requireUser, type Actor } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
 import {
   accountDb,
+  deleteCheckoutsOfUser,
   deleteUserRow,
   hasAnyClosure,
   hasRecordsOnFile,
   hasStaffRow,
   lockUser,
+  openCheckoutsOfUser,
   recordsOnFile,
   withAccountTx,
 } from "#/server/data/account";
 import type { WriteEnvelope } from "#/server/data/define";
 import { limit, rateLimitSubject } from "#/server/db/rate-limit";
 import { queueEmail, runSoon } from "#/server/jobs/email";
+import { expireAtStripe } from "#/server/payments/expire-session";
+import { getStripe, type StripeClient } from "#/server/payments/stripe";
 
 import { proveIdentity } from "./confirm";
 import { CLOSE_LIMIT } from "./constants";
@@ -30,6 +34,15 @@ import { filesHook } from "./files";
 export const INSURANCE_RECORDS =
   "You have insurance records, so your account will be closed instead.";
 
+// A checkout Stripe has taken payment for, not yet fulfilled: the purchase is on its way (5.6b)
+export const PAYMENT_PROCESSING =
+  "A payment of yours is still being processed. Try again in a few minutes.";
+
+/** What a test swaps: the Stripe client (the fake in src/test/stripe-fake.ts) */
+export interface DeleteStripeDeps {
+  stripe?: StripeClient;
+}
+
 export const CLOSE_RULE = { max: CLOSE_LIMIT.max, windowSeconds: CLOSE_LIMIT.window };
 
 export async function deleteAccount(
@@ -38,6 +51,7 @@ export async function deleteAccount(
   ctx: { headers: Headers },
   deps: AccountDeps = accountDeps(),
   auth: Auth = getAuth(),
+  payments: DeleteStripeDeps = {},
 ): Promise<WriteResult<{ deleted: true }>> {
   const known = requireUser(actor);
   // Before the proof, so every attempt counts, a wrong password included: auth.api calls skip
@@ -56,8 +70,21 @@ export async function deleteAccount(
     if ((await hasAnyClosure(tx, userId)) || hasRecordsOnFile(await recordsOnFile(tx, userId))) {
       return rejected(INSURANCE_RECORDS);
     }
+    // Checkouts (5.6b, ruling R17): each open session is expired at Stripe so it can't be paid
+    // once the quote is gone. One Stripe has completed is a payment on its way to becoming a
+    // policy, so the delete waits. Built on first use: most accounts have no open session.
+    const open = await openCheckoutsOfUser(tx, userId);
+    if (open.length > 0) {
+      const stripe = payments.stripe ?? getStripe();
+      for (const sessionId of open) {
+        if ((await expireAtStripe(stripe, sessionId)) === "complete") {
+          return rejected(PAYMENT_PROCESSING);
+        }
+      }
+    }
     await audit(tx, { actor: known, action: "account.deleted", entityId: userId });
     const fileKeys = await filesHook.deleteUserFiles(tx, userId);
+    await deleteCheckoutsOfUser(tx, userId);
     await deleteUserRow(tx, userId);
     // To the address read before the delete; a job has no link to the user, so it outlives them
     const emailJob = await queueEmail(tx, { to: user.email, template: "account_deleted" });

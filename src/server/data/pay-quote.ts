@@ -18,8 +18,8 @@ import { withSavepoint, type Tx } from "#/server/db/tx";
 
 import { getRatingTables } from "./reference";
 
-// The rows behind paying for a quote (5.6, decision 7). payForQuote in src/server/quote/ decides
-// the order and the refusals; these lock, read and write inside its one transaction. Not reads
+// The rows behind paying for a quote (5.6, decision 7). purchase() and startCheckout in
+// src/server/quote/ decide the order and the refusals; these lock, read and write inside its one transaction. Not reads
 // for the permission suite: the caller has already checked who is asking.
 
 const REFERENCE_TRIES = 5;
@@ -46,16 +46,27 @@ export function hasExpired(validUntil: Date, now: Date): boolean {
   return validUntil <= now;
 }
 
+export interface LockedCustomer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  stripeCustomerId: string | null;
+}
+
 /**
- * The customer row, locked for this transaction, with the email. payForQuote locks the users row
+ * The customer row, locked for this transaction, with the email. purchase() locks the users row
  * first (lockUser), which is what a delete or a closure waits on (4.7: a purchase racing a delete).
  */
-export async function lockCustomer(
-  tx: Tx,
-  customerId: string,
-): Promise<{ id: string; firstName: string; email: string } | null> {
+export async function lockCustomer(tx: Tx, customerId: string): Promise<LockedCustomer | null> {
   const [row] = await tx
-    .select({ id: customers.id, firstName: customers.firstName, email: users.email })
+    .select({
+      id: customers.id,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      email: users.email,
+      stripeCustomerId: customers.stripeCustomerId,
+    })
     .from(customers)
     .innerJoin(users, eq(users.id, customers.userId))
     .where(eq(customers.id, customerId))
@@ -180,11 +191,21 @@ export async function insertPayments(
 export async function acceptQuote(
   tx: Tx,
   quoteId: string,
-  { plan, at, startsOn }: { plan: "annual" | "monthly"; at: Date; startsOn: string },
+  {
+    plan,
+    startsOn,
+    detailsConfirmedAt,
+    coverAcknowledgedAt,
+  }: {
+    plan: "annual" | "monthly";
+    startsOn: string;
+    detailsConfirmedAt: Date;
+    coverAcknowledgedAt: Date;
+  },
 ): Promise<void> {
   await tx
     .update(quotes)
-    .set({ status: "accepted", paymentPlan: plan, detailsConfirmedAt: at, coverAcknowledgedAt: at })
+    .set({ status: "accepted", paymentPlan: plan, detailsConfirmedAt, coverAcknowledgedAt })
     .where(eq(quotes.id, quoteId));
   await tx.update(quoteItems).set({ startDate: startsOn }).where(eq(quoteItems.quoteId, quoteId));
 }

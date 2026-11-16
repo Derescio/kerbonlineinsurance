@@ -423,7 +423,8 @@ describe("audit of staff views (4.5b)", () => {
 // is the upload row helpers behind the account hooks and the cleanup (4.10); job-rows.ts is the
 // jobs table's helpers behind the runner (4.11); event-rows.ts is the guest funnel writes (5.1);
 // postcode-rows.ts is the guest postcode cache (5.2); quote-rows.ts and save-quote.ts are a priced
-// quote's row builder and its transaction (5.4), which 5.6 wraps in a protected write.
+// quote's row builder and its transaction (5.4), which 5.6 wraps in a protected write; checkout-rows.ts is the Stripe
+// checkout, webhook and lapse-job row helpers (5.6b).
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -440,6 +441,7 @@ const modules = import.meta.glob(
     "!./quote-rows.ts",
     "!./save-quote.ts",
     "!./pay-quote.ts",
+    "!./checkout-rows.ts",
   ],
   {
     eager: true,

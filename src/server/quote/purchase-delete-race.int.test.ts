@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { eq, sql } from "drizzle-orm";
 import {
   afterAll,
@@ -21,18 +19,17 @@ import { clearReferenceCaches, getCatalogue, upsertReferenceData } from "#/serve
 import { closeDb, getDb } from "#/server/db/client";
 import { customers, policies, quotes, users } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
-import type { JobDeps } from "#/server/jobs/types";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { env } from "#/test/auth";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
 import { makeUser } from "#/test/factories";
 
-import { payForQuote } from "./pay";
+import { purchase } from "./purchase";
 import { saveCarQuoteFor } from "./save";
 
-// A purchase racing an account delete (5.6, decision 7 step 1). Pay locks the users row before the
-// customer, as deleteAccount does, so the two serialise: whichever holds the lock first finishes,
+// A purchase racing an account delete (5.6, decision 7 step 1). purchase() locks the users row
+// before the customer, as deleteAccount does, so the two serialise: whichever holds the lock first finishes,
 // and the other sees its result and refuses cleanly, never with a raw foreign key error. Each test
 // pauses the first write inside its transaction (in audit(), which both call while holding their
 // locks), starts the second, waits until Postgres shows it blocked on a lock, then lets go.
@@ -65,12 +62,6 @@ vi.mock("#/server/account/confirm", () => ({
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const ctx = { headers: new Headers() };
-const payDeps: JobDeps & { now: Date } = {
-  sendEmail: vi.fn(),
-  defer: () => undefined,
-  holdEmails: true,
-  now: NOW,
-};
 const accountDeps: AccountDeps = { sendEmail: vi.fn(), defer: () => undefined };
 
 /** Pauses the next audit() of `action`; resolves `reached` once it's there, and `open()` lets go */
@@ -112,26 +103,20 @@ async function customerWithQuote(): Promise<{ actor: Actor; quoteId: string; use
 }
 
 const pay = (actor: Actor, quoteId: string) =>
-  payForQuote(
-    actor,
-    {
-      input: {
-        quoteId,
-        plan: "annual",
-        startsOn: "2026-11-20",
-        card: {
-          name: "Alex Morgan",
-          number: "4242 4242 4242 4242",
-          expiry: "12 / 30",
-          code: "123",
-        },
-        detailsConfirmed: true,
-        coverAcknowledged: true,
-      },
-      idempotencyKey: randomUUID(),
-    },
-    ctx,
-    payDeps,
+  withTx(getDb(), (tx) =>
+    purchase(tx, {
+      userId: actor.userId,
+      customerId: actor.customerId!,
+      quoteId,
+      plan: "annual",
+      startsOn: "2026-11-20",
+      detailsConfirmedAt: NOW,
+      coverAcknowledgedAt: NOW,
+      card: { brand: "Visa", last4: "4242" },
+      stripe: { paymentIntentId: "pi_test_1" },
+      auditActor: actor,
+      now: NOW,
+    }),
   );
 
 const del = (actor: Actor) =>
@@ -159,7 +144,7 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("payForQuote racing deleteAccount", () => {
+describe("purchase racing deleteAccount", () => {
   it("pay first: the delete waits, then sees the policy and refuses with INSURANCE_RECORDS", async () => {
     const { actor, quoteId, userId } = await customerWithQuote();
     const paused = hold("policy.purchased");
@@ -170,7 +155,7 @@ describe("payForQuote racing deleteAccount", () => {
     paused.open();
 
     const [paid, deleted] = await Promise.all([paying, deleting]);
-    expect(paid.ok).toBe(true);
+    expect(paid.status).toBe("bought");
     expect(deleted).toEqual({
       ok: false,
       error: expect.objectContaining({ message: INSURANCE_RECORDS }),

@@ -10,6 +10,7 @@ import {
   jobs,
   rateLimits,
   staffMembers,
+  stripeEvents,
   users,
 } from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
@@ -144,6 +145,7 @@ export interface ExpiredRows {
   doneJobs: number;
   deadJobs: number;
   unconfirmedUsers: number;
+  stripeEvents: number;
 }
 
 /**
@@ -152,11 +154,12 @@ export interface ExpiredRows {
  * Accounts whose email is still unconfirmed 7 days after sign-up go too (5.6, decision 1), their
  * customer and quotes by cascade. Staff are never touched; nor is a user with a closure row, whose
  * RESTRICT would fail the whole statement (an unconfirmed account can't sign in to make one).
+ * Stripe event ids go after 30 days (5.6b, decision 13): Stripe retries for 3 days at most.
  */
 export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows> {
   const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
   const ids = { id: jobs.id };
-  const [keys, windows, done, dead, unconfirmed] = await Promise.all([
+  const [keys, windows, done, dead, unconfirmed, events] = await Promise.all([
     db
       .delete(idempotencyKeys)
       .where(lt(idempotencyKeys.expiresAt, now))
@@ -184,6 +187,10 @@ export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows>
         ),
       )
       .returning({ id: users.id }),
+    db
+      .delete(stripeEvents)
+      .where(lt(stripeEvents.receivedAt, before(30)))
+      .returning({ id: stripeEvents.eventId }),
   ]);
   return {
     idempotencyKeys: keys.length,
@@ -191,5 +198,6 @@ export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows>
     doneJobs: done.length,
     deadJobs: dead.length,
     unconfirmedUsers: unconfirmed.length,
+    stripeEvents: events.length,
   };
 }

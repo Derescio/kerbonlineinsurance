@@ -147,3 +147,31 @@ export function getR2Env(source: Record<string, string | undefined> = process.en
   if (problems.length > 0) throw new R2ConfigError(problems);
   return env;
 }
+
+// Stripe (5.6b): test mode only, one sandbox and one set of keys for every environment. Read on
+// use, like getCronSecret, so only payment code needs them. The message names variables, never
+// their values. The publishable key is read in the browser from VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY.
+export class StripeConfigError extends Error {
+  override name = "StripeConfigError";
+  constructor(problem: string) {
+    super(`Invalid Stripe environment (.env.example, "Stripe (5.6b)"): ${problem}`);
+  }
+}
+
+export interface StripeEnv {
+  secretKey: string;
+  webhookSecret: string;
+  testClocks: boolean;
+}
+
+export function getStripeEnv(source: Record<string, string | undefined> = process.env): StripeEnv {
+  const secretKey = source.STRIPE_SECRET_KEY?.trim() ?? "";
+  if (!secretKey) throw new StripeConfigError("STRIPE_SECRET_KEY is not set");
+  return {
+    secretKey,
+    // Only the webhook route needs it, so a missing value is checked there, not here
+    webhookSecret: source.STRIPE_WEBHOOK_SECRET?.trim() ?? "",
+    // Switches on Stripe test clocks for the monthly-payment demo and e2e; off unless "true"
+    testClocks: source.STRIPE_TEST_CLOCKS?.trim() === "true",
+  };
+}

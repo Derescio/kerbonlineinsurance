@@ -14,6 +14,7 @@ const params = {
   startsOn: "20 November 2026",
   endsOn: "19 November 2027",
   amount: "£458.40 paid annually",
+  reason: "You’d already bought this quote.",
 };
 
 describe("renderEmail", () => {
@@ -24,7 +25,12 @@ describe("renderEmail", () => {
       "closure_cancelled",
       "closure_held",
       "closure_requested",
+      "cover_lapsed",
+      "cover_resumed",
       "existing_account",
+      "payment_failed",
+      "payment_refunded",
+      "policy_cancelled_unpaid",
       "policy_confirmed",
       "reset_password",
       "verify_email",
@@ -58,6 +64,57 @@ describe("renderEmail", () => {
       expect(part).toContain("£458.40 paid annually");
       expect(part).toContain("https://x/account");
     }
+  });
+
+  it("tells the customer a payment was refunded, why, with the account link (5.6b)", () => {
+    const email = renderEmail("payment_refunded", {
+      name: "Maya Patel",
+      reason: "The amount taken didn’t match your quote.",
+      url: "https://x/account",
+    });
+    expect(email.subject).toBe("We’ve refunded your payment");
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain("refunded your payment in full");
+      expect(part).toContain("The amount taken didn’t match your quote.");
+      expect(part).toContain("https://x/account");
+    }
+    expect(email.html).not.toContain("Patel");
+  });
+
+  it("asks for a new card when a monthly payment fails, linking to billing (5.6b)", () => {
+    const email = renderEmail("payment_failed", {
+      name: "Maya Patel",
+      url: "https://x/account/billing",
+    });
+    expect(email.subject).toBe("We couldn’t take this month’s payment");
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain("We couldn’t take this month’s payment");
+      expect(part).toContain("Update your card so your cover continues.");
+      expect(part).toContain("https://x/account/billing");
+    }
+    expect(email.html).not.toContain("Patel");
+  });
+
+  it.each([
+    ["cover_lapsed", "You’re no longer covered", "Update your card to resume your cover."],
+    ["cover_resumed", "Your cover has resumed", "Your cover has resumed"],
+    [
+      "policy_cancelled_unpaid",
+      "Your policy has been cancelled",
+      "because we couldn’t take your payments.",
+    ],
+  ] as const)("%s: says so, with the billing link (5.6b)", (template, subject, line) => {
+    const email = renderEmail(template, { name: "Maya Patel", url: "https://x/account/billing" });
+    expect(email.subject).toBe(subject);
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain(subject);
+      expect(part).toContain(line);
+      expect(part).toContain("https://x/account/billing");
+    }
+    expect(email.html).not.toContain("Patel");
   });
 
   it("refuses missing parameters", () => {
