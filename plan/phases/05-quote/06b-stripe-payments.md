@@ -141,7 +141,7 @@
    - **Staging:** `https://kerbonlineinsurance-staging.vercel.app/api/webhooks/stripe?x-vercel-protection-bypass=<VERCEL_AUTOMATION_BYPASS_SECRET>`. Staging is behind Vercel Authentication, so without the bypass Stripe gets a login page. PR previews have no endpoint: their purchases complete through the return page (decision 6), and their later events are ignored by Staging (decision 2).
    - **Production:** `https://kerbonlineinsurance.vercel.app/api/webhooks/stripe`.
    - **Events:** the nine in decision 7, on both.
-   - **Locally,** `stripe listen --forward-to localhost:3000/api/webhooks/stripe` prints a secret for `.env.local`.
+   - **Locally,** `stripe listen --events <the nine> --forward-to localhost:3000/api/webhooks/stripe` prints a secret for `.env.local` (the full command is in engineering.md; Stripe CLI 1.55 needs `--events`).
 4. **Billing settings:**
    - Smart Retries on.
    - After the last retry, **mark the subscription as unpaid**.
