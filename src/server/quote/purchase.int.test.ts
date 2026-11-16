@@ -514,6 +514,7 @@ const homeDetails = (): HomeDetails => ({
     lockType: "multipoint",
     pastClaims: 0,
   },
+  priorClaims: [],
 });
 
 describe("purchase: a bundle", () => {
