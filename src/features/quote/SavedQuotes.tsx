@@ -61,7 +61,7 @@ export function SavedQuotes({
 }
 
 function QuoteCard({ card }: { card: SavedQuoteCard }) {
-  const { car } = card;
+  const { car, home } = card;
   const badge = BADGES[card.state];
   const meta = [car?.registration, tierName(card.coverLevel), card.reference]
     .filter(Boolean)
@@ -76,7 +76,11 @@ function QuoteCard({ card }: { card: SavedQuoteCard }) {
       <div className="quote-saved__head">
         <div>
           <h2 className="quote-outcome__name">
-            {car ? `${car.make} ${car.model} ${car.variant}` : ""}
+            {car
+              ? `${car.make} ${car.model} ${car.variant}`
+              : home
+                ? `${home.addressLine1}, ${home.town}`
+                : ""}
           </h2>
           <p className="quote-outcome__meta">{meta}</p>
         </div>
@@ -134,7 +138,11 @@ function Body({ card }: { card: SavedQuoteCard }) {
     <>
       <p>This quote’s saved-price period has ended. Get a new quote with your current details.</p>
       <div>
-        <Link to="/quote" search={{ type: "car", postcode: card.postcode }} className={LINK}>
+        <Link
+          to="/quote"
+          search={{ type: card.home ? "home" : "car", postcode: card.postcode }}
+          className={LINK}
+        >
           Start a new quote
         </Link>
       </div>

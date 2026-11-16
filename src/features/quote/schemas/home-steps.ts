@@ -190,3 +190,8 @@ export const homeClaimsSchema = (today: string) =>
 
 export type HomeClaims = z.output<ReturnType<typeof homeClaimsSchema>>;
 export type HomeClaim = HomeClaims["claims"][number];
+
+/** "Terraced house" for a stored property type; the key itself for one this list doesn't know */
+export function propertyTypeLabel(value: string): string {
+  return propertyTypeOptions.find((o) => o.value === value)?.label ?? value;
+}

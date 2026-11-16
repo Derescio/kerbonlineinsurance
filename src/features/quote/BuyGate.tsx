@@ -22,8 +22,11 @@ import {
   setVehicle,
   type Journey,
 } from "./journey-store";
+import type { HomeStep } from "./home-steps";
 import { JourneyPage, StepNav } from "./page-kit";
-import { saveQuoteFn } from "./server";
+import type { BuyableProductId } from "./products";
+import { propertyTypeLabel } from "./schemas/home-steps";
+import { saveHomeQuoteFn, saveQuoteFn } from "./server";
 import { StepHeading } from "./step-kit";
 import type { DriverStep } from "./steps";
 
@@ -36,7 +39,9 @@ import type { DriverStep } from "./steps";
 /** Where the gate goes once the quote is saved */
 export type GateAfter = "pay" | "retrieve";
 
-type SaveStep = "car" | DriverStep | "cover";
+type SaveStep = "car" | DriverStep | HomeStep | "cover";
+
+const productName = (product: BuyableProductId) => (product === "home" ? "Home" : "Car");
 
 /** writeOutcome's line for anything it doesn't know */
 const somethingWrong = () => {
@@ -51,18 +56,20 @@ const whole = (pence: number) => formatPounds(pence).replace(".00", "");
  * is let through when it's on its way to Your saved quotes (decision 11), with no price to show.
  */
 export function BuyStep({
+  product,
   journey,
   after,
   onBack,
   onNotQuoted,
   ...moves
 }: {
+  product: BuyableProductId;
   journey: Journey;
   after: GateAfter;
   onBack: () => void;
   onInvalid: (step: SaveStep) => void;
 } & Omit<CoverMoves, "onInvalid">) {
-  const { query, result } = useCoverPrice(journey, {
+  const { query, result } = useCoverPrice(product, journey, {
     ...moves,
     onNotQuoted: (status) => {
       if (status === "referred" && after === "retrieve") return;
@@ -73,7 +80,10 @@ export function BuyStep({
 
   if (result?.status !== "quoted" && !referredOk) {
     return (
-      <JourneyPage heading={<GateHeading title={WAIT_TITLE} />} aside={null}>
+      <JourneyPage
+        heading={<GateHeading product={product} title={waitTitle(product)} />}
+        aside={null}
+      >
         {query.isError && !result ? (
           <Alert tone="warning" announce>
             <p>We couldn&rsquo;t work out your price just now.</p>
@@ -92,6 +102,7 @@ export function BuyStep({
   }
   return (
     <BuyGate
+      product={product}
       journey={journey}
       prices={result?.status === "quoted" ? result : null}
       after={after}
@@ -102,12 +113,20 @@ export function BuyStep({
 }
 
 /** The heading while the gate isn't showing: the price or the session is on its way, or saving */
-const WAIT_TITLE = "Your car insurance";
+const waitTitle = (product: BuyableProductId) => `Your ${product} insurance`;
 
-function GateHeading({ mode = "login", title }: { mode?: "login" | "signup"; title?: string }) {
+function GateHeading({
+  product,
+  mode = "login",
+  title,
+}: {
+  product: BuyableProductId;
+  mode?: "login" | "signup";
+  title?: string;
+}) {
   return (
     <StepHeading
-      overline="Car insurance / Buy"
+      overline={`${productName(product)} insurance / Buy`}
       title={
         title ?? (mode === "signup" ? "Create your account to continue" : "Sign in before you pay")
       }
@@ -123,12 +142,14 @@ function GateHeading({ mode = "login", title }: { mode?: "login" | "signup"; tit
 }
 
 export function BuyGate({
+  product,
   journey,
   prices,
   after,
   onBack,
   onInvalid,
 }: {
+  product: BuyableProductId;
   journey: Journey;
   /** The quoted price; null for a referred quote, which has none */
   prices: CoverPrices | null;
@@ -189,7 +210,8 @@ export function BuyGate({
       return;
     }
     const { onInvalid: invalid, rotate: newKey } = handlers.current;
-    saveQuoteFn({
+    const saveFn = product === "home" ? saveHomeQuoteFn : saveQuoteFn;
+    saveFn({
       data: {
         input: { journey: journeyToSave(journey) },
         idempotencyKey: handlers.current.idempotencyKey,
@@ -205,7 +227,7 @@ export function BuyGate({
         const data = result.data;
         if (data.status === "saved") {
           // Kept even after Back: the quote exists, so Buy again reuses it (decision 5)
-          setSaved("car", { quoteId: data.quoteId, key });
+          setSaved(product, { quoteId: data.quoteId, key });
           if (mounted.current) go(data.quoteId);
           return;
         }
@@ -231,11 +253,14 @@ export function BuyGate({
         if (outcome.rotateKey) newKey();
         if (mounted.current) setFailure(outcome.message);
       });
-  }, [signedIn, attempt, journey, after, navigate]);
+  }, [signedIn, attempt, journey, after, navigate, product]);
 
   if (session.isPending) {
     return (
-      <JourneyPage heading={<GateHeading title={WAIT_TITLE} />} aside={null}>
+      <JourneyPage
+        heading={<GateHeading product={product} title={waitTitle(product)} />}
+        aside={null}
+      >
         <span />
       </JourneyPage>
     );
@@ -244,8 +269,13 @@ export function BuyGate({
   if (signedIn) {
     return (
       <JourneyPage
-        heading={<GateHeading title={failure ? "We couldn’t save your quote" : WAIT_TITLE} />}
-        aside={<CoverWaiting journey={journey} prices={prices} />}
+        heading={
+          <GateHeading
+            product={product}
+            title={failure ? "We couldn’t save your quote" : waitTitle(product)}
+          />
+        }
+        aside={<CoverWaiting product={product} journey={journey} prices={prices} />}
       >
         {failure ? (
           <Alert tone="warning" announce>
@@ -282,8 +312,8 @@ export function BuyGate({
 
   return (
     <JourneyPage
-      heading={<GateHeading mode={mode} />}
-      aside={<CoverWaiting journey={journey} prices={prices} />}
+      heading={<GateHeading product={product} mode={mode} />}
+      aside={<CoverWaiting product={product} journey={journey} prices={prices} />}
     >
       <Card padding="lg" className="quote-gate">
         {mode === "signup" ? (
@@ -291,7 +321,7 @@ export function BuyGate({
             key="signup"
             title="New to Kerb?"
             extraLine="We only use these details to run your account. Confirm your email after signing up, then return to payment."
-            quote={{ journey: journeyToSave(journey) }}
+            quote={{ product, journey: journeyToSave(journey) }}
             redirectTo={here}
           />
         ) : (
@@ -310,9 +340,8 @@ export function BuyGate({
         <p className="quote-gate__switch">
           {mode === "signup" ? "Already have an account? " : "New to Kerb? "}
           <Link
-            from="/quote/car"
-            to="/quote/car"
-            search={(current) => ({
+            to={product === "home" ? "/quote/home" : "/quote/car"}
+            search={(current: Record<string, unknown>) => ({
               ...current,
               auth: mode === "signup" ? undefined : ("signup" as const),
             })}
@@ -332,8 +361,17 @@ function backLabel(after: GateAfter) {
 }
 
 /** "Your cover is waiting" (decision 3): no "Quote saved" badge and no "Cover starts" (decision 8) */
-function CoverWaiting({ journey, prices }: { journey: Journey; prices: CoverPrices | null }) {
+function CoverWaiting({
+  product,
+  journey,
+  prices,
+}: {
+  product: BuyableProductId;
+  journey: Journey;
+  prices: CoverPrices | null;
+}) {
   const car = journey.vehicle;
+  const property = journey.property;
   const chosen = prices ? usableCover(prices, journey.cover ?? DEFAULT_COVER) : null;
   const composed = prices && chosen ? composeCover(prices, chosen.coverLevel, chosen.addons) : null;
   return (
@@ -342,10 +380,21 @@ function CoverWaiting({ journey, prices }: { journey: Journey; prices: CoverPric
         Your cover is waiting
       </h2>
       <p className="quote-outcome__name">
-        {car ? `${car.make} ${car.model} ${car.variant}` : "Your car"}
+        {product === "home"
+          ? property?.address
+            ? `${property.address.line1}, ${property.address.town}`
+            : "Your home"
+          : car
+            ? `${car.make} ${car.model} ${car.variant}`
+            : "Your car"}
       </p>
       <p className="quote-outcome__meta">
-        {[car?.demoPlate, chosen && `${TIERS[chosen.coverLevel].name} cover`]
+        {[
+          product === "home"
+            ? property && propertyTypeLabel(property.propertyType)
+            : car?.demoPlate,
+          chosen && `${TIERS[chosen.coverLevel].name} cover`,
+        ]
           .filter(Boolean)
           .join(" · ")}
       </p>

@@ -227,11 +227,12 @@ export function DriverSteps({
           onCover={saveCover}
           onSaveAndExit={saveAndExit}
           // Replaced, not pushed: Back would return to the quote, which redirects again
-          onInvalid={invalid}
+          onInvalid={(s) => invalid(s as "car" | DriverStep | "cover")}
         />
       ) : null}
       {step === "cover" ? (
         <ChooseCover
+          product="car"
           journey={journey}
           aside={coverAside}
           onBack={() => onStep("quote")}
@@ -239,7 +240,7 @@ export function DriverSteps({
           onSaveAndExit={saveAndExit}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}
-          onInvalid={invalid}
+          onInvalid={(s) => invalid(s as "car" | DriverStep | "cover")}
         />
       ) : null}
       {step === "add-home" ? (
@@ -250,17 +251,18 @@ export function DriverSteps({
           onCarOnly={() => onStep("buy")}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}
-          onInvalid={invalid}
+          onInvalid={(s) => invalid(s as "car" | DriverStep | "cover")}
         />
       ) : null}
       {step === "buy" ? (
         <BuyStep
+          product="car"
           journey={journey}
           after={after ?? "pay"}
           onBack={() => onStep(after === "retrieve" ? "quote" : "cover")}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}
-          onInvalid={invalid}
+          onInvalid={(s) => invalid(s as "car" | DriverStep | "cover")}
         />
       ) : null}
     </div>

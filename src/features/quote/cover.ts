@@ -3,6 +3,7 @@ import { quoteTotals } from "#/features/rating/price-quote";
 import type { CoverLevel } from "#/server/db/schema/values";
 
 import type { CoverChoice } from "./journey-store";
+import type { BuyableProductId } from "./products";
 
 // Choose cover's money and copy (5.5, decisions 4 to 8 and 13). The server prices every tier once
 // per voluntary excess; the browser adds up any choice of tier and extras with the engine's own
@@ -149,11 +150,69 @@ export const TIERS: Record<
   },
 };
 
+// Home's levels, as the comparison table and cards show them (5.7, decision 11)
+export const HOME_FEATURES = [
+  { key: "buildings", label: "Buildings cover" },
+  { key: "contents", label: "Contents cover" },
+  { key: "accidental", label: "Accidental damage" },
+  { key: "accommodation", label: "Alternative accommodation" },
+] as const;
+
+type HomeFeature = (typeof HOME_FEATURES)[number]["key"];
+
+export const HOME_TIERS: Record<
+  CoverLevel,
+  { name: string; description: string; includes: Record<HomeFeature, boolean> }
+> = {
+  essential: {
+    name: "Essential",
+    description: "Core protection · Lowest price",
+    includes: { buildings: true, contents: true, accidental: false, accommodation: true },
+  },
+  comprehensive: {
+    name: "Comprehensive",
+    description: "Adds accidental damage",
+    includes: { buildings: true, contents: true, accidental: true, accommodation: true },
+  },
+  plus: {
+    name: "Plus",
+    description: "More help included · Lower excess",
+    includes: { buildings: true, contents: true, accidental: true, accommodation: true },
+  },
+};
+
+export interface CoverCopy {
+  features: readonly { key: string; label: string }[];
+  tiers: Record<
+    CoverLevel,
+    { name: string; description: string; includes: Record<string, boolean> }
+  >;
+}
+
+/** The comparison rows and level copy for a product (5.7: home's own) */
+export function coverCopy(product: BuyableProductId): CoverCopy {
+  return product === "home"
+    ? { features: HOME_FEATURES, tiers: HOME_TIERS }
+    : { features: FEATURES, tiers: TIERS };
+}
+
 const ADDONS: Record<string, { label: string; description: string }> = {
   breakdown_uk: { label: "Breakdown cover", description: "24/7 roadside help anywhere in the UK" },
   motor_legal: {
     label: "Motor legal protection",
     description: "Legal costs up to £100,000 after an accident that wasn’t your fault",
+  },
+  home_emergency: {
+    label: "Home emergency cover",
+    description: "24/7 help with boiler, plumbing and electrical emergencies",
+  },
+  legal_expenses: {
+    label: "Family legal protection",
+    description: "Legal costs up to £50,000 for disputes about your home",
+  },
+  personal_possessions: {
+    label: "Personal possessions",
+    description: "Your belongings covered away from home, up to £2,500",
   },
 };
 

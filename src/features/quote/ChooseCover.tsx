@@ -9,20 +9,22 @@ import { Select } from "#/components/forms/Select";
 import { CoverageGroup } from "#/components/insurance/CoverageGroup";
 import { formatPounds } from "#/features/rating/money";
 import { coverLevels, type CoverLevel } from "#/server/db/schema/values";
-import type { CarPriceResult } from "#/server/quote/price";
+import type { QuotePriceResult } from "#/server/quote/price";
 
 import {
   addonCopy,
   addonWithIpt,
   composeCover,
-  FEATURES,
+  coverCopy,
   monthlyTerms,
   TIERS,
   usableCover,
   VOLUNTARY_EXCESS_PENCE,
   type ComposedCover,
+  type CoverCopy,
   type CoverPrices,
 } from "./cover";
+import type { HomeStep } from "./home-steps";
 import {
   DEFAULT_COVER,
   setPayment,
@@ -33,6 +35,7 @@ import {
 import { JourneyPage, StepNav } from "./page-kit";
 import { PayChoice } from "./PayChoice";
 import { priceQuery } from "./price-query";
+import type { BuyableProductId } from "./products";
 import { StepHeading } from "./step-kit";
 import type { DriverStep } from "./steps";
 
@@ -55,7 +58,7 @@ export interface CoverMoves {
   /** Referred or declined: Your quote shows why */
   onNotQuoted: (status: "referred" | "declined") => void;
   /** Where the server sends a step that no longer passes */
-  onInvalid: (step: "car" | DriverStep) => void;
+  onInvalid: (step: "car" | DriverStep | HomeStep) => void;
 }
 
 /**
@@ -63,14 +66,14 @@ export interface CoverMoves {
  * excess that isn't offered goes back to £0; a level referred at this excess, or an extra no longer
  * offered, drops out of the choice.
  */
-export function useCoverPrice(journey: Journey, handlers: CoverMoves) {
+export function useCoverPrice(product: BuyableProductId, journey: Journey, handlers: CoverMoves) {
   // The last excess's prices stay while the next one is fetched, so the page doesn't blank out
-  const query = useQuery({ ...priceQuery(journey), placeholderData: keepPreviousData });
+  const query = useQuery({ ...priceQuery(product, journey), placeholderData: keepPreviousData });
   const result = query.data;
   const cover = journey.cover ?? DEFAULT_COVER;
 
   // Once per answer: a new callback each render must not send the visitor twice
-  const handled = useRef<CarPriceResult | null>(null);
+  const handled = useRef<QuotePriceResult | null>(null);
   const moves = useRef(handlers);
   useEffect(() => {
     moves.current = handlers;
@@ -93,6 +96,7 @@ export function useCoverPrice(journey: Journey, handlers: CoverMoves) {
 }
 
 export function ChooseCover({
+  product,
   journey,
   aside,
   onCover,
@@ -102,6 +106,7 @@ export function ChooseCover({
   onNotQuoted,
   onInvalid,
 }: {
+  product: BuyableProductId;
   journey: Journey;
   aside: ReactNode;
   onBack: () => void;
@@ -109,16 +114,30 @@ export function ChooseCover({
   /** "Save and exit" (5.6, decision 13): the gate, then Your saved quotes */
   onSaveAndExit: () => void;
 } & CoverMoves) {
-  const { query, result, cover } = useCoverPrice(journey, { onCover, onNotQuoted, onInvalid });
+  const { query, result, cover } = useCoverPrice(product, journey, {
+    onCover,
+    onNotQuoted,
+    onInvalid,
+  });
   const [payment, setPaymentState] = useState<Payment>(journey.payment ?? "annual");
+  const copy = coverCopy(product);
+  const address = journey.property?.address;
+  const subject =
+    product === "home"
+      ? address
+        ? `your home at ${address.line1}`
+        : null
+      : journey.vehicle
+        ? `your ${journey.vehicle.make} ${journey.vehicle.model}`
+        : null;
 
   const heading = (
     <StepHeading
-      overline="Car insurance / Choose cover"
+      overline={`${product === "home" ? "Home" : "Car"} insurance / Choose cover`}
       title="Compare your cover, side by side"
       intro={
-        journey.vehicle
-          ? `Choose a level of protection for your ${journey.vehicle.make} ${journey.vehicle.model}, and compare the same benefits across all three levels.`
+        subject
+          ? `Choose a level of protection for ${subject}, and compare the same benefits across all three levels.`
           : undefined
       }
     />
@@ -160,26 +179,30 @@ export function ChooseCover({
   const choose = (next: Partial<CoverChoice>) => onCover({ ...chosen, ...next });
   const choosePayment = (value: Payment) => {
     setPaymentState(value);
-    setPayment("car", value);
+    setPayment(product, value);
   };
 
   return (
     <JourneyPage heading={heading} aside={aside}>
       <div className="quote-cover">
-        <Card padding="lg" className="quote-cover__excess">
-          <Select
-            label="Voluntary excess"
-            hint="What you agree to pay towards a claim on top of the compulsory excess. A higher amount lowers your price."
-            options={excessOptions}
-            value={String(cover.voluntaryExcessPence)}
-            onChange={(e) => choose({ voluntaryExcessPence: Number(e.target.value) })}
-          />
-          {query.isPlaceholderData ? (
-            <p className="quote-cover__updating">Updating your prices&hellip;</p>
-          ) : null}
-        </Card>
+        {/* Home's rating v1 has no voluntary excess (5.7) */}
+        {product === "car" ? (
+          <Card padding="lg" className="quote-cover__excess">
+            <Select
+              label="Voluntary excess"
+              hint="What you agree to pay towards a claim on top of the compulsory excess. A higher amount lowers your price."
+              options={excessOptions}
+              value={String(cover.voluntaryExcessPence)}
+              onChange={(e) => choose({ voluntaryExcessPence: Number(e.target.value) })}
+            />
+            {query.isPlaceholderData ? (
+              <p className="quote-cover__updating">Updating your prices&hellip;</p>
+            ) : null}
+          </Card>
+        ) : null}
 
         <CoverLevels
+          copy={copy}
           prices={result}
           addons={chosen.addons}
           payment={payment}
@@ -188,6 +211,7 @@ export function ChooseCover({
         />
 
         <CompareTable
+          copy={copy}
           prices={result}
           addons={chosen.addons}
           value={chosen.coverLevel}
@@ -273,12 +297,14 @@ function totalExcess(prices: CoverPrices, level: CoverLevel): number {
 
 /** The three cards: one radio group, a referred level shown but not choosable (decision 6) */
 function CoverLevels({
+  copy,
   prices,
   addons,
   payment,
   value,
   onChange,
 }: {
+  copy: CoverCopy;
   prices: CoverPrices;
   addons: readonly string[];
   payment: Payment;
@@ -287,7 +313,7 @@ function CoverLevels({
 }) {
   const options = coverLevels.map((level) => {
     const composed = composeCover(prices, level, addons);
-    const tier = TIERS[level];
+    const tier = copy.tiers[level];
     return {
       id: level,
       name: tier.name,
@@ -296,7 +322,7 @@ function CoverLevels({
         ? formatPounds(payment === "monthly" ? composed.monthlyPaymentPence : composed.totalPence)
         : undefined,
       period: payment === "monthly" ? "/month" : "/year",
-      features: FEATURES.map((f) => ({ label: f.label, included: tier.includes[f.key] })),
+      features: copy.features.map((f) => ({ label: f.label, included: !!tier.includes[f.key] })),
       note: `Total excess ${whole(totalExcess(prices, level))}`,
       "aria-disabled": composed ? undefined : true,
     };
@@ -317,11 +343,13 @@ function CoverLevels({
 
 /** "What each level includes": hidden on a phone, where the cards carry the features (decision 13) */
 function CompareTable({
+  copy,
   prices,
   addons,
   value,
   onChange,
 }: {
+  copy: CoverCopy;
   prices: CoverPrices;
   addons: readonly string[];
   value: CoverLevel;
@@ -372,11 +400,11 @@ function CompareTable({
             <th scope="row">Annual total</th>
             {coverLevels.map((level) => money(level, (c) => c.totalPence))}
           </tr>
-          {FEATURES.map((f) => (
+          {copy.features.map((f) => (
             <tr key={f.key}>
               <th scope="row">{f.label}</th>
               {coverLevels.map((level) =>
-                cell(level, TIERS[level].includes[f.key] ? "Included" : "Not included"),
+                cell(level, copy.tiers[level].includes[f.key] ? "Included" : "Not included"),
               )}
             </tr>
           ))}

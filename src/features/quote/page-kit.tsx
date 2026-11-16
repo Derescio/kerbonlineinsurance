@@ -7,6 +7,7 @@ import { cx } from "#/lib/cx";
 
 import { fuelLabel } from "./catalogue";
 import { helpHref } from "./help";
+import { propertyTypeLabel } from "./schemas/home-steps";
 import type { DetailsTab, TabState } from "./steps";
 
 // The revamp's page parts (5.4b; Revamp 249:5806): the two-column page, the details tabs, the
@@ -148,6 +149,51 @@ export function CarCard({
       {onChange ? (
         <button type="button" className="quote-link" onClick={onChange}>
           Change car or postcode
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** The insured home, as far as it's known (5.7, decision 11) */
+export interface HomeCardHome {
+  line1?: string;
+  town?: string;
+  propertyType?: string;
+  bedrooms?: number;
+}
+
+/** "Your home" beside each home step, as "Your car" is beside car's */
+export function HomeCard({
+  home,
+  postcode,
+  onChange,
+}: {
+  home: HomeCardHome | null;
+  postcode: string;
+  onChange?: () => void;
+}) {
+  const name = home?.line1 ? [home.line1, home.town].filter(Boolean).join(", ") : null;
+  const details = home
+    ? [
+        home.propertyType ? propertyTypeLabel(home.propertyType) : undefined,
+        home.bedrooms === undefined
+          ? undefined
+          : home.bedrooms === 0
+            ? "Studio"
+            : `${home.bedrooms} bedroom${home.bedrooms === 1 ? "" : "s"}`,
+      ].filter(Boolean)
+    : [];
+  return (
+    <section className="quote-car-card" aria-label="Your home">
+      <Icon name="house" size={22} className="quote-car-card__icon" />
+      <p className="quote-car-card__overline">Your home</p>
+      {name ? <p className="quote-car-card__name">{name}</p> : null}
+      {details.length ? <p className="quote-car-card__details">{details.join(" · ")}</p> : null}
+      <p className="quote-car-card__postcode">Postcode {postcode}</p>
+      {onChange ? (
+        <button type="button" className="quote-link" onClick={onChange}>
+          Change address or postcode
         </button>
       ) : null}
     </section>

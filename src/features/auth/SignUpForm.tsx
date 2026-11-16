@@ -37,7 +37,7 @@ export function SignUpForm({
   /** A line under the terms box */
   extraLine?: string;
   /** Sent with the sign-up: a new account gets this quote saved against it (5.6, decision 1) */
-  quote?: { journey: Omit<Journey, "lastPlate" | "saved"> };
+  quote?: { product?: "car" | "home"; journey: Omit<Journey, "lastPlate" | "saved"> };
   /** Where Google sign-in returns to */
   redirectTo?: string;
 } = {}) {
