@@ -56,7 +56,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 5.5 **Cover options + summary**: cover comparison table, voluntary excess, extras, price breakdown with the APR, add-home offer, referred and declined screens
 - [x] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
 - [x] 5.6b **Pay with Stripe**: Stripe's embedded Checkout in test mode in place of the demo card; paying in full or monthly by subscription; a webhook that marks each payment, warns about a failed one, lapses and resumes cover and cancels it after 30 days unpaid; billing link on the account; Stripe buy-journey Playwright test
-- [ ] 5.7 **Home steps**: about you → property → contents and security → past claims, then the shared cover, summary and pay; every answer stored (`prior_claims`); home quote → policy Playwright journey
+- [x] 5.7 **Home steps**: about you → property → contents and security → past claims, then the shared cover, summary and pay; every answer stored (`prior_claims`); home quote → policy Playwright journey
 - [ ] 5.7b **Car + home bundle**: add home to a car quote, screens 21, 22 and 04, one Stripe checkout for both policies
 - [ ] 5.7c **Store car's unsaved answers**: incidents as `prior_claims` rows, licence type, employment status and relationship on `drivers`
 
