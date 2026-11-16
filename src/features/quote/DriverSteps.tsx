@@ -143,7 +143,7 @@ export function DriverSteps({
 
   /** The cover choice (5.5): saved in the tab, and the view takes the journey with it */
   function saveCover(cover: CoverChoice) {
-    setCover(cover);
+    setCover("car", cover);
     const saved = readJourney("car");
     if (saved) setView((v) => (v ? { ...v, journey: saved } : v));
   }

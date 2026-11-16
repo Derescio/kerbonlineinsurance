@@ -15,6 +15,18 @@ import {
   type LicenceAndUsage,
   type NamedDrivers,
 } from "./schemas/driver-steps";
+import {
+  alarmOptions,
+  claimStatusOptions,
+  homeClaimTypeOptions,
+  lockTypeOptions,
+  propertyTypeOptions,
+  windowLockOptions,
+  type ContentsAnswers,
+  type HomeAbout,
+  type HomeClaims,
+  type PropertyAnswers,
+} from "./schemas/home-steps";
 
 // A guest's quote lives in the tab until the sign-in gate (4.2 decision 5; 5.1, call 9). One
 // versioned object per product in sessionStorage: it survives a refresh but not closing the tab,
@@ -102,6 +114,54 @@ const namedDriversSchema = z.object({
   ),
 });
 
+// The home steps' answers (5.7, decision 12), stored as their schemas output them: money in whole
+// pounds, the rules that move with today left to homeStepState().
+
+const homeAboutSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  dateOfBirth: z.string(),
+});
+
+const propertyPartSchema = z.object({
+  /** Dropped when the postcode changes after it was picked from the list (decision 4) */
+  address: z
+    .object({
+      line1: z.string(),
+      line2: z.string().optional(),
+      town: z.string(),
+      picked: z.boolean(),
+    })
+    .optional(),
+  propertyType: oneOf(propertyTypeOptions),
+  yearBuilt: z.number().int(),
+  bedrooms: z.number().int(),
+  rebuildCostPounds: z.number().int(),
+});
+
+const contentsPartSchema = z.object({
+  contentsValuePounds: z.number().int(),
+  valuablesPounds: z.number().int(),
+  lockType: oneOf(lockTypeOptions),
+  windowLocks: oneOf(windowLockOptions),
+  alarm: oneOf(alarmOptions),
+  smokeAlarm: z.boolean(),
+});
+
+const homeClaimsPartSchema = z.object({
+  any: z.boolean(),
+  claims: z.array(
+    z.object({
+      id: z.string(),
+      date: z.string(),
+      type: oneOf(homeClaimTypeOptions),
+      amountPounds: z.number().int(),
+      status: oneOf(claimStatusOptions),
+    }),
+  ),
+  confirmed: z.boolean(),
+});
+
 /** How the visitor would like to pay, picked on Your quote (5.4b, call 10). It never reaches the server. */
 const paymentSchema = z.enum(["annual", "monthly"]);
 export type Payment = z.infer<typeof paymentSchema>;
@@ -132,6 +192,10 @@ const partSchemas = {
   usage: usageSchema,
   claims: claimsSchema,
   namedDrivers: namedDriversSchema,
+  homeAbout: homeAboutSchema,
+  property: propertyPartSchema,
+  contents: contentsPartSchema,
+  homeClaims: homeClaimsPartSchema,
   payment: paymentSchema,
   cover: coverSchema,
   saved: savedSchema,
@@ -150,6 +214,7 @@ const baseSchema = z.object({
 });
 
 export type MainDriver = z.infer<typeof mainDriverSchema>;
+export type StoredProperty = z.infer<typeof propertyPartSchema>;
 
 export type Journey = z.infer<typeof baseSchema> & {
   /** Car only (5.2) */
@@ -159,9 +224,15 @@ export type Journey = z.infer<typeof baseSchema> & {
   usage?: z.infer<typeof usageSchema>;
   claims?: z.infer<typeof claimsSchema>;
   namedDrivers?: z.infer<typeof namedDriversSchema>;
+  /** Home only (5.7) */
+  homeAbout?: z.infer<typeof homeAboutSchema>;
+  /** Home only (5.7); no address after a postcode change dropped a picked one */
+  property?: StoredProperty;
+  contents?: z.infer<typeof contentsPartSchema>;
+  homeClaims?: z.infer<typeof homeClaimsPartSchema>;
   /** Kept in the tab for Choose cover and Buy (5.4b) */
   payment?: Payment;
-  /** Car only, from Choose cover (5.5) */
+  /** From Choose cover (5.5; home from 5.7) */
   cover?: CoverChoice;
   /** Set once the gate saved the quote (5.6); the key says whether the answers have changed since */
   saved?: SavedQuote;
@@ -311,19 +382,24 @@ export function setPayment(
   if (stored) writeJourney(product, { ...stored, payment }, storage);
 }
 
-/** The car journey's cover choice (5.5, decision 3). Nothing happens without a car journey. */
+/** The cover choice (5.5, decision 3). Nothing happens without that product's journey. */
 export function setCover(
+  product: BuyableProductId,
   cover: CoverChoice,
   storage: JourneyStorage | null = sessionStore(),
 ): void {
-  const stored = readJourney("car", storage);
-  if (stored) writeJourney("car", { ...stored, cover }, storage);
+  const stored = readJourney(product, storage);
+  if (stored) writeJourney(product, { ...stored, cover }, storage);
 }
 
-/** The quote the gate saved this journey as (5.6, decision 5). Nothing happens without a car journey. */
-export function setSaved(saved: SavedQuote, storage: JourneyStorage | null = sessionStore()): void {
-  const stored = readJourney("car", storage);
-  if (stored) writeJourney("car", { ...stored, saved }, storage);
+/** The quote the gate saved this journey as (5.6, decision 5). Nothing happens without a journey. */
+export function setSaved(
+  product: BuyableProductId,
+  saved: SavedQuote,
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney(product, storage);
+  if (stored) writeJourney(product, { ...stored, saved }, storage);
 }
 
 /**
@@ -411,4 +487,48 @@ export function setStepAnswers<S extends keyof StepAnswers>(
     next.namedDrivers = answers as NamedDrivers;
   }
   writeJourney("car", next, storage);
+}
+
+/** What each home step saves (5.7): its form's output, which fits the stored part */
+export interface HomeStepAnswers {
+  about: HomeAbout | NonNullable<Journey["homeAbout"]>;
+  property: PropertyAnswers | StoredProperty;
+  contents: ContentsAnswers | NonNullable<Journey["contents"]>;
+  claims: HomeClaims | NonNullable<Journey["homeClaims"]>;
+}
+
+const homeParts = {
+  about: "homeAbout",
+  property: "property",
+  contents: "contents",
+  claims: "homeClaims",
+} as const satisfies Record<keyof HomeStepAnswers, keyof Journey>;
+
+/** Saves one home step's answers into the home journey. Nothing happens without a home journey. */
+export function setHomeStepAnswers<S extends keyof HomeStepAnswers>(
+  step: S,
+  answers: HomeStepAnswers[S],
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney("home", storage);
+  if (!stored) return;
+  writeJourney("home", { ...stored, [homeParts[step]]: answers }, storage);
+}
+
+/**
+ * A new postcode from the Property step (5.7, decision 4). An address picked from the old
+ * postcode's list belongs to it and is dropped; one typed in is kept.
+ */
+export function setHomePostcode(
+  postcode: string,
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney("home", storage);
+  if (!stored) return;
+  const next: Journey = { ...stored, postcode };
+  if (stored.property?.address?.picked) {
+    const { address: _old, ...rest } = stored.property;
+    next.property = rest;
+  }
+  writeJourney("home", next, storage);
 }

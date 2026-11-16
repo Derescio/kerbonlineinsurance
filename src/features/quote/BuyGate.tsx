@@ -205,7 +205,7 @@ export function BuyGate({
         const data = result.data;
         if (data.status === "saved") {
           // Kept even after Back: the quote exists, so Buy again reuses it (decision 5)
-          setSaved({ quoteId: data.quoteId, key });
+          setSaved("car", { quoteId: data.quoteId, key });
           if (mounted.current) go(data.quoteId);
           return;
         }
