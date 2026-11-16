@@ -60,7 +60,8 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
 
   // 1. The landing accordion, then the postcode
   await page.goto("/");
-  await page.getByText("Home insurance", { exact: true }).click();
+  // The accordion's own summary: "Home insurance" is also in the header's menu
+  await page.locator("summary", { hasText: "Home insurance" }).click();
   await page.getByRole("link", { name: "Get a home insurance quote" }).click();
   await expect(page).toHaveURL(/\/quote\?type=home/);
   await page.getByLabel("Your postcode").fill("E8 3RL");
