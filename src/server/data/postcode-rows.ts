@@ -18,6 +18,16 @@ export async function findPostcodeArea(postcode: string, db: Db = getDb()): Prom
   return rows.length > 0;
 }
 
+/** The postcode's district from postcodes.io, for the home address list (5.7); null if unknown */
+export async function findPostcodeTown(postcode: string, db: Db = getDb()): Promise<string | null> {
+  const rows = await db
+    .select({ adminDistrict: postcodeAreas.adminDistrict })
+    .from(postcodeAreas)
+    .where(eq(postcodeAreas.postcode, postcode))
+    .limit(1);
+  return rows[0]?.adminDistrict ?? null;
+}
+
 export async function insertPostcodeArea(
   row: {
     postcode: string;

@@ -6,6 +6,7 @@ import type { WriteResult } from "#/lib/validation";
 import { AuthzError } from "#/server/auth/errors";
 import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
 import type { PaymentSummary, Purchase, SavedQuoteCard } from "#/server/data/quotes";
+import type { AddressLookup } from "#/server/quote/addresses";
 import type { StartCheckoutResult } from "#/server/quote/checkout";
 import type { FulfilStatus } from "#/server/quote/fulfil";
 import type { PostcodeCheck } from "#/server/quote/postcode";
@@ -32,6 +33,15 @@ export const checkPostcode = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ result: PostcodeCheck }> => {
     const { checkPostcodeExists } = await import("#/server/quote/postcode");
     return { result: await checkPostcodeExists(data.postcode, getRequestHeaders()) };
+  });
+
+/** The Property step's address list (5.7, decision 4): the postcode checked, then the demo list */
+export const findAddresses = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: { postcode: string }) => ({ postcode: String(input?.postcode ?? "") }))
+  .handler(async ({ data }): Promise<AddressLookup> => {
+    const { findAddressesFor } = await import("#/server/quote/addresses");
+    return findAddressesFor(data.postcode, getRequestHeaders());
   });
 
 /**
