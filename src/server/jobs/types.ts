@@ -9,6 +9,7 @@ export type JobType =
   | "email.send"
   | "account.closures"
   | "payments.lapsed_cancellations"
+  | "payments.retry_invoice"
   | "uploads.cleanup"
   | "housekeeping.expired_rows"
   | "audit.anchor";
@@ -25,7 +26,7 @@ export interface JobDeps {
    * SEND_EMAILS=1, so a run never marks someone's pending email done unsent
    */
   holdEmails?: boolean;
-  /** The Stripe client for the lapse job (5.6b); getStripe() when unset, the fake in tests */
+  /** The Stripe client for the payment jobs (5.6b); getStripe() when unset, the fake in tests */
   stripe?: StripeClient;
 }
 

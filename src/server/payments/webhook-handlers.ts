@@ -14,13 +14,13 @@ import type { Tx } from "#/server/db/tx";
 import type { JobDeps } from "#/server/jobs/types";
 import { fulfilCheckout } from "#/server/quote/fulfil";
 
+import { chargeResumedMonth, isCardError, markChargeFailed } from "./charge";
 import {
   cancelSubscriptionPolicies,
   emailOnce,
   isOwed,
   lapseSubscription,
   markVoidedMonth,
-  queueBillingEmail,
   resumeSubscription,
   rowForInvoice,
   voidUncoveredInvoice,
@@ -222,17 +222,8 @@ async function invoicePaymentFailed(
 
   const row = await instalmentFor(tx, invoice, subscriptionId);
   if (!row) return warnUnknownSubscription(event);
-  if (row.status === "succeeded") return;
-  const failedBefore = row.status === "failed" && row.stripeInvoiceId === invoice.id;
-  await markInstalment(tx, row.id, {
-    status: "failed",
-    paidAt: null,
-    stripeInvoiceId: invoice.id,
-  });
-  // One email per failed invoice, however many of Stripe's retries fail (decision 8)
-  if (failedBefore) return;
-  const jobId = await queueBillingEmail(tx, row.customerId, "payment_failed", deps.now);
-  return jobId === null ? undefined : { emailJobs: [jobId] };
+  // One email per failed invoice, however many of Stripe's (or Kerb's, R21) attempts fail
+  return { emailJobs: await markChargeFailed(tx, row, invoice.id, deps.now) };
 }
 
 /**
@@ -244,7 +235,7 @@ async function invoiceCreated(
   tx: Tx,
   event: EventOf<"invoice.created">,
   deps: HandlerDeps,
-): Promise<void> {
+): Promise<HandlerResult | void> {
   // The first invoice is the checkout's; its policy doesn't exist yet
   if (event.data.object.billing_reason === "subscription_create") return;
   const invoice = await deps.stripe.invoices.retrieve(event.data.object.id);
@@ -253,7 +244,20 @@ async function invoiceCreated(
   // The payment rows, then the policies (the lock order); only a lapsed policy's invoice is voided
   const rows = await lockPaymentsForSubscription(tx, subscriptionId);
   const policies = await lockPoliciesForSubscription(tx, subscriptionId);
-  if (!policies.some((p) => p.status === "lapsed")) return;
+  if (!policies.some((p) => p.status === "lapsed")) {
+    // Not lapsed: after a resume Stripe leaves the subscription unpaid and won't charge this
+    // month itself, so Kerb does (R21); otherwise nothing
+    const emailJobs = await chargeResumedMonth(
+      tx,
+      invoice,
+      subscriptionId,
+      rows,
+      policies,
+      deps.stripe,
+      deps.now,
+    );
+    return { emailJobs };
+  }
   // Kerb's rows decide (ruling R20): the month that failed while covered (a late or retried event
   // for it) is owed, so it's left open; any other is a month without cover. One Stripe has paid or
   // marked uncollectible has moved on, and invoice.paid records a payment.
@@ -322,10 +326,6 @@ async function subscriptionDeleted(
   return { emailJobs: await emailOnce(tx, wasLapsed, "policy_cancelled_unpaid", deps.now) };
 }
 
-/** A Stripe error that is the card's (declined, say), not Kerb's or Stripe's */
-const isCardError = (error: unknown) =>
-  (error as { type?: unknown } | null)?.type === "StripeCardError";
-
 /**
  * A new card for a Stripe customer: each of their subscriptions with a lapsed policy (Kerb's rows,
  * ruling R20: voiding Stripe's newest invoice can flip its status to `active`, so `unpaid` isn't a
@@ -347,6 +347,9 @@ async function payOwedWith(
     const rows = await lockPaymentsForSubscription(tx, subscriptionId);
     const policies = await lockPoliciesForSubscription(tx, subscriptionId);
     if (!policies.some((p) => p.status === "lapsed")) continue;
+    // Ended at Stripe (at its cancel_at while lapsed, say): nothing to put the card on or pay
+    const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
+    if (subscription.status === "canceled") continue;
     await deps.stripe.subscriptions.update(subscriptionId, { default_payment_method: card });
 
     // Every invoice owed from while covered (isOwed: failed, not voided), earliest first: Stripe's

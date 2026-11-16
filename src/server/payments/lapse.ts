@@ -114,11 +114,19 @@ export async function voidUncoveredInvoice(
   row: PaymentRow | null,
 ): Promise<boolean> {
   if (row && (isOwed(row) || row.status === "succeeded")) return false;
-  if (invoice.status === "draft") {
+  const finalised = invoice.status === "draft";
+  if (finalised) {
     await stripe.invoices.finalizeInvoice(invoice.id, { auto_advance: false });
   }
   if (invoice.status === "draft" || invoice.status === "open") {
-    await stripe.invoices.voidInvoice(invoice.id);
+    try {
+      await stripe.invoices.voidInvoice(invoice.id);
+    } catch (error) {
+      // Right after Kerb's own finalise the void can fail for a moment (Stripe updating the
+      // subscription at the same time, as the live run saw): once more in place, then throw
+      if (!finalised) throw error;
+      await stripe.invoices.voidInvoice(invoice.id);
+    }
     return true;
   }
   return invoice.status === "void";

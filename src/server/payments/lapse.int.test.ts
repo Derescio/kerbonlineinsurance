@@ -65,7 +65,11 @@ const jobsDeps: JobDeps = {
   stripe,
 };
 const deps = { stripe, webhookSecret: TEST_WEBHOOK_SECRET, now: NOW, jobs: jobsDeps };
-const deliver = (event: Record<string, unknown>) => handleStripeWebhook(signedRequest(event), deps);
+const deliver = (event: Record<string, unknown>, nowSeconds?: number) =>
+  handleStripeWebhook(
+    signedRequest(event),
+    nowSeconds === undefined ? deps : { ...deps, now: new Date(nowSeconds * 1000) },
+  );
 
 const billingUrl = () => `${authUrls(getAuthEnv()).baseURL}/account/billing`;
 
@@ -255,6 +259,7 @@ describe("customer.subscription.updated: unpaid", () => {
 
   it("voids, on lapsing, a later month's invoice that invoice.created left alone while still covered (R18)", async () => {
     const bought = await boughtMonthly();
+    presetSubscription(bought.subscriptionId, { status: "past_due" });
     // Month 3's invoice arrives while the policy is still active (past_due): left alone
     const month3 = presetInvoice(stripe, {
       id: "in_month_3",
@@ -453,6 +458,7 @@ describe("invoice.created while lapsed", () => {
 
   it("leaves an invoice for an active policy alone", async () => {
     const { subscriptionId } = await boughtMonthly();
+    presetSubscription(subscriptionId, { status: "active" });
     const draft = presetInvoice(stripe, {
       id: "in_month_2",
       subscriptionId,
@@ -634,6 +640,293 @@ describe("the live test-clock run (R20)", () => {
     expect((await deliver(stripeEvent("invoice.paid", paidInvoice))).status).toBe(200);
     expect(await policyOf(quoteId)).toMatchObject({ status: "active", lapsedAt: null });
     expect(await emails("cover_resumed")).toHaveLength(1);
+  });
+});
+
+describe("after a resume, Stripe keeps the subscription unpaid: Kerb charges new months (R21)", () => {
+  const RESUMED_AT = LAPSED_AT + DAY;
+  const cardError = () =>
+    Object.assign(new Error("Your card was declined."), { type: "StripeCardError" });
+  const retryJobs = async () =>
+    (await getDb().select().from(jobs)).filter((j) => j.type === "payments.retry_invoice");
+  const at = (seconds: number) => new Date(seconds * 1000);
+
+  /** Lapsed on month 2, which a new card then pays: active again, Stripe still `unpaid` */
+  async function resumedPlan() {
+    const bought = await lapsedPlan();
+    await deliver(newDefaultCardEvent("cus_test_1", "pm_new"));
+    const paid = presetInvoice(stripe, {
+      id: "in_month_2",
+      subscriptionId: bought.subscriptionId,
+      periodStart: MONTH_2,
+      paidAt: RESUMED_AT,
+    });
+    await deliver(stripeEvent("invoice.paid", paid));
+    expect((await policyOf(bought.quoteId)).status).toBe("active");
+    // Its most recent invoice void or unpaid, Stripe leaves the subscription unpaid
+    stripe.set("subscriptions.retrieve", bought.subscriptionId, {
+      object: "subscription",
+      metadata: { kerb_env: "local" },
+      status: "unpaid",
+      customer: "cus_test_1",
+      default_payment_method: "pm_new",
+      cancel_at: null,
+      ended_at: null,
+    });
+    stripe.calls["invoices.pay"]?.splice(0);
+    return bought;
+  }
+
+  /** Month 3's invoice, created as Stripe makes one for an unpaid subscription: a draft */
+  async function month3Created(subscriptionId: string) {
+    const draft = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "draft",
+    });
+    return deliver(stripeEvent("invoice.created", draft), MONTH_3);
+  }
+
+  /** The retry jobs due at `when` (Unix seconds), run */
+  const runJobsAt = (when: number) => runDueJobs(getDb(), jobsDeps, at(when));
+
+  it("finalises and pays the new month's draft with the subscription's card; invoice.paid marks the row", async () => {
+    const { subscriptionId } = await resumedPlan();
+    expect((await month3Created(subscriptionId)).status).toBe(200);
+
+    expect(stripe.calls["invoices.finalizeInvoice"]!.map((c) => c.slice(0, 2))).toEqual([
+      ["in_month_3", { auto_advance: false }],
+    ]);
+    expect(stripe.calls["invoices.pay"]).toEqual([
+      ["in_month_3", { payment_method: "pm_new" }, { idempotencyKey: "kerb-charge-in_month_3-1" }],
+    ]);
+    expect(stripe.calls["invoices.voidInvoice"]).toBeUndefined();
+    expect(await retryJobs()).toHaveLength(0);
+
+    const paid = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      paidAt: MONTH_3 + 60,
+    });
+    await deliver(stripeEvent("invoice.paid", paid));
+    expect((await instalments(subscriptionId))[2]).toMatchObject({
+      status: "succeeded",
+      stripeInvoiceId: "in_month_3",
+    });
+  });
+
+  it("on a declined card: the row failed, one payment_failed email, and retry 1 queued 2 days on", async () => {
+    const { subscriptionId } = await resumedPlan();
+    const failedEmailsBefore = (await emails("payment_failed")).length;
+    stripe.failOnce("invoices.pay", cardError());
+    expect((await month3Created(subscriptionId)).status).toBe(200);
+
+    expect((await instalments(subscriptionId))[2]).toMatchObject({
+      status: "failed",
+      stripeInvoiceId: "in_month_3",
+      voidedAt: null,
+    });
+    expect(await emails("payment_failed")).toHaveLength(failedEmailsBefore + 1);
+    // Stripe's own invoice.payment_failed for Kerb's attempt doesn't email again
+    const failed = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "open",
+    });
+    await deliver(stripeEvent("invoice.payment_failed", failed));
+    expect(await emails("payment_failed")).toHaveLength(failedEmailsBefore + 1);
+
+    const [job] = await retryJobs();
+    expect(job).toMatchObject({
+      status: "queued",
+      payload: { invoiceId: "in_month_3", subscriptionId, attempt: 1 },
+      runAfter: at(MONTH_3 + 2 * DAY),
+    });
+  });
+
+  it("a retry that succeeds ends the chain", async () => {
+    const { quoteId, subscriptionId } = await resumedPlan();
+    stripe.failOnce("invoices.pay", cardError());
+    await month3Created(subscriptionId);
+    presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "open",
+    });
+
+    await runJobsAt(MONTH_3 + 2 * DAY);
+    expect(stripe.calls["invoices.pay"]!.map((c) => c[2])).toEqual([
+      { idempotencyKey: "kerb-charge-in_month_3-1" },
+      { idempotencyKey: "kerb-charge-in_month_3-2" },
+    ]);
+    const jobs = await retryJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.status).toBe("done");
+    expect((await policyOf(quoteId)).status).toBe("active");
+  });
+
+  it("after three failed retries (2, 4 and 6 days on), lapses the policy: audited, emailed, the sweep run, and no 4th retry", async () => {
+    const { quoteId, subscriptionId } = await resumedPlan();
+    stripe.fail("invoices.pay", cardError());
+    await month3Created(subscriptionId);
+    presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "open",
+    });
+
+    await runJobsAt(MONTH_3 + 2 * DAY);
+    await runJobsAt(MONTH_3 + 4 * DAY);
+    expect((await policyOf(quoteId)).status).toBe("active");
+    // Month 4's draft made meanwhile: the lapse's sweep voids it
+    presetInvoice(stripe, {
+      id: "in_month_4",
+      subscriptionId,
+      periodStart: MONTH_4,
+      status: "draft",
+    });
+    await runJobsAt(MONTH_3 + 6 * DAY);
+
+    expect(
+      stripe.calls["invoices.pay"]!.map((c) => (c[2] as { idempotencyKey: string }).idempotencyKey),
+    ).toEqual([
+      "kerb-charge-in_month_3-1",
+      "kerb-charge-in_month_3-2",
+      "kerb-charge-in_month_3-3",
+      "kerb-charge-in_month_3-4",
+    ]);
+    expect(await policyOf(quoteId)).toMatchObject({
+      status: "lapsed",
+      lapsedAt: at(MONTH_3 + 6 * DAY),
+    });
+    expect(await audits("policy.lapsed")).toHaveLength(2);
+    expect(await emails("cover_lapsed")).toHaveLength(2);
+    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual(["in_month_4"]);
+    // Month 3 failed while covered: owed, not voided
+    expect((await instalments(subscriptionId))[2]).toMatchObject({
+      status: "failed",
+      voidedAt: null,
+    });
+    const jobs = await retryJobs();
+    // A done job's payload is emptied, so the attempts are read from the keys
+    expect(jobs.map((j) => j.idempotencyKey).sort()).toEqual([
+      "payments.retry_invoice:in_month_3:1",
+      "payments.retry_invoice:in_month_3:2",
+      "payments.retry_invoice:in_month_3:3",
+    ]);
+    expect(jobs.every((j) => j.status === "done")).toBe(true);
+
+    // A new card then pays month 3 and the cover resumes, as after any lapse
+    stripe.reset();
+    stripe.set("subscriptions.retrieve", subscriptionId, { status: "unpaid" });
+    presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "open",
+    });
+    await deliver(newDefaultCardEvent("cus_test_1", "pm_newer"));
+    expect(stripe.calls["invoices.pay"]!.map((c) => c[0])).toEqual(["in_month_3"]);
+  });
+
+  it("a retry does nothing when the invoice is paid or void, or the policy isn't active", async () => {
+    const { quoteId, subscriptionId } = await resumedPlan();
+    stripe.failOnce("invoices.pay", cardError());
+    await month3Created(subscriptionId);
+    const pays = () => stripe.calls["invoices.pay"]!.length;
+
+    // Paid meanwhile (Stripe's own retry, say)
+    presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "paid",
+    });
+    await runJobsAt(MONTH_3 + 2 * DAY);
+    expect(pays()).toBe(1);
+
+    for (const [attempt, status, policyStatus] of [
+      [2, "void", "active"],
+      [3, "open", "lapsed"],
+    ] as const) {
+      presetInvoice(stripe, { id: "in_month_3", subscriptionId, periodStart: MONTH_3, status });
+      if (policyStatus === "lapsed") {
+        await getDb()
+          .update(policies)
+          .set({ status: "lapsed", lapsedAt: at(MONTH_3) })
+          .where(eq(policies.quoteId, quoteId));
+      }
+      await getDb()
+        .insert(jobs)
+        .values({
+          type: "payments.retry_invoice",
+          payload: { invoiceId: "in_month_3", subscriptionId, attempt },
+          idempotencyKey: `test-retry-${attempt}`,
+          runAfter: at(MONTH_3 + 3 * DAY),
+        });
+      await runJobsAt(MONTH_3 + 3 * DAY);
+      expect(pays()).toBe(1);
+    }
+    expect((await retryJobs()).every((j) => j.status === "done")).toBe(true);
+    expect(await audits("policy.lapsed")).toHaveLength(1);
+  });
+
+  it("charges nothing while the subscription is past_due (Stripe is still retrying)", async () => {
+    const { subscriptionId } = await resumedPlan();
+    presetSubscription(subscriptionId, { status: "past_due" });
+    await month3Created(subscriptionId);
+    expect(stripe.calls["invoices.pay"] ?? []).toHaveLength(0);
+    expect(stripe.calls["invoices.finalizeInvoice"]).toBeUndefined();
+  });
+});
+
+describe("hardening (R21 minors)", () => {
+  it("a new card skips a lapsed policy's subscription that Stripe has cancelled", async () => {
+    const { subscriptionId } = await lapsedPlan();
+    presetSubscription(subscriptionId, {
+      status: "canceled",
+      cancel_at: PERIOD_START + 365 * DAY,
+      ended_at: PERIOD_START + 365 * DAY,
+    });
+    const updatesBefore = stripe.calls["subscriptions.update"]?.length ?? 0;
+    expect((await deliver(newDefaultCardEvent("cus_test_1", "pm_new"))).status).toBe(200);
+    expect(stripe.calls["subscriptions.update"]?.length ?? 0).toBe(updatesBefore);
+    expect(stripe.calls["invoices.pay"]).toBeUndefined();
+  });
+
+  it("retries the void once when it fails just after Kerb's finalise", async () => {
+    const { subscriptionId } = await lapsedPlan();
+    stripe.failOnce("invoices.voidInvoice", new Error("Stripe is busy"));
+    const draft = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "draft",
+    });
+    expect((await deliver(stripeEvent("invoice.created", draft))).status).toBe(200);
+    expect(stripe.calls["invoices.voidInvoice"]!.map((c) => c[0])).toEqual([
+      "in_month_3",
+      "in_month_3",
+    ]);
+    expect((await instalments(subscriptionId))[2]!.voidedAt).not.toBeNull();
+  });
+
+  it("answers 500 when the void fails twice, so Stripe redelivers", async () => {
+    const { subscriptionId } = await lapsedPlan();
+    stripe.fail("invoices.voidInvoice", new Error("Stripe is busy"));
+    const draft = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      status: "draft",
+    });
+    expect((await deliver(stripeEvent("invoice.created", draft))).status).toBe(500);
+    expect(stripe.calls["invoices.voidInvoice"]).toHaveLength(2);
   });
 });
 
