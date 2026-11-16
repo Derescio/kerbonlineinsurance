@@ -39,6 +39,7 @@ A home quote you can buy, on its own:
 4. **Property (screen 05, `222:6762`).** "Tell us about your property".
    - **Your address:**
      - The postcode starts from the link and can be changed. "Find address" runs the lookup again, and a changed postcode updates the journey and the URL (`replace`).
+     - **The lookup** is a server function, `findAddresses`. It checks the postcode with postcodes.io as the car loader does (a postcode that doesn't exist shows "We couldn't find that postcode. Check it and try again."), then returns the list.
      - **"Select your address"** lists made-up addresses for that postcode *(my call; Damion agreed to the approach on 16 Nov 2026)*. postcodes.io has no street addresses, and Kerb is a demo. `demoAddresses(postcode)` is pure and deterministic: 8 to 12 addresses on one or two streets, picked from a fixed list of UK street names by a hash of the postcode, with house numbers and some "Flat 1, 22 …" lines. The town is `postcode_areas.admin_district`, falling back to the outcode. The hint reads "Addresses found for E8 3RL".
      - **"Enter address manually"** shows address line 1, address line 2 (optional) and town, using car's About you address messages.
    - **About the building:**
@@ -87,9 +88,15 @@ A home quote you can buy, on its own:
     - **No dedupe step is needed.** No unique index is added (see the 0018 lesson).
 11. **The shared screens for home.**
     - **"Your home" card:** the address line, postcode, property type and bedrooms. It's shown wherever car shows "Your car": beside each step, on the gate's "Your cover is waiting", Confirm and pay's summary ("Property" in place of "Vehicle"), You're covered and Your saved quotes.
-    - **Choose cover:** home's tiers, excesses and add-ons come from rating v1 (home emergency, legal expenses, personal possessions). The escape-of-water and subsidence excesses appear in the breakdown's notes, from the rating parameters. The comparison table's rows are home's (5.5 built them with sample home answers).
-    - **Stripe:** `startCheckout` names the line "Kerb home insurance". Fulfilment, webhooks and `/account` are product-agnostic already (5.6b) and don't change.
-    - **Policy terms** (`policy-terms.ts`): home gets its own short text where car's mentions driving.
+    - **Choose cover:** home's tiers, excesses and add-ons come from rating v1 (home emergency, legal expenses, personal possessions). 5.5's tier and add-on copy (`cover.ts`) is car's, so home gets its own *(my call)*:
+      - **Comparison rows:** Buildings cover, Contents cover, Accidental damage, Alternative accommodation.
+      - **Essential**, "Core protection · Lowest price": every row except Accidental damage.
+      - **Comprehensive**, "Adds accidental damage": every row.
+      - **Plus**, "More help included · Lower excess": every row.
+      - **Home emergency cover:** "24/7 help with boiler, plumbing and electrical emergencies".
+      - **Family legal protection** (`legal_expenses`): "Legal costs up to £50,000 for disputes about your home".
+      - **Personal possessions:** "Your belongings covered away from home, up to £2,500".
+    - **Stripe:** `startCheckout` names the line "Kerb home insurance, {Tier}, {address line 1}". Fulfilment, webhooks and `/account` are product-agnostic already (5.6b) and don't change.
 12. **The journey store.** The home journey's object (already keyed by product, 5.1) gains `aboutYou`, `property`, `contents` and `homeClaims` parts, each read on its own so a broken part is dropped alone (5.1, call 15), plus the existing `cover`, `payment` and `saved`.
 
 ## In scope
