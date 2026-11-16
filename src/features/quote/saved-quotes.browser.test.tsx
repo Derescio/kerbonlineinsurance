@@ -22,6 +22,7 @@ const card = (over: Partial<SavedQuoteCard>): SavedQuoteCard => ({
   reference: "KRB-Q-12345",
   state: "ready",
   car,
+  home: null,
   coverLevel: "comprehensive",
   annualTotalPence: 45840,
   monthlyPaymentPence: 4202,

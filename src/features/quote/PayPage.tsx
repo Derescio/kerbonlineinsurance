@@ -348,7 +348,9 @@ function CoverSummary({
     ["Policyholder", `${policyholder.firstName} ${policyholder.lastName}`],
     [
       "Vehicle",
-      [`${car.make} ${car.model} ${car.variant}`, car.registration].filter(Boolean).join(" · "),
+      car
+        ? [`${car.make} ${car.model} ${car.variant}`, car.registration].filter(Boolean).join(" · ")
+        : "",
     ],
     ["Total excess", whole(summary.compulsoryExcessPence + summary.voluntaryExcessPence)],
     ...(startsOn ? [["Cover starts", formatDay(startsOn)] as [string, string]] : []),

@@ -65,10 +65,16 @@ function checkoutInput(today: string) {
 
 type CheckoutInput = z.output<ReturnType<typeof checkoutInput>>;
 
-/** "Kerb car insurance, Comprehensive, KR24 BXL", or the make and model without a registration */
+/**
+ * "Kerb car insurance, Comprehensive, KR24 BXL", or the make and model without a registration;
+ * "Kerb home insurance, Comprehensive, 18 Albion Road" for a home (5.7)
+ */
 function lineName(items: PurchaseItem[]): string {
   const first = items[0]!;
   const car = items.find((i) => i.car)?.car;
+  if (!car && first.home) {
+    return ["Kerb home insurance", tierName(first.coverLevel), first.home.addressLine1].join(", ");
+  }
   const vehicle = car ? (car.registration ?? `${car.make} ${car.model}`) : null;
   return ["Kerb car insurance", tierName(first.coverLevel), vehicle].filter(Boolean).join(", ");
 }

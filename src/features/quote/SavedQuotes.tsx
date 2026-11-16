@@ -63,7 +63,7 @@ export function SavedQuotes({
 function QuoteCard({ card }: { card: SavedQuoteCard }) {
   const { car } = card;
   const badge = BADGES[card.state];
-  const meta = [car.registration, tierName(card.coverLevel), card.reference]
+  const meta = [car?.registration, tierName(card.coverLevel), card.reference]
     .filter(Boolean)
     .join(" · ");
   return (
@@ -75,7 +75,9 @@ function QuoteCard({ card }: { card: SavedQuoteCard }) {
     >
       <div className="quote-saved__head">
         <div>
-          <h2 className="quote-outcome__name">{`${car.make} ${car.model} ${car.variant}`}</h2>
+          <h2 className="quote-outcome__name">
+            {car ? `${car.make} ${car.model} ${car.variant}` : ""}
+          </h2>
           <p className="quote-outcome__meta">{meta}</p>
         </div>
         <Badge tone={badge.tone} dot>

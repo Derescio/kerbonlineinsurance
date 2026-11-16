@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { completeJourney } from "#/features/quote/journey-fixtures";
+import { completeHomeJourney, completeJourney } from "#/features/quote/journey-fixtures";
 import type { Journey } from "#/features/quote/journey-store";
 import { monthlyPayment } from "#/features/rating/money";
 import { Tables } from "#/features/rating/tables";
@@ -35,7 +35,7 @@ import { fakeStripe } from "#/test/stripe-fake";
 
 import { startCheckout, type CheckoutDeps } from "./checkout";
 import { purchase } from "./purchase";
-import { saveCarQuoteFor } from "./save";
+import { saveCarQuoteFor, saveHomeQuoteFor } from "./save";
 
 // Starting a Stripe checkout (5.6b, decision 5): the 5.6 checks, then the Stripe customer, the
 // previous open session expired, a new embedded session, and a checkout_sessions row with the
@@ -287,6 +287,22 @@ describe("startCheckout: a session", () => {
     ];
     expect(params.line_items[0]!.price_data.product_data.name).toBe(
       "Kerb car insurance, Comprehensive, KR24 BXL",
+    );
+  });
+
+  it("names a home by its address (5.7)", async () => {
+    const user = await makeUser();
+    const saved = await withTx(getDb(), (tx) =>
+      saveHomeQuoteFor(tx, user.id, { journey: completeHomeJourney(), now: NOW }),
+    );
+    if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
+    const actor = (await resolveActor(getDb(), user.id))!;
+    expect((await start(actor, saved.quoteId)).ok).toBe(true);
+    const [params] = created()[0]! as [
+      { line_items: { price_data: { product_data: { name: string } } }[] },
+    ];
+    expect(params.line_items[0]!.price_data.product_data.name).toBe(
+      "Kerb home insurance, Comprehensive, 18 Albion Road",
     );
   });
 

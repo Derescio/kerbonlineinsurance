@@ -100,6 +100,8 @@ export interface PurchaseItem {
   /** The selected option plus the selected add-ons, before IPT */
   annualPremiumPence: number;
   car: { make: string; model: string; variant: string; registration: string | null } | null;
+  /** The insured address's first line, for a home item (5.7) */
+  home: { addressLine1: string } | null;
 }
 
 /** The quote's items with a selected option, in the order they were saved */
@@ -114,9 +116,10 @@ export async function purchaseItems(tx: Tx, quoteId: string): Promise<PurchaseIt
       },
       addons: { columns: { annualPricePence: true, selected: true } },
       vehicle: { columns: { make: true, model: true, variant: true, registration: true } },
+      property: { columns: { addressLine1: true } },
     },
   });
-  return rows.flatMap(({ selectedOption: option, addons, vehicle, ...item }) =>
+  return rows.flatMap(({ selectedOption: option, addons, vehicle, property, ...item }) =>
     option
       ? [
           {
@@ -127,6 +130,7 @@ export async function purchaseItems(tx: Tx, quoteId: string): Promise<PurchaseIt
               option.annualPremiumPence +
               addons.filter((a) => a.selected).reduce((sum, a) => sum + a.annualPricePence, 0),
             car: vehicle ?? null,
+            home: property ?? null,
           },
         ]
       : [],

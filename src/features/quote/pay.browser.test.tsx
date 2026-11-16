@@ -44,6 +44,7 @@ const SUMMARY: PaymentSummary = {
   expired: false,
   policyholder: { firstName: "Alex", lastName: "Morgan" },
   car: { make: "Volkswagen", model: "Golf", variant: "1.0 TSI Life 5dr", registration: "KR21 ERB" },
+  home: null,
   coverLevel: "comprehensive",
   compulsoryExcessPence: 25000,
   voluntaryExcessPence: 10000,
@@ -70,6 +71,7 @@ const PURCHASE: Purchase = {
       compulsoryExcessPence: 25000,
       voluntaryExcessPence: 10000,
       car: SUMMARY.car,
+      home: null,
     },
   ],
 };
