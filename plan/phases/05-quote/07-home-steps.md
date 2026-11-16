@@ -1,6 +1,6 @@
 # 5.7 Home steps
 
-**Status:** done (spec approved by Damion, 16 Nov 2026; e2e on the PR preview)
+**Status:** done (#96; spec approved by Damion, 16 Nov 2026)
 **Phase:** 05-quote
 
 ## Goal
