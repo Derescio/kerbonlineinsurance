@@ -258,6 +258,7 @@ Not run yet:
 - **Stripe is called while row locks are held** (starting a session, refunding, lapsing). That serialises the calls on a quote or policy, which is wanted, and holds the lock for one API round trip.
 - **The E2E skips without `E2E_DATABASE_URL` and a `pk_test_` `VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY`**, so `e2e.yml` (which sets only the first) skips it. It fills Stripe's embedded iframe by label, and wasn't run against a live form in the build, so a label may need a tweak the first time.
 - **Copy written during the build, for Damion to sign off:** the `NO_STRIPE_KEY` message, the "Car insurance · Purchase" overline above the form, and the refunded heading.
+- **Stripe needed the Content Security Policy opened (after #92 merged).** On Staging, Stripe.js was blocked by `script-src`, so Confirm and pay showed an empty payment panel. Local runs used `vp dev`, which doesn't send the production CSP, so the live run couldn't catch it. `src/server/security-headers.ts` now allows `js.stripe.com` (scripts and frames), `hooks.stripe.com` and `checkout.stripe.com` (frames), and `api.stripe.com` and `checkout.stripe.com` (connect), per Stripe's CSP guidance. It was checked against `vp build` and `vp preview`: Stripe.js, its frame and its API load with no CSP violations.
 
 ## Sources
 

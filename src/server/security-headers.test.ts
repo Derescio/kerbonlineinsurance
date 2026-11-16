@@ -22,15 +22,23 @@ describe("contentSecurityPolicy", () => {
 
   const directive = (name: string) => csp.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
 
-  it("allows only same-origin and nonce'd scripts, plus Cloudflare Turnstile", () => {
+  it("allows only same-origin and nonce'd scripts, plus Cloudflare Turnstile and Stripe.js", () => {
     expect(directive("script-src")).toBe(
-      "script-src 'self' 'nonce-abc123' https://challenges.cloudflare.com",
+      "script-src 'self' 'nonce-abc123' https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com",
     );
     expect(csp).not.toContain("unsafe-eval");
   });
 
-  it("frames only Turnstile's widget (4.4)", () => {
-    expect(directive("frame-src")).toBe("frame-src https://challenges.cloudflare.com");
+  it("frames only Turnstile's widget (4.4) and Stripe's checkout and 3-D Secure (5.6b)", () => {
+    expect(directive("frame-src")).toBe(
+      "frame-src https://challenges.cloudflare.com https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
+    );
+  });
+
+  it("lets Stripe's embedded Checkout reach Stripe's API (5.6b)", () => {
+    expect(directive("connect-src")).toBe(
+      "connect-src 'self' https://api.stripe.com https://checkout.stripe.com",
+    );
   });
 
   it("allows inline style attributes only, not inline <style> or scripts", () => {
@@ -48,19 +56,23 @@ describe("contentSecurityPolicy", () => {
   it("allows PostHog's scripts and ingestion only when a host is configured", () => {
     const withPosthog = contentSecurityPolicy("abc123", "https://us.i.posthog.com");
     const posthog = "https://us.i.posthog.com https://us-assets.i.posthog.com";
+    const stripeJs = "https://js.stripe.com https://*.js.stripe.com";
+    const stripeApi = "https://api.stripe.com https://checkout.stripe.com";
 
     expect(withPosthog).toContain(
-      `script-src 'self' 'nonce-abc123' https://challenges.cloudflare.com ${posthog};`,
+      `script-src 'self' 'nonce-abc123' https://challenges.cloudflare.com ${stripeJs} ${posthog};`,
     );
-    expect(withPosthog).toContain(`connect-src 'self' ${posthog};`);
-    expect(directive("connect-src")).toBe("connect-src 'self'");
+    expect(withPosthog).toContain(`connect-src 'self' ${stripeApi} ${posthog};`);
+    expect(directive("connect-src")).toBe(`connect-src 'self' ${stripeApi}`);
   });
 
   it("allows this environment's R2 origin for uploads and images when the account is set (4.10)", () => {
     const account = "a".repeat(32);
     const r2 = `https://${account}.r2.cloudflarestorage.com`;
     const withR2 = contentSecurityPolicy("abc123", undefined, account);
-    expect(withR2).toContain(`connect-src 'self' ${r2};`);
+    expect(withR2).toContain(
+      `connect-src 'self' https://api.stripe.com https://checkout.stripe.com ${r2};`,
+    );
     expect(withR2).toContain(`img-src 'self' data: blob: ${r2};`);
     expect(withR2).not.toContain("*.r2.cloudflarestorage.com");
   });
