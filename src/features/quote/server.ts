@@ -10,8 +10,8 @@ import type { AddressLookup } from "#/server/quote/addresses";
 import type { StartCheckoutResult } from "#/server/quote/checkout";
 import type { FulfilStatus } from "#/server/quote/fulfil";
 import type { PostcodeCheck } from "#/server/quote/postcode";
-import type { CarPriceResult } from "#/server/quote/price";
-import type { SaveCarResult } from "#/server/quote/save";
+import type { CarPriceResult, HomePriceResult } from "#/server/quote/price";
+import type { SaveCarResult, SaveHomeResult } from "#/server/quote/save";
 import type { StartQuoteInput } from "#/server/quote/start";
 
 // The quote journey's server functions. Server modules are imported inside the handlers, which
@@ -56,6 +56,15 @@ export const priceCar = createServerFn({ method: "POST" })
     return priceCarJourney(data, getRequestHeaders());
   });
 
+/** The home journey's price at every level, or why there isn't one (5.7, decision 7). Nothing is saved. */
+export const priceHome = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data }): Promise<HomePriceResult> => {
+    const { priceHomeJourney } = await import("#/server/quote/price");
+    return priceHomeJourney(data, getRequestHeaders());
+  });
+
 export interface SaveQuoteEnvelope {
   input: { journey: unknown };
   idempotencyKey: string;
@@ -71,6 +80,15 @@ export const saveQuoteFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<WriteResult<SaveCarResult>> => {
     const { saveCarQuote } = await import("#/server/quote/save");
     return saveCarQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+/** Saves the signed-in user's home journey at the gate (5.7, decision 9), as saveQuoteFn does car's */
+export const saveHomeQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveQuoteEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveHomeResult>> => {
+    const { saveHomeQuote } = await import("#/server/quote/save");
+    return saveHomeQuote(context.actor, data, { headers: getRequestHeaders() });
   });
 
 export interface CheckoutEnvelope {
