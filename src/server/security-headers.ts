@@ -37,6 +37,14 @@ export function posthogOrigins(host: string | undefined): string[] {
 export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 
 /**
+ * Stripe's embedded Checkout on Confirm and pay (5.6b), per Stripe's CSP guidance: Stripe.js and
+ * its scripts, the checkout and 3-D Secure frames, and the API the form calls.
+ */
+const STRIPE_SCRIPTS = "https://js.stripe.com https://*.js.stripe.com";
+const STRIPE_FRAMES = `${STRIPE_SCRIPTS} https://hooks.stripe.com https://checkout.stripe.com`;
+const STRIPE_CONNECT = "https://api.stripe.com https://checkout.stripe.com";
+
+/**
  * `r2AccountId` adds that environment's R2 endpoint (4.10): uploads PUT to it, and thumbnails and
  * opened files load from it. Only the one account's origin, never a wildcard.
  */
@@ -49,7 +57,7 @@ export function contentSecurityPolicy(nonce: string, posthogHost?: string, r2Acc
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' ${TURNSTILE_ORIGIN}${posthogSource}`,
+    `script-src 'self' 'nonce-${nonce}' ${TURNSTILE_ORIGIN} ${STRIPE_SCRIPTS}${posthogSource}`,
     `style-src 'self' 'nonce-${nonce}'`,
     // React renders `style` props as attributes in server HTML. Attributes can't run script, and
     // img-src/font-src stop them loading anything off-site. <style> and stylesheets stay strict.
@@ -57,8 +65,8 @@ export function contentSecurityPolicy(nonce: string, posthogHost?: string, r2Acc
     // blob: previews a picked photo before it uploads
     `img-src 'self' data: blob:${r2Source}`,
     "font-src 'self'",
-    `connect-src 'self'${posthogSource}${r2Source}`,
-    `frame-src ${TURNSTILE_ORIGIN}`,
+    `connect-src 'self' ${STRIPE_CONNECT}${posthogSource}${r2Source}`,
+    `frame-src ${TURNSTILE_ORIGIN} ${STRIPE_FRAMES}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
