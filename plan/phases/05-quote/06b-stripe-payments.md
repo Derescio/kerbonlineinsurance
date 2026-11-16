@@ -281,6 +281,50 @@ Not run yet:
 - **Copy written during the build, for Damion to sign off:** the `NO_STRIPE_KEY` message, the "Car insurance · Purchase" overline above the form, and the refunded heading.
 - **Stripe needed the Content Security Policy opened (after #92 merged).** On Staging, Stripe.js was blocked by `script-src`, so Confirm and pay showed an empty payment panel. Local runs used `vp dev`, which doesn't send the production CSP, so the live run couldn't catch it. `src/server/security-headers.ts` now allows `js.stripe.com` (scripts and frames), `hooks.stripe.com` and `checkout.stripe.com` (frames), and `api.stripe.com` and `checkout.stripe.com` (connect), per Stripe's CSP guidance. It was checked against `vp build` and `vp preview`: Stripe.js, its frame and its API load with no CSP violations.
 
+### Parked findings (from the build's reviews, not fixed)
+
+These were found in the task and final reviews and judged safe to leave for now. They're kept here so they aren't lost.
+
+**Payments and the webhook**
+- **A completed payment with no card on its payment method can't be fulfilled.** `fulfilCheckout` throws, the webhook returns `500` until Stripe stops retrying, and no refund is made. Cards only makes this very unlikely. It needs a refund fallback or an alert.
+- **A failed `cancel_at` makes every delivery return `500`.** It throws on each webhook delivery, including `already`. If the subscription was cancelled in the dashboard, that's noisy for up to 3 days.
+- **A `pending` fulfilment is recorded as handled.** The webhook records the event even when fulfilment returns `pending`, and no `async_payment_succeeded` handler exists. Cards only makes this unlikely.
+- **Expiry uses the server clock.** `checkout.session.expired` stamps the server's time, not the event's.
+- **Stripe is called while row locks are held.** `invoices.retrieve` runs inside the event's transaction, as do the start, refund and lapse calls. It's accepted, but it holds locks across network calls.
+- **Only the invoice's first line is read.** A proration line placed first would mis-match the instalment.
+- **A redelivered `checkout.session.completed` re-runs fulfilment's Stripe calls.** The result is idempotent, but the calls are wasted.
+- **The monthly amount check reads only the price's `unit_amount`.** It ignores `quantity` and the session's `amount_total`.
+- **The refund transaction calls Stripe before the customer lookup that can throw.**
+- **The resume rule only reacts to a change into `unpaid`.** If that event is lost or arrives late, a later update won't lapse the policy. Stripe redelivers for 3 days.
+
+**Kerb's retries after a resume (R21, R22)**
+- **A retry job in the runner's `failed` state isn't counted as pending.** The runner reruns it, so a new card in that window isn't used. Adding `"failed"` in `pendingRetryInvoices` fixes it.
+- **A retry job that goes `dead` never lapses the policy,** and it blocks the next months' charges. It needs manual action or a fallback.
+- **`payRetryingWith` doesn't require an active policy,** unlike the retry job itself.
+- **`markVoidedMonth` can mark a month failed without `voided_at`.** This happens when the matched row holds another invoice's id, i.e. two invoices on one London date.
+- **The job-type string is repeated** to avoid an import cycle.
+
+**UI**
+- **"Update your payment card" shows on cancelled or ended monthly policies.**
+- **You're covered doesn't restart confirmation for a new session.** Its confirm-once ref never resets when `session_id` changes.
+- **The confirming state isn't announced.** "Confirming your payment…" sits in the `h1`, outside the live region, and the `h1` doesn't change after polling stops.
+- **No loading sign while Stripe loads** on the pay page (`Suspense fallback={null}`).
+- **A stale refusal can show.** One from an outdated start request stays until the next press.
+
+**Tests and docs**
+- **Test gaps:**
+  - two concurrent refunders;
+  - unmounting stopping the polling;
+  - one confirm under StrictMode;
+  - an invoice with no line in `invoice.created`.
+- **Test-code tidying:**
+  - the billing-link test uses `BillingRoute.update(... as never)`;
+  - `TEST_CARDS` is duplicated in `pay.browser.test.tsx`;
+  - `src/test/stripe-events.ts` repeats `fulfil.int.test.ts` setup;
+  - `sendSoon` is duplicated in `webhook.ts` and `fulfil.ts`.
+- **Seed test exception:** `scripts/seed/write.int.test.ts` exempts `checkout_sessions`; marking the table not copied in the data contract would be cleaner.
+- **Local E2E runs:** Playwright doesn't load `.env.local`, so a local run needs `VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY` and `E2E_DATABASE_URL` exported in the shell.
+
 ## Sources
 
 - **Builder check (14 Nov 2026):** setting `cancel_at` in fulfilment, cards only, event order, Kerb paying the invoice on resume, Stripe's times, the API version, refunds cancelling the subscription.
