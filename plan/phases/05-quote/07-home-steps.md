@@ -137,12 +137,20 @@ A home quote you can buy, on its own:
 
 ## Done when
 
-- [ ] A home quote can be bought end to end on the preview with Stripe's test card, and the policy shows on `/account`.
-- [ ] Every answer from the four steps is in Neon: `customers`, `properties` (with the new columns) and `prior_claims`.
-- [ ] A referred home quote shows screen 03 and is saved; a declined one shows the declined screen and isn't.
-- [ ] Car's journey and its tests are unchanged.
-- [ ] `vp check`, `vp test`, the integration tests and the home E2E pass in CI.
-- [ ] The seed runs on `dev` with the new columns and claim rows.
+- [x] A home quote can be bought end to end on the preview with Stripe's test card, and the policy shows on `/account` (Damion's manual check, 16 Nov 2026).
+- [x] Every answer from the four steps is in Neon: `customers`, `properties` (with the new columns) and `prior_claims` (`home-save.int.test.ts`).
+- [x] A referred home quote shows screen 03 and is saved; a declined one shows the declined screen and isn't (seen on the preview: contents of £150,000 was referred).
+- [x] Car's journey and its tests are unchanged.
+- [ ] `vp check`, `vp test`, the integration tests and the home E2E pass in CI (`ci` passes; the home E2E is to run against the preview now that `dev` is migrated).
+- [x] The seed runs on `dev` with the new columns and claim rows (`scripts/seed/write.int.test.ts`).
+
+## Preview manual check (Damion, 16 Nov 2026)
+
+- **First try: back to the start after signing in.** The quote was filled in on the branch link (`git-slice-57-…`), and signing in landed on the deployment's own address (`…-6f2qdek11-…`), whose tab held no answers. The gate sent an empty tab to the start. Fixed in this PR: a signed-in visitor with no answers in the tab goes to Your saved quotes, where a sign-up saved the quote (car too). The referred screen's button now reads "Send this for review" when signed in.
+- **Under review:** contents of £150,000 is exactly home v1's review line (`refer_contents_pence_min`), so screen 03 showed, as designed.
+- **"We couldn't save your quote":** the preview ran 5.7's code against `dev` before migration 0023 was applied (previews never migrate; engineering.md §3). Damion ran `vp run db:migrate`, and the save went through.
+- **Bought:** 7 Rosebery Gardens, Hackney, a detached house, Comprehensive, £402.42 a year, paid with Stripe's `4242…`. You're covered showed the policy, and it's on `/account`.
+- **Still open:** a guest who starts on the branch link and signs in with Google comes back on the deployment's own address, so the tab's answers aren't there. Previews only; Staging and Production have one address.
 
 ## Commit message
 
