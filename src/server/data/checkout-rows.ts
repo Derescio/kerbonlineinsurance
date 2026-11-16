@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
 import {
   checkoutSessions,
   customers,
+  jobs,
   payments,
   policies,
   quotes,
@@ -196,6 +197,26 @@ export async function isKnownQuote(tx: Db | Tx, quoteId: string): Promise<boolea
     .where(eq(checkoutSessions.quoteId, quoteId))
     .limit(1);
   return Boolean(session);
+}
+
+/**
+ * The invoices Kerb is still retrying on a subscription after a resume (5.6b, R21 and R22): the
+ * `payments.retry_invoice` jobs not yet run or running now (queued or running; a done job's
+ * payload is emptied, and a failed or dead one is the runner's, not a charge in the window)
+ */
+export async function pendingRetryInvoices(db: Db | Tx, subscriptionId: string): Promise<string[]> {
+  const rows = await db
+    .select({ invoiceId: sql<string>`${jobs.payload}->>'invoiceId'` })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.type, "payments.retry_invoice"),
+        inArray(jobs.status, ["queued", "running"]),
+        sql`${jobs.payload}->>'subscriptionId' = ${subscriptionId}`,
+      ),
+    )
+    .orderBy(asc(jobs.id));
+  return [...new Set(rows.map((row) => row.invoiceId))];
 }
 
 /** Who to email about a customer's payments: first name and sign-in email; null with no user */

@@ -7,6 +7,7 @@ import {
   lockPoliciesForSubscription,
   markCheckout,
   markInstalment,
+  pendingRetryInvoices,
   subscriptionsForStripeCustomer,
   type PaymentRow,
 } from "#/server/data/checkout-rows";
@@ -280,8 +281,11 @@ async function owesAtStripe(stripe: StripeClient, subscriptionId: string): Promi
 }
 
 /**
- * The subscription changed, fetched again. Unpaid (Stripe gave up on a payment) with an invoice
- * still owed: the active policies lapse at the event's time. Whatever the status, a lapsed policy
+ * The subscription changed, fetched again. A change into unpaid (Stripe gave up on a payment, the
+ * event's previous_attributes naming `status`) with an invoice still owed: the active policies
+ * lapse at the event's time. Not on any other update of an unpaid subscription (a renewal changes
+ * its period, say), and not while Kerb is retrying a charge after a resume: its third failed retry
+ * lapses then (ruling R22). Whatever the status, a lapsed policy
  * whose owed instalment is paid resumes, as on invoice.paid (ruling R18: Kerb's rows decide, since
  * Stripe's status follows the newest invoice, which Kerb may have voided).
  */
@@ -295,7 +299,13 @@ async function subscriptionUpdated(
   // past_due is the grace period: Stripe is still retrying and the cover stays. An unpaid
   // subscription with nothing owed is one whose owed invoice was paid but which Stripe left
   // unpaid: lapsing it again would undo the resume.
-  if (subscription.status === "unpaid" && (await owesAtStripe(deps.stripe, subscriptionId))) {
+  const statusChanged = "status" in (event.data.previous_attributes ?? {});
+  if (
+    statusChanged &&
+    subscription.status === "unpaid" &&
+    (await pendingRetryInvoices(tx, subscriptionId)).length === 0 &&
+    (await owesAtStripe(deps.stripe, subscriptionId))
+  ) {
     const lapsedAt = new Date(event.created * 1000);
     const emailJobs = await lapseSubscription(tx, subscriptionId, lapsedAt, deps.now, deps.stripe);
     // Just lapsed: what's owed can't be paid yet
@@ -346,7 +356,16 @@ async function payOwedWith(
     // apply one after the other: the second finds the invoice paid
     const rows = await lockPaymentsForSubscription(tx, subscriptionId);
     const policies = await lockPoliciesForSubscription(tx, subscriptionId);
-    if (!policies.some((p) => p.status === "lapsed")) continue;
+    if (!policies.some((p) => p.status === "lapsed")) {
+      // Active: only Kerb's own retry window after a resume takes the card (R22)
+      await payRetryingWith(
+        subscriptionId,
+        card,
+        deps,
+        await pendingRetryInvoices(tx, subscriptionId),
+      );
+      continue;
+    }
     // Ended at Stripe (at its cancel_at while lapsed, say): nothing to put the card on or pay
     const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
     if (subscription.status === "canceled") continue;
@@ -379,6 +398,40 @@ async function payOwedWith(
         console.warn(`[stripe] the new card on ${subscriptionId} was declined`);
         break;
       }
+    }
+  }
+}
+
+/**
+ * A new card while Kerb is retrying a month it charged after a resume (R22; the payment_failed
+ * email asked for one): it's set on the subscription and pays each invoice being retried at once,
+ * so the queued retries find them paid and do nothing. With no retry pending (the ordinary
+ * past_due grace), nothing is force-paid: Stripe's own retries handle it (Review Focus 5).
+ */
+async function payRetryingWith(
+  subscriptionId: string,
+  card: string,
+  deps: HandlerDeps,
+  retrying: string[],
+): Promise<void> {
+  if (retrying.length === 0) return;
+  const subscription = await deps.stripe.subscriptions.retrieve(subscriptionId);
+  if (subscription.status === "canceled") return;
+  await deps.stripe.subscriptions.update(subscriptionId, { default_payment_method: card });
+  for (const invoiceId of retrying) {
+    const invoice = await deps.stripe.invoices.retrieve(invoiceId);
+    if (invoice.status !== "open" && invoice.status !== "uncollectible") continue;
+    try {
+      await deps.stripe.invoices.pay(
+        invoiceId,
+        { payment_method: card },
+        { idempotencyKey: `kerb-charge-${invoiceId}-card-${card}` },
+      );
+    } catch (error) {
+      // Declined: Kerb's queued retries carry on (with this card, now the subscription's)
+      if (!isCardError(error)) throw error;
+      console.warn(`[stripe] the new card on ${subscriptionId} was declined`);
+      break;
     }
   }
 }

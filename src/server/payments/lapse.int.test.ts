@@ -117,9 +117,21 @@ function presetSubscription(
 }
 
 /** Stripe's subscription.updated/deleted event, `created` at `at` (Unix seconds) */
-function subscriptionEvent(type: string, subscription: Record<string, unknown>, at: number) {
-  return stripeEvent(type, subscription, { created: at });
+function subscriptionEvent(
+  type: string,
+  subscription: Record<string, unknown>,
+  at: number,
+  previous?: Record<string, unknown>,
+) {
+  return stripeEvent(type, subscription, {
+    created: at,
+    ...(previous ? { data: { object: subscription, previous_attributes: previous } } : {}),
+  });
 }
+
+/** Stripe giving up: customer.subscription.updated with the status changed into unpaid (R22) */
+const intoUnpaid = (subscription: Record<string, unknown>, at: number) =>
+  subscriptionEvent("customer.subscription.updated", subscription, at, { status: "past_due" });
 
 /** Month 2's payment fails (still covered), then Stripe gives up: unpaid, and the policy lapses */
 async function lapsedPlan(lapsedAt = LAPSED_AT, month2 = "in_month_2") {
@@ -135,9 +147,7 @@ async function lapsedPlan(lapsedAt = LAPSED_AT, month2 = "in_month_2") {
     status: "unpaid",
     customer: "cus_test_1",
   });
-  expect(
-    (await deliver(subscriptionEvent("customer.subscription.updated", unpaid, lapsedAt))).status,
-  ).toBe(200);
+  expect((await deliver(intoUnpaid(unpaid, lapsedAt))).status).toBe(200);
   return bought;
 }
 
@@ -232,9 +242,7 @@ describe("customer.subscription.updated: unpaid", () => {
       status: "unpaid",
       metadata: { kerb_env: "local" },
     };
-    expect(
-      (await deliver(subscriptionEvent("customer.subscription.updated", stale, LAPSED_AT))).status,
-    ).toBe(200);
+    expect((await deliver(intoUnpaid(stale, LAPSED_AT))).status).toBe(200);
     expect((await policyOf(quoteId)).status).toBe("active");
     expect(await audits("policy.lapsed")).toHaveLength(0);
     expect(await emails("cover_lapsed")).toHaveLength(0);
@@ -250,9 +258,7 @@ describe("customer.subscription.updated: unpaid", () => {
       status: "paid",
     });
     const unpaid = presetSubscription(subscriptionId, { status: "unpaid" });
-    expect(
-      (await deliver(subscriptionEvent("customer.subscription.updated", unpaid, LAPSED_AT))).status,
-    ).toBe(200);
+    expect((await deliver(intoUnpaid(unpaid, LAPSED_AT))).status).toBe(200);
     expect((await policyOf(quoteId)).status).toBe("active");
     expect(await audits("policy.lapsed")).toHaveLength(0);
   });
@@ -279,7 +285,7 @@ describe("customer.subscription.updated: unpaid", () => {
     });
     await deliver(stripeEvent("invoice.payment_failed", failed));
     const unpaid = presetSubscription(bought.subscriptionId, { status: "unpaid" });
-    await deliver(subscriptionEvent("customer.subscription.updated", unpaid, MONTH_3 - DAY));
+    await deliver(intoUnpaid(unpaid, MONTH_3 - DAY));
 
     expect((await policyOf(bought.quoteId)).status).toBe("lapsed");
     // Month 3's is voided; month 2's, owed from while covered, stays open
@@ -481,7 +487,7 @@ describe("lapsing again, and more than one invoice owed (second-lapse fix)", () 
   /** Stripe gives up at `at` (Unix seconds): unpaid */
   async function giveUp(subscriptionId: string, at: number) {
     const unpaid = presetSubscription(subscriptionId, { status: "unpaid", customer: "cus_test_1" });
-    await deliver(subscriptionEvent("customer.subscription.updated", unpaid, at));
+    await deliver(intoUnpaid(unpaid, at));
   }
   /** Stripe reports the invoice paid (invoice.paid) */
   async function paid(subscriptionId: string, id: string, periodStart: number, at: number) {
@@ -593,7 +599,7 @@ describe("the live test-clock run (R20)", () => {
     // month 3; invoice periods follow the clock
     const wallTime = PERIOD_START + 5 * DAY;
     const unpaid = presetSubscription(subscriptionId, { status: "unpaid", customer: "cus_test_1" });
-    await deliver(subscriptionEvent("customer.subscription.updated", unpaid, wallTime));
+    await deliver(intoUnpaid(unpaid, wallTime));
     expect(await policyOf(quoteId)).toMatchObject({
       status: "lapsed",
       lapsedAt: new Date(wallTime * 1000),
@@ -874,6 +880,72 @@ describe("after a resume, Stripe keeps the subscription unpaid: Kerb charges new
     }
     expect((await retryJobs()).every((j) => j.status === "done")).toBe(true);
     expect(await audits("policy.lapsed")).toHaveLength(1);
+  });
+
+  /** Resumed, then month 3's first charge declined: retry 1 pending, Stripe still unpaid */
+  async function declinedAfterResume() {
+    const bought = await resumedPlan();
+    stripe.failOnce("invoices.pay", cardError());
+    await month3Created(bought.subscriptionId);
+    expect(await retryJobs()).toHaveLength(1);
+    return bought;
+  }
+  const unpaidSubscription = (id: string) => ({
+    id,
+    object: "subscription",
+    status: "unpaid",
+    metadata: { kerb_env: "local" },
+  });
+
+  it("a renewal's updated event (unpaid, status unchanged) after the decline doesn't lapse (R22)", async () => {
+    const { quoteId, subscriptionId } = await declinedAfterResume();
+    const lapsedEmails = (await emails("cover_lapsed")).length;
+    const renewal = subscriptionEvent(
+      "customer.subscription.updated",
+      unpaidSubscription(subscriptionId),
+      MONTH_3 + 60,
+      { items: { object: "list", data: [] } },
+    );
+    expect((await deliver(renewal, MONTH_3 + 60)).status).toBe(200);
+    expect((await policyOf(quoteId)).status).toBe("active");
+    expect(await emails("cover_lapsed")).toHaveLength(lapsedEmails);
+  });
+
+  it("a status change into unpaid while Kerb's retry is pending doesn't lapse: the third failed retry does (R22)", async () => {
+    const { quoteId, subscriptionId } = await declinedAfterResume();
+    const event = intoUnpaid(unpaidSubscription(subscriptionId), MONTH_3 + 60);
+    expect((await deliver(event, MONTH_3 + 60)).status).toBe(200);
+    expect((await policyOf(quoteId)).status).toBe("active");
+    expect(await audits("policy.lapsed")).toHaveLength(1);
+  });
+
+  it("a new card during the retry window is set on the subscription and pays the failed month at once; the retry then does nothing (R22)", async () => {
+    const { quoteId, subscriptionId } = await declinedAfterResume();
+    expect(
+      (await deliver(newDefaultCardEvent("cus_test_1", "pm_newer"), MONTH_3 + DAY)).status,
+    ).toBe(200);
+    expect(stripe.calls["subscriptions.update"]!.at(-1)!.slice(0, 2)).toEqual([
+      subscriptionId,
+      { default_payment_method: "pm_newer" },
+    ]);
+    expect(stripe.calls["invoices.pay"]!.at(-1)).toEqual([
+      "in_month_3",
+      { payment_method: "pm_newer" },
+      { idempotencyKey: "kerb-charge-in_month_3-card-pm_newer" },
+    ]);
+    const pays = stripe.calls["invoices.pay"]!.length;
+    // Stripe reports it paid; the queued retry finds it so and does nothing
+    const paid = presetInvoice(stripe, {
+      id: "in_month_3",
+      subscriptionId,
+      periodStart: MONTH_3,
+      paidAt: MONTH_3 + DAY,
+    });
+    await deliver(stripeEvent("invoice.paid", paid), MONTH_3 + DAY);
+    await runJobsAt(MONTH_3 + 2 * DAY);
+    expect(stripe.calls["invoices.pay"]).toHaveLength(pays);
+    expect((await instalments(subscriptionId))[2]!.status).toBe("succeeded");
+    expect((await policyOf(quoteId)).status).toBe("active");
   });
 
   it("charges nothing while the subscription is past_due (Stripe is still retrying)", async () => {
