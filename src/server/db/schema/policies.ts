@@ -155,6 +155,9 @@ export const payments = pgTable(
     stripePaymentIntentId: text().unique("payments_stripe_payment_intent_id_unique"),
     stripeInvoiceId: text().unique("payments_stripe_invoice_id_unique"),
     stripeSubscriptionId: text(),
+    // When Kerb voided this month's invoice because the cover had lapsed (5.6b, decision 8): the
+    // row stays `failed`, but the month had no cover, so it's never owed for a resume
+    voidedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

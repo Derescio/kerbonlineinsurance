@@ -325,6 +325,8 @@ export interface InstalmentPatch {
   stripePaymentIntentId?: string | null;
   stripeSubscriptionId?: string | null;
   dueOn?: string;
+  /** When Kerb voided the month's invoice for want of cover */
+  voidedAt?: Date | null;
 }
 
 /** Updates the fields given on one payment row; a field left out is left alone */

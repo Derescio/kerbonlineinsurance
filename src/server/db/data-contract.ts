@@ -623,6 +623,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
         "stripe_payment_intent_id",
         "stripe_invoice_id",
         "stripe_subscription_id",
+        "voided_at",
         "created_at",
         "updated_at",
       ),

@@ -17,6 +17,7 @@ import { fulfilCheckout } from "#/server/quote/fulfil";
 import {
   cancelSubscriptionPolicies,
   emailOnce,
+  isOwed,
   lapseSubscription,
   markVoidedMonth,
   queueBillingEmail,
@@ -261,7 +262,8 @@ async function invoiceCreated(
   // resume, so it's left open; with no line to go by, it's left alone too. One Stripe has paid or
   // marked uncollectible has moved on, and invoice.paid records a payment.
   if (!(await voidUncoveredInvoice(deps.stripe, invoice, Math.min(...lapsedSince)))) return;
-  await markVoidedMonth(tx, await instalmentFor(tx, invoice, subscriptionId), invoice.id);
+  const row = await instalmentFor(tx, invoice, subscriptionId);
+  await markVoidedMonth(tx, row, invoice.id, deps.now);
 }
 
 /**
@@ -330,8 +332,8 @@ const isCardError = (error: unknown) =>
 
 /**
  * A new card for a Stripe customer: each of their subscriptions that is `unpaid` gets it as its
- * card, and the invoice that failed while the policy was covered (the earliest of its failed
- * instalments whose invoice is still open; lapsed months' are void) is paid with it. Stripe
+ * card, and every invoice that failed while the policy was covered (its owed instalments whose
+ * invoice is still open; lapsed months' are void) is paid with it, earliest first. Stripe
  * doesn't retry an unpaid subscription itself. A past_due one is left to Stripe's own retries
  * (Review Focus 5). invoice.paid then resumes the cover.
  */
@@ -349,29 +351,33 @@ async function payUnpaidWith(
     if (subscription.status !== "unpaid") continue;
     await deps.stripe.subscriptions.update(subscriptionId, { default_payment_method: card });
 
-    let owed: string | null = null;
+    // Every invoice owed from while covered (isOwed: failed, not voided), earliest first: Stripe's
+    // retries can run past a billing date, so there may be more than one, and the cover resumes
+    // only once all are paid. Rows are in instalment order.
+    const owed: string[] = [];
     for (const row of rows) {
-      if (row.status !== "failed" || !row.stripeInvoiceId) continue;
+      if (!isOwed(row) || !row.stripeInvoiceId) continue;
       const invoice = await deps.stripe.invoices.retrieve(row.stripeInvoiceId);
-      if (invoice.status === "open") {
-        owed = invoice.id;
-        break;
-      }
+      if (invoice.status === "open") owed.push(invoice.id);
     }
-    if (!owed) {
+    if (owed.length === 0) {
       console.warn(`[stripe] no open invoice to pay on ${subscriptionId}`);
       continue;
     }
-    try {
-      await deps.stripe.invoices.pay(
-        owed,
-        { payment_method: card },
-        { idempotencyKey: `kerb-resume-${owed}-${card}` },
-      );
-    } catch (error) {
-      // Declined: Stripe sends invoice.payment_failed, and the customer can try another card
-      if (!isCardError(error)) throw error;
-      console.warn(`[stripe] the new card on ${subscriptionId} was declined`);
+    for (const invoiceId of owed) {
+      try {
+        await deps.stripe.invoices.pay(
+          invoiceId,
+          { payment_method: card },
+          { idempotencyKey: `kerb-resume-${invoiceId}-${card}` },
+        );
+      } catch (error) {
+        // Declined: Stripe sends invoice.payment_failed, and the customer can try another card.
+        // The rest would be declined too, so they wait for that card.
+        if (!isCardError(error)) throw error;
+        console.warn(`[stripe] the new card on ${subscriptionId} was declined`);
+        break;
+      }
     }
   }
 }

@@ -68,15 +68,21 @@ async function lockSubscription(
 }
 
 /**
- * Has the customer paid what they owed while covered (ruling R18)? True when no instalment due
- * before the lapse (its London date) is still `failed`. Months due from the lapse on had no cover
- * and are voided, so they never count. Kerb's own rows decide, not Stripe's subscription status:
- * that follows the newest invoice, which Kerb may have voided, so it can say `active` with nothing
- * paid, or stay `unpaid` once the older invoice is.
+ * An instalment the customer owes: `failed`, and not a month Kerb voided for want of cover
+ * (`voided_at`). Voided months stay failed for good, so this, not a date, is what keeps a month
+ * voided in an earlier lapse from blocking a later resume.
  */
-export function owedPaid(rows: PaymentRow[], lapsedAt: Date): boolean {
-  const lapsedOn = todayIso(lapsedAt);
-  return !rows.some((row) => row.dueOn < lapsedOn && row.status === "failed");
+export const isOwed = (row: PaymentRow): boolean => row.status === "failed" && !row.voidedAt;
+
+/**
+ * Has the customer paid what they owed while covered (ruling R18)? True when no instalment is
+ * owed (isOwed). Which months were covered is decided once, by the void's timestamp comparison
+ * against lapsed_at (voidUncoveredInvoice), so there's one boundary. Kerb's own rows decide, not
+ * Stripe's subscription status: that follows the newest invoice, which Kerb may have voided, so it
+ * can say `active` with nothing paid, or stay `unpaid` once the older invoice is.
+ */
+export function owedPaid(rows: PaymentRow[]): boolean {
+  return !rows.some(isOwed);
 }
 
 /** The instalment row an invoice is for: by its id, else by its line's period (ruling R14) */
@@ -113,17 +119,23 @@ export async function voidUncoveredInvoice(
   return invoice.status === "void";
 }
 
-/** A voided month's row → failed (never replacing another invoice's id, nor a payment) */
+/**
+ * A voided month's row → failed, stamped voided_at, so it's never owed. Never replacing another
+ * invoice's id (nor stamping a row that holds one: that invoice is the row's), nor a payment.
+ */
 export async function markVoidedMonth(
   tx: Tx,
   row: PaymentRow | null,
   invoiceId: string,
+  at: Date,
 ): Promise<void> {
   if (!row || row.status === "succeeded") return;
+  const ours = row.stripeInvoiceId === null || row.stripeInvoiceId === invoiceId;
   await markInstalment(tx, row.id, {
     status: "failed",
     paidAt: null,
     ...(row.stripeInvoiceId === null ? { stripeInvoiceId: invoiceId } : {}),
+    ...(ours && !row.voidedAt ? { voidedAt: at } : {}),
   });
 }
 
@@ -139,6 +151,7 @@ async function voidMonthsSinceLapse(
   rows: PaymentRow[],
   lapsedAt: Date,
   stripe: StripeClient,
+  now: Date,
 ): Promise<void> {
   for (const status of ["draft", "open"] as const) {
     const listed = await stripe.invoices.list({ subscription: subscriptionId, status, limit: 100 });
@@ -147,7 +160,7 @@ async function voidMonthsSinceLapse(
       // Fetched again: the list's copy may not carry its lines
       const invoice = await stripe.invoices.retrieve(id);
       if (await voidUncoveredInvoice(stripe, invoice, lapsedAt.getTime())) {
-        await markVoidedMonth(tx, rowForInvoice(rows, invoice), invoice.id);
+        await markVoidedMonth(tx, rowForInvoice(rows, invoice), invoice.id, now);
       }
     }
   }
@@ -176,7 +189,7 @@ export async function lapseSubscription(
       changes: { from: "active", to: "lapsed", lapsedAt: lapsedAt.toISOString() },
     });
   }
-  await voidMonthsSinceLapse(tx, subscriptionId, rows, lapsedAt, stripe);
+  await voidMonthsSinceLapse(tx, subscriptionId, rows, lapsedAt, stripe, now);
   return emailOnce(tx, moving, "cover_lapsed", now);
 }
 
@@ -191,9 +204,7 @@ export async function resumeSubscription(
   now: Date,
 ): Promise<number[]> {
   const { rows, policies } = await lockSubscription(tx, subscriptionId);
-  const paidUp = policies.filter(
-    (p) => p.status === "lapsed" && p.lapsedAt !== null && owedPaid(rows, p.lapsedAt),
-  );
+  const paidUp = policies.filter((p) => p.status === "lapsed" && owedPaid(rows));
   return resumePolicies(tx, paidUp, now);
 }
 
@@ -293,9 +304,7 @@ async function cancelLapsed(
     const { rows, policies } = await lockSubscription(tx, subscriptionId);
     if (!policies.some(due)) return nothing;
 
-    const paidUp = policies.filter(
-      (p) => p.status === "lapsed" && p.lapsedAt !== null && owedPaid(rows, p.lapsedAt),
-    );
+    const paidUp = policies.filter((p) => p.status === "lapsed" && owedPaid(rows));
     if (paidUp.length > 0) {
       const [emailJob = null] = await resumePolicies(tx, paidUp, now);
       return { cancelled: 0, resumed: paidUp.length, emailJob };
