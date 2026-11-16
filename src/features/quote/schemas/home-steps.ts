@@ -144,14 +144,14 @@ export const contentsSchema = z
     alarm: choice(alarmOptions, homeErrors.alarm),
     smokeAlarm: z.boolean(),
   })
-  .superRefine((value, ctx) => {
-    if (value.valuablesPounds > value.contentsValuePounds) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["valuablesPounds"],
-        message: homeErrors.valuablesOverContents,
-      });
-    }
+  // Checked whenever both amounts are numbers, even while other answers are missing
+  .refine((value) => value.valuablesPounds <= value.contentsValuePounds, {
+    path: ["valuablesPounds"],
+    message: homeErrors.valuablesOverContents,
+    when: (payload) => {
+      const v = payload.value as { valuablesPounds?: unknown; contentsValuePounds?: unknown };
+      return typeof v.valuablesPounds === "number" && typeof v.contentsValuePounds === "number";
+    },
   });
 
 export type ContentsAnswers = z.output<typeof contentsSchema>;

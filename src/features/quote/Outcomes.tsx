@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -204,6 +205,59 @@ export function CarDeclined({
   );
 }
 
+/**
+ * No home cover (5.7, decision 8), as screen 20 lays out car's: a neutral reason with no
+ * thresholds, and a car quote offered instead.
+ */
+export function HomeDeclined({
+  home,
+  postcode,
+  aside,
+  onCheckAnswers,
+}: {
+  home: HomeSummary;
+  postcode: string;
+  aside: ReactNode;
+  onCheckAnswers: () => void;
+}) {
+  return (
+    <JourneyPage
+      heading={
+        <OutcomeHeading
+          overline="Home insurance / Your quote"
+          title="We’re unable to offer home cover"
+          intro="We can’t offer home cover on this occasion."
+        />
+      }
+      aside={aside}
+      asideLabel="Your home and help"
+    >
+      <Card padding="lg" as="section" className="quote-outcome" aria-label="Home">
+        <Badge>Home · Not available</Badge>
+        <p>
+          Based on the details provided, this home quote doesn&rsquo;t fit the cover available
+          through our online policy.
+        </p>
+        <p className="quote-outcome__meta">
+          {home.address} · {home.postcode}
+        </p>
+        <button type="button" className="quote-link" onClick={onCheckAnswers}>
+          Check home answers
+        </button>
+      </Card>
+      <Card padding="lg" as="section" className="quote-outcome" aria-labelledby="car-offer">
+        <h2 id="car-offer" className="kb-h3">
+          Insure your car with us instead?
+        </h2>
+        <p>Car and home are separate policies, so a car quote is assessed on its own.</p>
+        <Link to="/quote/car" search={{ postcode }} className="kb-btn kb-btn--accent kb-btn--md">
+          Get a car quote
+        </Link>
+      </Card>
+    </JourneyPage>
+  );
+}
+
 /** Screen 03: the home quote needs a handler's check (decision 12) */
 export function HomeReferred({
   home,
@@ -228,6 +282,7 @@ export function HomeReferred({
         />
       }
       aside={aside}
+      asideLabel="Your home and help"
     >
       <Card padding="lg" as="section" className="quote-outcome" aria-labelledby="next-heading">
         <div className="quote-outcome__box quote-outcome__box--plain">

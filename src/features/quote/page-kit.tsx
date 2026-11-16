@@ -17,11 +17,14 @@ export function JourneyPage({
   heading,
   tabs,
   aside,
+  asideLabel = "Your car and help",
   children,
 }: {
   heading: ReactNode;
   tabs?: ReactNode;
   aside: ReactNode;
+  /** "Your home and help" on the home journey (5.7) */
+  asideLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -30,7 +33,7 @@ export function JourneyPage({
       {tabs}
       <div className="quote-page__columns">
         <div className="quote-page__main">{children}</div>
-        <aside className="quote-page__aside" aria-label="Your car and help">
+        <aside className="quote-page__aside" aria-label={asideLabel}>
           {aside}
         </aside>
       </div>
@@ -38,7 +41,7 @@ export function JourneyPage({
   );
 }
 
-const tabLabels: Record<DetailsTab, string> = {
+const carTabLabels: Record<DetailsTab, string> = {
   car: "Car",
   about: "About you",
   driving: "Driving",
@@ -46,16 +49,21 @@ const tabLabels: Record<DetailsTab, string> = {
   drivers: "Drivers",
 };
 
-/** Car, About you, Driving, Claims, Drivers: only steps up to the first unfinished one open (call 5) */
-export function DetailsTabs({
+/**
+ * Car, About you, Driving, Claims, Drivers: only steps up to the first unfinished one open (call 5).
+ * Home passes its own four (5.7).
+ */
+export function DetailsTabs<T extends string = DetailsTab>({
   states,
   onOpen,
+  labels = carTabLabels as Record<T, string>,
 }: {
-  states: Record<DetailsTab, TabState>;
-  onOpen: (tab: DetailsTab) => void;
+  states: Record<T, TabState>;
+  onOpen: (tab: T) => void;
+  labels?: Record<T, string>;
 }) {
   const list = useRef<HTMLOListElement>(null);
-  const current = (Object.keys(states) as DetailsTab[]).find((tab) => states[tab] === "current");
+  const current = (Object.keys(states) as T[]).find((tab) => states[tab] === "current");
   // At phone width the tabs scroll sideways: bring the current one into view when it changes. Only
   // the strip scrolls, never the page, and a re-render with the same current tab does nothing.
   useEffect(() => {
@@ -70,9 +78,9 @@ export function DetailsTabs({
   return (
     <nav aria-label="Your details" className="quote-tabs" tabIndex={0}>
       <ol ref={list}>
-        {(Object.keys(tabLabels) as DetailsTab[]).map((tab, i) => {
+        {(Object.keys(labels) as T[]).map((tab, i) => {
           const state = states[tab];
-          const label = tabLabels[tab];
+          const label = labels[tab];
           return (
             <li
               key={tab}

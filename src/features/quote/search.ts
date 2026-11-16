@@ -47,6 +47,25 @@ export interface CarSearch {
   after?: "retrieve";
 }
 
+/** The home journey's steps in the URL (5.7, decision 2); none is About you */
+export const HOME_QUOTE_STEPS = [
+  "about",
+  "property",
+  "contents",
+  "claims",
+  "quote",
+  "cover",
+  "buy",
+] as const;
+export type HomeQuoteStep = (typeof HOME_QUOTE_STEPS)[number];
+
+export interface HomeSearch {
+  postcode?: string;
+  step?: HomeQuoteStep;
+  auth?: "signup";
+  after?: "retrieve";
+}
+
 export interface ComingSoonSearch {
   type?: ProductId;
   postcode?: string;
@@ -95,6 +114,14 @@ export function carSearch(raw: Record<string, unknown>): CarSearch {
   const auth = step === "buy" && raw.auth === "signup" ? "signup" : undefined;
   const after = step === "buy" && raw.after === "retrieve" ? "retrieve" : undefined;
   return { postcode: linkPostcode(raw.postcode), vehicle, step, auth, after };
+}
+
+/** /quote/home: the step and the gate's params, as carSearch (5.7, decision 2) */
+export function homeSearch(raw: Record<string, unknown>): HomeSearch {
+  const step = HOME_QUOTE_STEPS.find((known) => known === raw.step);
+  const auth = step === "buy" && raw.auth === "signup" ? "signup" : undefined;
+  const after = step === "buy" && raw.after === "retrieve" ? "retrieve" : undefined;
+  return { postcode: linkPostcode(raw.postcode), step, auth, after };
 }
 
 /** /quote/coming-soon */
