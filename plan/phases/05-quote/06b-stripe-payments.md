@@ -1,6 +1,6 @@
 # 5.6b Stripe payments: pay in full or monthly, with billing from webhooks
 
-**Status:** done (#92); the Staging manual check follows after merge
+**Status:** done (#92, #93; Staging manual check passed, 16 Nov 2026)
 **Phase:** 05-quote
 
 ## Goal
@@ -191,13 +191,34 @@
 
 ## Done when
 
-- [ ] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#92).
+- [x] `vp check`, `vp test` and `vp build` pass, and `ci` is green on the PR (#92, and on #93, the CSP fix).
   - Locally (`4d99c21`) `vp check` and `vp build` pass, and `vp test` passes 2,129 of 2,131.
   - The 2 failures are component click timeouts in files this slice didn't touch (`system.browser`, `vehicle.browser`). Both pass on their own (31/31).
-- [ ] Damion's Stripe and Vercel setup is done and the manual check passes, with the results recorded here.
-  - The Stripe dashboard billing settings are done: unpaid after the last retry, invoices left past-due, and 4 retries in a week.
-  - The Vercel env vars and the two webhook endpoints are still to do.
-  - The Staging run follows after merge.
+- [x] Damion's Stripe and Vercel setup is done and the manual check passes, with the results recorded here.
+  - **Stripe settings:** unpaid after the last retry, invoices left past-due, and 4 retries in a week.
+  - **Customer portal:** payment-method updates and invoice history are on; cancellations were turned off during the check.
+  - **Vercel:** the env vars and the Staging webhook endpoint (with the protection-bypass parameter) are set, and `STRIPE_TEST_CLOCKS=true` is on for Staging only.
+  - The results are below.
+
+**Manual check on Staging** (Damion, with Claude driving the test clock, 16 Nov 2026):
+- **Stripe's form was blocked on first try.** After #92 merged, "Continue to payment" showed an empty panel, because the CSP blocked Stripe.js. #93 fixed it (see Notes from the build).
+- **Pay in full with `4242…`:** You're covered showed "£1,074.36 paid annually · Visa ending 4242". Its payment row is annual, `succeeded`, and carries Stripe's payment intent.
+- **3-D Secure (`4000 0025 0000 3155`):** Stripe's 3D Secure 2 test page appeared, and Complete led to a purchase recorded with its payment row.
+- **Declined card (`4000 0000 0000 0002`):** Stripe's form showed "Your credit card was declined", Damion stayed on the pay page, and no policy was created.
+- **Monthly on a test clock** (a new customer, clock-backed and tagged `kerb_env: staging`). Every row in Kerb matched Stripe at each step:
+  - **Month 2:** charged, and Staging's webhook marked row 2 `succeeded`. That proves the endpoint, its signing secret and the bypass.
+  - **Customer portal:** opened from `/account` → **Update your payment card**, where Damion set `…0341` as the default.
+  - **Month 3:** declined. The subscription went `past_due`, row 3 `failed`, the policy stayed active, and the **"We couldn't take this month's payment"** email arrived.
+  - **Retries exhausted** after 4 attempts:
+    - the subscription became `unpaid`;
+    - the policy `lapsed`, audited, and the **"You're no longer covered"** email arrived;
+    - `/account` showed **Lapsed** in the warning style;
+    - January stayed owed.
+  - **February, while lapsed:** voided at Stripe, and row 4 is `failed (voided)`, never owed.
+  - **Resume:** Damion set the 4242 card as the default in the portal. Kerb paid January only, the policy is `active` again, `policy.resumed` was audited, and the **"Your cover has resumed"** email arrived.
+  - **March:** Kerb charged it, because Stripe still had the subscription `unpaid` (R21). Stripe then returned the subscription to `active`.
+- **Not shown on Staging:**
+  - Kerb's own retries after a post-resume decline, and the 30-day cancellation. Both run on Kerb's clock, not Stripe's test clock, so tests prove them.
 
 **Local live run** (Claude with Damion, 15 Nov 2026). It used Stripe test mode, `stripe listen` against `vp dev`, `STRIPE_TEST_CLOCKS=true`, and the Neon `dev` database rebuilt with `db:reset-dev`.
 
