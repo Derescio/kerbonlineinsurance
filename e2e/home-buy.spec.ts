@@ -64,7 +64,11 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
   await page.locator("summary", { hasText: "Home insurance" }).click();
   await page.getByRole("link", { name: "Get a home insurance quote" }).click();
   await expect(page).toHaveURL(/\/quote\?type=home/);
-  await page.getByLabel("Your postcode").fill("E8 3RL");
+  // Typed before hydration, the box is reset when React takes over: wait for the page first
+  await page.waitForLoadState("networkidle");
+  const postcode = page.getByLabel("Your postcode");
+  await postcode.fill("E8 3RL");
+  await expect(postcode).toHaveValue("E8 3RL");
   await page.getByRole("button", { name: "Continue with home" }).click();
 
   // 2. About you
