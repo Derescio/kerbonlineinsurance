@@ -242,7 +242,7 @@ describe("startCheckout: a session", () => {
     const [params] = created()[0]! as [Record<string, unknown>];
     expect(params).toMatchObject({
       mode: "payment",
-      ui_mode: "embedded",
+      ui_mode: "embedded_page",
       customer: "cus_test_1",
       metadata: { kerb_env: "local", quote_id: quoteId },
       line_items: [

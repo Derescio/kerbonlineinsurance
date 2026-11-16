@@ -22,7 +22,7 @@ export function checkoutParams(input: CheckoutInput): Stripe.Checkout.SessionCre
   const tags = { kerb_env: kerbEnv() };
   return {
     mode: monthly ? "subscription" : "payment",
-    ui_mode: "embedded",
+    ui_mode: "embedded_page",
     // v23 renamed it: a filter on the eligible methods, so cards only
     allowed_payment_method_types: ["card"],
     customer: input.stripeCustomerId,

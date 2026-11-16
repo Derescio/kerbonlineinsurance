@@ -136,17 +136,15 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await page.getByText("I agree to the policy terms and understand my cover").click();
   await page.getByRole("button", { name: "Continue to payment" }).click();
 
-  // Stripe's iframe (test mode): the card that pays, a name, an email if it asks, a postcode
-  const stripe = page.frameLocator('iframe[name^="embedded-checkout"]');
-  await stripe.getByLabel(/card number/i).fill("4242 4242 4242 4242", { timeout: 60_000 });
-  await stripe.getByLabel(/expir/i).fill("12 / 30");
-  await stripe.getByLabel(/cvc|security code/i).fill("123");
-  const name = stripe.getByLabel(/cardholder name|name on card/i);
-  await fillIfShown(name, "Alex Morgan");
-  const stripeEmail = stripe.getByLabel(/^email/i);
-  await fillIfShown(stripeEmail, email);
-  const postcode = stripe.getByLabel(/zip|postal code|postcode/i);
-  await fillIfShown(postcode, "E8 3RL");
+  // Stripe's iframe (test mode): the card that pays, a name, an email if it asks, a postcode. Its
+  // inputs' ids are steadier than their labels (the CVC label is shared with an icon).
+  const stripe = page.frameLocator('iframe[name="embedded-checkout"]');
+  await stripe.locator("#cardNumber").fill("4242 4242 4242 4242", { timeout: 60_000 });
+  await stripe.locator("#cardExpiry").fill("12 / 30");
+  await stripe.locator("#cardCvc").fill("123");
+  await fillIfShown(stripe.locator("#billingName"), "Alex Morgan");
+  await fillIfShown(stripe.locator("#email"), email);
+  await fillIfShown(stripe.locator("#billingPostalCode"), "E8 3RL");
   await stripe.getByTestId("hosted-payment-submit-button").click();
   // A rejected submit (a missed field) fails here, not at You're covered
   await expect(page).toHaveURL(/\/quote\/covered\//, { timeout: 60_000 });

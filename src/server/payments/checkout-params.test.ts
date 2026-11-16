@@ -18,7 +18,7 @@ describe("checkoutParams", () => {
   it("builds an embedded, card-only payment Session for paying in full", () => {
     const p = checkoutParams({ ...base, plan: "annual" });
     expect(p.mode).toBe("payment");
-    expect(p.ui_mode).toBe("embedded");
+    expect(p.ui_mode).toBe("embedded_page");
     expect(p.allowed_payment_method_types).toEqual(["card"]);
     expect(p.customer).toBe("cus_1");
     expect(p.expires_at).toBe(Math.floor(now.getTime() / 1000) + 1800);
