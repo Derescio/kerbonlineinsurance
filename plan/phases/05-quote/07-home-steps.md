@@ -157,4 +157,14 @@ A home quote you can buy, on its own:
 
 ## Notes from the build
 
-(Filled in during the build.)
+- **Home has no voluntary excess.** Rating v1 has no voluntary-excess factor for home, so Choose cover hides the picker on the home journey, and the server only accepts £0 for home (any other amount goes back to cover).
+- **The step field helpers are shared.** `schemas/fields.ts` holds car's field building blocks (dates, money, choices, date of birth with a minimum age), and car's schemas import them unchanged.
+- **The valuables check runs early.** It uses Zod 4's `refine` with `when`, so "Valuables are part of your contents…" shows even while other answers on the page are still missing.
+- **`prior_claims` is copied and mutable,** so migration 0023 adds its `set_updated_at` and `record_delete` triggers by hand, as 0021 did. Its foreign key is written out in full (not `itemOf`), because one table serves both car and home.
+- **The seed's new home values are derived, not drawn.** Valuables, window locks, the kind of alarm and each past claim are worked out from each seeded home's existing answers, so no other seeded value moves.
+- **Seed and old rows.** Rows saved before 5.7 have null valuables, window locks and alarm type, and a `past_claims` count with no `prior_claims` rows behind it.
+- **A first visit starts the journey in the step router.** `HomeSteps` calls `beginJourney`, because a child's effect runs before the journey shell's.
+- **The address lookup.** When postcodes.io can't answer, Property switches to manual entry with a line saying so.
+- **You're covered before the purchase loads** reads the product from the tab that saved the quote. A home quote opened in a fresh tab shows "Car insurance · Purchase" until the purchase loads.
+- **Left for 5.7b:** car's declined screen (20) still says home quotes are coming soon. 5.7b rebuilds the add-home and bundle screens and links it then.
+- **Reviews.** Two checkpoint reviews (after the server work and after the shared screens) found nothing critical or important. Their minor points: a tampered impossible date (31 February) passes the date check and makes the save fail instead of saying "invalid", as on car; a few type casts around `onInvalid`; the gate's auth link lost its route typing.
