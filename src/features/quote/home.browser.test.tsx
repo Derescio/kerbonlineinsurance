@@ -178,6 +178,21 @@ describe("Property (decision 4)", () => {
       .toBeVisible();
   });
 
+  it("drops a picked address when a new postcode isn't found (final review)", async () => {
+    await show("property", { ...completeHomeJourney(), homeClaims: undefined });
+    lookup.mockResolvedValue({ result: "not_found", addresses: [] });
+    await userEvent.fill(box("Postcode"), "ZZ9 9ZZ");
+    await button("Find address").click();
+    await expect
+      .element(page.getByText("We couldn't find that postcode. Check it and try again."))
+      .toBeVisible();
+    await button("Continue to contents").click();
+    await expect
+      .element(page.getByText("Choose your address, or enter it manually."))
+      .toBeVisible();
+    expect(readJourney("home")?.property?.address?.line1).toBe("18 Albion Road");
+  });
+
   it("says when the postcode doesn't exist", async () => {
     lookup.mockResolvedValue({ result: "not_found", addresses: [] });
     await show("property", upToProperty());

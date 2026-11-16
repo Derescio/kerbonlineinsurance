@@ -109,9 +109,10 @@ export function HomeSteps({
       restart.current();
       return;
     }
-    // Home's first step needs no earlier answers, so a first visit starts the journey here; the
-    // shell's own beginJourney then finds it (its effect runs after this child's)
-    const journey = stored ?? beginJourney("home", postcode);
+    // Home's first step needs no earlier answers, so a first visit starts the journey here, and a
+    // new postcode from the link applies before the step shows (the shell's own beginJourney runs
+    // after this child's effect, and finds it done)
+    const journey = beginJourney("home", postcode);
     const check = reachable(journey, step, today);
     if (!check.ok) {
       reopened.current = storedHomeAnswers(journey, check.to) !== undefined ? check.to : null;

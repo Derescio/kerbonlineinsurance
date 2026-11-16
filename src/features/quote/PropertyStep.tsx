@@ -109,7 +109,12 @@ export function PropertyStep({
       return;
     }
     const result = await lookUp(code);
-    if (result === "not_found" || code === journey.postcode) return;
+    if (result === "not_found") {
+      // The list is gone, so an address picked from it can't stay hidden in the form
+      if (address?.picked) setAddress(null);
+      return;
+    }
+    if (code === journey.postcode) return;
     // A new postcode: the journey and the URL follow it, and a picked address goes (decision 4)
     setHomePostcode(code);
     onPostcode(code);

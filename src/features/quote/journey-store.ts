@@ -324,9 +324,20 @@ function writeJourney(
   }
 }
 
+/** A home address picked from one postcode's list belongs to it (5.7, decision 4) */
+function withPostcode(journey: Journey, postcode: string): Journey {
+  const next: Journey = { ...journey, postcode };
+  if (journey.postcode !== postcode && journey.property?.address?.picked) {
+    const { address: _old, ...rest } = journey.property;
+    next.property = rest;
+  }
+  return next;
+}
+
 /**
  * The product's journey with this postcode: the stored one with its postcode updated (plan P7),
- * or a new one. Always returns a journey, written if storage allows.
+ * or a new one. Always returns a journey, written if storage allows. A new postcode drops a home
+ * address picked for the old one.
  */
 export function beginJourney(
   product: BuyableProductId,
@@ -336,7 +347,7 @@ export function beginJourney(
 ): Journey {
   const stored = readJourney(product, storage);
   const journey: Journey = stored
-    ? { ...stored, postcode }
+    ? withPostcode(stored, postcode)
     : {
         version: 1,
         journeyId: crypto.randomUUID(),
@@ -525,10 +536,5 @@ export function setHomePostcode(
 ): void {
   const stored = readJourney("home", storage);
   if (!stored) return;
-  const next: Journey = { ...stored, postcode };
-  if (stored.property?.address?.picked) {
-    const { address: _old, ...rest } = stored.property;
-    next.property = rest;
-  }
-  writeJourney("home", next, storage);
+  writeJourney("home", withPostcode(stored, postcode), storage);
 }

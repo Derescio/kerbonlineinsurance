@@ -456,3 +456,27 @@ describe("the home journey (5.7, decision 12)", () => {
     expect(readJourney("home", storage)?.property?.address).toEqual(typed.property!.address);
   });
 });
+
+describe("a new postcode from the link (5.7, final review)", () => {
+  it("drops a home address picked for the old postcode, and keeps one typed in", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    const moved = beginJourney("home", "M1 1AE", now, storage);
+    expect(moved.postcode).toBe("M1 1AE");
+    expect(moved.property?.address).toBeUndefined();
+    expect(readJourney("home", storage)?.property?.address).toBeUndefined();
+
+    const typed = completeHomeJourney();
+    typed.property!.address = { line1: "4 Mill Lane", town: "Leeds", picked: false };
+    storage.setItem(journeyKey("home"), JSON.stringify(typed));
+    expect(beginJourney("home", "LS1 4AP", now, storage).property?.address).toEqual(
+      typed.property!.address,
+    );
+  });
+
+  it("keeps a picked address when the postcode is the same", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    expect(beginJourney("home", "E8 3RL", now, storage).property?.address?.picked).toBe(true);
+  });
+});
