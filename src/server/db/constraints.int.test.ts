@@ -22,6 +22,8 @@ import {
   events,
   notifications,
   policies,
+  priorClaims,
+  properties,
   quoteItemFactors,
   quoteItemOptions,
   quoteItems,
@@ -840,6 +842,100 @@ describe("Postgres integrity rules", () => {
       await db().delete(users).where(eq(users.id, user.id));
       const rows = await db().select().from(auditLog);
       expect(rows.map((row) => row.actorUserId)).toEqual([user.id]);
+    });
+  });
+
+  describe("a home's security and past claims (5.7, decision 10)", () => {
+    async function homeItem() {
+      const { items } = await makeQuote({ products: ["home"] });
+      return items[0]!.item.id;
+    }
+    const claim = (quoteItemId: string) => ({
+      quoteItemId,
+      product: "home",
+      occurredOn: "2024-03-12",
+      type: "escape_of_water",
+      amountPence: 95_000,
+      status: "settled",
+    });
+
+    it("refuses window locks and an alarm it doesn't know", async () => {
+      const id = await homeItem();
+      await expectRefused(
+        db().update(properties).set({ windowLocks: "bars" }).where(eq(properties.quoteItemId, id)),
+        CHECK,
+        "properties_window_locks_check",
+      );
+      await expectRefused(
+        db().update(properties).set({ alarmType: "dog" }).where(eq(properties.quoteItemId, id)),
+        CHECK,
+        "properties_alarm_type_check",
+      );
+      await expectRefused(
+        db().update(properties).set({ valuablesPence: -1 }).where(eq(properties.quoteItemId, id)),
+        CHECK,
+        "properties_amounts_check",
+      );
+    });
+
+    it("keeps a home claim's type, status and amount to the lists", async () => {
+      const id = await homeItem();
+      await db().insert(priorClaims).values(claim(id));
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...claim(id), type: "meteor" }),
+        CHECK,
+        "prior_claims_type_check",
+      );
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...claim(id), status: "lost" }),
+        CHECK,
+        "prior_claims_status_check",
+      );
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...claim(id), amountPence: -1 }),
+        CHECK,
+        "prior_claims_amount_check",
+      );
+    });
+
+    it("gives a home claim a status and no fault", async () => {
+      const id = await homeItem();
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...claim(id), fault: "at_fault" }),
+        CHECK,
+        "prior_claims_home_shape_check",
+      );
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...claim(id), status: null }),
+        CHECK,
+        "prior_claims_home_shape_check",
+      );
+    });
+
+    it("refuses a home claim on a car item", async () => {
+      const { items } = await makeQuote({ products: ["car"] });
+      await expectRefused(
+        db().insert(priorClaims).values(claim(items[0]!.item.id)),
+        FOREIGN_KEY,
+        "prior_claims_quote_item_fk",
+      );
+    });
+
+    it("goes with its quote item", async () => {
+      const id = await homeItem();
+      await db().insert(priorClaims).values(claim(id));
+      await db().delete(quoteItems).where(eq(quoteItems.id, id));
+      expect(await db().select().from(priorClaims)).toEqual([]);
     });
   });
 

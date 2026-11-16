@@ -162,6 +162,13 @@
       "when": 1794791690808,
       "tag": "0022_broken_clea",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794854122733,
+      "tag": "0023_jittery_jackpot",
+      "breakpoints": true
     }
   ]
 }
