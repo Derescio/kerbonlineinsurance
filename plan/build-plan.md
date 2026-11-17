@@ -58,7 +58,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 5.6b **Pay with Stripe**: Stripe's embedded Checkout in test mode in place of the demo card; paying in full or monthly by subscription; a webhook that marks each payment, warns about a failed one, lapses and resumes cover and cancels it after 30 days unpaid; billing link on the account; Stripe buy-journey Playwright test
 - [x] 5.7 **Home steps**: about you → property → contents and security → past claims, then the shared cover, summary and pay; every answer stored (`prior_claims`); home quote → policy Playwright journey
 - [x] 5.7b **Car + home bundle**: add home to a car quote, screens 21, 22 and 04, one Stripe checkout for both policies
-- [ ] 5.7c **Store car's unsaved answers**: incidents as `prior_claims` rows, licence type, employment status and relationship on `drivers`
+- [ ] 5.7c **Store car's unsaved answers, and employment for home**: incidents as `prior_claims` rows, licence type, employment status and relationship on `drivers`; home asks employment status and occupation, priced by a home rating v2, and shared across a bundle
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
 
