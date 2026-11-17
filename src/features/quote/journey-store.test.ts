@@ -9,14 +9,17 @@ import {
   savedQuoteKey,
   sessionStore,
   setCover,
+  setHomePostcode,
+  setHomeStepAnswers,
   setLastPlate,
   setPayment,
+  setSaved,
   setStepAnswers,
   setVehicle,
   type JourneyStorage,
   type VehicleChoice,
 } from "./journey-store";
-import { completeJourney } from "./journey-fixtures";
+import { completeHomeJourney, completeJourney } from "./journey-fixtures";
 
 function memoryStorage(): JourneyStorage & { map: Map<string, string> } {
   const map = new Map<string, string>();
@@ -308,7 +311,7 @@ describe("the cover choice in the journey (5.5, decision 3)", () => {
       voluntaryExcessPence: 25_000,
       addons: ["breakdown_uk"],
     } as const;
-    setCover({ ...cover, addons: [...cover.addons] }, storage);
+    setCover("car", { ...cover, addons: [...cover.addons] }, storage);
     const read = readJourney("car", storage);
     expect(read?.cover).toEqual(cover);
     expect(read?.namedDrivers).toEqual(completeJourney().namedDrivers);
@@ -333,7 +336,7 @@ describe("the cover choice in the journey (5.5, decision 3)", () => {
 
   it("does nothing without a car journey", () => {
     const storage = memoryStorage();
-    setCover(DEFAULT_COVER, storage);
+    setCover("car", DEFAULT_COVER, storage);
     expect(storage.map.size).toBe(0);
   });
 });
@@ -383,5 +386,97 @@ describe("the saved quote and its key (5.6, decision 7)", () => {
     const read = readJourney("car", storage);
     expect(read?.saved).toBeUndefined();
     expect(read?.cover).toEqual(DEFAULT_COVER);
+  });
+});
+
+describe("the home journey (5.7, decision 12)", () => {
+  function homeStorage() {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    return storage;
+  }
+
+  it("round-trips the four home parts", () => {
+    const storage = homeStorage();
+    expect(readJourney("home", storage)).toEqual(completeHomeJourney());
+  });
+
+  it("drops a home part that doesn't parse, alone", () => {
+    const storage = memoryStorage();
+    const journey = completeHomeJourney();
+    storage.setItem(
+      journeyKey("home"),
+      JSON.stringify({ ...journey, property: { ...journey.property, yearBuilt: "1985" } }),
+    );
+    const read = readJourney("home", storage);
+    expect(read?.property).toBeUndefined();
+    expect(read?.homeAbout).toEqual(journey.homeAbout);
+    expect(read?.contents).toEqual(journey.contents);
+  });
+
+  it("keeps the home cover and saved quote apart from the car's", () => {
+    const storage = homeStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    setCover("home", { ...DEFAULT_COVER, coverLevel: "plus" }, storage);
+    setSaved("home", { quoteId: "q1", key: "k1" }, storage);
+    expect(readJourney("home", storage)?.cover?.coverLevel).toBe("plus");
+    expect(readJourney("home", storage)?.saved).toEqual({ quoteId: "q1", key: "k1" });
+    expect(readJourney("car", storage)?.cover).toBeUndefined();
+    expect(readJourney("car", storage)?.saved).toBeUndefined();
+  });
+
+  it("saves each home step's answers into the home journey", () => {
+    const storage = memoryStorage();
+    beginJourney("home", "E8 3RL", now, storage);
+    const full = completeHomeJourney();
+    setHomeStepAnswers("about", full.homeAbout!, storage);
+    setHomeStepAnswers("property", full.property!, storage);
+    setHomeStepAnswers("contents", full.contents!, storage);
+    setHomeStepAnswers("claims", full.homeClaims!, storage);
+    const read = readJourney("home", storage)!;
+    expect(read.homeAbout).toEqual(full.homeAbout);
+    expect(read.property).toEqual(full.property);
+    expect(read.contents).toEqual(full.contents);
+    expect(read.homeClaims).toEqual(full.homeClaims);
+    expect(readJourney("car", storage)).toBeNull();
+  });
+
+  it("drops a picked address when the postcode changes, and keeps a typed one", () => {
+    const storage = homeStorage();
+    setHomePostcode("M1 1AE", storage);
+    const read = readJourney("home", storage)!;
+    expect(read.postcode).toBe("M1 1AE");
+    expect(read.property?.address).toBeUndefined();
+    expect(read.property?.bedrooms).toBe(3);
+
+    const typed = completeHomeJourney();
+    typed.property!.address = { line1: "4 Mill Lane", town: "Leeds", picked: false };
+    storage.setItem(journeyKey("home"), JSON.stringify(typed));
+    setHomePostcode("LS1 4AP", storage);
+    expect(readJourney("home", storage)?.property?.address).toEqual(typed.property!.address);
+  });
+});
+
+describe("a new postcode from the link (5.7, final review)", () => {
+  it("drops a home address picked for the old postcode, and keeps one typed in", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    const moved = beginJourney("home", "M1 1AE", now, storage);
+    expect(moved.postcode).toBe("M1 1AE");
+    expect(moved.property?.address).toBeUndefined();
+    expect(readJourney("home", storage)?.property?.address).toBeUndefined();
+
+    const typed = completeHomeJourney();
+    typed.property!.address = { line1: "4 Mill Lane", town: "Leeds", picked: false };
+    storage.setItem(journeyKey("home"), JSON.stringify(typed));
+    expect(beginJourney("home", "LS1 4AP", now, storage).property?.address).toEqual(
+      typed.property!.address,
+    );
+  });
+
+  it("keeps a picked address when the postcode is the same", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    expect(beginJourney("home", "E8 3RL", now, storage).property?.address?.picked).toBe(true);
   });
 });

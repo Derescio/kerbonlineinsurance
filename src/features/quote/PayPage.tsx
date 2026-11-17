@@ -25,6 +25,7 @@ import {
 } from "./pay-copy";
 import { PayChoice } from "./PayChoice";
 import { startDateBounds } from "./policy-terms";
+import type { BuyableProductId } from "./products";
 import { todayIso } from "./schemas/dates";
 import { startCheckoutFn } from "./server";
 import { StepHeading } from "./step-kit";
@@ -60,32 +61,38 @@ const DATE = new Intl.DateTimeFormat("en-GB", {
 const formatDay = (iso: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(iso) ? DATE.format(new Date(`${iso}T00:00:00Z`)) : iso;
 
-/** The tab's car journey, when it still holds this quote (read after hydration) */
-function useTabJourney(quoteId: string) {
+/** The tab's journey for the product, when it still holds this quote (read after hydration) */
+function useTabJourney(product: BuyableProductId, quoteId: string) {
   const [tab, setTab] = useState<{ postcode: string; payment?: Payment } | null>(null);
   useEffect(() => {
-    const journey = readJourney("car");
+    const journey = readJourney(product);
     if (journey?.saved?.quoteId === quoteId) {
       setTab({ postcode: journey.postcode, payment: journey.payment });
     }
-  }, [quoteId]);
+  }, [product, quoteId]);
   return tab;
 }
 
 export function PayPage({ summary }: { summary: PaymentSummary }) {
   const navigate = useNavigate();
-  const tab = useTabJourney(summary.quoteId);
+  // A saved quote has a car or a home (5.7)
+  const product: BuyableProductId = summary.home ? "home" : "car";
+  const tab = useTabJourney(product, summary.quoteId);
 
   // "Back to choose cover" (decision 6): Choose cover when the tab still holds this quote,
   // otherwise Your saved quotes, where it came from
   const back = () => {
-    if (tab) void navigate({ to: "/quote/car", search: { postcode: tab.postcode, step: "cover" } });
-    else void navigate({ to: "/quote/retrieve" });
+    if (tab) {
+      void navigate({
+        to: product === "home" ? "/quote/home" : "/quote/car",
+        search: { postcode: tab.postcode, step: "cover" },
+      });
+    } else void navigate({ to: "/quote/retrieve" });
   };
 
   const heading = (
     <StepHeading
-      overline="Car insurance / Buy"
+      overline={`${product === "home" ? "Home" : "Car"} insurance / Buy`}
       title="Confirm and pay"
       intro="Review your payment details, check your cover and complete the purchase."
     />
@@ -99,7 +106,7 @@ export function PayPage({ summary }: { summary: PaymentSummary }) {
         <Alert tone="warning">
           <p>{stop}</p>
           {summary.expired ? (
-            <a href="/quote?type=car" className="quote-link">
+            <a href={`/quote?type=${product}`} className="quote-link">
               Get a new quote
             </a>
           ) : null}
@@ -343,13 +350,19 @@ function CoverSummary({
   plan?: Payment;
   startsOn?: string;
 }) {
-  const { car, policyholder } = summary;
+  const { car, home, policyholder } = summary;
   const rows: [string, string][] = [
     ["Policyholder", `${policyholder.firstName} ${policyholder.lastName}`],
-    [
-      "Vehicle",
-      [`${car.make} ${car.model} ${car.variant}`, car.registration].filter(Boolean).join(" · "),
-    ],
+    home
+      ? ["Property", `${home.addressLine1}, ${home.town}, ${home.postcode}`]
+      : [
+          "Vehicle",
+          car
+            ? [`${car.make} ${car.model} ${car.variant}`, car.registration]
+                .filter(Boolean)
+                .join(" · ")
+            : "",
+        ],
     ["Total excess", whole(summary.compulsoryExcessPence + summary.voluntaryExcessPence)],
     ...(startsOn ? [["Cover starts", formatDay(startsOn)] as [string, string]] : []),
     plan === "monthly"

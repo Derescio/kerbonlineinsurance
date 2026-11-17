@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { completeJourney } from "#/features/quote/journey-fixtures";
+import { completeHomeJourney, completeJourney } from "#/features/quote/journey-fixtures";
 import type { Journey } from "#/features/quote/journey-store";
 import { monthlyPayment } from "#/features/rating/money";
 import { resolveActor } from "#/server/auth/actor";
@@ -11,7 +11,7 @@ import { AuthzError } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
 import { quotes } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
-import { saveCarQuoteFor } from "#/server/quote/save";
+import { saveCarQuoteFor, saveHomeQuoteFor } from "#/server/quote/save";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
@@ -289,6 +289,7 @@ describe("getPurchase", () => {
             variant: "1.5 TSI Life",
             registration: "AB19 CDE",
           },
+          home: null,
         },
       ],
     });
@@ -333,5 +334,44 @@ describe("getMyCustomerName", () => {
   it("is null for a user with no customer row yet", async () => {
     const actor = (await resolveActor(getDb(), (await makeUser()).id))!;
     expect(await getMyCustomerName(actor, {})).toBeNull();
+  });
+});
+
+describe("a home quote (5.7, decision 11)", () => {
+  async function homeQuote() {
+    const user = await makeUser();
+    const saved = await withTx(getDb(), (tx) =>
+      saveHomeQuoteFor(tx, user.id, { journey: completeHomeJourney(), now: SAVED_AT }),
+    );
+    if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
+    const actor = (await resolveActor(getDb(), user.id))!;
+    return { actor, saved, userId: user.id };
+  }
+
+  const home = {
+    addressLine1: "18 Albion Road",
+    town: "Hackney",
+    postcode: "E8 3RL",
+    propertyType: "terraced",
+    bedrooms: 3,
+  };
+
+  it("lists a home card with its property and no car", async () => {
+    const { actor } = await homeQuote();
+    const [card] = await listMyQuotes(actor, {});
+    expect(card).toMatchObject({ state: "ready", car: null, home });
+  });
+
+  it("still lists a car card with its car and no home", async () => {
+    const { actor } = await customerWithQuote();
+    const [card] = await listMyQuotes(actor, {});
+    expect(card!.car).toMatchObject({ make: "Volkswagen", model: "Golf" });
+    expect(card!.home).toBeNull();
+  });
+
+  it("gives Confirm and pay the property", async () => {
+    const { actor, saved } = await homeQuote();
+    const summary = await getQuoteForPayment(actor, { quoteId: saved.quoteId });
+    expect(summary).toMatchObject({ car: null, home, policyholder: { firstName: "Priya" } });
   });
 });

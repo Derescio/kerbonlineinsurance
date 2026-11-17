@@ -7,7 +7,18 @@ import {
   statusOptions,
   type EmploymentStatus,
 } from "../occupation";
-import { addYears, ageOn, wholeYearsBetween } from "./dates";
+import { addYears, wholeYearsBetween } from "./dates";
+import {
+  choice,
+  dateOfBirth as dateOfBirthField,
+  ISO,
+  isoDate,
+  option,
+  text,
+  values,
+  whole,
+  yesNo as yesNoField,
+} from "./fields";
 
 // The car journey's driver steps (5.3): about you, licence and driving, claims and named drivers.
 // Each schema takes today (London, `todayIso()`), because ages and the 5-year window move with it;
@@ -63,8 +74,6 @@ export const errors = {
 
 // --- Options (the stored values and their labels) -------------------------------------------
 
-const option = <T extends string>(value: T, label: string) => ({ value, label });
-
 export const licenceOptions = [
   option("full_uk", "Full UK"),
   option("full_eu", "Full EU or EEA"),
@@ -113,9 +122,6 @@ export const claimsCountOptions = [1, 2, 3, 4, 5].map((n) => ({
   label: n === 5 ? "5 or more" : String(n),
 }));
 
-const values = <T extends string>(options: { value: T }[]) =>
-  options.map((o) => o.value) as [T, ...T[]];
-
 export type FullLicence = "full_uk" | "full_eu";
 export type Usage = "social" | "commuting" | "business";
 export type Overnight = "garage" | "driveway" | "street";
@@ -123,43 +129,18 @@ export type IncidentType = (typeof incidentTypeOptions)[number]["value"];
 export type Fault = (typeof faultOptions)[number]["value"];
 export type Relationship = (typeof relationshipOptions)[number]["value"];
 
-// --- Building blocks ----------------------------------------------------------------------
+// --- Building blocks (shared with home in fields.ts, 5.7) --------------------------------------
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
-const isoDate = (message: string) => z.string({ error: message }).regex(ISO, { error: message });
-
-const text = (required: string, max: number, tooLong: string) =>
-  z.string({ error: required }).trim().min(1, { error: required }).max(max, { error: tooLong });
-
-/** A whole number typed in a box; commas are allowed ("8,000") */
-const whole = (message: string, min: number, max: number, tooBig: string) =>
-  z.preprocess(
-    (value) => {
-      if (typeof value !== "string") return value;
-      const digits = value.replace(/,/g, "").trim();
-      return /^\d+$/.test(digits) ? Number(digits) : undefined;
-    },
-    z
-      .number({ error: message })
-      .int({ error: message })
-      .min(min, { error: message })
-      .max(max, { error: tooBig }),
-  );
-
-const choice = <T extends string>(options: { value: T }[], message: string) =>
-  z.enum(values(options), { error: message });
-
-const yesNo = z.boolean({ error: errors.yesNo });
+const yesNo = yesNoField(errors.yesNo);
 
 const status = z.enum(values(statusOptions), { error: errors.status });
 
 /** A date of birth that makes the driver 17 to 100 today */
 const dateOfBirth = (today: string, under17: string) =>
-  isoDate(errors.dateOfBirth).superRefine((dob, ctx) => {
-    const age = ageOn(dob, today);
-    if (dob > today || age < 17) ctx.addIssue({ code: "custom", message: under17 });
-    else if (age > 100) ctx.addIssue({ code: "custom", message: errors.over100 });
+  dateOfBirthField(today, {
+    required: errors.dateOfBirth,
+    tooYoung: under17,
+    tooOld: errors.over100,
   });
 
 /** A full licence date that isn't in the future; the 17th birthday is checked on the object */

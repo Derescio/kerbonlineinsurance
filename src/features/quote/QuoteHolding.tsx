@@ -9,6 +9,7 @@ import { CarDeclined, CarReferred } from "./Outcomes";
 import type { NamedDrivers } from "./schemas/driver-steps";
 import { DriverReview, reviewIntro } from "./DriverReview";
 import { QuotePrice, RemovedLine, useQuotePrice } from "./QuotePrice";
+import { useSignedIn } from "./restart";
 import { licenceOptions } from "./schemas/driver-steps";
 import { HelpCard, JourneyPage, StepNav } from "./page-kit";
 import { StepHeading } from "./step-kit";
@@ -101,6 +102,7 @@ export function QuoteHolding({
 }) {
   const car = journey.vehicle;
   const price = useQuotePrice(journey, onNamedDrivers, onInvalid, onCover);
+  const signedIn = useSignedIn();
   const stopper = price.stopper;
   const { result } = price;
   const outcome =
@@ -163,6 +165,7 @@ export function QuoteHolding({
         <CarReferred
           journey={journey}
           aside={aside}
+          signedIn={signedIn}
           onCheckAnswers={() => onEdit("about")}
           onSendForReview={onSaveAndExit}
         />

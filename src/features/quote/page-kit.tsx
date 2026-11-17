@@ -7,6 +7,7 @@ import { cx } from "#/lib/cx";
 
 import { fuelLabel } from "./catalogue";
 import { helpHref } from "./help";
+import { propertyTypeLabel } from "./schemas/home-steps";
 import type { DetailsTab, TabState } from "./steps";
 
 // The revamp's page parts (5.4b; Revamp 249:5806): the two-column page, the details tabs, the
@@ -16,11 +17,14 @@ export function JourneyPage({
   heading,
   tabs,
   aside,
+  asideLabel = "Your car and help",
   children,
 }: {
   heading: ReactNode;
   tabs?: ReactNode;
   aside: ReactNode;
+  /** "Your home and help" on the home journey (5.7) */
+  asideLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -29,7 +33,7 @@ export function JourneyPage({
       {tabs}
       <div className="quote-page__columns">
         <div className="quote-page__main">{children}</div>
-        <aside className="quote-page__aside" aria-label="Your car and help">
+        <aside className="quote-page__aside" aria-label={asideLabel}>
           {aside}
         </aside>
       </div>
@@ -37,7 +41,7 @@ export function JourneyPage({
   );
 }
 
-const tabLabels: Record<DetailsTab, string> = {
+const carTabLabels: Record<DetailsTab, string> = {
   car: "Car",
   about: "About you",
   driving: "Driving",
@@ -45,16 +49,21 @@ const tabLabels: Record<DetailsTab, string> = {
   drivers: "Drivers",
 };
 
-/** Car, About you, Driving, Claims, Drivers: only steps up to the first unfinished one open (call 5) */
-export function DetailsTabs({
+/**
+ * Car, About you, Driving, Claims, Drivers: only steps up to the first unfinished one open (call 5).
+ * Home passes its own four (5.7).
+ */
+export function DetailsTabs<T extends string = DetailsTab>({
   states,
   onOpen,
+  labels = carTabLabels as Record<T, string>,
 }: {
-  states: Record<DetailsTab, TabState>;
-  onOpen: (tab: DetailsTab) => void;
+  states: Record<T, TabState>;
+  onOpen: (tab: T) => void;
+  labels?: Record<T, string>;
 }) {
   const list = useRef<HTMLOListElement>(null);
-  const current = (Object.keys(states) as DetailsTab[]).find((tab) => states[tab] === "current");
+  const current = (Object.keys(states) as T[]).find((tab) => states[tab] === "current");
   // At phone width the tabs scroll sideways: bring the current one into view when it changes. Only
   // the strip scrolls, never the page, and a re-render with the same current tab does nothing.
   useEffect(() => {
@@ -69,9 +78,9 @@ export function DetailsTabs({
   return (
     <nav aria-label="Your details" className="quote-tabs" tabIndex={0}>
       <ol ref={list}>
-        {(Object.keys(tabLabels) as DetailsTab[]).map((tab, i) => {
+        {(Object.keys(labels) as T[]).map((tab, i) => {
           const state = states[tab];
-          const label = tabLabels[tab];
+          const label = labels[tab];
           return (
             <li
               key={tab}
@@ -148,6 +157,51 @@ export function CarCard({
       {onChange ? (
         <button type="button" className="quote-link" onClick={onChange}>
           Change car or postcode
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** The insured home, as far as it's known (5.7, decision 11) */
+export interface HomeCardHome {
+  line1?: string;
+  town?: string;
+  propertyType?: string;
+  bedrooms?: number;
+}
+
+/** "Your home" beside each home step, as "Your car" is beside car's */
+export function HomeCard({
+  home,
+  postcode,
+  onChange,
+}: {
+  home: HomeCardHome | null;
+  postcode: string;
+  onChange?: () => void;
+}) {
+  const name = home?.line1 ? [home.line1, home.town].filter(Boolean).join(", ") : null;
+  const details = home
+    ? [
+        home.propertyType ? propertyTypeLabel(home.propertyType) : undefined,
+        home.bedrooms === undefined
+          ? undefined
+          : home.bedrooms === 0
+            ? "Studio"
+            : `${home.bedrooms} bedroom${home.bedrooms === 1 ? "" : "s"}`,
+      ].filter(Boolean)
+    : [];
+  return (
+    <section className="quote-car-card" aria-label="Your home">
+      <Icon name="house" size={22} className="quote-car-card__icon" />
+      <p className="quote-car-card__overline">Your home</p>
+      {name ? <p className="quote-car-card__name">{name}</p> : null}
+      {details.length ? <p className="quote-car-card__details">{details.join(" · ")}</p> : null}
+      <p className="quote-car-card__postcode">Postcode {postcode}</p>
+      {onChange ? (
+        <button type="button" className="quote-link" onClick={onChange}>
+          Change address or postcode
         </button>
       ) : null}
     </section>

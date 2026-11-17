@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -71,11 +72,14 @@ function carDetails(journey: Journey): string {
 export function CarReferred({
   journey,
   aside,
+  signedIn = false,
   onCheckAnswers,
   onSendForReview,
 }: {
   journey: Journey;
   aside: ReactNode;
+  /** Someone signed in isn't asked to sign in (5.7 manual check) */
+  signedIn?: boolean;
   onCheckAnswers: () => void;
   /** The gate and the save, then Your saved quotes (5.6, decision 11) */
   onSendForReview: () => void;
@@ -99,8 +103,11 @@ export function CarReferred({
           What happens next?
         </h2>
         <p>
-          Our team checks referred quotes, usually within a day. Sign in and we&rsquo;ll send your
-          quote for checking: you won&rsquo;t need to start again.
+          Our team checks referred quotes, usually within a day.{" "}
+          {signedIn
+            ? "We’ll send your quote for checking"
+            : "Sign in and we’ll send your quote for checking"}
+          : you won&rsquo;t need to start again.
         </p>
         <p className="quote-outcome__key">
           You can&rsquo;t buy this policy while it&rsquo;s under review. No car cover is in place
@@ -109,7 +116,7 @@ export function CarReferred({
       </Card>
       <div className="quote-outcome__actions">
         <Button variant="primary" onClick={onSendForReview}>
-          Sign in to send this for review
+          {signedIn ? "Send this for review" : "Sign in to send this for review"}
         </Button>
         <Button variant="secondary" onClick={onCheckAnswers}>
           Check your answers
@@ -204,15 +211,71 @@ export function CarDeclined({
   );
 }
 
+/**
+ * No home cover (5.7, decision 8), as screen 20 lays out car's: a neutral reason with no
+ * thresholds, and a car quote offered instead.
+ */
+export function HomeDeclined({
+  home,
+  postcode,
+  aside,
+  onCheckAnswers,
+}: {
+  home: HomeSummary;
+  postcode: string;
+  aside: ReactNode;
+  onCheckAnswers: () => void;
+}) {
+  return (
+    <JourneyPage
+      heading={
+        <OutcomeHeading
+          overline="Home insurance / Your quote"
+          title="We’re unable to offer home cover"
+          intro="We can’t offer home cover on this occasion."
+        />
+      }
+      aside={aside}
+      asideLabel="Your home and help"
+    >
+      <Card padding="lg" as="section" className="quote-outcome" aria-label="Home">
+        <Badge>Home · Not available</Badge>
+        <p>
+          Based on the details provided, this home quote doesn&rsquo;t fit the cover available
+          through our online policy.
+        </p>
+        <p className="quote-outcome__meta">
+          {home.address} · {home.postcode}
+        </p>
+        <button type="button" className="quote-link" onClick={onCheckAnswers}>
+          Check home answers
+        </button>
+      </Card>
+      <Card padding="lg" as="section" className="quote-outcome" aria-labelledby="car-offer">
+        <h2 id="car-offer" className="kb-h3">
+          Insure your car with us instead?
+        </h2>
+        <p>Car and home are separate policies, so a car quote is assessed on its own.</p>
+        <Link to="/quote/car" search={{ postcode }} className="kb-btn kb-btn--accent kb-btn--md">
+          Get a car quote
+        </Link>
+      </Card>
+    </JourneyPage>
+  );
+}
+
 /** Screen 03: the home quote needs a handler's check (decision 12) */
 export function HomeReferred({
   home,
   aside,
+  signedIn = false,
   onCheckAnswers,
   onSendForReview,
 }: {
   home: HomeSummary;
   aside: ReactNode;
+  /** Someone signed in isn't asked to sign in (5.7 manual check) */
+  signedIn?: boolean;
   onCheckAnswers: () => void;
   /** The gate and the save, then Your saved quotes (5.6, decision 11); 5.7 wires it */
   onSendForReview: () => void;
@@ -228,6 +291,7 @@ export function HomeReferred({
         />
       }
       aside={aside}
+      asideLabel="Your home and help"
     >
       <Card padding="lg" as="section" className="quote-outcome" aria-labelledby="next-heading">
         <div className="quote-outcome__box quote-outcome__box--plain">
@@ -246,13 +310,16 @@ export function HomeReferred({
           <li>If we can offer cover, you can review the quote before buying.</li>
         </ol>
         <p className="quote-outcome__small">
-          Sign in and we&rsquo;ll send your quote for checking: you won&rsquo;t need to start again.
-          No cover is in place yet. You can&rsquo;t buy this policy while it&rsquo;s under review.
+          {signedIn
+            ? "We’ll send your quote for checking"
+            : "Sign in and we’ll send your quote for checking"}
+          : you won&rsquo;t need to start again. No cover is in place yet. You can&rsquo;t buy this
+          policy while it&rsquo;s under review.
         </p>
       </Card>
       <div className="quote-outcome__actions">
         <Button variant="primary" onClick={onSendForReview}>
-          Sign in to send this for review
+          {signedIn ? "Send this for review" : "Sign in to send this for review"}
         </Button>
         <Button variant="secondary" onClick={onCheckAnswers}>
           Check your answers

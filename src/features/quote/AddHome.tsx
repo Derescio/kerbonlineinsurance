@@ -35,7 +35,7 @@ export function AddHome({
   /** "Continue with car only": the gate (5.6, decision 2) */
   onCarOnly: () => void;
 } & CoverMoves) {
-  const { result } = useCoverPrice(journey, moves);
+  const { result } = useCoverPrice("car", journey, moves);
   const [postcode, setPostcode] = useState(journey.postcode);
   const [error, setError] = useState<string | null>(null);
   const [asked, setAsked] = useState(false);

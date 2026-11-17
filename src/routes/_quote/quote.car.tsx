@@ -58,7 +58,13 @@ function CarQuotePage() {
               replace: opts?.replace,
             })
           }
-          onRestart={() => void navigate({ to: "/quote", search: { type: "car" }, replace: true })}
+          onRestart={(to) =>
+            void navigate(
+              to === "retrieve"
+                ? { to: "/quote/retrieve", replace: true }
+                : { to: "/quote", search: { type: "car" }, replace: true },
+            )
+          }
         />
       </JourneyShell>
     );

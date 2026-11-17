@@ -21,11 +21,22 @@ export interface CarSummary {
   registration: string | null;
 }
 
+/** The insured home, as the quote pages show it (5.7, decision 11) */
+export interface PropertySummary {
+  addressLine1: string;
+  town: string;
+  postcode: string;
+  propertyType: string;
+  bedrooms: number;
+}
+
 export interface SavedQuoteCard {
   quoteId: string;
   reference: string;
   state: SavedQuoteState;
-  car: CarSummary;
+  /** One of car and home is set: the quote's item (5.7) */
+  car: CarSummary | null;
+  home: PropertySummary | null;
   coverLevel: string | null;
   annualTotalPence: number | null;
   monthlyPaymentPence: number | null;
@@ -39,7 +50,8 @@ export interface PaymentSummary {
   status: string;
   expired: boolean;
   policyholder: { firstName: string; lastName: string };
-  car: CarSummary;
+  car: CarSummary | null;
+  home: PropertySummary | null;
   coverLevel: string | null;
   compulsoryExcessPence: number;
   voluntaryExcessPence: number;
@@ -65,10 +77,18 @@ export interface Purchase {
     compulsoryExcessPence: number;
     voluntaryExcessPence: number;
     car: CarSummary | null;
+    home: PropertySummary | null;
   }[];
 }
 
 const carColumns = { make: true, model: true, variant: true, registration: true } as const;
+const homeColumns = {
+  addressLine1: true,
+  town: true,
+  postcode: true,
+  propertyType: true,
+  bedrooms: true,
+} as const;
 
 /** Accepted is bought; else a lapsed validity is expired; else referred is under review */
 function stateOf(quote: { status: string; validUntil: Date }, now: Date): SavedQuoteState | null {
@@ -105,6 +125,7 @@ export const listMyQuotes = defineRead(
           columns: { ratingVersionId: true },
           with: {
             vehicle: { columns: carColumns },
+            property: { columns: homeColumns },
             selectedOption: { columns: { coverLevel: true } },
           },
         },
@@ -114,13 +135,15 @@ export const listMyQuotes = defineRead(
     const cards: SavedQuoteCard[] = [];
     for (const row of rows) {
       const state = stateOf(row, now);
-      const item = row.items.find((i) => i.vehicle);
-      if (!state || !item?.vehicle) continue;
+      // The car or home item; 5.7b's bundle shows both
+      const item = row.items.find((i) => i.vehicle ?? i.property);
+      if (!state || !item) continue;
       cards.push({
         quoteId: row.id,
         reference: row.reference,
         state,
-        car: item.vehicle,
+        car: item.vehicle ?? null,
+        home: item.property ?? null,
         coverLevel: item.selectedOption?.coverLevel ?? null,
         annualTotalPence: item.selectedOption ? row.totalPence : null,
         monthlyPaymentPence: item.selectedOption
@@ -162,21 +185,23 @@ export const getQuoteForPayment = defineRead(
           columns: { ratingVersionId: true, startDate: true, voluntaryExcessPence: true },
           with: {
             vehicle: { columns: carColumns },
+            property: { columns: homeColumns },
             selectedOption: { columns: { coverLevel: true, compulsoryExcessPence: true } },
             addons: { columns: { addon: true, selected: true } },
           },
         },
       },
     });
-    const item = quote?.items.find((i) => i.vehicle);
-    if (!quote || !item?.vehicle) throw new AuthzError("NOT_FOUND");
+    const item = quote?.items.find((i) => i.vehicle ?? i.property);
+    if (!quote || !item) throw new AuthzError("NOT_FOUND");
     return {
       quoteId: quote.id,
       reference: quote.reference,
       status: quote.status,
       expired: quote.status === "expired" || hasExpired(quote.validUntil, new Date()),
       policyholder: quote.customer,
-      car: item.vehicle,
+      car: item.vehicle ?? null,
+      home: item.property ?? null,
       coverLevel: item.selectedOption?.coverLevel ?? null,
       compulsoryExcessPence: item.selectedOption?.compulsoryExcessPence ?? 0,
       voluntaryExcessPence: item.voluntaryExcessPence ?? 0,
@@ -222,7 +247,12 @@ export const getPurchase = defineRead(
             voluntaryExcessPence: true,
           },
           orderBy: (policy, { asc }) => [asc(policy.createdAt)],
-          with: { quoteItem: { columns: {}, with: { vehicle: { columns: carColumns } } } },
+          with: {
+            quoteItem: {
+              columns: {},
+              with: { vehicle: { columns: carColumns }, property: { columns: homeColumns } },
+            },
+          },
         },
       },
     });
@@ -239,6 +269,7 @@ export const getPurchase = defineRead(
       policies: quote.policies.map(({ quoteItem, ...policy }) => ({
         ...policy,
         car: quoteItem.vehicle ?? null,
+        home: quoteItem.property ?? null,
       })),
     };
   },

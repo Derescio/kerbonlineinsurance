@@ -66,6 +66,9 @@ jobs:
           # The Neon `dev` branch's credentials (never prod), so the 4.7 delete test can confirm its own
           # sign-up; it only ever touches delivered+e2e-close-*@resend.dev, and skips without this
           E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          # The deploy's own test publishable key (5.6b), so the Stripe buy journeys (buy.spec.ts,
+          # home-buy.spec.ts) fill Stripe's form instead of skipping
+          VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
           CI: "true"
         run: |
           if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then

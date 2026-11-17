@@ -1,7 +1,8 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { expectNoSeriousAxeViolations } from "./axe";
 import { confirmEmailInDatabase, databaseUrl } from "./db";
+import { payWithTestCard } from "./stripe";
 import { withCompleteJourney } from "./quote-journey";
 
 // Buying a car quote (5.6): a complete journey → Choose cover → the gate, where a guest creates an
@@ -27,16 +28,6 @@ async function expectNoSeriousAxeViolationsAtEachWidth(page: Page) {
     await expectNoSeriousAxeViolations(page);
   }
   await page.setViewportSize(PHONE);
-}
-
-/** Stripe reveals some fields (a postcode) only after the card number: wait briefly for each */
-async function fillIfShown(field: Locator, value: string) {
-  try {
-    await field.waitFor({ state: "visible", timeout: 3_000 });
-  } catch {
-    return;
-  }
-  await field.fill(value);
 }
 
 test("a guest creates an account mid-quote, pays monthly, and finds the policy on their account", async ({
@@ -136,16 +127,8 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await page.getByText("I agree to the policy terms and understand my cover").click();
   await page.getByRole("button", { name: "Continue to payment" }).click();
 
-  // Stripe's iframe (test mode): the card that pays, a name, an email if it asks, a postcode. Its
-  // inputs' ids are steadier than their labels (the CVC label is shared with an icon).
-  const stripe = page.frameLocator('iframe[name="embedded-checkout"]');
-  await stripe.locator("#cardNumber").fill("4242 4242 4242 4242", { timeout: 60_000 });
-  await stripe.locator("#cardExpiry").fill("12 / 30");
-  await stripe.locator("#cardCvc").fill("123");
-  await fillIfShown(stripe.locator("#billingName"), "Alex Morgan");
-  await fillIfShown(stripe.locator("#email"), email);
-  await fillIfShown(stripe.locator("#billingPostalCode"), "E8 3RL");
-  await stripe.getByTestId("hosted-payment-submit-button").click();
+  // Stripe's form (test mode), as a UK customer: e2e/stripe.ts
+  await payWithTestCard(page, { name: "Alex Morgan", email });
   // A rejected submit (a missed field) fails here, not at You're covered
   await expect(page).toHaveURL(/\/quote\/covered\//, { timeout: 60_000 });
 

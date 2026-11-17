@@ -8,6 +8,7 @@ import {
   businesses,
   customers,
   drivers,
+  priorClaims,
   properties,
   quoteItemAddons,
   quoteItemFactors,
@@ -113,6 +114,7 @@ export async function saveQuote(
         if (rows.vehicles.length) await tx.insert(vehicles).values(rows.vehicles);
         if (rows.drivers.length) await tx.insert(drivers).values(rows.drivers);
         if (rows.properties.length) await tx.insert(properties).values(rows.properties);
+        if (rows.priorClaims.length) await tx.insert(priorClaims).values(rows.priorClaims);
         if (rows.businesses.length) await tx.insert(businesses).values(rows.businesses);
         await tx.insert(underwritingDecisions).values(rows.decisions);
       };

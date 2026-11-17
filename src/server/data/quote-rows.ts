@@ -3,6 +3,7 @@ import type { BusinessInputs, CarInputs, HomeInputs } from "#/features/rating/ty
 import type {
   businesses,
   drivers,
+  priorClaims,
   properties,
   quoteItemAddons,
   quoteItemFactors,
@@ -28,9 +29,14 @@ export interface CarDetails {
   /** The main driver first, then named drivers in the order entered */
   drivers: Detail<typeof drivers>[];
 }
+/** A past claim as saved (5.7): the row without its item, which the builder fills */
+export type PriorClaimDetail = Omit<Detail<typeof priorClaims>, "product">;
+
 export interface HomeDetails {
   product: "home";
   property: Detail<typeof properties>;
+  /** One per past claim; as many as `property.pastClaims` (5.7, decision 10) */
+  priorClaims: PriorClaimDetail[];
 }
 export interface BusinessDetails {
   product: "business";
@@ -53,6 +59,7 @@ export interface ItemRows {
   vehicles: Insert<typeof vehicles>[];
   drivers: Insert<typeof drivers>[];
   properties: Insert<typeof properties>[];
+  priorClaims: Insert<typeof priorClaims>[];
   businesses: Insert<typeof businesses>[];
 }
 
@@ -96,7 +103,9 @@ function detailsMatch(priced: PricedItem, details: ItemDetails): boolean {
         h.yearBuilt === i.yearBuilt &&
         h.bedrooms === i.bedrooms &&
         h.rebuildCostPence === i.rebuildCostPence &&
-        h.contentsValuePence === i.contentsValuePence
+        h.contentsValuePence === i.contentsValuePence &&
+        h.pastClaims === i.pastClaims &&
+        details.priorClaims.length === i.pastClaims
       );
     }
     case "business": {
@@ -185,6 +194,7 @@ export function itemRows(
     vehicles: [],
     drivers: [],
     properties: [],
+    priorClaims: [],
     businesses: [],
   };
 
@@ -204,6 +214,15 @@ export function itemRows(
       break;
     case "home":
       rows.properties.push({ ...details.property, quoteItemId: id, createdAt: at });
+      details.priorClaims.forEach((c) =>
+        rows.priorClaims.push({
+          ...c,
+          id: ctx.newId(),
+          quoteItemId: id,
+          product: "home",
+          createdAt: at,
+        }),
+      );
       break;
     case "business":
       rows.businesses.push({ ...details.business, quoteItemId: id, createdAt: at });
@@ -252,6 +271,7 @@ export function quoteRows(
     vehicles: [],
     drivers: [],
     properties: [],
+    priorClaims: [],
     businesses: [],
   };
   priced.items.forEach((item, i) => {
@@ -273,6 +293,7 @@ export function quoteRows(
       "vehicles",
       "drivers",
       "properties",
+      "priorClaims",
       "businesses",
     ] as const) {
       (set[key] as unknown[]).push(...rows[key]);

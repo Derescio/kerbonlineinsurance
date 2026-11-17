@@ -8,6 +8,7 @@ import { closeDb, getDb } from "#/server/db/client";
 import { withTx } from "#/server/db/tx";
 import {
   drivers,
+  priorClaims,
   properties,
   quoteItemAddons,
   quoteItemFactors,
@@ -96,6 +97,7 @@ const homeDetails = (): HomeDetails => ({
     lockType: "multipoint",
     pastClaims: 0,
   },
+  priorClaims: [],
 });
 
 async function priced(requests: Omit<QuoteItemRequest, "tables">[]) {
@@ -216,6 +218,69 @@ describe("saveQuote", () => {
       .where(eq(quoteItemAddons.quoteItemId, carItem.id));
     expect(addons.length).toBeGreaterThan(0);
     expect(addons.every((a) => !a.selected)).toBe(true);
+  });
+
+  it("saves a home's security answers and one row per past claim (5.7)", async () => {
+    const customer = await makeCustomer();
+    const quote = await priced([
+      {
+        product: "home",
+        inputs: homeInputs({ pastClaims: 2, hasAlarm: true }),
+        coverLevel: "comprehensive",
+        addons: [],
+      },
+    ]);
+    const details = homeDetails();
+    details.property = {
+      ...details.property,
+      pastClaims: 2,
+      hasAlarm: true,
+      valuablesPence: 300_000,
+      windowLocks: "some",
+      alarmType: "monitored",
+    };
+    details.priorClaims = [
+      {
+        occurredOn: "2024-03-12",
+        type: "theft",
+        amountPence: 95_000,
+        status: "settled",
+        fault: null,
+      },
+      { occurredOn: "2025-01-02", type: "fire", amountPence: 0, status: "open", fault: null },
+    ];
+    const saved = await saveQuote(getDb(), {
+      customerId: customer.id,
+      postcode: "LS6 2AB",
+      priced: quote,
+      items: [save(details)],
+    });
+    const [item] = await getDb()
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.quoteId, saved.quoteId));
+    const [property] = await getDb()
+      .select()
+      .from(properties)
+      .where(eq(properties.quoteItemId, item!.id));
+    expect(property).toMatchObject({
+      valuablesPence: 300_000,
+      windowLocks: "some",
+      alarmType: "monitored",
+      pastClaims: 2,
+    });
+    const claims = await getDb()
+      .select()
+      .from(priorClaims)
+      .where(eq(priorClaims.quoteItemId, item!.id));
+    expect(
+      claims
+        .map((c) => [c.product, c.type, c.amountPence, c.status])
+        .sort((a, b) => String(a[1]).localeCompare(String(b[1]))),
+    ).toEqual([
+      ["home", "fire", 0, "open"],
+      ["home", "theft", 95_000, "settled"],
+    ]);
   });
 
   it("notes the named driver a decline was about", async () => {

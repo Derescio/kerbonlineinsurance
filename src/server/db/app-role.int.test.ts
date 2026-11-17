@@ -57,6 +57,8 @@ const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
   // 5.6b: the default grants
   checkout_sessions: ALL,
   stripe_events: ALL,
+  // 5.7: the default grants
+  prior_claims: ALL,
   two_factors: ALL,
   underwriting_decisions: ALL,
   users: ALL,

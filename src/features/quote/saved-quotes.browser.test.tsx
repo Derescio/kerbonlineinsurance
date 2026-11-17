@@ -22,6 +22,7 @@ const card = (over: Partial<SavedQuoteCard>): SavedQuoteCard => ({
   reference: "KRB-Q-12345",
   state: "ready",
   car,
+  home: null,
   coverLevel: "comprehensive",
   annualTotalPence: 45840,
   monthlyPaymentPence: 4202,
@@ -112,5 +113,26 @@ describe("Your saved quotes", () => {
     await expect
       .element(page.getByRole("link", { name: "Get a quote" }))
       .toHaveAttribute("href", "/quote");
+  });
+
+  it("a home card: the address, its cover, and a new home quote when it's expired (5.7)", async () => {
+    const home = {
+      addressLine1: "18 Albion Road",
+      town: "Hackney",
+      postcode: "E8 3RL",
+      propertyType: "terraced",
+      bedrooms: 3,
+    };
+    await renderWithRouter(
+      <SavedQuotes owner={OWNER} cards={[card({ car: null, home, state: "expired" })]} />,
+    );
+    await expect.element(page.getByText("18 Albion Road, Hackney")).toBeVisible();
+    await expect.element(page.getByText("Comprehensive · KRB-Q-12345")).toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Start a new quote" }))
+      .toHaveAttribute(
+        "href",
+        expect.stringMatching(/^\/quote\?type=home&postcode=E8(\+|%20)3RL$/),
+      );
   });
 });

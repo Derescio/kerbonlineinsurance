@@ -43,6 +43,8 @@ export const authEnvSchema = z.object({
   // ("staging"); VERCEL_ENV says "preview" for custom environments too, so it can't tell them apart.
   VERCEL_TARGET_ENV: z.string().trim().optional(),
   VERCEL_URL: z.string().trim().optional(),
+  // A preview's branch link (`…-git-<branch>-…`), the one Vercel posts on the PR (5.7)
+  VERCEL_BRANCH_URL: z.string().trim().optional(),
 });
 
 export type AuthEnv = z.infer<typeof authEnvSchema>;

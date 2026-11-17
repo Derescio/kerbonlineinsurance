@@ -15,11 +15,20 @@ export interface AuthUrls {
   oauthProxy: { productionURL: string; currentURL: string } | null;
 }
 
-type UrlEnv = Pick<AuthEnv, "BETTER_AUTH_URL" | "VERCEL_TARGET_ENV" | "VERCEL_URL">;
+type UrlEnv = Pick<
+  AuthEnv,
+  "BETTER_AUTH_URL" | "VERCEL_TARGET_ENV" | "VERCEL_URL" | "VERCEL_BRANCH_URL"
+>;
 
 export function authUrls(env: UrlEnv): AuthUrls {
   const target = env.VERCEL_TARGET_ENV;
-  const baseURL = env.BETTER_AUTH_URL ?? (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : LOCAL_URL);
+  // A preview has two addresses: its branch link, which the PR links to, and its own deploy URL.
+  // Sign-in lives on the branch link, so Google and the email links come back to the address a
+  // visitor started on, where the tab holds their quote (5.7 manual check). Staging and Production
+  // have one address, set in BETTER_AUTH_URL.
+  const deployURL =
+    target === "preview" && env.VERCEL_BRANCH_URL ? env.VERCEL_BRANCH_URL : env.VERCEL_URL;
+  const baseURL = env.BETTER_AUTH_URL ?? (deployURL ? `https://${deployURL}` : LOCAL_URL);
 
   if (target === "preview") {
     return {

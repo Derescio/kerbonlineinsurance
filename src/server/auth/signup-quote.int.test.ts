@@ -10,13 +10,13 @@ import {
   vi,
 } from "vite-plus/test";
 
-import { completeJourney } from "#/features/quote/journey-fixtures";
+import { completeHomeJourney, completeJourney } from "#/features/quote/journey-fixtures";
 import type { Journey } from "#/features/quote/journey-store";
 import { clearReferenceCaches, getCatalogue, upsertReferenceData } from "#/server/data/reference";
 import { QUOTE_SAVE_RULE } from "#/server/data/rate-limit-rules";
 import { closeDb, getDb } from "#/server/db/client";
 import { rateLimitSubject } from "#/server/db/rate-limit";
-import { customers, quotes, rateLimits, users } from "#/server/db/schema";
+import { customers, quoteItems, quotes, rateLimits, users } from "#/server/db/schema";
 import { saveCarQuoteFor } from "#/server/quote/save";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
@@ -184,5 +184,25 @@ describe("sign-up with a quote (5.6, decision 1)", () => {
     await signUp(makeAuth());
     expect(saveCarQuoteFor).not.toHaveBeenCalled();
     expect(await getDb().select().from(customers)).toHaveLength(0);
+  });
+
+  it("saves a home quote when the sign-up came from the home gate (5.7)", async () => {
+    const response = await post(makeAuth(), "/sign-up/email", {
+      name: "Priya Shah",
+      email: EMAIL,
+      password: PASSWORD,
+      acceptTerms: true,
+      callbackURL: "/email-confirmed",
+      quote: { product: "home", journey: completeHomeJourney() },
+    });
+    expect(response.status).toBe(200);
+    // The save runs after the response (4.4b): wait for it
+    await vi.waitFor(async () => expect(await getDb().select().from(quotes)).toHaveLength(1));
+    expect(saveCarQuoteFor).not.toHaveBeenCalled();
+    const [item] = await getDb().select().from(quoteItems);
+    expect(item).toMatchObject({ product: "home" });
+    expect(await getDb().select().from(customers)).toEqual([
+      expect.objectContaining({ firstName: "Priya", addressLine1: "18 Albion Road" }),
+    ]);
   });
 });

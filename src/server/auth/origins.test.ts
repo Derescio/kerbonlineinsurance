@@ -36,6 +36,30 @@ describe("authUrls", () => {
     expect(urls.oauthProxy).toEqual({ productionURL: STAGING_URL, currentURL: preview });
   });
 
+  it("a preview with a branch link uses it, so Google and email links come back where a visitor started (5.7)", () => {
+    const urls = authUrls({
+      VERCEL_TARGET_ENV: "preview",
+      VERCEL_URL: "kerbonlineinsurance-abc123-damion-wilsons-projects.vercel.app",
+      VERCEL_BRANCH_URL:
+        "kerbonlineinsurance-git-slice-57-a167a2-damion-wilsons-projects.vercel.app",
+    });
+    const branch =
+      "https://kerbonlineinsurance-git-slice-57-a167a2-damion-wilsons-projects.vercel.app";
+    expect(urls.baseURL).toBe(branch);
+    expect(urls.trustedOrigins).toEqual([branch, PREVIEW_ORIGIN_PATTERN]);
+    expect(urls.oauthProxy).toEqual({ productionURL: STAGING_URL, currentURL: branch });
+  });
+
+  it("staging and production keep BETTER_AUTH_URL, whatever branch link Vercel sets", () => {
+    expect(
+      authUrls({
+        VERCEL_TARGET_ENV: "staging",
+        BETTER_AUTH_URL: STAGING_URL,
+        VERCEL_BRANCH_URL: "kerbonlineinsurance-git-staging-damion-wilsons-projects.vercel.app",
+      }).baseURL,
+    ).toBe(STAGING_URL);
+  });
+
   it("never trusts every *.vercel.app (decision 8)", () => {
     expect(PREVIEW_ORIGIN_PATTERN).toBe(
       "https://kerbonlineinsurance-*-damion-wilsons-projects.vercel.app",
