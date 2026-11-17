@@ -9,6 +9,7 @@ import { firstIncompleteHomeStep } from "./home-steps";
 import {
   beginJourney,
   clearBundle,
+  DEFAULT_COVER,
   markBundle,
   readJourney,
   setCover,
@@ -271,7 +272,9 @@ export function DriverSteps({
           onBack={() => onStep("cover")}
           onCarOnly={() => onStep("buy")}
           onAddHome={(postcode) => {
-            // Bundled with this car; a home already answered goes straight to Choose cover
+            // Bundled with this car; a home already answered goes straight to Choose cover. The
+            // car's cover is kept in the tab: Continue with nothing changed doesn't write it
+            setCover("car", readJourney("car")?.cover ?? DEFAULT_COVER);
             const home = beginJourney("home", postcode);
             markBundle(journey.journeyId);
             const first = firstIncompleteHomeStep(home, today);

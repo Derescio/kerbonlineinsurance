@@ -6,11 +6,12 @@ import { render } from "vitest-browser-react";
 
 import type { CarPriceResult } from "#/server/quote/price";
 
+import { bundleLive } from "./bundle";
 import type { CoverPrices } from "./cover";
 import { GOLF_PRICES } from "./cover-fixtures";
 import { DriverSteps } from "./DriverSteps";
 import { completeHomeJourney, completeJourney } from "./journey-fixtures";
-import { journeyKey, readJourney, type Journey } from "./journey-store";
+import { DEFAULT_COVER, journeyKey, readJourney, type Journey } from "./journey-store";
 import { CarDeclined, HomeDeclinedBundle, HomeReferred, type HomeSummary } from "./Outcomes";
 import type { QuoteStep } from "./search";
 import { priceCar, priceHome } from "./server";
@@ -290,6 +291,16 @@ describe("Add home insurance (screen 21)", () => {
     expect(home?.postcode).toBe("N1 9GU");
     expect(home?.bundle).toEqual({ carJourneyId: readJourney("car")!.journeyId });
     expect(page.getByText("Home quotes are coming soon").elements()).toHaveLength(0);
+  });
+
+  it("keeps the car's cover in the tab, so the bundle is live on the home side (5.7b)", async () => {
+    // Continue on Choose cover with nothing changed leaves no cover in the tab
+    await show("add-home", (j) => {
+      delete j.cover;
+    });
+    await page.getByRole("button", { name: "Add home insurance" }).click();
+    expect(readJourney("car")?.cover).toEqual(DEFAULT_COVER);
+    expect(bundleLive(readJourney("car"), readJourney("home"))).toBe(true);
   });
 
   it("goes straight to home's Choose cover when the home answers are done (5.7b)", async () => {
