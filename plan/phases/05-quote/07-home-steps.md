@@ -141,7 +141,7 @@ A home quote you can buy, on its own:
 - [x] Every answer from the four steps is in Neon: `customers`, `properties` (with the new columns) and `prior_claims` (`home-save.int.test.ts`).
 - [x] A referred home quote shows screen 03 and is saved; a declined one shows the declined screen and isn't (seen on the preview: contents of £150,000 was referred).
 - [x] Car's journey and its tests are unchanged.
-- [ ] `vp check`, `vp test`, the integration tests and the home E2E pass in CI (`ci` passes; the home E2E is to run against the preview now that `dev` is migrated).
+- [x] `vp check`, `vp test`, the integration tests and the home E2E pass in CI (`ci` passes; e2e run 43989328746 on the preview: `home-buy.spec.ts` and `buy.spec.ts` pass, 107 passed. The 6 failures are the `/signup` and `/forgot-password` axe checks waiting for a quiet network that Turnstile never gives, older than 5.7).
 - [x] The seed runs on `dev` with the new columns and claim rows (`scripts/seed/write.int.test.ts`).
 
 ## Preview manual check (Damion, 16 Nov 2026)
@@ -150,7 +150,14 @@ A home quote you can buy, on its own:
 - **Under review:** contents of £150,000 is exactly home v1's review line (`refer_contents_pence_min`), so screen 03 showed, as designed.
 - **"We couldn't save your quote":** the preview ran 5.7's code against `dev` before migration 0023 was applied (previews never migrate; engineering.md §3). Damion ran `vp run db:migrate`, and the save went through.
 - **Bought:** 7 Rosebery Gardens, Hackney, a detached house, Comprehensive, £402.42 a year, paid with Stripe's `4242…`. You're covered showed the policy, and it's on `/account`.
-- **Still open:** a guest who starts on the branch link and signs in with Google comes back on the deployment's own address, so the tab's answers aren't there. Previews only; Staging and Production have one address.
+- **Google sign-in from the branch link** came back on the deployment's own address, whose tab had no answers (previews only). Fixed in this PR: previews sign in on their branch link (`VERCEL_BRANCH_URL`), so Google, the email links and Stripe's return come back where the visitor started.
+
+## E2E in CI (16–17 Nov 2026)
+
+The e2e workflow had never got past Vercel's login page: the repo had no `VERCEL_AUTOMATION_BYPASS_SECRET` in its Actions secrets. Damion added it and `VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY` (now passed by `e2e.yml`), and recreated the e2e staff account after a reseed (`auth:make-admin`). Then:
+- **The home journey's test needed three fixes:** the landing accordion's own summary, waiting for the start page and the login page to load before typing, and waiting for Your saved quotes (the login page's address also ends in `/quote/retrieve`). `e2e/db.ts` allows `delivered+e2e-home-…` addresses.
+- **Stripe on GitHub's US runners:** Stripe's form defaulted to the United States, turning the postcode into a ZIP ("E8 3RL" became "83") and offering Link, which wants a phone. `e2e/stripe.ts` now fills it as a UK customer with Link off, for car and home.
+- **Left for a separate e2e PR:** the `/signup` and `/forgot-password` axe checks wait for a quiet network, which Turnstile never gives.
 
 ## Commit message
 
