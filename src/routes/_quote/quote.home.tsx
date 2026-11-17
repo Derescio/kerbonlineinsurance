@@ -65,6 +65,9 @@ function HomeQuotePage() {
         onPostcode={(next) =>
           void navigate({ search: (current) => ({ ...current, postcode: next }), replace: true })
         }
+        onOtherProduct={(to) =>
+          void navigate({ to: "/quote/car", search: { postcode: to.postcode, step: to.step } })
+        }
       />
     </JourneyShell>
   );

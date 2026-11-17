@@ -47,6 +47,7 @@ function Harness({ initial }: { initial: HomeQuoteStep }) {
         setStep(next ?? "about");
       }}
       onPostcode={() => {}}
+      onOtherProduct={() => {}}
     />
   );
 }

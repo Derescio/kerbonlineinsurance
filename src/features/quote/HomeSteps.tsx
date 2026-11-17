@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { bundleLive } from "./bundle";
 import { BuyStep } from "./BuyGate";
 import { ChooseCover } from "./ChooseCover";
 import { ContentsStep } from "./ContentsStep";
@@ -16,6 +17,8 @@ import {
 } from "./home-steps";
 import {
   beginJourney,
+  clearBundle,
+  markBundle,
   readJourney,
   setCover,
   type CoverChoice,
@@ -25,12 +28,13 @@ import { DetailsTabs, HelpCard, HomeCard } from "./page-kit";
 import { PropertyStep } from "./PropertyStep";
 import { restartTarget, type RestartTo } from "./restart";
 import { todayIso } from "./schemas/dates";
-import type { HomeQuoteStep } from "./search";
+import type { HomeQuoteStep, QuoteStep } from "./search";
 
 // The home journey's steps (5.7, decision 2), as DriverSteps runs car's: About you → Property →
-// Contents → Claims → Your quote, then Choose cover and the gate (Choose cover's Continue goes
-// straight to the gate; 5.7b adds the bundle). The answers live in sessionStorage, so the
-// "can't skip ahead" check runs here; a blocked link is replaced, not added to history.
+// Contents → Claims → Your quote, then Choose cover and the gate. In a live bundle (5.7b) Choose
+// cover shows the car quote beside the home; on its own it offers to add car. The answers live in
+// sessionStorage, so the "can't skip ahead" check runs here; a blocked link is replaced, not added
+// to history.
 
 const tabLabels: Record<HomeStep, string> = {
   about: "About you",
@@ -53,6 +57,13 @@ const previous: Record<HomeStep, HomeQuoteStep | undefined> = {
   claims: "contents",
 };
 
+/** Where a move to the car journey goes (5.7b): the route turns it into a link */
+export interface OtherProductMove {
+  product: "car";
+  postcode: string;
+  step?: QuoteStep;
+}
+
 type Move = (
   step: HomeQuoteStep | undefined,
   opts?: { replace?: boolean; after?: "retrieve" },
@@ -74,6 +85,7 @@ export function HomeSteps({
   onStep,
   onRestart,
   onPostcode,
+  onOtherProduct,
 }: {
   step: HomeQuoteStep;
   /** The link's postcode, for a visit with no journey in the tab yet */
@@ -85,6 +97,8 @@ export function HomeSteps({
   onRestart?: (to: RestartTo) => void;
   /** The URL follows a postcode changed on Property (decision 4) */
   onPostcode: (postcode: string) => void;
+  /** Opens the car journey: "Add car insurance" or "Back to car quote" (5.7b) */
+  onOtherProduct: (to: OtherProductMove) => void;
 }) {
   const [view, setView] = useState<{ step: HomeQuoteStep; journey: Journey; today: string } | null>(
     null,
@@ -171,6 +185,28 @@ export function HomeSteps({
 
   const saveAndExit = () => onStep("buy", { after: "retrieve" });
 
+  // The bundle is on only while the mark names the tab's car journey (5.7b, decision 1)
+  const car = readJourney("car");
+  const bundle =
+    car && bundleLive(car, journey)
+      ? {
+          car,
+          onHomeOnly: () => {
+            clearBundle();
+            const saved = readJourney("home");
+            if (saved) setView((v) => (v ? { ...v, journey: saved } : v));
+            onStep("buy");
+          },
+          onBackToCar: () =>
+            onOtherProduct({ product: "car", postcode: car.postcode, step: "cover" }),
+        }
+      : undefined;
+  const addCar = () => {
+    const started = beginJourney("car", journey.postcode);
+    markBundle(started.journeyId);
+    onOtherProduct({ product: "car", postcode: journey.postcode });
+  };
+
   const property = journey.property;
   const homeCard = (
     <HomeCard
@@ -254,6 +290,8 @@ export function HomeSteps({
           product="home"
           journey={journey}
           aside={coverAside}
+          bundle={bundle}
+          onAddCar={bundle ? undefined : addCar}
           onBack={() => onStep("quote")}
           onContinue={() => onStep("buy")}
           onSaveAndExit={saveAndExit}
