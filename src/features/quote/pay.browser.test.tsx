@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import type { WriteResult } from "#/lib/validation";
-import type { PaymentSummary, Purchase } from "#/server/data/quotes";
+import type { PaymentSummary, Purchase, QuoteItemSummary } from "#/server/data/quotes";
 import type { StartCheckoutResult } from "#/server/quote/checkout";
 import { renderWithRouter } from "#/test/router";
 
@@ -37,21 +37,34 @@ const purchaseFn = vi.mocked(getPurchaseFn);
 
 const QUOTE_ID = "0193a0b2-1c3d-7e4f-8a5b-6c7d8e9f0a1b";
 
+const GOLF = {
+  make: "Volkswagen",
+  model: "Golf",
+  variant: "1.0 TSI Life 5dr",
+  registration: "KR21 ERB",
+};
+
+const CAR_ITEM: QuoteItemSummary = {
+  product: "car",
+  car: GOLF,
+  home: null,
+  coverLevel: "comprehensive",
+  compulsoryExcessPence: 25000,
+  voluntaryExcessPence: 10000,
+  addons: [],
+};
+
 const SUMMARY: PaymentSummary = {
   quoteId: QUOTE_ID,
   reference: "KRB-Q-12345",
   status: "priced",
   expired: false,
   policyholder: { firstName: "Alex", lastName: "Morgan" },
-  car: { make: "Volkswagen", model: "Golf", variant: "1.0 TSI Life 5dr", registration: "KR21 ERB" },
-  home: null,
-  coverLevel: "comprehensive",
-  compulsoryExcessPence: 25000,
-  voluntaryExcessPence: 10000,
+  items: [CAR_ITEM],
+  bundleSavingPence: 0,
   annualTotalPence: 45840,
   monthlyPaymentPence: 4202,
   startDate: "2026-11-12",
-  addons: [],
 };
 
 const PURCHASE: Purchase = {
@@ -70,7 +83,7 @@ const PURCHASE: Purchase = {
       endsOn: "2027-11-19",
       compulsoryExcessPence: 25000,
       voluntaryExcessPence: 10000,
-      car: SUMMARY.car,
+      car: GOLF,
       home: null,
     },
   ],
@@ -139,14 +152,20 @@ describe("Confirm and pay (decision 6)", () => {
   it("names a home quote's property and home insurance (5.7)", async () => {
     await showPay({
       ...SUMMARY,
-      car: null,
-      home: {
-        addressLine1: "18 Albion Road",
-        town: "Hackney",
-        postcode: "E8 3RL",
-        propertyType: "terraced",
-        bedrooms: 3,
-      },
+      items: [
+        {
+          ...CAR_ITEM,
+          product: "home",
+          car: null,
+          home: {
+            addressLine1: "18 Albion Road",
+            town: "Hackney",
+            postcode: "E8 3RL",
+            propertyType: "terraced",
+            bedrooms: 3,
+          },
+        },
+      ],
     });
     await expect.element(page.getByText("Home insurance / Buy")).toBeVisible();
     const summary = page.getByRole("region", { name: "Comprehensive" });

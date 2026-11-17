@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
-import type { SavedQuoteCard } from "#/server/data/quotes";
+import type { QuoteItemSummary, SavedQuoteCard } from "#/server/data/quotes";
 import { renderWithRouter } from "#/test/router";
 
 import { SavedQuotes } from "./SavedQuotes";
@@ -17,16 +17,24 @@ const car = {
   registration: "KR21 ERB",
 };
 
+const carItem: QuoteItemSummary = {
+  product: "car",
+  car,
+  home: null,
+  coverLevel: "comprehensive",
+  compulsoryExcessPence: 25000,
+  voluntaryExcessPence: 0,
+  addons: [],
+};
+
 const card = (over: Partial<SavedQuoteCard>): SavedQuoteCard => ({
   quoteId: QUOTE_ID,
   reference: "KRB-Q-12345",
   state: "ready",
-  car,
-  home: null,
-  coverLevel: "comprehensive",
+  items: [carItem],
   annualTotalPence: 45840,
   monthlyPaymentPence: 4202,
-  policyReference: null,
+  policyReferences: [],
   postcode: "E8 3RL",
   ...over,
 });
@@ -82,7 +90,7 @@ describe("Your saved quotes", () => {
     await renderWithRouter(
       <SavedQuotes
         owner={OWNER}
-        cards={[card({ state: "bought", policyReference: "KRB-482913" })]}
+        cards={[card({ state: "bought", policyReferences: ["KRB-482913"] })]}
       />,
     );
     await expect.element(page.getByText("Bought", { exact: true })).toBeVisible();
@@ -124,7 +132,15 @@ describe("Your saved quotes", () => {
       bedrooms: 3,
     };
     await renderWithRouter(
-      <SavedQuotes owner={OWNER} cards={[card({ car: null, home, state: "expired" })]} />,
+      <SavedQuotes
+        owner={OWNER}
+        cards={[
+          card({
+            items: [{ ...carItem, product: "home", car: null, home }],
+            state: "expired",
+          }),
+        ]}
+      />,
     );
     await expect.element(page.getByText("18 Albion Road, Hackney")).toBeVisible();
     await expect.element(page.getByText("Comprehensive · KRB-Q-12345")).toBeVisible();

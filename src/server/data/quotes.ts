@@ -30,17 +30,28 @@ export interface PropertySummary {
   bedrooms: number;
 }
 
+/** One item on a quote: a car or a home, with its chosen cover (5.7b lists both on a bundle) */
+export interface QuoteItemSummary {
+  product: "car" | "home";
+  /** One of car and home is set (5.7) */
+  car: CarSummary | null;
+  home: PropertySummary | null;
+  coverLevel: string | null;
+  compulsoryExcessPence: number;
+  voluntaryExcessPence: number;
+  addons: string[];
+}
+
 export interface SavedQuoteCard {
   quoteId: string;
   reference: string;
   state: SavedQuoteState;
-  /** One of car and home is set: the quote's item (5.7) */
-  car: CarSummary | null;
-  home: PropertySummary | null;
-  coverLevel: string | null;
+  /** Car first; a bundle has a car and a home (5.7b) */
+  items: QuoteItemSummary[];
   annualTotalPence: number | null;
   monthlyPaymentPence: number | null;
-  policyReference: string | null;
+  /** A policy per item once bought */
+  policyReferences: string[];
   postcode: string;
 }
 
@@ -50,15 +61,13 @@ export interface PaymentSummary {
   status: string;
   expired: boolean;
   policyholder: { firstName: string; lastName: string };
-  car: CarSummary | null;
-  home: PropertySummary | null;
-  coverLevel: string | null;
-  compulsoryExcessPence: number;
-  voluntaryExcessPence: number;
+  /** Car first; a bundle has a car and a home (5.7b) */
+  items: QuoteItemSummary[];
+  /** The bundle discount on the combined premiums; 0 for one item */
+  bundleSavingPence: number;
   annualTotalPence: number;
   monthlyPaymentPence: number;
   startDate: string;
-  addons: string[];
 }
 
 export interface Purchase {
@@ -89,6 +98,30 @@ const homeColumns = {
   propertyType: true,
   bedrooms: true,
 } as const;
+
+interface ItemRow {
+  voluntaryExcessPence: number | null;
+  vehicle: CarSummary | null;
+  property: PropertySummary | null;
+  selectedOption: { coverLevel: string; compulsoryExcessPence: number } | null;
+  addons: { addon: string; selected: boolean }[];
+}
+
+/** A quote's car and home items, car first; an item with neither isn't shown */
+function itemSummaries(items: readonly ItemRow[]): QuoteItemSummary[] {
+  return items
+    .filter((i) => i.vehicle ?? i.property)
+    .map((i) => ({
+      product: i.vehicle ? ("car" as const) : ("home" as const),
+      car: i.vehicle ?? null,
+      home: i.property ?? null,
+      coverLevel: i.selectedOption?.coverLevel ?? null,
+      compulsoryExcessPence: i.selectedOption?.compulsoryExcessPence ?? 0,
+      voluntaryExcessPence: i.voluntaryExcessPence ?? 0,
+      addons: i.addons.filter((a) => a.selected).map((a) => a.addon),
+    }))
+    .sort((a, b) => (a.product === b.product ? 0 : a.product === "car" ? -1 : 1));
+}
 
 /** Accepted is bought; else a lapsed validity is expired; else referred is under review */
 function stateOf(quote: { status: string; validUntil: Date }, now: Date): SavedQuoteState | null {
@@ -122,11 +155,12 @@ export const listMyQuotes = defineRead(
       with: {
         policies: { columns: { reference: true } },
         items: {
-          columns: { ratingVersionId: true },
+          columns: { ratingVersionId: true, voluntaryExcessPence: true },
           with: {
             vehicle: { columns: carColumns },
             property: { columns: homeColumns },
-            selectedOption: { columns: { coverLevel: true } },
+            selectedOption: { columns: { coverLevel: true, compulsoryExcessPence: true } },
+            addons: { columns: { addon: true, selected: true } },
           },
         },
       },
@@ -135,25 +169,24 @@ export const listMyQuotes = defineRead(
     const cards: SavedQuoteCard[] = [];
     for (const row of rows) {
       const state = stateOf(row, now);
-      // The car or home item; 5.7b's bundle shows both
-      const item = row.items.find((i) => i.vehicle ?? i.property);
-      if (!state || !item) continue;
+      // Every car or home item: a bundle shows both (5.7b)
+      const items = itemSummaries(row.items);
+      if (!state || !items.length) continue;
+      const chosen = items.every((i) => i.coverLevel !== null);
       cards.push({
         quoteId: row.id,
         reference: row.reference,
         state,
-        car: item.vehicle ?? null,
-        home: item.property ?? null,
-        coverLevel: item.selectedOption?.coverLevel ?? null,
-        annualTotalPence: item.selectedOption ? row.totalPence : null,
-        monthlyPaymentPence: item.selectedOption
+        items,
+        annualTotalPence: chosen ? row.totalPence : null,
+        monthlyPaymentPence: chosen
           ? await monthlyPaymentFor(
               db,
               row.items.map((i) => i.ratingVersionId),
               row.totalPence,
             )
           : null,
-        policyReference: row.policies[0]?.reference ?? null,
+        policyReferences: row.policies.map((p) => p.reference),
         postcode: row.postcode,
       });
     }
@@ -181,7 +214,14 @@ export const getQuoteForPayment = defineRead(
   async (actor, { quoteId }, db): Promise<PaymentSummary> => {
     if (!actor.customerId) throw new AuthzError("NOT_FOUND");
     const quote = await db.query.quotes.findFirst({
-      columns: { id: true, reference: true, status: true, totalPence: true, validUntil: true },
+      columns: {
+        id: true,
+        reference: true,
+        status: true,
+        totalPence: true,
+        bundleDiscountPence: true,
+        validUntil: true,
+      },
       where: and(eq(quotes.id, quoteId), eq(quotes.customerId, actor.customerId)),
       with: {
         customer: { columns: { firstName: true, lastName: true } },
@@ -196,27 +236,24 @@ export const getQuoteForPayment = defineRead(
         },
       },
     });
-    const item = quote?.items.find((i) => i.vehicle ?? i.property);
-    if (!quote || !item) throw new AuthzError("NOT_FOUND");
+    const items = quote ? itemSummaries(quote.items) : [];
+    if (!quote || !items.length) throw new AuthzError("NOT_FOUND");
     return {
       quoteId: quote.id,
       reference: quote.reference,
       status: quote.status,
       expired: quote.status === "expired" || hasExpired(quote.validUntil, new Date()),
       policyholder: quote.customer,
-      car: item.vehicle ?? null,
-      home: item.property ?? null,
-      coverLevel: item.selectedOption?.coverLevel ?? null,
-      compulsoryExcessPence: item.selectedOption?.compulsoryExcessPence ?? 0,
-      voluntaryExcessPence: item.voluntaryExcessPence ?? 0,
+      items,
+      bundleSavingPence: quote.bundleDiscountPence ?? 0,
       annualTotalPence: quote.totalPence,
       monthlyPaymentPence: await monthlyPaymentFor(
         db,
         quote.items.map((i) => i.ratingVersionId),
         quote.totalPence,
       ),
-      startDate: item.startDate,
-      addons: item.addons.filter((a) => a.selected).map((a) => a.addon),
+      // Every item starts on the one date Confirm and pay sets (5.6, decision 8)
+      startDate: quote.items[0]!.startDate,
     };
   },
 );

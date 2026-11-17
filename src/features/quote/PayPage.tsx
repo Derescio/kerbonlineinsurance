@@ -76,7 +76,7 @@ function useTabJourney(product: BuyableProductId, quoteId: string) {
 export function PayPage({ summary }: { summary: PaymentSummary }) {
   const navigate = useNavigate();
   // A saved quote has a car or a home (5.7)
-  const product: BuyableProductId = summary.home ? "home" : "car";
+  const product: BuyableProductId = summary.items[0]!.product;
   const tab = useTabJourney(product, summary.quoteId);
 
   // "Back to choose cover" (decision 6): Choose cover when the tab still holds this quote,
@@ -350,7 +350,9 @@ function CoverSummary({
   plan?: Payment;
   startsOn?: string;
 }) {
-  const { car, home, policyholder } = summary;
+  const { policyholder } = summary;
+  const item = summary.items[0]!;
+  const { car, home } = item;
   const rows: [string, string][] = [
     ["Policyholder", `${policyholder.firstName} ${policyholder.lastName}`],
     home
@@ -363,7 +365,7 @@ function CoverSummary({
                 .join(" · ")
             : "",
         ],
-    ["Total excess", whole(summary.compulsoryExcessPence + summary.voluntaryExcessPence)],
+    ["Total excess", whole(item.compulsoryExcessPence + item.voluntaryExcessPence)],
     ...(startsOn ? [["Cover starts", formatDay(startsOn)] as [string, string]] : []),
     plan === "monthly"
       ? ["Monthly payment", `12 payments of ${formatPounds(summary.monthlyPaymentPence)}`]
@@ -373,7 +375,7 @@ function CoverSummary({
     <Card padding="lg" as="section" className="quote-paysum" aria-labelledby="paysum-heading">
       <div className="quote-paysum__head">
         <h2 id="paysum-heading" className="kb-h4">
-          {tierName(summary.coverLevel)}
+          {tierName(item.coverLevel)}
         </h2>
         <Badge tone="success">Selected</Badge>
       </div>

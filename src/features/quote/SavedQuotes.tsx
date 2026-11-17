@@ -61,9 +61,11 @@ export function SavedQuotes({
 }
 
 function QuoteCard({ card }: { card: SavedQuoteCard }) {
-  const { car, home } = card;
+  // One item until 5.7b's bundle view (Task 8)
+  const item = card.items[0]!;
+  const { car, home } = item;
   const badge = BADGES[card.state];
-  const meta = [car?.registration, tierName(card.coverLevel), card.reference]
+  const meta = [car?.registration, tierName(item.coverLevel), card.reference]
     .filter(Boolean)
     .join(" · ");
   return (
@@ -125,7 +127,7 @@ function Body({ card }: { card: SavedQuoteCard }) {
   if (card.state === "bought") {
     return (
       <>
-        <p>Policy {card.policyReference}</p>
+        <p>Policy {card.policyReferences.join(", ")}</p>
         <div>
           <Link to="/account" className={LINK}>
             Go to my account
@@ -140,7 +142,7 @@ function Body({ card }: { card: SavedQuoteCard }) {
       <div>
         <Link
           to="/quote"
-          search={{ type: card.home ? "home" : "car", postcode: card.postcode }}
+          search={{ type: card.items[0]!.product, postcode: card.postcode }}
           className={LINK}
         >
           Start a new quote
