@@ -1,7 +1,8 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { expectNoSeriousAxeViolations } from "./axe";
 import { confirmEmailInDatabase, databaseUrl } from "./db";
+import { payWithTestCard } from "./stripe";
 
 // Buying a home quote (5.7): the landing accordion's "Get a home insurance quote" → the postcode →
 // About you → Property (the first demo address) → Contents and security → Past claims → Your quote
@@ -23,15 +24,6 @@ async function expectNoSeriousAxeViolationsAtEachWidth(page: Page) {
     await expectNoSeriousAxeViolations(page);
   }
   await page.setViewportSize(PHONE);
-}
-
-async function fillIfShown(field: Locator, value: string) {
-  try {
-    await field.waitFor({ state: "visible", timeout: 3_000 });
-  } catch {
-    return;
-  }
-  await field.fill(value);
 }
 
 async function fillDate(page: Page, legend: string, day: string, month: string, year: string) {
@@ -166,14 +158,8 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
   await page.getByText("I confirm my details are correct").click();
   await page.getByText("I agree to the policy terms and understand my cover").click();
   await page.getByRole("button", { name: "Continue to payment" }).click();
-  const stripe = page.frameLocator('iframe[name="embedded-checkout"]');
-  await stripe.locator("#cardNumber").fill("4242 4242 4242 4242", { timeout: 60_000 });
-  await stripe.locator("#cardExpiry").fill("12 / 30");
-  await stripe.locator("#cardCvc").fill("123");
-  await fillIfShown(stripe.locator("#billingName"), "Priya Shah");
-  await fillIfShown(stripe.locator("#email"), email);
-  await fillIfShown(stripe.locator("#billingPostalCode"), "E8 3RL");
-  await stripe.getByTestId("hosted-payment-submit-button").click();
+  // Stripe's form (test mode), as a UK customer: e2e/stripe.ts
+  await payWithTestCard(page, { name: "Priya Shah", email });
   await expect(page).toHaveURL(/\/quote\/covered\//, { timeout: 60_000 });
 
   // 10. You're covered, then the policy on the account
