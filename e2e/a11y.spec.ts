@@ -18,6 +18,8 @@ const pages = [
   "/quote/car?postcode=E8+3RL&vehicle=manual",
   "/quote/car?postcode=E8+3RL&vehicle=not-found",
 ];
+// Pages with Turnstile's robot check, which keeps polling, so the network never goes idle
+const TURNSTILE_PAGES = ["/signup", "/forgot-password"];
 // Phone, tablet and laptop: the revamp's columns stack below 960px (5.4b, call 12)
 const widths = [390, 768, 1440];
 
@@ -45,7 +47,14 @@ for (const path of pages) {
     test(`${path} at ${width}px has no serious or critical axe violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      if (TURNSTILE_PAGES.includes(path)) {
+        // Turnstile keeps the network busy, so wait for its token instead of network idle
+        await expect(page.locator('[name="cf-turnstile-response"]')).not.toHaveValue("", {
+          timeout: 15_000,
+        });
+      } else {
+        await page.waitForLoadState("networkidle");
+      }
       await expectNoBlockingViolations(page);
     });
   }
