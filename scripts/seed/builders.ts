@@ -20,6 +20,35 @@ const addMinutes = (d: Date, minutes: number) => new Date(d.getTime() + minutes 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 const clampToWindow = (d: Date) => (d > SEED_TO ? SEED_TO : d);
 
+// A home's answers that aren't rated, and its past claims (5.7). They're worked out from the
+// spec, not drawn, so adding them doesn't move any other seeded value.
+const CLAIM_TYPES = ["escape_of_water", "theft", "accidental_damage", "storm_flood"] as const;
+
+function homeExtras(spec: {
+  lockType: string;
+  hasAlarm: boolean;
+  bedrooms: number;
+  contentsValuePence: number;
+}) {
+  return {
+    // A tenth of the contents, to the nearest £100
+    valuablesPence: Math.round(spec.contentsValuePence / 10 / 10_000) * 10_000,
+    windowLocks: spec.lockType === "standard" ? "some" : "all_accessible",
+    alarmType: !spec.hasAlarm ? "none" : spec.bedrooms >= 4 ? "monitored" : "installed_unmonitored",
+  };
+}
+
+/** `count` claims inside the 5 years before the quote, oldest last */
+function homeClaims(count: number, at: Date) {
+  return Array.from({ length: count }, (_, i) => ({
+    occurredOn: isoDate(addDays(at, -(200 + i * 400))),
+    type: CLAIM_TYPES[i % CLAIM_TYPES.length]!,
+    amountPence: 60_000 + i * 85_000,
+    status: "settled",
+    fault: null,
+  }));
+}
+
 /** Whole years from `dob` to `at` */
 export function ageAt(dob: string, at: Date): number {
   const born = new Date(`${dob}T00:00:00Z`);
@@ -309,7 +338,7 @@ export class SeedBuilder {
       newId: () => uuidv7At(at, rng),
       startDate: isoDate(startDate),
       voluntaryExcessPence,
-      details: this.details(rng, spec, quote.customer.id),
+      details: this.details(rng, spec, quote.customer.id, at),
     });
     this.plan.quoteItems.push(rows.item);
     this.plan.quoteItemOptions.push(...rows.options);
@@ -319,6 +348,7 @@ export class SeedBuilder {
     this.plan.vehicles.push(...rows.vehicles);
     this.plan.drivers.push(...rows.drivers);
     this.plan.properties.push(...rows.properties);
+    this.plan.priorClaims.push(...rows.priorClaims);
     this.plan.businesses.push(...rows.businesses);
 
     const option = rows.options.find((o) => o.coverLevel === spec.coverLevel)!;
@@ -398,7 +428,7 @@ export class SeedBuilder {
     }
   }
 
-  private details(rng: Rng, spec: ItemSpec, customerId: string): ItemDetails {
+  private details(rng: Rng, spec: ItemSpec, customerId: string, at: Date): ItemDetails {
     switch (spec.product) {
       case "car": {
         const v = spec.variant;
@@ -448,7 +478,9 @@ export class SeedBuilder {
             hasSmokeAlarm: spec.hasSmokeAlarm,
             lockType: spec.lockType,
             pastClaims: spec.pastClaims,
+            ...homeExtras(spec),
           },
+          priorClaims: homeClaims(spec.pastClaims, at),
         };
       }
       case "business":

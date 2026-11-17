@@ -47,6 +47,19 @@ export const vehicleUsages = ["social", "commuting", "business"] as const;
 export const overnightLocations = ["garage", "driveway", "street"] as const;
 export const propertyTypes = ["detached", "semi", "terraced", "flat", "bungalow"] as const;
 export const lockTypes = ["standard", "five_lever", "multipoint"] as const;
+// A home's answers that aren't rated, and its past claims (5.7, decision 10)
+export const windowLockTypes = ["all_accessible", "some", "none"] as const;
+export const alarmTypes = ["none", "installed_unmonitored", "monitored"] as const;
+export const homeClaimTypes = [
+  "escape_of_water",
+  "theft",
+  "accidental_damage",
+  "storm_flood",
+  "fire",
+  "subsidence",
+  "other",
+] as const;
+export const priorClaimStatuses = ["settled", "open", "withdrawn"] as const;
 
 // Reference data (4.8)
 export const bodyStyles = [

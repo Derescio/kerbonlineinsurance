@@ -97,7 +97,13 @@ function Harness({ initial, after }: { initial: QuoteStep; after?: "retrieve" })
         });
         setAt({ step: next, after: opts?.after });
       }}
-      onRestart={() => void navigate({ href: "/quote?type=car", replace: true })}
+      // As the route does: a signed-in visitor's quote was saved at sign-up, so Your saved quotes
+      onRestart={(to) =>
+        void navigate({
+          href: to === "retrieve" ? "/quote/retrieve" : "/quote?type=car",
+          replace: true,
+        })
+      }
     />
   );
 }
@@ -258,6 +264,20 @@ describe("the gate, for a guest (screens 14 and 15)", () => {
     );
     await expect.poll(() => router.state.location.pathname).toBe("/quote");
     expect(router.state.location.search).toEqual({ type: "car" });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("an empty tab on Buy, signed in, goes to Your saved quotes, where the sign-up saved it", async () => {
+    sessionStorage.clear();
+    session.mockResolvedValue(USER);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { router } = await renderWithRouter(
+      <QueryClientProvider client={queryClient}>
+        <Harness initial="buy" />
+      </QueryClientProvider>,
+      "/quote/car?postcode=E8+3RL&step=buy",
+    );
+    await expect.poll(() => router.state.location.pathname).toBe("/quote/retrieve");
     expect(save).not.toHaveBeenCalled();
   });
 

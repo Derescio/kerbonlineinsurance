@@ -5,7 +5,7 @@ import { claimEvents, claimMessages, claimSettlements, claimThirdParties, claims
 import { customers } from "./customers";
 import { notifications } from "./notifications";
 import { bundles, payments, policies } from "./policies";
-import { businesses, drivers, properties, vehicles } from "./products";
+import { businesses, drivers, priorClaims, properties, vehicles } from "./products";
 import { quoteItemAddons, quoteItemFactors, quoteItemOptions, quoteItems, quotes } from "./quotes";
 import { reviews } from "./reviews";
 import { staffMembers, staffRoles } from "./staff";
@@ -85,6 +85,7 @@ export const quoteItemsRelations = relations(quoteItems, ({ one, many }) => ({
   vehicle: one(vehicles),
   drivers: many(drivers),
   property: one(properties),
+  priorClaims: many(priorClaims),
   business: one(businesses),
   policy: one(policies),
 }));
@@ -130,6 +131,10 @@ export const driversRelations = relations(drivers, ({ one }) => ({
 
 export const propertiesRelations = relations(properties, ({ one }) => ({
   item: one(quoteItems, { fields: [properties.quoteItemId], references: [quoteItems.id] }),
+}));
+
+export const priorClaimsRelations = relations(priorClaims, ({ one }) => ({
+  item: one(quoteItems, { fields: [priorClaims.quoteItemId], references: [quoteItems.id] }),
 }));
 
 export const businessesRelations = relations(businesses, ({ one }) => ({

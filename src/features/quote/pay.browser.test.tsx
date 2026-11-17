@@ -44,6 +44,7 @@ const SUMMARY: PaymentSummary = {
   expired: false,
   policyholder: { firstName: "Alex", lastName: "Morgan" },
   car: { make: "Volkswagen", model: "Golf", variant: "1.0 TSI Life 5dr", registration: "KR21 ERB" },
+  home: null,
   coverLevel: "comprehensive",
   compulsoryExcessPence: 25000,
   voluntaryExcessPence: 10000,
@@ -70,6 +71,7 @@ const PURCHASE: Purchase = {
       compulsoryExcessPence: 25000,
       voluntaryExcessPence: 10000,
       car: SUMMARY.car,
+      home: null,
     },
   ],
 };
@@ -132,6 +134,25 @@ describe("Confirm and pay (decision 6)", () => {
         page.getByText("Review your payment details, check your cover and complete the purchase."),
       )
       .toBeVisible();
+  });
+
+  it("names a home quote's property and home insurance (5.7)", async () => {
+    await showPay({
+      ...SUMMARY,
+      car: null,
+      home: {
+        addressLine1: "18 Albion Road",
+        town: "Hackney",
+        postcode: "E8 3RL",
+        propertyType: "terraced",
+        bedrooms: 3,
+      },
+    });
+    await expect.element(page.getByText("Home insurance / Buy")).toBeVisible();
+    const summary = page.getByRole("region", { name: "Comprehensive" });
+    await expect.element(summary.getByText("Property")).toBeVisible();
+    await expect.element(summary.getByText("18 Albion Road, Hackney, E8 3RL")).toBeVisible();
+    expect(summary.getByText("Vehicle").elements()).toHaveLength(0);
   });
 
   it("limits the start date to today up to 30 days ahead, and opens on tomorrow", async () => {

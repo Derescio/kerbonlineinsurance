@@ -18,12 +18,16 @@ import { createdAt, id, oneOf, pence, postcodeDistrictSql, updatedAt } from "./c
 import { quoteItems } from "./quotes";
 import { vehicleCatalogue } from "./reference";
 import {
+  alarmTypes,
   fuelTypes,
+  homeClaimTypes,
   lockTypes,
   overnightLocations,
   propertyTypes,
+  priorClaimStatuses,
   type Product,
   vehicleUsages,
+  windowLockTypes,
 } from "./values";
 
 // Product details hang off the quote item (4.2, decision 6). Each table has a fixed `product`
@@ -150,6 +154,10 @@ export const properties = pgTable(
     hasSmokeAlarm: boolean().notNull(),
     lockType: text().notNull(),
     pastClaims: smallint().notNull().default(0),
+    // Asked from 5.7 but not rated (decision 10); null on rows saved before it
+    valuablesPence: integer(),
+    windowLocks: text(),
+    alarmType: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -161,12 +169,58 @@ export const properties = pgTable(
       check("properties_property_type_check", oneOf(t.propertyType, propertyTypes)),
       check("properties_lock_type_check", oneOf(t.lockType, lockTypes)),
       check(
+        "properties_window_locks_check",
+        sql`${t.windowLocks} is null or ${oneOf(t.windowLocks, windowLockTypes)}`,
+      ),
+      check(
+        "properties_alarm_type_check",
+        sql`${t.alarmType} is null or ${oneOf(t.alarmType, alarmTypes)}`,
+      ),
+      check(
         "properties_amounts_check",
-        sql`${t.bedrooms} >= 0 and ${t.rebuildCostPence} >= 0 and ${t.contentsValuePence} >= 0 and ${t.pastClaims} >= 0`,
+        sql`${t.bedrooms} >= 0 and ${t.rebuildCostPence} >= 0 and ${t.contentsValuePence} >= 0 and ${t.pastClaims} >= 0 and (${t.valuablesPence} is null or ${t.valuablesPence} >= 0)`,
       ),
       index().on(t.updatedAt),
     ];
   },
+);
+
+// One row per past claim on a quote item (5.7, decision 10). Home's from 5.7; car's incidents join
+// in 5.7c, which widens the type list. A home claim has a status and no fault.
+export const priorClaims = pgTable(
+  "prior_claims",
+  {
+    id: id(),
+    quoteItemId: uuid().notNull(),
+    product: text().notNull(),
+    occurredOn: date().notNull(),
+    type: text().notNull(),
+    amountPence: pence(),
+    status: text(),
+    fault: text(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("prior_claims_product_check", sql`${t.product} in ('car', 'home')`),
+    foreignKey({
+      name: "prior_claims_quote_item_fk",
+      columns: [t.quoteItemId, t.product],
+      foreignColumns: [quoteItems.id, quoteItems.product],
+    }).onDelete("cascade"),
+    check("prior_claims_amount_check", sql`${t.amountPence} >= 0`),
+    check("prior_claims_type_check", oneOf(t.type, homeClaimTypes)),
+    check(
+      "prior_claims_status_check",
+      sql`${t.status} is null or ${oneOf(t.status, priorClaimStatuses)}`,
+    ),
+    check(
+      "prior_claims_home_shape_check",
+      sql`${t.product} <> 'home' or (${t.status} is not null and ${t.fault} is null)`,
+    ),
+    index().on(t.quoteItemId),
+    index().on(t.updatedAt),
+  ],
 );
 
 export const businesses = pgTable(

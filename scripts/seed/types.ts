@@ -16,6 +16,7 @@ import type {
   notifications,
   payments,
   policies,
+  priorClaims,
   properties,
   quoteItemAddons,
   quoteItemFactors,
@@ -83,6 +84,7 @@ export interface SeedPlan {
   vehicles: Row<typeof vehicles>[];
   drivers: Row<typeof drivers>[];
   properties: Row<typeof properties>[];
+  priorClaims: Row<typeof priorClaims>[];
   businesses: Row<typeof businesses>[];
   bundles: Row<typeof bundles>[];
   policies: Row<typeof policies>[];
@@ -113,6 +115,7 @@ export function emptyPlan(): SeedPlan {
     vehicles: [],
     drivers: [],
     properties: [],
+    priorClaims: [],
     businesses: [],
     bundles: [],
     policies: [],

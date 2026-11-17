@@ -1,11 +1,13 @@
 import { z } from "zod";
 
 import { usableCover } from "#/features/quote/cover";
+import type { HomeStep } from "#/features/quote/home-steps";
 import { DEFAULT_COVER, parseJourney } from "#/features/quote/journey-store";
 import { normalisePostcode } from "#/features/quote/postcode";
 import { startDateBounds } from "#/features/quote/policy-terms";
 import type { DriverStep } from "#/features/quote/steps";
 import { carDetailsFromJourney } from "#/features/rating/car-details";
+import { homeDetailsFromJourney } from "#/features/rating/home-details";
 import { priceQuote } from "#/features/rating/price-quote";
 import { defineWrite, type DataWrite } from "#/server/data/define";
 import { QUOTE_SAVE_RULE } from "#/server/data/rate-limit-rules";
@@ -13,7 +15,8 @@ import { customerForQuote, saveQuote } from "#/server/data/save-quote";
 import type { Tx } from "#/server/db/tx";
 
 import { checkCarJourney } from "./car-check";
-import { carPrices } from "./price";
+import { checkHomeJourney } from "./home-check";
+import { carPrices, coverPrices } from "./price";
 
 // Saving a car quote at the gate (5.6, decisions 4 and 5). The browser's prices are never trusted:
 // the journey is checked again as priceCar checks it, and priced again with the chosen cover from
@@ -96,5 +99,81 @@ export const saveCarQuote: DataWrite<SaveCarResult> = defineWrite(
   },
   async (actor, { journey }, tx) => {
     return saveCarQuoteFor(tx, actor.userId, { journey });
+  },
+);
+
+/** A home save's answer (5.7, decision 9): car's, with home's steps */
+export type SaveHomeResult =
+  | { status: "saved"; quoteId: string; reference: string; outcome: "quoted" | "referred" }
+  | { status: "invalid"; step: HomeStep | "cover" }
+  | { status: "declined" };
+
+/**
+ * Saves the user's home journey inside `tx` (5.7, decision 9), as saveCarQuoteFor does for car:
+ * checked and priced again, the customer made from About you and the insured address at the first
+ * save, and a declined quote not saved. Used by saveHomeQuote and by the sign-up hook.
+ */
+export async function saveHomeQuoteFor(
+  tx: Tx,
+  userId: string,
+  input: { journey: unknown; now?: Date },
+): Promise<SaveHomeResult> {
+  const now = input.now ?? new Date();
+  const cover = parseJourney(input.journey)?.cover ?? DEFAULT_COVER;
+  const checked = await checkHomeJourney(
+    { journey: input.journey, voluntaryExcessPence: cover.voluntaryExcessPence },
+    now,
+  );
+  if (!checked.ok) return { status: "invalid", step: checked.step };
+  const { journey, inputs, tables, today } = checked;
+
+  const prices = coverPrices("home", inputs, tables);
+  if (prices.status === "declined") return { status: "declined" };
+  const chosen =
+    prices.status === "quoted"
+      ? usableCover(prices, cover)
+      : { ...cover, coverLevel: "comprehensive" as const };
+  const priced = priceQuote([
+    { product: "home", inputs, tables, coverLevel: chosen.coverLevel, addons: chosen.addons },
+  ]);
+  const item = priced.items[0]!;
+  if (item.outcome === "declined") return { status: "declined" };
+
+  const postcode = normalisePostcode(journey.postcode)!;
+  const about = journey.homeAbout!;
+  const address = journey.property!.address!;
+  const customerId = await customerForQuote(tx, userId, {
+    firstName: about.firstName,
+    lastName: about.lastName,
+    dateOfBirth: about.dateOfBirth,
+    addressLine1: address.line1,
+    addressLine2: address.line2 || null,
+    town: address.town,
+    postcode,
+  });
+  const saved = await saveQuote(tx, {
+    customerId,
+    postcode,
+    priced,
+    items: [
+      {
+        startDate: startDateBounds(today).fallback,
+        voluntaryExcessPence: 0,
+        details: homeDetailsFromJourney(journey),
+      },
+    ],
+    now,
+  });
+  return { status: "saved", ...saved, outcome: item.outcome };
+}
+
+export const saveHomeQuote: DataWrite<SaveHomeResult> = defineWrite(
+  z.object({ journey: z.unknown() }),
+  {
+    limit: { action: "quote.save", rule: QUOTE_SAVE_RULE },
+    idempotent: { action: "quote.save" },
+  },
+  async (actor, { journey }, tx) => {
+    return saveHomeQuoteFor(tx, actor.userId, { journey });
   },
 );

@@ -9,6 +9,7 @@ import type { Purchase } from "#/server/data/quotes";
 
 import { clearJourney, readJourney } from "./journey-store";
 import { tierName } from "./labels";
+import { buyableProducts, type BuyableProductId } from "./products";
 import { confirmCheckoutFn, getPurchaseFn } from "./server";
 
 // You're covered (5.6, decision 9; screen 18, adapted to 5.4b's frame): the badge, the thanks, a
@@ -72,12 +73,15 @@ export function CoveredPage({
   poll?: PollTiming;
 }) {
   const shown = useConfirmedPurchase(quoteId, purchase, sessionId, poll);
+  // Before the purchase is read, the tab that saved this quote says which product it is (5.7)
+  const [product, setProduct] = useState<BuyableProductId>("car");
+  useEffect(() => setProduct(productOfQuote(quoteId)), [quoteId]);
   if (shown.kind === "purchase") return <Bought purchase={shown.purchase} />;
   if (shown.kind === "refunded") {
     return (
       <div className="quote-page quote-covered">
         <header className="quote-heading">
-          <p className="quote-heading__overline">Car insurance · Purchase</p>
+          <p className="quote-heading__overline">{productLabel(product)} insurance · Purchase</p>
           <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
             We&rsquo;ve refunded your payment
           </h1>
@@ -96,7 +100,7 @@ export function CoveredPage({
   return (
     <div className="quote-page quote-covered">
       <header className="quote-heading">
-        <p className="quote-heading__overline">Car insurance · Purchase</p>
+        <p className="quote-heading__overline">{productLabel(product)} insurance · Purchase</p>
         <h1 className="kb-h1 quote-heading__title quote-covered__wait" tabIndex={-1}>
           {shown.kind === "confirming" ? <span className="kb-spinner" aria-hidden="true" /> : null}
           {CONFIRMING}
@@ -153,7 +157,9 @@ function useConfirmedPurchase(
         const purchase = await getPurchaseFn({ data: { quoteId } });
         if (!alive.current) return true;
         // Bought: the tab's journey for this quote is done (5.6, decision 9)
-        if (readJourney("car")?.saved?.quoteId === quoteId) clearJourney("car");
+        for (const product of buyableProducts) {
+          if (readJourney(product)?.saved?.quoteId === quoteId) clearJourney(product);
+        }
         setShown({ kind: "purchase", purchase });
         return true;
       } catch {
@@ -204,27 +210,37 @@ function useConfirmedPurchase(
   return shown;
 }
 
+/** The product whose tab journey saved this quote; car when neither did */
+function productOfQuote(quoteId: string): BuyableProductId {
+  return readJourney("home")?.saved?.quoteId === quoteId ? "home" : "car";
+}
+
+const productLabel = (product: string) => (product === "home" ? "Home" : "Car");
+
 function Bought({ purchase }: { purchase: Purchase }) {
   const first = purchase.policies[0];
   const tier = tierName(first?.coverLevel ?? null);
+  const product = first?.product ?? "car";
   return (
     <div className="quote-page quote-covered">
       <header className="quote-heading">
         <Badge tone="success" dot>
           Payment successful
         </Badge>
-        <p className="quote-heading__overline">Car insurance · Purchase complete</p>
+        <p className="quote-heading__overline">
+          {productLabel(product)} insurance · Purchase complete
+        </p>
         <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
           You&rsquo;re covered
         </h1>
         <p className="quote-heading__intro">
-          Thanks, {purchase.firstName}. Your {tier.toLowerCase()} car insurance is confirmed.
+          Thanks, {purchase.firstName}. Your {tier.toLowerCase()} {product} insurance is confirmed.
         </p>
       </header>
 
       <div className="quote-covered__body">
         {purchase.policies.map((policy) => {
-          const car = policy.car;
+          const { car, home } = policy;
           const rows: [string, string][] = [
             ["Policy reference", policy.reference],
             ["Cover starts", formatDay(policy.startsOn)],
@@ -245,7 +261,11 @@ function Bought({ purchase }: { purchase: Purchase }) {
               aria-label={`Policy ${policy.reference}`}
             >
               <p className="quote-outcome__name">
-                {car ? `${car.make} ${car.model} ${car.variant}` : tierName(policy.coverLevel)}
+                {car
+                  ? `${car.make} ${car.model} ${car.variant}`
+                  : home
+                    ? `${home.addressLine1}, ${home.town}`
+                    : tierName(policy.coverLevel)}
               </p>
               <p className="quote-outcome__meta">
                 {[car?.registration, `${tierName(policy.coverLevel)} cover`]

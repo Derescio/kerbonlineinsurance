@@ -74,3 +74,43 @@ export function completeJourney(): Journey {
     },
   };
 }
+
+/** A complete home journey on 11 Nov 2026 (5.7): screen 05–07's Albion Road, one settled claim */
+export function completeHomeJourney(): Journey {
+  return {
+    version: 1,
+    journeyId: "7c2e5d3f-9a4b-4c6d-8e8f-2a3b4c5d6e7f",
+    postcode: "E8 3RL",
+    startedAt: "2026-11-11T09:00:00.000Z",
+    startRecorded: true,
+    homeAbout: { firstName: "Priya", lastName: "Shah", dateOfBirth: "1988-03-02" },
+    property: {
+      address: { line1: "18 Albion Road", town: "Hackney", picked: true },
+      propertyType: "terraced",
+      yearBuilt: 1985,
+      bedrooms: 3,
+      rebuildCostPounds: 250_000,
+    },
+    contents: {
+      contentsValuePounds: 50_000,
+      valuablesPounds: 5_000,
+      lockType: "five_lever",
+      windowLocks: "all_accessible",
+      alarm: "installed_unmonitored",
+      smokeAlarm: true,
+    },
+    homeClaims: {
+      any: true,
+      claims: [
+        {
+          id: "h1",
+          date: "2024-03-12",
+          type: "escape_of_water",
+          amountPounds: 950,
+          status: "settled",
+        },
+      ],
+      confirmed: true,
+    },
+  };
+}
