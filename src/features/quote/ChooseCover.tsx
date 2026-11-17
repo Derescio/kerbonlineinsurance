@@ -130,6 +130,12 @@ export function ChooseCover({
   const [payment, setPaymentState] = useState<Payment>(
     (bundle ? bundle.car.payment : undefined) ?? journey.payment ?? "annual",
   );
+  // The gate and Pay read the home's own choice: start it from the car's, untouched or not
+  const bundled = Boolean(bundle);
+  useEffect(() => {
+    if (bundled && journey.payment !== payment) setPayment(product, payment);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the bundle shows
+  }, [bundled]);
   const copy = coverCopy(product);
   const address = journey.property?.address;
   const subject =

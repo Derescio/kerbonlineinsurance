@@ -77,6 +77,9 @@ export function BundlePanel({
             include Insurance Premium Tax.
           </p>
         </>
+      ) : data && data.status !== "quoted" ? (
+        // The car changed since and can't be bought as it is: its own journey says why
+        <p>Your car quote needs another look before it can be bought.</p>
       ) : (
         <p role="status">Working out your car price&hellip;</p>
       )}

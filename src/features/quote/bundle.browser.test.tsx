@@ -198,3 +198,28 @@ describe("home's outcomes in a bundle (5.7b, decision 5)", () => {
     expect(moves.at(-1)).toBe("buy");
   });
 });
+
+describe("the panel's edge cases (checkpoint 2)", () => {
+  it("keeps the car's monthly choice for the home without a click", async () => {
+    const { car, home } = store();
+    sessionStorage.setItem(journeyKey("car"), JSON.stringify({ ...car, payment: "monthly" }));
+    sessionStorage.setItem(journeyKey("home"), JSON.stringify({ ...home, payment: "annual" }));
+    await withQuery(<Harness />);
+    await expect.element(panel()).toBeVisible();
+    await expect.poll(() => readJourney("home")?.payment).toBe("monthly");
+  });
+
+  it("says the car quote needs attention when the car isn't quoted any more", async () => {
+    store();
+    carPrice.mockResolvedValue({ status: "declined", namedDriver: null });
+    await withQuery(<Harness />);
+    await expect
+      .element(panel().getByText("Your car quote needs another look before it can be bought."))
+      .toBeVisible();
+    expect(
+      panel()
+        .getByText(/Working out/)
+        .elements(),
+    ).toHaveLength(0);
+  });
+});
