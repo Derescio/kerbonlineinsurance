@@ -1,8 +1,10 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { composeCover, TIERS, usableCover } from "./cover";
 import { firstIncompleteHomeStep } from "./home-steps";
-import { readJourney, type Journey } from "./journey-store";
+import { DEFAULT_COVER, readJourney, type Journey } from "./journey-store";
+import type { CarOnly } from "./Outcomes";
 import { priceQuery } from "./price-query";
 import { todayIso } from "./schemas/dates";
 
@@ -19,4 +21,21 @@ export function useReadyHome(): Journey | null {
       : { queryKey: ["quote-price", "home", "incomplete"], queryFn: skipToken },
   );
   return complete && data?.status === "quoted" ? home : null;
+}
+
+/** The car waiting in a bundle, alone at its own price, for screen 04 (5.7b, decision 5) */
+export function useCarOnly(car: Journey | null): CarOnly | null {
+  const { data } = useQuery(
+    car ? priceQuery("car", car) : { queryKey: ["quote-price", "car", "none"], queryFn: skipToken },
+  );
+  if (!car?.vehicle || data?.status !== "quoted") return null;
+  const chosen = usableCover(data, car.cover ?? DEFAULT_COVER);
+  const composed = composeCover(data, chosen.coverLevel, chosen.addons);
+  if (!composed) return null;
+  return {
+    name: `${car.vehicle.make} ${car.vehicle.model} ${car.vehicle.variant}`,
+    plate: car.vehicle.demoPlate,
+    coverName: TIERS[chosen.coverLevel].name,
+    totalPence: composed.totalPence,
+  };
 }

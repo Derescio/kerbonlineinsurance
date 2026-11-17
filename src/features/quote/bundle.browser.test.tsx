@@ -167,3 +167,34 @@ describe("home's About you filled in from car (5.7b, decision 3)", () => {
     await expect.element(page.getByRole("textbox", { name: "Last name" })).toHaveValue("Morgan");
   });
 });
+
+describe("home's outcomes in a bundle (5.7b, decision 5)", () => {
+  it("home declined: screen 04, and the car bought alone", async () => {
+    store();
+    homePrice.mockResolvedValue({ status: "declined", namedDriver: null });
+    await withQuery(<Harness initial="quote" />);
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Your car quote is still available");
+    await page.getByRole("button", { name: "Continue with car only" }).click();
+    expect(readJourney("home")?.bundle).toBeUndefined();
+    expect(others).toEqual([{ product: "car", postcode: "E8 3RL", step: "buy" }]);
+  });
+
+  it("home referred: screen 03 with the car offered alone", async () => {
+    store();
+    homePrice.mockResolvedValue({ status: "referred", namedDriver: null });
+    await withQuery(<Harness initial="quote" />);
+    await page.getByRole("button", { name: "Continue with car only" }).click();
+    expect(others).toEqual([{ product: "car", postcode: "E8 3RL", step: "buy" }]);
+  });
+
+  it("sending a referred home for review takes it out of the bundle", async () => {
+    store();
+    homePrice.mockResolvedValue({ status: "referred", namedDriver: null });
+    await withQuery(<Harness initial="quote" />);
+    await page.getByRole("button", { name: /send this for review/i }).click();
+    expect(readJourney("home")?.bundle).toBeUndefined();
+    expect(moves.at(-1)).toBe("buy");
+  });
+});

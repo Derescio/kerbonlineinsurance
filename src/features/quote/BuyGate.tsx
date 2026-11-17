@@ -26,15 +26,27 @@ import type { HomeStep } from "./home-steps";
 import { JourneyPage, StepNav } from "./page-kit";
 import type { BuyableProductId } from "./products";
 import { propertyTypeLabel } from "./schemas/home-steps";
-import { saveHomeQuoteFn, saveQuoteFn } from "./server";
+import { saveBundleQuoteFn, saveHomeQuoteFn, saveQuoteFn } from "./server";
 import { StepHeading } from "./step-kit";
+import type { QuoteStep } from "./search";
 import type { DriverStep } from "./steps";
 
 // The gate, `step=buy` (5.6, decisions 2, 3, 11 and 13; screens 14 and 15, adapted to 5.4b's
 // frame). A guest signs in or creates an account here, with 4.4's own forms, and the quote stays in
 // the tab meanwhile. A signed-in visitor never sees the gate: the step saves the quote (once per
 // answers, decision 5) and goes on to pay, or to Your saved quotes after Save and exit or a referred
-// quote's "Sign in to send this for review".
+// quote's "Sign in to send this for review". In a live bundle (5.7b) the home gate saves the car
+// and the home as one quote.
+
+/** The car waiting in a live bundle, and where a car answer the save refuses goes (5.7b) */
+export interface GateBundle {
+  car: Journey;
+  /** The car step itself is no `step` at all */
+  onCar: (step: QuoteStep | undefined) => void;
+}
+
+/** One policyholder per bundle (5.7b, decision 6) */
+export const BUNDLE_MISMATCH = "Your name and date of birth must match your car quote.";
 
 /** Where the gate goes once the quote is saved */
 export type GateAfter = "pay" | "retrieve";
@@ -59,6 +71,7 @@ export function BuyStep({
   product,
   journey,
   after,
+  bundle,
   onBack,
   onNotQuoted,
   ...moves
@@ -66,6 +79,7 @@ export function BuyStep({
   product: BuyableProductId;
   journey: Journey;
   after: GateAfter;
+  bundle?: GateBundle;
   onBack: () => void;
   onInvalid: (step: SaveStep) => void;
 } & Omit<CoverMoves, "onInvalid">) {
@@ -106,8 +120,10 @@ export function BuyStep({
       journey={journey}
       prices={result?.status === "quoted" ? result : null}
       after={after}
+      bundle={bundle}
       onBack={onBack}
       onInvalid={moves.onInvalid}
+      onNotQuoted={onNotQuoted}
     />
   );
 }
@@ -146,18 +162,23 @@ export function BuyGate({
   journey,
   prices,
   after,
+  bundle,
   onBack,
   onInvalid,
+  onNotQuoted,
 }: {
   product: BuyableProductId;
   journey: Journey;
   /** The quoted price; null for a referred quote, which has none */
   prices: CoverPrices | null;
   after: GateAfter;
+  bundle?: GateBundle;
   /** "Back to choose cover", or to Your quote on the way to Your saved quotes */
   onBack: () => void;
   /** Where the server sends a step that no longer passes */
   onInvalid: (step: SaveStep) => void;
+  /** A bundle's home that can't be bought after all: Your quote shows 03 or 04 (5.7b) */
+  onNotQuoted?: (status: "referred" | "declined") => void;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -170,13 +191,14 @@ export function BuyGate({
   });
   const { key: idempotencyKey, rotate } = useIdempotencyKey("quote.save");
   const [failure, setFailure] = useState<string | null>(null);
+  const [mismatch, setMismatch] = useState(false);
   // The server says there's no session after all (one that still owes a code): show the gate
   const [signedOut, setSignedOut] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const started = useRef<number | null>(null);
-  const handlers = useRef({ onInvalid, rotate, idempotencyKey });
+  const handlers = useRef({ onInvalid, onNotQuoted, rotate, idempotencyKey });
   useEffect(() => {
-    handlers.current = { onInvalid, rotate, idempotencyKey };
+    handlers.current = { onInvalid, onNotQuoted, rotate, idempotencyKey };
   });
   // Whether the gate is still showing when a save comes back: after Back it isn't, and the save
   // mustn't move the visitor on. A mount flag, not the save effect's own cleanup: StrictMode's
@@ -195,7 +217,10 @@ export function BuyGate({
   useEffect(() => {
     if (!signedIn || started.current === attempt) return;
     started.current = attempt;
-    const key = savedQuoteKey(journey);
+    // A bundle's save is keyed on both journeys: the mark doesn't change the home's own key
+    const key = bundle
+      ? `${savedQuoteKey(bundle.car)}:${savedQuoteKey(journey)}`
+      : savedQuoteKey(journey);
     const go = (quoteId: string) =>
       void navigate(
         // Back from pay returns to the step before the gate, not to a gate that sends it on again
@@ -209,7 +234,47 @@ export function BuyGate({
       go(journey.saved.quoteId);
       return;
     }
-    const { onInvalid: invalid, rotate: newKey } = handlers.current;
+    const { onInvalid: invalid, onNotQuoted: notQuoted, rotate: newKey } = handlers.current;
+    const fail = (thrown: unknown) => {
+      const outcome = writeOutcome(thrown);
+      if (outcome.kind === "sign_in") {
+        if (mounted.current) setSignedOut(true);
+        return;
+      }
+      if (outcome.rotateKey) newKey();
+      if (mounted.current) setFailure(outcome.message);
+    };
+    if (bundle) {
+      saveBundleQuoteFn({
+        data: {
+          input: { car: journeyToSave(bundle.car), home: journeyToSave(journey) },
+          idempotencyKey: handlers.current.idempotencyKey,
+        },
+      })
+        .then((result) => {
+          if (!result.ok) {
+            if (mounted.current) setFailure(result.error.message);
+            return;
+          }
+          newKey();
+          const data = result.data;
+          if (data.status === "saved") {
+            setSaved("home", { quoteId: data.quoteId, key });
+            if (mounted.current) go(data.quoteId);
+            return;
+          }
+          if (!mounted.current) return;
+          if (data.status === "mismatch") setMismatch(true);
+          else if (data.status === "invalid" && data.product === "car") {
+            bundle.onCar(data.step === "car" ? undefined : data.step);
+          } else if (data.status === "invalid") invalid(data.step);
+          else if (data.product === "car") bundle.onCar("quote");
+          else if (notQuoted) notQuoted(data.outcome);
+          else setFailure(somethingWrong());
+        })
+        .catch(fail);
+      return;
+    }
     const saveFn = product === "home" ? saveHomeQuoteFn : saveQuoteFn;
     saveFn({
       data: {
@@ -253,7 +318,7 @@ export function BuyGate({
         if (outcome.rotateKey) newKey();
         if (mounted.current) setFailure(outcome.message);
       });
-  }, [signedIn, attempt, journey, after, navigate, product]);
+  }, [signedIn, attempt, journey, after, navigate, product, bundle]);
 
   if (session.isPending) {
     return (
@@ -275,9 +340,18 @@ export function BuyGate({
             title={failure ? "We couldn’t save your quote" : waitTitle(product)}
           />
         }
-        aside={<CoverWaiting product={product} journey={journey} prices={prices} />}
+        aside={
+          <CoverWaiting product={product} journey={journey} prices={prices} car={bundle?.car} />
+        }
       >
-        {failure ? (
+        {mismatch ? (
+          <Alert tone="warning" announce>
+            <p>{BUNDLE_MISMATCH}</p>
+            <Button variant="secondary" size="sm" onClick={() => onInvalid("about")}>
+              Check your details
+            </Button>
+          </Alert>
+        ) : failure ? (
           <Alert tone="warning" announce>
             <p>{failure}</p>
             <Button
@@ -313,7 +387,7 @@ export function BuyGate({
   return (
     <JourneyPage
       heading={<GateHeading product={product} mode={mode} />}
-      aside={<CoverWaiting product={product} journey={journey} prices={prices} />}
+      aside={<CoverWaiting product={product} journey={journey} prices={prices} car={bundle?.car} />}
     >
       <Card padding="lg" className="quote-gate">
         {mode === "signup" ? (
@@ -321,7 +395,15 @@ export function BuyGate({
             key="signup"
             title="New to Kerb?"
             extraLine="We only use these details to run your account. Confirm your email after signing up, then return to payment."
-            quote={{ product, journey: journeyToSave(journey) }}
+            quote={
+              bundle
+                ? {
+                    product: "bundle",
+                    car: journeyToSave(bundle.car),
+                    home: journeyToSave(journey),
+                  }
+                : { product, journey: journeyToSave(journey) }
+            }
             redirectTo={here}
           />
         ) : (
@@ -365,10 +447,13 @@ function CoverWaiting({
   product,
   journey,
   prices,
+  car: bundledCar,
 }: {
   product: BuyableProductId;
   journey: Journey;
   prices: CoverPrices | null;
+  /** The car in a bundle (5.7b): named under the home */
+  car?: Journey;
 }) {
   const car = journey.vehicle;
   const property = journey.property;
@@ -409,6 +494,12 @@ function CoverWaiting({
             Total excess {whole(composed.compulsoryExcessPence + composed.voluntaryExcessPence)}
           </p>
         </>
+      ) : null}
+      {bundledCar?.vehicle ? (
+        <p className="quote-outcome__name">
+          And your {bundledCar.vehicle.make} {bundledCar.vehicle.model} {bundledCar.vehicle.variant}
+          , {TIERS[(bundledCar.cover ?? DEFAULT_COVER).coverLevel].name} cover
+        </p>
       ) : null}
       <p className="quote-waiting__note">
         No payment is taken when you sign in or create an account.

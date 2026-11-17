@@ -282,6 +282,7 @@ export function HomeReferred({
   signedIn = false,
   onCheckAnswers,
   onSendForReview,
+  onContinueCar,
 }: {
   home: HomeSummary;
   aside: ReactNode;
@@ -290,6 +291,8 @@ export function HomeReferred({
   onCheckAnswers: () => void;
   /** The gate and the save, then Your saved quotes (5.6, decision 11); 5.7 wires it */
   onSendForReview: () => void;
+  /** In a bundle, the car bought on its own (5.7b, decision 5) */
+  onContinueCar?: () => void;
 }) {
   return (
     <JourneyPage
@@ -335,6 +338,11 @@ export function HomeReferred({
         <Button variant="secondary" onClick={onCheckAnswers}>
           Check your answers
         </Button>
+        {onContinueCar ? (
+          <Button variant="secondary" onClick={onContinueCar}>
+            Continue with car only
+          </Button>
+        ) : null}
       </div>
     </JourneyPage>
   );

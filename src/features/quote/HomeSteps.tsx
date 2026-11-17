@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { bundleLive } from "./bundle";
+import { useCarOnly } from "./ready-home";
 import { BuyStep } from "./BuyGate";
 import { ChooseCover } from "./ChooseCover";
 import { ContentsStep } from "./ContentsStep";
@@ -148,6 +149,12 @@ export function HomeSteps({
     shown.current = view.step;
   }, [view]);
 
+  // Screen 04's car, priced only in a live bundle; a hook, so before the early return
+  const liveCar = view ? readJourney("car") : null;
+  const carAlone = useCarOnly(
+    liveCar && view && bundleLive(liveCar, view.journey) ? liveCar : null,
+  );
+
   if (!view || view.step !== step) return null;
   const { journey, today } = view;
 
@@ -201,6 +208,10 @@ export function HomeSteps({
             onOtherProduct({ product: "car", postcode: car.postcode, step: "cover" }),
         }
       : undefined;
+  const carOnly = () => {
+    clearBundle();
+    onOtherProduct({ product: "car", postcode: car!.postcode, step: "buy" });
+  };
   const addCar = () => {
     const started = beginJourney("car", journey.postcode);
     markBundle(started.journeyId);
@@ -283,6 +294,19 @@ export function HomeSteps({
           onChooseCover={() => onStep("cover")}
           onCover={saveCover}
           onSaveAndExit={saveAndExit}
+          bundle={
+            bundle
+              ? {
+                  car: carAlone,
+                  onCarOnly: carOnly,
+                  // A referred home goes for review on its own, out of the bundle
+                  onSendForReview: () => {
+                    clearBundle();
+                    saveAndExit();
+                  },
+                }
+              : undefined
+          }
         />
       ) : null}
       {step === "cover" ? (
@@ -304,6 +328,15 @@ export function HomeSteps({
         <BuyStep
           product="home"
           journey={journey}
+          bundle={
+            bundle
+              ? {
+                  car: bundle.car,
+                  onCar: (s) =>
+                    onOtherProduct({ product: "car", postcode: bundle.car.postcode, step: s }),
+                }
+              : undefined
+          }
           after={after ?? "pay"}
           onBack={() => onStep(after === "retrieve" ? "quote" : "cover")}
           onCover={saveCover}
