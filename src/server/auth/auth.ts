@@ -18,7 +18,7 @@ import type { EmailTemplate } from "#/server/email/registry";
 import { queueEmail } from "#/server/jobs/email";
 import { runJob } from "#/server/jobs/runner";
 import { getAuthEnv, type AuthEnv } from "#/server/env";
-import { saveCarQuoteFor, saveHomeQuoteFor } from "#/server/quote/save";
+import { saveBundleQuoteFor, saveCarQuoteFor, saveHomeQuoteFor } from "#/server/quote/save";
 
 import { logSafeError } from "./errors";
 import { breachedPasswordCheck } from "./breached-password";
@@ -231,9 +231,16 @@ export function createAuth(deps: AuthDeps) {
             // response, like the emails, so a new email's answer takes no longer than a taken
             // one's (4.4b). Sign-up never fails because of the quote: the tab still holds it.
             // The journey is never logged
-            // The home gate sends its product (5.7); a quote without one is car's, as before
+            // The home gate sends its product (5.7); a quote without one is car's, as before. A
+            // bundled home gate sends both journeys (5.7b)
             const quote = (
-              ctx?.body as { quote?: { product?: "car" | "home"; journey?: unknown } } | undefined
+              ctx?.body as
+                | {
+                    quote?:
+                      | { product?: "car" | "home"; journey?: unknown }
+                      | { product: "bundle"; car?: unknown; home?: unknown };
+                  }
+                | undefined
             )?.quote;
             if (ctx?.path === "/sign-up/email" && quote) {
               const headers = ctx.request?.headers ?? new Headers();
@@ -242,9 +249,11 @@ export function createAuth(deps: AuthDeps) {
                   const subject = await rateLimitSubject(null, headers, secret);
                   await limit(`quote.save:${subject}`, QUOTE_SAVE_RULE);
                   await withTx(db, async (tx): Promise<unknown> =>
-                    quote.product === "home"
-                      ? saveHomeQuoteFor(tx, user.id, { journey: quote.journey })
-                      : saveCarQuoteFor(tx, user.id, { journey: quote.journey }),
+                    quote.product === "bundle"
+                      ? saveBundleQuoteFor(tx, user.id, { car: quote.car, home: quote.home })
+                      : quote.product === "home"
+                        ? saveHomeQuoteFor(tx, user.id, { journey: quote.journey })
+                        : saveCarQuoteFor(tx, user.id, { journey: quote.journey }),
                   );
                 } catch (error) {
                   console.error("[auth] sign-up quote save error:", logSafeError(error));

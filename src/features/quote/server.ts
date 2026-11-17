@@ -11,7 +11,7 @@ import type { StartCheckoutResult } from "#/server/quote/checkout";
 import type { FulfilStatus } from "#/server/quote/fulfil";
 import type { PostcodeCheck } from "#/server/quote/postcode";
 import type { CarPriceResult, HomePriceResult } from "#/server/quote/price";
-import type { SaveCarResult, SaveHomeResult } from "#/server/quote/save";
+import type { SaveBundleResult, SaveCarResult, SaveHomeResult } from "#/server/quote/save";
 import type { StartQuoteInput } from "#/server/quote/start";
 
 // The quote journey's server functions. Server modules are imported inside the handlers, which
@@ -89,6 +89,20 @@ export const saveHomeQuoteFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<WriteResult<SaveHomeResult>> => {
     const { saveHomeQuote } = await import("#/server/quote/save");
     return saveHomeQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+export interface SaveBundleEnvelope {
+  input: { car: unknown; home: unknown };
+  idempotencyKey: string;
+}
+
+/** Saves the signed-in user's car and home journeys as one bundle quote at the gate (5.7b) */
+export const saveBundleQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveBundleEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveBundleResult>> => {
+    const { saveBundleQuote } = await import("#/server/quote/save");
+    return saveBundleQuote(context.actor, data, { headers: getRequestHeaders() });
   });
 
 export interface CheckoutEnvelope {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { samePerson } from "#/features/quote/bundle";
 import { usableCover } from "#/features/quote/cover";
 import type { HomeStep } from "#/features/quote/home-steps";
 import { DEFAULT_COVER, parseJourney } from "#/features/quote/journey-store";
@@ -175,5 +176,118 @@ export const saveHomeQuote: DataWrite<SaveHomeResult> = defineWrite(
   },
   async (actor, { journey }, tx) => {
     return saveHomeQuoteFor(tx, actor.userId, { journey });
+  },
+);
+
+/** A bundle save's answer (5.7b, decision 6): which half stopped it, when one did */
+export type SaveBundleResult =
+  | { status: "saved"; quoteId: string; reference: string }
+  | { status: "invalid"; product: "car"; step: "car" | DriverStep | "cover" }
+  | { status: "invalid"; product: "home"; step: HomeStep | "cover" }
+  | { status: "not_quoted"; product: "car" | "home"; outcome: "referred" | "declined" }
+  | { status: "mismatch" };
+
+/**
+ * Saves the user's car and home journeys as one quote with the bundle saving (5.7b, decision 6).
+ * Each is checked and priced again as its own save does, then both are priced together; nothing
+ * is saved unless both are quoted and name the same policyholder. The customer comes from car's
+ * main driver, and the quote's postcode is car's (the home keeps its own on its property row).
+ */
+export async function saveBundleQuoteFor(
+  tx: Tx,
+  userId: string,
+  input: { car: unknown; home: unknown; now?: Date },
+): Promise<SaveBundleResult> {
+  const now = input.now ?? new Date();
+  const carCover = parseJourney(input.car)?.cover ?? DEFAULT_COVER;
+  const homeCover = parseJourney(input.home)?.cover ?? DEFAULT_COVER;
+
+  const car = await checkCarJourney(
+    { journey: input.car, voluntaryExcessPence: carCover.voluntaryExcessPence },
+    now,
+  );
+  if (!car.ok) return { status: "invalid", product: "car", step: car.step };
+  const home = await checkHomeJourney(
+    { journey: input.home, voluntaryExcessPence: homeCover.voluntaryExcessPence },
+    now,
+  );
+  if (!home.ok) return { status: "invalid", product: "home", step: home.step };
+
+  const carPriced = coverPrices("car", car.inputs, car.tables);
+  if (carPriced.status !== "quoted") {
+    return { status: "not_quoted", product: "car", outcome: carPriced.status };
+  }
+  const homePriced = coverPrices("home", home.inputs, home.tables);
+  if (homePriced.status !== "quoted") {
+    return { status: "not_quoted", product: "home", outcome: homePriced.status };
+  }
+  const carChosen = usableCover(carPriced, carCover);
+  const homeChosen = usableCover(homePriced, homeCover);
+  const priced = priceQuote([
+    {
+      product: "car",
+      inputs: car.inputs,
+      tables: car.tables,
+      coverLevel: carChosen.coverLevel,
+      addons: carChosen.addons,
+    },
+    {
+      product: "home",
+      inputs: home.inputs,
+      tables: home.tables,
+      coverLevel: homeChosen.coverLevel,
+      addons: homeChosen.addons,
+    },
+  ]);
+  for (const item of priced.items) {
+    if (item.outcome !== "quoted") {
+      return {
+        status: "not_quoted",
+        product: item.product as "car" | "home",
+        outcome: item.outcome,
+      };
+    }
+  }
+
+  // One policyholder per bundle; a half that can't be bought is said first, so its screen shows
+  const main = car.journey.mainDriver!;
+  if (!samePerson(main, home.journey.homeAbout!)) return { status: "mismatch" };
+
+  const postcode = normalisePostcode(car.journey.postcode)!;
+  const customerId = await customerForQuote(tx, userId, {
+    firstName: main.firstName,
+    lastName: main.lastName,
+    dateOfBirth: main.dateOfBirth,
+    addressLine1: main.addressLine1,
+    addressLine2: main.addressLine2 || null,
+    town: main.town,
+    postcode,
+  });
+  const startDate = startDateBounds(car.today).fallback;
+  const saved = await saveQuote(tx, {
+    customerId,
+    postcode,
+    priced,
+    items: [
+      {
+        startDate,
+        voluntaryExcessPence: carChosen.voluntaryExcessPence,
+        details: carDetailsFromJourney(car.journey, car.car, car.today),
+      },
+      { startDate, voluntaryExcessPence: 0, details: homeDetailsFromJourney(home.journey) },
+    ],
+    now,
+  });
+  return { status: "saved", ...saved };
+}
+
+export const saveBundleQuote: DataWrite<SaveBundleResult> = defineWrite(
+  z.object({ car: z.unknown(), home: z.unknown() }),
+  {
+    limit: { action: "quote.save", rule: QUOTE_SAVE_RULE },
+    idempotent: { action: "quote.save" },
+  },
+  async (actor, { car, home }, tx) => {
+    return saveBundleQuoteFor(tx, actor.userId, { car, home });
   },
 );
