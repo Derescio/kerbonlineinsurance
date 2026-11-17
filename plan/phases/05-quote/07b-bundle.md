@@ -1,6 +1,6 @@
 # 5.7b Car + home bundle
 
-**Status:** spec approved by Damion, 16 Nov 2026
+**Status:** done (spec approved by Damion, 16 Nov 2026)
 **Phase:** 05-quote
 
 ## Goal
@@ -113,9 +113,24 @@ Car and home bought together, as a bundle with the 8% saving:
 
 - [ ] A bundle can be bought end to end on the preview with Stripe's test card, both policies show on `/account`, and Stripe's dashboard has one payment for the combined total (Damion's manual check).
 - [ ] Starting at home and adding car reaches the bundle panel without re-answering home (Damion's manual check).
-- [ ] A home declined in a bundle shows screen 04, and the car can be bought alone at its own price.
-- [ ] Car's and home's journeys on their own, and their tests, are unchanged.
+- [x] A home declined in a bundle shows screen 04, and the car can be bought alone at its own price (`bundle.browser.test.tsx`, "home declined: screen 04").
+- [x] Car's and home's journeys on their own, and their tests, are unchanged. The only edits to their tests follow the reshaped types (`items`, `policyReferences`) and the holding lines that 5.7b replaces.
 - [ ] `vp check`, `vp test`, the integration tests and the bundle E2E pass in CI.
+
+## Notes from the build
+
+- **Found by the E2E:** pressing Continue on car's Choose cover without changing anything never stored the car's cover, so the bundle wasn't live on the home side. "Add home insurance" now stores it.
+- **Checkpoint fixes:** in a bundle, home's Choose cover stores the car's payment choice on the home straight away, so the gate and Pay agree with the panel. The panel says "Your car quote needs another look before it can be bought." when the car stops being quoted, instead of waiting for ever.
+- **The mismatch message** shows on the gate with "Check your details", which goes back to About you. About you has no place for a message from the server.
+- **Screen 04 waits** for the car's own price ("Working out your price…") rather than flash home-alone's declined screen.
+- **You're covered** clears the car by the home's mark: the bundle is saved on the home's journey only.
+- **Each policy's premium** is its share after the saving, so `/account` shows what was charged. Policies bought before 5.7b weren't bundles, so nothing changes for them.
+- **A rating version that changes `monthly_credit_charge_rate` on one product alone** makes every new bundle refuse, by design (decision 7). The quotes integration test runs its bundle reads before the test that activates a car v2 with another rate.
+- **Left as minor:**
+  - paying a bundle after "home only" cleared the mark can leave the car's answers in the tab;
+  - the car-side "Continue with car only" keeps the mark (harmless: paying the car clears its journey);
+  - the bundle gate's overline still reads "Home insurance / Buy";
+  - "Back to car quote" is a button that navigates.
 
 ## Commit message
 

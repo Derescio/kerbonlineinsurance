@@ -83,6 +83,20 @@ function nineteenYearOld() {
   };
 }
 
+/** The complete car journey with the Golf's real catalogue id, for a spec to place itself (5.7b) */
+export async function completeCarJourney(page: Page): Promise<Record<string, unknown>> {
+  const { cars } = (await (await page.request.get("/api/catalogue")).json()) as {
+    cars: CatalogueCar[];
+  };
+  const v = journey.vehicle;
+  const car = cars.find(
+    (c) => c.make === v.make && c.model === v.model && c.year === v.year && c.variant === v.variant,
+  );
+  if (!car)
+    throw new Error(`The ${v.year} ${v.make} ${v.model} ${v.variant} isn't in the catalogue`);
+  return { ...journey, vehicle: { ...v, catalogueVariantId: car.id } };
+}
+
 /**
  * Puts the complete journey in sessionStorage before the page's own scripts run. `declined` swaps
  * in the Tesla and a 19-year-old named driver, so Your quote shows the review step (5.4b, R10).
