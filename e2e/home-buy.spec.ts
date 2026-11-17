@@ -144,10 +144,14 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
   // 8. Confirm the email, log in, find the saved home quote
   await confirmEmailInDatabase(email);
   await page.goto("/login?redirect=/quote/retrieve");
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/quote\/retrieve$/);
+  // The login page's own address ends in /quote/retrieve too: wait for the page itself, so a
+  // reload can't cut the sign-in off
+  await expect(page).toHaveURL(/^[^?]*\/quote\/retrieve$/);
+  await expect(heading(page, "Your saved quotes")).toBeVisible();
   const saved = page.getByRole("article", { name: /^Quote KRB-Q-\d{5}$/ });
   await expect(async () => {
     await page.reload();
