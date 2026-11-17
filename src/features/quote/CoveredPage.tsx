@@ -156,10 +156,16 @@ function useConfirmedPurchase(
       try {
         const purchase = await getPurchaseFn({ data: { quoteId } });
         if (!alive.current) return true;
-        // Bought: the tab's journey for this quote is done (5.6, decision 9)
+        // Bought: the tab's journey for this quote is done (5.6, decision 9), and a bundle's car
+        // with it, named by the home's mark (5.7b)
+        const bundledCar =
+          readJourney("home")?.saved?.quoteId === quoteId
+            ? readJourney("home")?.bundle?.carJourneyId
+            : undefined;
         for (const product of buyableProducts) {
           if (readJourney(product)?.saved?.quoteId === quoteId) clearJourney(product);
         }
+        if (bundledCar && readJourney("car")?.journeyId === bundledCar) clearJourney("car");
         setShown({ kind: "purchase", purchase });
         return true;
       } catch {
@@ -219,6 +225,7 @@ const productLabel = (product: string) => (product === "home" ? "Home" : "Car");
 
 function Bought({ purchase }: { purchase: Purchase }) {
   const first = purchase.policies[0];
+  const bundle = purchase.policies.length > 1;
   const tier = tierName(first?.coverLevel ?? null);
   const product = first?.product ?? "car";
   return (
@@ -228,13 +235,16 @@ function Bought({ purchase }: { purchase: Purchase }) {
           Payment successful
         </Badge>
         <p className="quote-heading__overline">
-          {productLabel(product)} insurance · Purchase complete
+          {bundle ? "Car + home" : productLabel(product)} insurance · Purchase complete
         </p>
         <h1 className="kb-h1 quote-heading__title" tabIndex={-1}>
           You&rsquo;re covered
         </h1>
         <p className="quote-heading__intro">
-          Thanks, {purchase.firstName}. Your {tier.toLowerCase()} {product} insurance is confirmed.
+          Thanks, {purchase.firstName}.{" "}
+          {bundle
+            ? "Your car and home insurance is confirmed."
+            : `Your ${tier.toLowerCase()} ${product} insurance is confirmed.`}
         </p>
       </header>
 

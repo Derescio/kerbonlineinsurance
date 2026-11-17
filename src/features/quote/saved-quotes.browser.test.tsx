@@ -152,3 +152,47 @@ describe("Your saved quotes", () => {
       );
   });
 });
+
+describe("a car + home bundle on Your saved quotes (5.7b, decision 8)", () => {
+  const homeItem: QuoteItemSummary = {
+    ...carItem,
+    product: "home",
+    car: null,
+    home: {
+      addressLine1: "18 Albion Road",
+      town: "Hackney",
+      postcode: "E8 3RL",
+      propertyType: "terraced",
+      bedrooms: 3,
+    },
+  };
+
+  it("shows one card for both, with the combined total", async () => {
+    await renderWithRouter(
+      <SavedQuotes
+        owner={OWNER}
+        cards={[card({ items: [carItem, homeItem], annualTotalPence: 69_840 })]}
+      />,
+    );
+    await expect.element(page.getByText("Car + home · KRB-Q-12345")).toBeVisible();
+    await expect.element(page.getByText(/Volkswagen Golf 1\.0 TSI Life 5dr/)).toBeVisible();
+    await expect.element(page.getByText(/18 Albion Road, Hackney/)).toBeVisible();
+    await expect.element(page.getByText("£698.40")).toBeVisible();
+  });
+
+  it("shows both policy references once bought", async () => {
+    await renderWithRouter(
+      <SavedQuotes
+        owner={OWNER}
+        cards={[
+          card({
+            items: [carItem, homeItem],
+            state: "bought",
+            policyReferences: ["KRB-482913", "KRB-482914"],
+          }),
+        ]}
+      />,
+    );
+    await expect.element(page.getByText("Policies KRB-482913 and KRB-482914")).toBeVisible();
+  });
+});

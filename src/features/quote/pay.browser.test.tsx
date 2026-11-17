@@ -7,7 +7,7 @@ import type { StartCheckoutResult } from "#/server/quote/checkout";
 import { renderWithRouter } from "#/test/router";
 
 import { CoveredPage } from "./CoveredPage";
-import { completeJourney } from "./journey-fixtures";
+import { completeHomeJourney, completeJourney } from "./journey-fixtures";
 import { journeyKey, type Journey } from "./journey-store";
 import { PayPage } from "./PayPage";
 import { startDateBounds } from "./policy-terms";
@@ -541,5 +541,95 @@ describe("You're covered after Stripe's form (5.6b, decision 11)", () => {
       .toHaveAttribute("href", "/quote/retrieve");
     expect(purchaseFn).not.toHaveBeenCalled();
     expect(page.getByText("Payment successful").elements()).toHaveLength(0);
+  });
+});
+
+describe("a car + home bundle (5.7b, decisions 7 and 8)", () => {
+  const HOME_ITEM: QuoteItemSummary = {
+    ...CAR_ITEM,
+    product: "home",
+    car: null,
+    home: {
+      addressLine1: "18 Albion Road",
+      town: "Hackney",
+      postcode: "E8 3RL",
+      propertyType: "terraced",
+      bedrooms: 3,
+    },
+    voluntaryExcessPence: 0,
+  };
+  const BUNDLE: PaymentSummary = {
+    ...SUMMARY,
+    items: [CAR_ITEM, HOME_ITEM],
+    bundleSavingPence: 3_650,
+    annualTotalPence: 69_840,
+    monthlyPaymentPence: 6_402,
+  };
+
+  it("Confirm and pay shows the car and the home, the saving and the total", async () => {
+    await showPay(BUNDLE);
+    await expect.element(page.getByText("Car + home insurance / Buy")).toBeVisible();
+    await expect.element(page.getByText(/Volkswagen Golf 1\.0 TSI Life 5dr/)).toBeVisible();
+    await expect.element(page.getByText("18 Albion Road, Hackney, E8 3RL")).toBeVisible();
+    const summary = page.getByRole("region", { name: "Car + home" });
+    await expect.element(summary.getByText("Bundle saving")).toBeVisible();
+    await expect.element(summary.getByText("−£36.50")).toBeVisible();
+    await expect.element(summary.getByText("£698.40")).toBeVisible();
+  });
+
+  it("a single car quote shows no saving line", async () => {
+    await showPay();
+    await expect.element(page.getByText("Car insurance / Buy")).toBeVisible();
+    expect(page.getByText("Bundle saving").elements()).toHaveLength(0);
+  });
+
+  it("You're covered lists both policies, and forgets both journeys", async () => {
+    const car = completeJourney();
+    sessionStorage.setItem(journeyKey("car"), JSON.stringify(car));
+    sessionStorage.setItem(
+      journeyKey("home"),
+      JSON.stringify({
+        ...completeHomeJourney(),
+        bundle: { carJourneyId: car.journeyId },
+        saved: { quoteId: QUOTE_ID, key: "k" },
+      }),
+    );
+    confirm.mockResolvedValue({ status: "fulfilled" });
+    purchaseFn.mockResolvedValue({
+      ...PURCHASE,
+      policies: [
+        PURCHASE.policies[0]!,
+        {
+          ...PURCHASE.policies[0]!,
+          reference: "KRB-482914",
+          product: "home",
+          car: null,
+          home: {
+            addressLine1: "18 Albion Road",
+            town: "Hackney",
+            postcode: "E8 3RL",
+            propertyType: "terraced",
+            bedrooms: 3,
+          },
+        },
+      ],
+    });
+    await renderWithRouter(
+      <CoveredPage
+        quoteId={QUOTE_ID}
+        purchase={null}
+        sessionId="cs_test_bundle"
+        poll={{ everyMs: 20, attempts: 5 }}
+      />,
+      `/quote/covered/${QUOTE_ID}?session_id=cs_test_bundle`,
+    );
+    await expect.element(page.getByText("Car + home insurance · Purchase complete")).toBeVisible();
+    await expect
+      .element(page.getByText("Thanks, Alex. Your car and home insurance is confirmed."))
+      .toBeVisible();
+    await expect.element(page.getByText("KRB-482913")).toBeVisible();
+    await expect.element(page.getByText("KRB-482914")).toBeVisible();
+    expect(sessionStorage.getItem(journeyKey("home"))).toBeNull();
+    expect(sessionStorage.getItem(journeyKey("car"))).toBeNull();
   });
 });

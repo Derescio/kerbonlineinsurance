@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "#/components/display/Badge";
 import { Card } from "#/components/display/Card";
 import { formatPounds } from "#/features/rating/money";
-import type { SavedQuoteCard, SavedQuoteState } from "#/server/data/quotes";
+import type { QuoteItemSummary, SavedQuoteCard, SavedQuoteState } from "#/server/data/quotes";
 
 import { tierName } from "./labels";
 import { StepHeading } from "./step-kit";
@@ -61,11 +61,21 @@ export function SavedQuotes({
 }
 
 function QuoteCard({ card }: { card: SavedQuoteCard }) {
-  // One item until 5.7b's bundle view (Task 8)
+  // A bundle names both and reads "Car + home" (5.7b, decision 8)
+  const bundle = card.items.length > 1;
   const item = card.items[0]!;
-  const { car, home } = item;
   const badge = BADGES[card.state];
-  const meta = [car?.registration, tierName(item.coverLevel), card.reference]
+  const name = (i: QuoteItemSummary) =>
+    i.car
+      ? `${i.car.make} ${i.car.model} ${i.car.variant}`
+      : i.home
+        ? `${i.home.addressLine1}, ${i.home.town}`
+        : "";
+  const meta = (
+    bundle
+      ? ["Car + home", card.reference]
+      : [item.car?.registration, tierName(item.coverLevel), card.reference]
+  )
     .filter(Boolean)
     .join(" · ");
   return (
@@ -77,13 +87,7 @@ function QuoteCard({ card }: { card: SavedQuoteCard }) {
     >
       <div className="quote-saved__head">
         <div>
-          <h2 className="quote-outcome__name">
-            {car
-              ? `${car.make} ${car.model} ${car.variant}`
-              : home
-                ? `${home.addressLine1}, ${home.town}`
-                : ""}
-          </h2>
+          <h2 className="quote-outcome__name">{card.items.map(name).join(" and ")}</h2>
           <p className="quote-outcome__meta">{meta}</p>
         </div>
         <Badge tone={badge.tone} dot>
@@ -127,7 +131,11 @@ function Body({ card }: { card: SavedQuoteCard }) {
   if (card.state === "bought") {
     return (
       <>
-        <p>Policy {card.policyReferences.join(", ")}</p>
+        <p>
+          {card.policyReferences.length > 1
+            ? `Policies ${card.policyReferences.join(" and ")}`
+            : `Policy ${card.policyReferences[0] ?? ""}`}
+        </p>
         <div>
           <Link to="/account" className={LINK}>
             Go to my account

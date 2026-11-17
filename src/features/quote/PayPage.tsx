@@ -11,7 +11,7 @@ import { Input } from "#/components/forms/Input";
 import { formatPounds } from "#/features/rating/money";
 import { focusFirstError } from "#/lib/validation";
 import { useIdempotencyKey, writeOutcome } from "#/lib/writes";
-import type { PaymentSummary } from "#/server/data/quotes";
+import type { PaymentSummary, QuoteItemSummary } from "#/server/data/quotes";
 
 import { readJourney, type Payment } from "./journey-store";
 import { tierName } from "./labels";
@@ -75,8 +75,9 @@ function useTabJourney(product: BuyableProductId, quoteId: string) {
 
 export function PayPage({ summary }: { summary: PaymentSummary }) {
   const navigate = useNavigate();
-  // A saved quote has a car or a home (5.7)
-  const product: BuyableProductId = summary.items[0]!.product;
+  // A saved quote has a car or a home (5.7), or both (5.7b); a bundle is saved on the home's tab
+  const bundle = summary.items.length > 1;
+  const product: BuyableProductId = bundle ? "home" : summary.items[0]!.product;
   const tab = useTabJourney(product, summary.quoteId);
 
   // "Back to choose cover" (decision 6): Choose cover when the tab still holds this quote,
@@ -92,7 +93,7 @@ export function PayPage({ summary }: { summary: PaymentSummary }) {
 
   const heading = (
     <StepHeading
-      overline={`${product === "home" ? "Home" : "Car"} insurance / Buy`}
+      overline={`${bundle ? "Car + home" : product === "home" ? "Home" : "Car"} insurance / Buy`}
       title="Confirm and pay"
       intro="Review your payment details, check your cover and complete the purchase."
     />
@@ -351,21 +352,36 @@ function CoverSummary({
   startsOn?: string;
 }) {
   const { policyholder } = summary;
-  const item = summary.items[0]!;
-  const { car, home } = item;
+  const bundle = summary.items.length > 1;
+  // Each item's own rows; a bundle names each item's cover above them (5.7b, decision 7)
+  const itemRows = (item: QuoteItemSummary): [string, string][] => {
+    const { car, home } = item;
+    return [
+      ...(bundle
+        ? [[home ? "Home cover" : "Car cover", tierName(item.coverLevel)] as [string, string]]
+        : []),
+      home
+        ? ["Property", `${home.addressLine1}, ${home.town}, ${home.postcode}`]
+        : [
+            "Vehicle",
+            car
+              ? [`${car.make} ${car.model} ${car.variant}`, car.registration]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "",
+          ],
+      [
+        bundle ? `${home ? "Home" : "Car"} excess` : "Total excess",
+        whole(item.compulsoryExcessPence + item.voluntaryExcessPence),
+      ],
+    ];
+  };
   const rows: [string, string][] = [
     ["Policyholder", `${policyholder.firstName} ${policyholder.lastName}`],
-    home
-      ? ["Property", `${home.addressLine1}, ${home.town}, ${home.postcode}`]
-      : [
-          "Vehicle",
-          car
-            ? [`${car.make} ${car.model} ${car.variant}`, car.registration]
-                .filter(Boolean)
-                .join(" · ")
-            : "",
-        ],
-    ["Total excess", whole(item.compulsoryExcessPence + item.voluntaryExcessPence)],
+    ...summary.items.flatMap(itemRows),
+    ...(summary.bundleSavingPence
+      ? [["Bundle saving", `−${formatPounds(summary.bundleSavingPence)}`] as [string, string]]
+      : []),
     ...(startsOn ? [["Cover starts", formatDay(startsOn)] as [string, string]] : []),
     plan === "monthly"
       ? ["Monthly payment", `12 payments of ${formatPounds(summary.monthlyPaymentPence)}`]
@@ -375,7 +391,7 @@ function CoverSummary({
     <Card padding="lg" as="section" className="quote-paysum" aria-labelledby="paysum-heading">
       <div className="quote-paysum__head">
         <h2 id="paysum-heading" className="kb-h4">
-          {tierName(item.coverLevel)}
+          {bundle ? "Car + home" : tierName(summary.items[0]!.coverLevel)}
         </h2>
         <Badge tone="success">Selected</Badge>
       </div>
