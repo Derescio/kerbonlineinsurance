@@ -147,7 +147,11 @@ export const listMyQuotes = defineRead(
         coverLevel: item.selectedOption?.coverLevel ?? null,
         annualTotalPence: item.selectedOption ? row.totalPence : null,
         monthlyPaymentPence: item.selectedOption
-          ? await monthlyPaymentFor(db, item.ratingVersionId, row.totalPence)
+          ? await monthlyPaymentFor(
+              db,
+              row.items.map((i) => i.ratingVersionId),
+              row.totalPence,
+            )
           : null,
         policyReference: row.policies[0]?.reference ?? null,
         postcode: row.postcode,
@@ -206,7 +210,11 @@ export const getQuoteForPayment = defineRead(
       compulsoryExcessPence: item.selectedOption?.compulsoryExcessPence ?? 0,
       voluntaryExcessPence: item.voluntaryExcessPence ?? 0,
       annualTotalPence: quote.totalPence,
-      monthlyPaymentPence: await monthlyPaymentFor(db, item.ratingVersionId, quote.totalPence),
+      monthlyPaymentPence: await monthlyPaymentFor(
+        db,
+        quote.items.map((i) => i.ratingVersionId),
+        quote.totalPence,
+      ),
       startDate: item.startDate,
       addons: item.addons.filter((a) => a.selected).map((a) => a.addon),
     };

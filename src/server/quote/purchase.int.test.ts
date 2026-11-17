@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -40,6 +40,7 @@ import {
   quoteItemOptions,
   quoteItems,
   quotes,
+  ratingVersions,
 } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
 import { renderEmail } from "#/server/email/registry";
@@ -48,6 +49,8 @@ import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { SECRET } from "#/test/auth";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
 import { makeCustomer, makeStaff, makeUser } from "#/test/factories";
+
+import { monthlyPaymentFor } from "#/server/data/pay-quote";
 
 import { purchase, type PurchaseInput, type PurchaseResult } from "./purchase";
 import { saveCarQuoteFor } from "./save";
@@ -517,47 +520,114 @@ const homeDetails = (): HomeDetails => ({
   priorClaims: [],
 });
 
+/** A customer with a saved car + home quote, as save-quote.int.test.ts saves it */
+async function savedBundle(): Promise<{ actor: Actor; quoteId: string; customerId: string }> {
+  const customer = await makeCustomer();
+  const requests: Omit<QuoteItemRequest, "tables">[] = [
+    { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
+    { product: "home", inputs: homeInputs(), coverLevel: "comprehensive", addons: [] },
+  ];
+  const priced = priceQuote(
+    await Promise.all(
+      requests.map(
+        async (r) => ({ ...r, tables: await getActiveRatingTables(r.product) }) as QuoteItemRequest,
+      ),
+    ),
+  );
+  const saved = await saveQuote(getDb(), {
+    customerId: customer.id,
+    postcode: "LS6 2AB",
+    priced,
+    items: [carDetails(), homeDetails()].map((details) => ({
+      startDate: "2026-11-12",
+      voluntaryExcessPence: 0,
+      details,
+    })),
+    now: NOW,
+  });
+  const actor = (await resolveActor(getDb(), customer.userId))!;
+  return { actor, quoteId: saved.quoteId, customerId: customer.id };
+}
+
 describe("purchase: a bundle", () => {
   it("writes one bundle and two policies pointing at it", async () => {
-    const customer = await makeCustomer();
-    const requests: Omit<QuoteItemRequest, "tables">[] = [
-      { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
-      { product: "home", inputs: homeInputs(), coverLevel: "comprehensive", addons: [] },
-    ];
-    const priced = priceQuote(
-      await Promise.all(
-        requests.map(
-          async (r) =>
-            ({ ...r, tables: await getActiveRatingTables(r.product) }) as QuoteItemRequest,
-        ),
-      ),
-    );
-    const saved = await saveQuote(getDb(), {
-      customerId: customer.id,
-      postcode: "LS6 2AB",
-      priced,
-      items: [carDetails(), homeDetails()].map((details) => ({
-        startDate: "2026-11-12",
-        voluntaryExcessPence: 0,
-        details,
-      })),
-      now: NOW,
-    });
-    const actor = (await resolveActor(getDb(), customer.userId))!;
-    const result = await buy(actor, saved.quoteId);
+    const saved = await savedBundle();
+    const result = await buy(saved.actor, saved.quoteId);
     expect(result.status).toBe("bought");
     if (result.status !== "bought") return;
     expect(result.policyReferences).toHaveLength(2);
 
     const bundleRows = await getDb().select().from(bundles);
     expect(bundleRows).toHaveLength(1);
-    expect(bundleRows[0]).toMatchObject({ customerId: customer.id, quoteId: saved.quoteId });
+    expect(bundleRows[0]).toMatchObject({ customerId: saved.customerId, quoteId: saved.quoteId });
     const rows = await getDb().select().from(policies);
     expect(rows.map((p) => p.product).sort()).toEqual(["car", "home"]);
     expect(rows.every((p) => p.bundleId === bundleRows[0]!.id)).toBe(true);
     expect(new Set(rows.map((p) => p.reference)).size).toBe(2);
     // One payment covers the quote; one audit row per policy; one email
     expect(await rowCounts()).toMatchObject({ payments: 1, audit: 2, jobs: 1 });
+  });
+
+  it("gives each policy its premium after its share of the saving, from one start date (5.7b)", async () => {
+    const { actor, quoteId } = await savedBundle();
+    expect((await buy(actor, quoteId)).status).toBe("bought");
+
+    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
+    expect(quote!.bundleDiscountPence).toBeGreaterThan(0);
+    const rows = await getDb().select().from(policies);
+    expect(rows.reduce((sum, p) => sum + p.annualPremiumPence, 0)).toBe(
+      quote!.subtotalPence - quote!.bundleDiscountPence,
+    );
+    expect(new Set(rows.map((p) => p.startsOn)).size).toBe(1);
+    const paid = await getDb().select().from(payments);
+    expect(paid.reduce((sum, p) => sum + p.amountPence, 0)).toBe(quote!.totalPence);
+  });
+
+  it("schedules one monthly plan for the combined total (5.7b)", async () => {
+    const { actor, quoteId } = await savedBundle();
+    expect((await buy(actor, quoteId, { plan: "monthly" })).status).toBe("bought");
+    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
+    const paid = await getDb().select().from(payments);
+    expect(paid).toHaveLength(12);
+    expect(paid[0]!.amountPence).toBe(monthlyPayment(quote!.totalPence, 0.1));
+  });
+
+  it("names the car and the home in the email (5.7b)", async () => {
+    const { actor, quoteId } = await savedBundle();
+    expect((await buy(actor, quoteId)).status).toBe("bought");
+    const [job] = await getDb().select().from(jobs);
+    const params = (job!.payload as { params: Record<string, string> }).params;
+    expect(params.car).toContain("Volkswagen Golf");
+    expect(params.home).toBe("18 Albion Road, LS6 2AB");
+  });
+});
+
+describe("monthlyPaymentFor (5.7b)", () => {
+  it("refuses items whose versions have different monthly rates", async () => {
+    // Home v2 with another credit charge, not yet in force, so the active versions don't move
+    const homeV1 = RATING_SOURCES.find((src) => src.product === "home")!;
+    const v2 = {
+      ...structuredClone(homeV1),
+      version: 2,
+      effectiveFrom: "2099-01-01",
+      notes: "test v2",
+      parameters: { ...homeV1.parameters, monthly_credit_charge_rate: 0.12 },
+    };
+    clearReferenceCaches();
+    await upsertReferenceData(getOwnerDb(), {
+      rating: [...structuredClone(RATING_SOURCES), v2],
+      catalogue: structuredClone(CATALOGUE_SOURCES),
+    });
+    const [homeV2] = await getDb()
+      .select({ id: ratingVersions.id })
+      .from(ratingVersions)
+      .where(and(eq(ratingVersions.product, "home"), eq(ratingVersions.version, 2)));
+    const car = (await getActiveRatingTables("car")).id;
+
+    await expect(monthlyPaymentFor(getDb(), [car, homeV2!.id], 100_000)).rejects.toThrow(
+      /monthly_credit_charge_rate differs/,
+    );
+    expect(await monthlyPaymentFor(getDb(), [car], 120_000)).toBe(monthlyPayment(120_000, 0.1));
   });
 });
 

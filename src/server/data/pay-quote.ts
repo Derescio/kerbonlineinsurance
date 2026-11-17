@@ -3,6 +3,7 @@ import { randomInt } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 
 import { monthlyPayment } from "#/features/rating/money";
+import { splitBundleDiscount } from "#/features/rating/price-quote";
 import { Tables } from "#/features/rating/tables";
 import type { Db } from "#/server/db/client";
 import {
@@ -14,6 +15,7 @@ import {
   quotes,
   users,
 } from "#/server/db/schema";
+import type { Product } from "#/server/db/schema/values";
 import { withSavepoint, type Tx } from "#/server/db/tx";
 
 import { getRatingTables } from "./reference";
@@ -26,16 +28,24 @@ const REFERENCE_TRIES = 5;
 const UNIQUE_VIOLATION = "23505";
 
 /**
- * The monthly payment the customer sees: the total with the credit charge of the item's own
- * rating version, never the active one, so a quote saved under v1 keeps v1's charge.
+ * The monthly payment the customer sees: the total with the credit charge of the items' own
+ * rating versions, never the active one, so a quote saved under v1 keeps v1's charge. A bundle is
+ * one subscription, so its versions must agree (5.7b, decision 7).
  */
 export async function monthlyPaymentFor(
   db: Db | Tx,
-  ratingVersionId: string,
+  ratingVersionIds: readonly string[],
   totalPence: number,
 ): Promise<number> {
-  const tables = await getRatingTables(db, ratingVersionId);
-  return monthlyPayment(totalPence, new Tables(tables).param("monthly_credit_charge_rate"));
+  const rates = await Promise.all(
+    ratingVersionIds.map(async (id) =>
+      new Tables(await getRatingTables(db, id)).param("monthly_credit_charge_rate"),
+    ),
+  );
+  if (new Set(rates).size > 1) {
+    throw new Error("monthlyPaymentFor: monthly_credit_charge_rate differs between items");
+  }
+  return monthlyPayment(totalPence, rates[0]!);
 }
 
 /**
@@ -97,14 +107,18 @@ export interface PurchaseItem {
   voluntaryExcessPence: number;
   coverLevel: string;
   compulsoryExcessPence: number;
-  /** The selected option plus the selected add-ons, before IPT */
+  /** The selected option plus the selected add-ons, after its share of a bundle's saving, before IPT */
   annualPremiumPence: number;
   car: { make: string; model: string; variant: string; registration: string | null } | null;
   /** The insured address's first line, for a home item (5.7) */
-  home: { addressLine1: string } | null;
+  home: { addressLine1: string; postcode: string } | null;
 }
 
-/** The quote's items with a selected option, in the order they were saved */
+/**
+ * The quote's items with a selected option, in the order they were saved. In a bundle each item's
+ * premium is after its share of the saving, split as priceQuote split it, so the policies add up
+ * to what was charged before IPT (5.7b, decision 6).
+ */
 export async function purchaseItems(tx: Tx, quoteId: string): Promise<PurchaseItem[]> {
   const rows = await tx.query.quoteItems.findMany({
     columns: { id: true, product: true, ratingVersionId: true, voluntaryExcessPence: true },
@@ -116,25 +130,35 @@ export async function purchaseItems(tx: Tx, quoteId: string): Promise<PurchaseIt
       },
       addons: { columns: { annualPricePence: true, selected: true } },
       vehicle: { columns: { make: true, model: true, variant: true, registration: true } },
-      property: { columns: { addressLine1: true } },
+      property: { columns: { addressLine1: true, postcode: true } },
     },
   });
-  return rows.flatMap(({ selectedOption: option, addons, vehicle, property, ...item }) =>
-    option
-      ? [
-          {
-            ...item,
-            coverLevel: option.coverLevel,
-            compulsoryExcessPence: option.compulsoryExcessPence,
-            annualPremiumPence:
-              option.annualPremiumPence +
-              addons.filter((a) => a.selected).reduce((sum, a) => sum + a.annualPricePence, 0),
-            car: vehicle ?? null,
-            home: property ?? null,
-          },
-        ]
-      : [],
+  const priced = rows.flatMap((row) =>
+    row.selectedOption ? [{ ...row, option: row.selectedOption }] : [],
   );
+  const shares =
+    priced.length > 1
+      ? splitBundleDiscount(
+          priced.map((r) => ({
+            product: r.product as Product,
+            premiumPence: r.option.annualPremiumPence,
+          })),
+          new Tables(await getRatingTables(tx, priced[0]!.ratingVersionId)).param(
+            "bundle_discount_rate",
+          ),
+        )
+      : new Map<string, number>();
+  return priced.map(({ selectedOption: _option, option, addons, vehicle, property, ...item }) => ({
+    ...item,
+    coverLevel: option.coverLevel,
+    compulsoryExcessPence: option.compulsoryExcessPence,
+    annualPremiumPence:
+      option.annualPremiumPence -
+      (shares.get(item.product) ?? 0) +
+      addons.filter((a) => a.selected).reduce((sum, a) => sum + a.annualPricePence, 0),
+    car: vehicle ?? null,
+    home: property ?? null,
+  }));
 }
 
 export async function insertBundle(tx: Tx, customerId: string, quoteId: string): Promise<string> {

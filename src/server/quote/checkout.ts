@@ -159,7 +159,11 @@ async function start(
       const { customer, quote, items } = checked;
       const amountPence =
         input.plan === "monthly"
-          ? await monthlyPaymentFor(tx, items[0]!.ratingVersionId, quote.totalPence)
+          ? await monthlyPaymentFor(
+              tx,
+              items.map((i) => i.ratingVersionId),
+              quote.totalPence,
+            )
           : quote.totalPence;
 
       // 2 to 4. The Stripe customer, the previous session expired, the new session

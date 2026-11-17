@@ -46,6 +46,7 @@ export const EMAIL_TEMPLATES = {
       name: z.string(),
       policyReference: z.string(),
       car: z.string(),
+      home: z.string().optional(),
       startsOn: z.string(),
       endsOn: z.string(),
       amount: z.string(),
