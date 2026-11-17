@@ -32,10 +32,15 @@ Car and home bought together, as a bundle with the 8% saving:
    - **With a valid postcode,** it starts the home journey with that postcode (`beginJourney("home", …)`), sets the mark and goes to `/quote/home?postcode=…`. With an invalid one it shows 5.1's postcode error, as now.
    - **When the home answers are already complete** (the visitor came from home, decision 3), it goes straight to `step=cover`. Otherwise it goes to the first home step that isn't finished, as the home tabs' rules decide.
    - **The holding line goes.** "Continue with car only" and "Back to car quote" don't change.
+   - **A home quote already in the tab** (Damion's preview check, 17 Nov 2026): when the tab holds a finished home quote that prices as quoted, screen 21's home card reads "Your home quote is ready", with the address and its cover, and "See both together" in place of the postcode field and "Add home insurance". It marks the bundle and goes to home's Choose cover with the panel.
 3. **From home: the middle option** (Damion, 16 Nov 2026).
    - **Home's Choose cover, not in a bundle,** shows a line under the extras: "Insure your car with us too and save 8% on both." with "Add car insurance". The 8% is the version's `bundle_discount_rate`.
    - **"Add car insurance"** sets the mark, starts the car journey with the home postcode and goes to `/quote/car?postcode=…`. The car steps run as they do now, through car's Choose cover to screen 21, where decision 2 takes them straight to home's Choose cover with the bundle panel.
-   - **Car's About you and home's About you ask the same person's name and date of birth.** Whichever is answered second starts filled in from the first *(my call)*. The visitor can still change it (decision 6 checks they match).
+   - **What carries across** (Damion, 17 Nov 2026: "if someone is doing a bundle and they fill out the details in car then all those details should persist and vice versa"):
+     - **Name and date of birth:** whichever About you is answered second starts filled in from the first. The visitor can still change it (decision 6 checks they match).
+     - **The address:** car's About you starts with the home's address (line 1, line 2, town). Home's Property starts with the car's address, as a typed-in address the visitor can change or swap for one from the list.
+     - **Home's About you is skipped** when the home steps start from screen 21: its name and date of birth are written from car's main driver, so the home steps open at Property. A driver under 18 still sees home's About you, with its error.
+     - **Employment status and occupation stay car's own questions.** The car price reads the occupation (its band), and status is how the form chooses it. The home price uses neither, so home never asks them.
 4. **Home's Choose cover in a bundle: screen 22's side panel** (`230:1449`, in 5.4b's frame).
    - **The panel:** "Your car quote is still saved" becomes "Your car quote" *(my call: nothing is saved yet, as 5.5 decided for screen 21)*, then the car (plate or make and model) and its tier, then "Car" and "Home" lines with each item's price after its share of the discount, then the saving ("Bundle saving −£X"), then "Together: £X a year" with "Or 12 combined payments of £Y".
    - **The saving is shown, not "no bundle discount"** as drawn (5.5, decision 11).
