@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   beginJourney,
+  clearBundle,
   DEFAULT_COVER,
   journeyKey,
+  markBundle,
   markStartRecorded,
   readJourney,
   savedQuoteKey,
@@ -478,5 +480,32 @@ describe("a new postcode from the link (5.7, final review)", () => {
     const storage = memoryStorage();
     storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
     expect(beginJourney("home", "E8 3RL", now, storage).property?.address?.picked).toBe(true);
+  });
+});
+
+describe("the bundle mark (5.7b, decision 1)", () => {
+  it("is set on the home journey and removed again", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    markBundle("c1", storage);
+    expect(readJourney("home", storage)?.bundle).toEqual({ carJourneyId: "c1" });
+    clearBundle(storage);
+    expect(readJourney("home", storage)?.bundle).toBeUndefined();
+  });
+
+  it("drops a mark that doesn't parse, and keeps the rest of the home journey", () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      journeyKey("home"),
+      JSON.stringify({ ...completeHomeJourney(), bundle: { carJourneyId: 3 } }),
+    );
+    const read = readJourney("home", storage);
+    expect(read?.bundle).toBeUndefined();
+    expect(read?.property).toEqual(completeHomeJourney().property);
+  });
+
+  it("doesn't change the saved quote's key", () => {
+    const home = completeHomeJourney();
+    expect(savedQuoteKey({ ...home, bundle: { carJourneyId: "c1" } })).toBe(savedQuoteKey(home));
   });
 });
