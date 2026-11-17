@@ -58,6 +58,7 @@ async function showAccount() {
               startsOn: "2026-11-20",
               endsOn: "2027-11-19",
               monthly: true,
+              bundle: null,
             },
           ]}
         />

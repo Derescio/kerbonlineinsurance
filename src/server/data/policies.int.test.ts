@@ -1,9 +1,11 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { resolveActor } from "#/server/auth/actor";
 import { closeDb, getDb } from "#/server/db/client";
+import { bundles, quotes } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
-import { makeCustomer, makePayment, makePolicy, makeUser } from "#/test/factories";
+import { makeCustomer, makePayment, makePolicy, makeQuote, makeUser } from "#/test/factories";
 
 import { listMyPolicies } from "./policies";
 
@@ -69,5 +71,40 @@ describe("listMyPolicies: monthly", () => {
     expect(await listMyPolicies(actor, {})).toEqual([
       expect.objectContaining({ id: mine.id, monthly: false }),
     ]);
+  });
+});
+
+describe("listMyPolicies: a bundle (5.7b, Damion's preview check)", () => {
+  it("names each bundled policy's bundle and the saving its quote gave", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const { quote, items } = await makeQuote({
+      customerId: customer.id,
+      products: ["car", "home"],
+    });
+    await getDb()
+      .update(quotes)
+      .set({ bundleDiscountPence: 15_856, totalPence: quote.totalPence - 15_856 })
+      .where(eq(quotes.id, quote.id));
+    const [bundle] = await getDb()
+      .insert(bundles)
+      .values({ customerId: customer.id, quoteId: quote.id })
+      .returning();
+    for (const { item } of items) {
+      await makePolicy({
+        customerId: customer.id,
+        quoteId: quote.id,
+        quoteItemId: item.id,
+        product: item.product,
+        bundleId: bundle!.id,
+      });
+    }
+    const single = await makePolicy({ customerId: customer.id });
+
+    const listed = await listMyPolicies(actor, {});
+    const bundled = listed.filter((p) => p.bundle);
+    expect(bundled.map((p) => p.product).sort()).toEqual(["car", "home"]);
+    expect(bundled.every((p) => p.bundle?.id === bundle!.id)).toBe(true);
+    expect(bundled[0]!.bundle?.savingPence).toBe(15_856);
+    expect(listed.find((p) => p.id === single.id)?.bundle).toBeNull();
   });
 });
