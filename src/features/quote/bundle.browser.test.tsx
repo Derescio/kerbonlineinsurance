@@ -237,3 +237,16 @@ describe("the panel's edge cases (checkpoint 2)", () => {
       .toHaveTextContent("We’re unable to offer home cover");
   });
 });
+
+describe("home's Property starts with the car's address (5.7b, decision 3)", () => {
+  it("fills the address in as typed, from car's About you", async () => {
+    sessionStorage.setItem(journeyKey("car"), JSON.stringify(completeJourney()));
+    const { property: _p, contents: _c, homeClaims: _h, ...about } = completeHomeJourney();
+    sessionStorage.setItem(journeyKey("home"), JSON.stringify(about));
+    await withQuery(<Harness initial="property" />);
+    await expect
+      .element(page.getByRole("textbox", { name: "Address line 1" }))
+      .toHaveValue("18 Albion Road");
+    await expect.element(page.getByRole("textbox", { name: "Town or city" })).toHaveValue("London");
+  });
+});

@@ -6,12 +6,12 @@ import { completeCarJourney, withCompleteJourney } from "./quote-journey";
 import { payWithTestCard } from "./stripe";
 
 // Buying car and home together (5.7b). Car first: the car journey (seeded, as buy.spec.ts does) →
-// Choose cover → "Add home insurance" → the four home steps, About you already filled in from the
-// car → home's Choose cover with the bundle panel → the gate, where a guest creates an account (the
+// Choose cover → "Add home insurance" → the home steps from Property (About you and the address come
+// from the car) → home's Choose cover with the bundle panel → the gate, where a guest creates an account (the
 // sign-up saves the bundle) → confirm the email → log in → Your saved quotes → Confirm and pay → one
 // Stripe payment → You're covered with both policies → both on /account. Home first: home's Choose
-// cover → "Add car insurance" → the car journey keeps the home → "Add home insurance" lands on
-// home's Choose cover with the panel. At phone width. Like buy.spec.ts it needs E2E_DATABASE_URL
+// cover → "Add car insurance" → the car journey keeps the home → screen 21's "See both together"
+// lands on home's Choose cover with the panel. At phone width. Like buy.spec.ts it needs E2E_DATABASE_URL
 // and a Stripe test publishable key, and skips without either.
 
 const STRIPE_KEY = process.env.VITE_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
@@ -24,9 +24,12 @@ const heading = (page: Page, name: string) => page.getByRole("heading", { level:
 /** The home steps after About you, with the answers home-buy.spec.ts gives */
 async function answerHome(page: Page) {
   await expect(heading(page, "Tell us about your property")).toBeVisible();
-  const addressList = page.getByLabel("Select your address");
-  await expect(addressList.locator("option")).not.toHaveCount(1);
-  await addressList.selectOption({ index: 1 });
+  // A typed-in address carried from the car is kept; otherwise the first demo address
+  if (await page.getByLabel("Select your address").isVisible()) {
+    const addressList = page.getByLabel("Select your address");
+    await expect(addressList.locator("option")).not.toHaveCount(1);
+    await addressList.selectOption({ index: 1 });
+  }
   await page.getByLabel("Property type").selectOption({ label: "Terraced house" });
   await page.getByLabel("Year built").fill("1985");
   await page.getByLabel("Bedrooms").selectOption("3");
@@ -76,12 +79,10 @@ test("a guest adds home to a car quote, pays once for both, and finds both polic
   await expect(heading(page, "Add home insurance to your car quote?")).toBeVisible();
   await page.getByRole("button", { name: "Add home insurance" }).click();
 
-  // 2. Home's About you, filled in from the car's main driver
-  await expect(page).toHaveURL(/\/quote\/home\?/);
-  await expect(heading(page, "Tell us about you")).toBeVisible();
-  await expect(page.getByLabel("First name")).toHaveValue("Alex");
-  await expect(page.getByLabel("Last name")).toHaveValue("Morgan");
-  await page.getByRole("button", { name: "Continue to property" }).click();
+  // 2. Home's About you is the car's main driver, so the home steps open at Property, with the
+  //    car's address typed in (Damion's preview check, 17 Nov 2026)
+  await expect(page).toHaveURL(/\/quote\/home\?.*step=property/);
+  await expect(page.getByLabel("Address line 1")).toHaveValue("18 Albion Road");
   await answerHome(page);
 
   // 3. Your quote → home's Choose cover with the car beside it
@@ -192,7 +193,9 @@ test("a home quote adds car, and the car journey comes back to the bundle", asyn
   await page
     .getByRole("button", { name: /^Continue with (Essential|Comprehensive|Plus)$/ })
     .click();
-  await page.getByRole("button", { name: "Add home insurance" }).click();
+  // Screen 21 knows the home quote is waiting
+  await expect(page.getByText("Your home quote is ready")).toBeVisible();
+  await page.getByRole("button", { name: "See both together" }).click();
 
   // 3. Straight to home's Choose cover, with the panel
   await expect(page).toHaveURL(/\/quote\/home\?.*step=cover/);

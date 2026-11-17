@@ -5,9 +5,15 @@ import { Input } from "#/components/forms/Input";
 import { Select } from "#/components/forms/Select";
 import { fieldErrors, focusFirstError } from "#/lib/validation";
 
+import { prefillAddress } from "./bundle";
 import type { DemoAddress } from "./demo-addresses";
 import { storedHomeAnswers, storedHomeErrors } from "./home-steps";
-import { setHomePostcode, setHomeStepAnswers, type StoredProperty } from "./journey-store";
+import {
+  readJourney,
+  setHomePostcode,
+  setHomeStepAnswers,
+  type StoredProperty,
+} from "./journey-store";
 import { JourneyPage } from "./page-kit";
 import { normalisePostcode, postcodeError } from "./postcode";
 import { propertySchema, propertyTypeOptions } from "./schemas/home-steps";
@@ -62,10 +68,18 @@ export function PropertyStep({
   const [postcodeMessage, setPostcodeMessage] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<DemoAddress[]>([]);
   const [listedFor, setListedFor] = useState(journey.postcode);
-  const [address, setAddress] = useState<Address | null>(() =>
-    stored?.address ? { ...blankAddress, ...stored.address } : null,
+  // With no address of its own, it starts from the car's, typed in (5.7b, decision 3)
+  const [shared] = useState(() =>
+    stored?.address ? undefined : prefillAddress(readJourney("car")),
   );
-  const [manual, setManual] = useState(() => stored?.address?.picked === false);
+  const [address, setAddress] = useState<Address | null>(() =>
+    stored?.address
+      ? { ...blankAddress, ...stored.address }
+      : shared
+        ? { ...blankAddress, ...shared, line2: shared.line2 ?? "", picked: false }
+        : null,
+  );
+  const [manual, setManual] = useState(() => stored?.address?.picked === false || Boolean(shared));
   const [form, setForm] = useState(() => ({
     propertyType: stored?.propertyType ?? "",
     yearBuilt: numberText(stored?.yearBuilt),

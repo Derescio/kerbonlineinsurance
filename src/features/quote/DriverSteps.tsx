@@ -13,6 +13,7 @@ import {
   markBundle,
   readJourney,
   setCover,
+  setHomeStepAnswers,
   setStepAnswers,
   setVehicle,
   type CoverChoice,
@@ -275,8 +276,18 @@ export function DriverSteps({
             // Bundled with this car; a home already answered goes straight to Choose cover. The
             // car's cover is kept in the tab: Continue with nothing changed doesn't write it
             setCover("car", readJourney("car")?.cover ?? DEFAULT_COVER);
-            const home = beginJourney("home", postcode);
+            beginJourney("home", postcode);
             markBundle(journey.journeyId);
+            // Home's About you is car's main driver: the home steps open at Property (decision 3)
+            const main = readJourney("car")?.mainDriver;
+            if (!readJourney("home")?.homeAbout && main) {
+              setHomeStepAnswers("about", {
+                firstName: main.firstName,
+                lastName: main.lastName,
+                dateOfBirth: main.dateOfBirth,
+              });
+            }
+            const home = readJourney("home");
             const first = firstIncompleteHomeStep(home, today);
             onOtherProduct?.({ product: "home", postcode, step: first ?? "cover" });
           }}

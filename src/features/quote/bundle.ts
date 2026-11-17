@@ -64,6 +64,25 @@ export function prefillAbout(from: Journey | null): Person | undefined {
   };
 }
 
+export interface SharedAddress {
+  line1: string;
+  line2?: string;
+  town: string;
+}
+
+/**
+ * The other product's address, to start an empty one from (decision 3; Damion, 17 Nov 2026):
+ * car's About you address, or the home's insured address
+ */
+export function prefillAddress(from: Journey | null): SharedAddress | undefined {
+  const main = from?.mainDriver;
+  if (main?.addressLine1) {
+    return { line1: main.addressLine1, line2: main.addressLine2, town: main.town };
+  }
+  const home = from?.property?.address;
+  return home ? { line1: home.line1, line2: home.line2, town: home.town } : undefined;
+}
+
 const name = (s: string) => s.trim().toLowerCase();
 
 /** One policyholder per bundle (decision 6): names trimmed and case-blind, dates exactly */

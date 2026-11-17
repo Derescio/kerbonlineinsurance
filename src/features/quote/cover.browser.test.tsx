@@ -286,9 +286,15 @@ describe("Add home insurance (screen 21)", () => {
     expect(others).toEqual([]);
     await field.fill("n1 9gu");
     await page.getByRole("button", { name: "Add home insurance" }).click();
-    expect(others).toEqual([{ product: "home", postcode: "N1 9GU", step: "about" }]);
+    // Home's About you comes from the car's main driver, so the home steps open at Property
+    expect(others).toEqual([{ product: "home", postcode: "N1 9GU", step: "property" }]);
     const home = readJourney("home");
     expect(home?.postcode).toBe("N1 9GU");
+    expect(home?.homeAbout).toEqual({
+      firstName: "Alex",
+      lastName: "Morgan",
+      dateOfBirth: "1991-05-12",
+    });
     expect(home?.bundle).toEqual({ carJourneyId: readJourney("car")!.journeyId });
     expect(page.getByText("Home quotes are coming soon").elements()).toHaveLength(0);
   });
@@ -303,11 +309,15 @@ describe("Add home insurance (screen 21)", () => {
     expect(bundleLive(readJourney("car"), readJourney("home"))).toBe(true);
   });
 
-  it("goes straight to home's Choose cover when the home answers are done (5.7b)", async () => {
+  it("shows a home quote already in the tab, and goes on to see both together (5.7b)", async () => {
     sessionStorage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
     await show("add-home");
-    await page.getByRole("button", { name: "Add home insurance" }).click();
+    await expect.element(page.getByText("Your home quote is ready")).toBeVisible();
+    await expect.element(page.getByText("18 Albion Road, Hackney")).toBeVisible();
+    expect(page.getByRole("textbox", { name: "Home postcode" }).elements()).toHaveLength(0);
+    await page.getByRole("button", { name: "See both together" }).click();
     expect(others).toEqual([{ product: "home", postcode: "E8 3RL", step: "cover" }]);
+    expect(readJourney("home")?.bundle).toEqual({ carJourneyId: readJourney("car")!.journeyId });
   });
 
   it("goes back to Choose cover", async () => {
@@ -448,5 +458,12 @@ describe("About you filled in from the other product (5.7b, decision 3)", () => 
     await withQuery(<Harness initial="about" />);
     await expect.element(page.getByRole("textbox", { name: "First name" })).toHaveValue("Priya");
     await expect.element(page.getByRole("textbox", { name: "Last name" })).toHaveValue("Shah");
+    // The home's address too (Damion's preview check, 17 Nov 2026)
+    await expect
+      .element(page.getByRole("textbox", { name: "Address line 1" }))
+      .toHaveValue("18 Albion Road");
+    await expect
+      .element(page.getByRole("textbox", { name: "Town or city" }))
+      .toHaveValue("Hackney");
   });
 });
