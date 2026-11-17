@@ -121,6 +121,7 @@ Car and home bought together, as a bundle with the 8% saving:
 
 - **Found by the E2E:** pressing Continue on car's Choose cover without changing anything never stored the car's cover, so the bundle wasn't live on the home side. "Add home insurance" now stores it.
 - **Checkpoint fixes:** in a bundle, home's Choose cover stores the car's payment choice on the home straight away, so the gate and Pay agree with the panel. The panel says "Your car quote needs another look before it can be bought." when the car stops being quoted, instead of waiting for ever.
+- **Final review fixes:** once the car is priced and isn't quoted (or can't be priced), the bundle is off and home runs alone, so screen 04 never waits on a car that won't come. The gate's "Your cover is waiting" shows both together at the bundle's price, as screen 22 did.
 - **The mismatch message** shows on the gate with "Check your details", which goes back to About you. About you has no place for a message from the server.
 - **Screen 04 waits** for the car's own price ("Working out your price…") rather than flash home-alone's declined screen.
 - **You're covered** clears the car by the home's mark: the bundle is saved on the home's journey only.
@@ -131,6 +132,8 @@ Car and home bought together, as a bundle with the 8% saving:
   - the car-side "Continue with car only" keeps the mark (harmless: paying the car clears its journey);
   - the bundle gate's overline still reads "Home insurance / Buy";
   - "Back to car quote" is a button that navigates.
+  - Confirm and pay's bundle summary shows each item's cover and excess, but not each item's price;
+  - a car withdrawn from the catalogue mid-bundle goes back to the car step without the "no longer available" note car alone gives.
 
 ## Commit message
 
