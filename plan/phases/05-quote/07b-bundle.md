@@ -74,7 +74,7 @@ Car and home bought together, as a bundle with the 8% saving:
 8. **After paying.**
    - **You're covered** lists both policies, each with its reference, product, tier and cover dates, then the total paid or the monthly payment.
    - **Your saved quotes** shows a bundle as one card: both items, "Car + home", the combined total and both policy references once it's bought. A bundle's quote holds both (`quotes.ts`, "5.7b's bundle shows both").
-   - **`/account`** already lists each policy. Nothing changes there.
+   - **`/account`** lists a bundle's policies together (Damion's preview check, 17 Nov 2026): a tinted block headed "Car + home bundle" with a car and a house icon and "You save £X a year" (the quote's own saving), and a "Bundle" tag on each policy. Single policies show as before.
    - **Leaving the tab:** after buying, both journeys are cleared from the tab, as a single purchase clears its own.
 
 ## In scope
@@ -116,8 +116,8 @@ Car and home bought together, as a bundle with the 8% saving:
 
 ## Done when
 
-- [ ] A bundle can be bought end to end on the preview with Stripe's test card, both policies show on `/account`, and Stripe's dashboard has one payment for the combined total (Damion's manual check).
-- [ ] Starting at home and adding car reaches the bundle panel without re-answering home (Damion's manual check).
+- [x] A bundle can be bought end to end on the preview with Stripe's test card, both policies show on `/account`, and Stripe's dashboard has one payment for the combined total (Damion's manual check, 17 Nov 2026: £1,157.46 and £2,103.92, one payment each).
+- [x] Starting at home and adding car reaches the bundle panel without re-answering home (Damion's manual check, 17 Nov 2026, after the screen 21 fix).
 - [x] A home declined in a bundle shows screen 04, and the car can be bought alone at its own price (`bundle.browser.test.tsx`, "home declined: screen 04").
 - [x] Car's and home's journeys on their own, and their tests, are unchanged. The only edits to their tests follow the reshaped types (`items`, `policyReferences`) and the holding lines that 5.7b replaces.
 - [ ] `vp check`, `vp test`, the integration tests and the bundle E2E pass in CI.
@@ -126,6 +126,8 @@ Car and home bought together, as a bundle with the 8% saving:
 
 - **Car first: bought.** A Ford Fiesta (FD69 KQB, Comprehensive, £250 voluntary excess) with 9 Rosebery Gardens, Hackney (Comprehensive), paid in full with Stripe's `4242…`. You're covered showed both policies (KRB-840887 and KRB-152544) under one bundle, both starting 18 Nov 2026. The policies' premiums, £694.59 and £338.86, plus 12% IPT on each, come to the £1,157.46 paid.
 - **Home first: screen 21 didn't know about the home.** After the car steps, screen 21 still asked for a home postcode. Fixed in this PR: screen 21 shows "Your home quote is ready" with "See both together" (decision 2).
+- **Home first: bought.** A Tesla Model 3 (TS24 EIV, Comprehensive) with 9 Rosebery Gardens (Plus, family legal protection), paid in full: £2,103.92, which was screen 22's "Together" figure. Stripe's dashboard has one payment for each bundle.
+- **Bundles on `/account` didn't stand out.** Fixed in this PR (decision 8).
 - **Answers typed twice.** The car's About you asked for the address again. Fixed in this PR: the address carries across both ways, and home's About you comes from the car (decision 3). Employment status stays a car question, because the car price reads the occupation.
 
 ## Notes from the build
