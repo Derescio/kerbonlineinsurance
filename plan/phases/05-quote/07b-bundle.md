@@ -1,6 +1,6 @@
 # 5.7b Car + home bundle
 
-**Status:** done (spec approved by Damion, 16 Nov 2026)
+**Status:** done (#99; spec approved by Damion, 16 Nov 2026)
 **Phase:** 05-quote
 
 ## Goal
