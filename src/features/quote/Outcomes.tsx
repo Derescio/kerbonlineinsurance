@@ -7,7 +7,7 @@ import { Card } from "#/components/display/Card";
 import { formatPounds } from "#/features/rating/money";
 
 import type { Journey } from "./journey-store";
-import { HoldingButton, JourneyPage } from "./page-kit";
+import { JourneyPage } from "./page-kit";
 import { StepHeading } from "./step-kit";
 
 // The referred and declined screens (5.5, decisions 9, 10 and 12), adapted to 5.4b's frame:
@@ -75,6 +75,7 @@ export function CarReferred({
   signedIn = false,
   onCheckAnswers,
   onSendForReview,
+  onContinueHome,
 }: {
   journey: Journey;
   aside: ReactNode;
@@ -83,6 +84,8 @@ export function CarReferred({
   onCheckAnswers: () => void;
   /** The gate and the save, then Your saved quotes (5.6, decision 11) */
   onSendForReview: () => void;
+  /** A home quote is waiting in the tab: buy it on its own (5.7b, decision 5) */
+  onContinueHome?: () => void;
 }) {
   return (
     <JourneyPage
@@ -121,6 +124,11 @@ export function CarReferred({
         <Button variant="secondary" onClick={onCheckAnswers}>
           Check your answers
         </Button>
+        {onContinueHome ? (
+          <Button variant="secondary" onClick={onContinueHome}>
+            Continue with home only
+          </Button>
+        ) : null}
       </div>
     </JourneyPage>
   );
@@ -128,7 +136,7 @@ export function CarReferred({
 
 /**
  * Screen 20: no car cover (decision 10). On the car journey the second card offers a home quote;
- * given a home quote (5.7's bundle) it's the home half as drawn.
+ * given the home quote waiting in the tab (5.7b) it's the home half as drawn.
  */
 export function CarDeclined({
   journey,
@@ -136,12 +144,15 @@ export function CarDeclined({
   home,
   onCheckAnswers,
   onContinueHome,
+  onGetHome,
 }: {
   journey: Journey;
   aside: ReactNode;
   home?: HomeSummary;
   onCheckAnswers: () => void;
   onContinueHome?: () => void;
+  /** "Get a home quote": a home quote of its own (5.7b, decision 5) */
+  onGetHome?: () => void;
 }) {
   return (
     <JourneyPage
@@ -202,9 +213,9 @@ export function CarDeclined({
             Insure your home with us instead?
           </h2>
           <p>Car and home are separate policies, so a home quote is assessed on its own.</p>
-          <HoldingButton variant="accent" line="Home quotes are coming soon">
+          <Button variant="accent" onClick={onGetHome}>
             Get a home quote
-          </HoldingButton>
+          </Button>
         </Card>
       )}
     </JourneyPage>

@@ -5,7 +5,8 @@ import { fieldErrors, focusFirstError } from "#/lib/validation";
 
 import { DateField, isoOf, partsOf, type DateParts } from "./DateField";
 import { storedHomeAnswers, storedHomeErrors } from "./home-steps";
-import { setHomeStepAnswers } from "./journey-store";
+import { prefillAbout } from "./bundle";
+import { readJourney, setHomeStepAnswers } from "./journey-store";
 import { JourneyPage } from "./page-kit";
 import { homeAboutSchema, type HomeAbout } from "./schemas/home-steps";
 import { StepActions, StepHeading, type Errors, type StepProps } from "./step-kit";
@@ -28,7 +29,10 @@ export function HomeAboutStep({
   tabs,
   aside,
 }: StepProps) {
-  const stored = storedHomeAnswers(journey, "about") as HomeAbout | undefined;
+  // Empty, it starts from car's main driver when a car quote is in the tab (5.7b, decision 3)
+  const stored =
+    (storedHomeAnswers(journey, "about") as HomeAbout | undefined) ??
+    prefillAbout(readJourney("car"));
   const [form, setForm] = useState<Form>(() => ({
     firstName: stored?.firstName ?? "",
     lastName: stored?.lastName ?? "",

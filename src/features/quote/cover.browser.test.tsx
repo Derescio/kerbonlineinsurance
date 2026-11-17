@@ -9,18 +9,19 @@ import type { CarPriceResult } from "#/server/quote/price";
 import type { CoverPrices } from "./cover";
 import { GOLF_PRICES } from "./cover-fixtures";
 import { DriverSteps } from "./DriverSteps";
-import { completeJourney } from "./journey-fixtures";
+import { completeHomeJourney, completeJourney } from "./journey-fixtures";
 import { journeyKey, readJourney, type Journey } from "./journey-store";
 import { CarDeclined, HomeDeclinedBundle, HomeReferred, type HomeSummary } from "./Outcomes";
 import type { QuoteStep } from "./search";
-import { priceCar } from "./server";
+import { priceCar, priceHome } from "./server";
 
 // Choose cover, the home offer and the bundle screens (5.5). The price is mocked at the
 // server-function boundary: the server's own tests price it, and check the browser composes the
 // same money as priceQuote().
 
-vi.mock("./server", () => ({ priceCar: vi.fn() }));
+vi.mock("./server", () => ({ priceCar: vi.fn(), priceHome: vi.fn() }));
 const price = vi.mocked(priceCar);
+const homePrice = vi.mocked(priceHome);
 // The gate (5.6) has its own tests, with a router and a session
 vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
 // Your quote asks whether someone is signed in (5.7): a guest here
@@ -41,8 +42,12 @@ function pricesAt(voluntaryExcessPence: number): CarPriceResult {
 }
 
 const moves: { step: QuoteStep | undefined; replace: boolean }[] = [];
+const others: { product: string; postcode: string; step?: string }[] = [];
 beforeEach(() => {
   moves.length = 0;
+  others.length = 0;
+  homePrice.mockReset();
+  homePrice.mockResolvedValue({ status: "quoted", ...GOLF_PRICES });
   sessionStorage.clear();
   price.mockReset();
   price.mockImplementation(async (options) =>
@@ -59,6 +64,7 @@ function Harness({ initial }: { initial: QuoteStep }) {
         moves.push({ step: next, replace: opts?.replace ?? false });
         setStep(next);
       }}
+      onOtherProduct={(to) => others.push(to)}
     />
   ) : (
     <p>car step</p>
@@ -270,15 +276,31 @@ describe("Add home insurance (screen 21)", () => {
     await expect.element(page.getByText(/saved/)).not.toBeInTheDocument();
   });
 
-  it("says home quotes are coming soon for a good postcode, and explains a bad one", async () => {
+  it("starts the home steps bundled with this car for a good postcode, and explains a bad one (5.7b)", async () => {
     await show("add-home");
     const field = page.getByRole("textbox", { name: "Home postcode" });
     await field.fill("E8");
     await page.getByRole("button", { name: "Add home insurance" }).click();
     await expect.element(field).toHaveAccessibleDescription(/Enter your full postcode/);
+    expect(others).toEqual([]);
     await field.fill("n1 9gu");
     await page.getByRole("button", { name: "Add home insurance" }).click();
-    await expect.element(page.getByText("Home quotes are coming soon")).toBeVisible();
+    expect(others).toEqual([{ product: "home", postcode: "N1 9GU", step: "about" }]);
+    const home = readJourney("home");
+    expect(home?.postcode).toBe("N1 9GU");
+    expect(home?.bundle).toEqual({ carJourneyId: readJourney("car")!.journeyId });
+    expect(page.getByText("Home quotes are coming soon").elements()).toHaveLength(0);
+  });
+
+  it("goes straight to home's Choose cover when the home answers are done (5.7b)", async () => {
+    sessionStorage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    await show("add-home");
+    await page.getByRole("button", { name: "Add home insurance" }).click();
+    expect(others).toEqual([{ product: "home", postcode: "E8 3RL", step: "cover" }]);
+  });
+
+  it("goes back to Choose cover", async () => {
+    await show("add-home");
     await page.getByRole("button", { name: "Back to car quote" }).click();
     expect(moves.at(-1)).toEqual({ step: "cover", replace: false });
   });
@@ -370,5 +392,50 @@ describe("the bundle screens, with sample home answers (screens 03, 04 and 20)",
     for (const word of ["premium_above_max", "threshold", "reason"]) {
       expect(text).not.toContain(word);
     }
+  });
+});
+
+describe("screen 20 on the car journey (5.7b, decision 5)", () => {
+  it("links to a home quote of its own when there's no home quote in the tab", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: null });
+    await show("quote");
+    await page.getByRole("button", { name: "Get a home quote" }).click();
+    expect(others).toEqual([{ product: "home", postcode: "E8 3RL" }]);
+    expect(readJourney("home")?.bundle).toBeUndefined();
+  });
+
+  it("offers the home quote waiting in the tab, home only", async () => {
+    price.mockResolvedValue({ status: "declined", namedDriver: null });
+    const car = completeJourney();
+    sessionStorage.setItem(
+      journeyKey("home"),
+      JSON.stringify({ ...completeHomeJourney(), bundle: { carJourneyId: car.journeyId } }),
+    );
+    await show("quote");
+    await expect.element(heading()).toHaveTextContent("Your home quote is still available");
+    await page.getByRole("button", { name: "Review home quote and continue" }).click();
+    expect(readJourney("home")?.bundle).toBeUndefined();
+    expect(others).toEqual([{ product: "home", postcode: "E8 3RL", step: "buy" }]);
+  });
+
+  it("offers home only beside a referred car when a home quote is waiting", async () => {
+    price.mockResolvedValue({ status: "referred", namedDriver: null });
+    sessionStorage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    await show("quote");
+    await page.getByRole("button", { name: "Continue with home only" }).click();
+    expect(others).toEqual([{ product: "home", postcode: "E8 3RL", step: "buy" }]);
+  });
+});
+
+describe("About you filled in from the other product (5.7b, decision 3)", () => {
+  it("starts car's About you with home's name and date of birth", async () => {
+    sessionStorage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    sessionStorage.setItem(
+      journeyKey("car"),
+      JSON.stringify({ ...completeJourney(), mainDriver: undefined, usage: undefined }),
+    );
+    await withQuery(<Harness initial="about" />);
+    await expect.element(page.getByRole("textbox", { name: "First name" })).toHaveValue("Priya");
+    await expect.element(page.getByRole("textbox", { name: "Last name" })).toHaveValue("Shah");
   });
 });

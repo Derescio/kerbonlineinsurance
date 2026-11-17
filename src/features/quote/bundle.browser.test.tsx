@@ -49,8 +49,8 @@ beforeEach(() => {
   homePrice.mockResolvedValue(HOME);
 });
 
-function Harness() {
-  const [step, setStep] = useState<HomeQuoteStep | undefined>("cover");
+function Harness({ initial = "cover" }: { initial?: HomeQuoteStep }) {
+  const [step, setStep] = useState<HomeQuoteStep | undefined>(initial);
   return step ? (
     <HomeSteps
       step={step}
@@ -156,5 +156,14 @@ describe("home's Choose cover on its own (5.7b, decision 3)", () => {
     await expect.element(page.getByRole("button", { name: "Add car insurance" })).toBeVisible();
     expect(panel().elements()).toHaveLength(0);
     await expect.element(page.getByRole("button", { name: /Continue with/ })).toBeVisible();
+  });
+});
+
+describe("home's About you filled in from car (5.7b, decision 3)", () => {
+  it("starts with car's main driver", async () => {
+    sessionStorage.setItem(journeyKey("car"), JSON.stringify(completeJourney()));
+    await withQuery(<Harness initial="about" />);
+    await expect.element(page.getByRole("textbox", { name: "First name" })).toHaveValue("Alex");
+    await expect.element(page.getByRole("textbox", { name: "Last name" })).toHaveValue("Morgan");
   });
 });

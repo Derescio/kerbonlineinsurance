@@ -16,8 +16,8 @@ import { StepHeading } from "./step-kit";
 
 // "Add home insurance to your car quote?" (5.5, decision 11; screen 21, 230:1434, in 5.4b's frame),
 // after Choose cover. The car quote is "kept", not "saved": it's saved at the gate (5.6), which
-// "Continue with car only" goes to. The footnote shows the bundle saving that v1 keeps. The home
-// journey arrives in 5.7.
+// "Continue with car only" goes to. The footnote shows the bundle saving that v1 keeps. "Add home
+// insurance" starts the home journey bundled with this car (5.7b, decision 2).
 
 const whole = (pence: number) => formatPounds(pence).replace(".00", "");
 
@@ -26,6 +26,7 @@ export function AddHome({
   aside,
   onBack,
   onCarOnly,
+  onAddHome,
   ...moves
 }: {
   journey: Journey;
@@ -34,11 +35,12 @@ export function AddHome({
   onBack: () => void;
   /** "Continue with car only": the gate (5.6, decision 2) */
   onCarOnly: () => void;
+  /** "Add home insurance" with a valid postcode (5.7b, decision 2) */
+  onAddHome: (postcode: string) => void;
 } & CoverMoves) {
   const { result } = useCoverPrice("car", journey, moves);
   const [postcode, setPostcode] = useState(journey.postcode);
   const [error, setError] = useState<string | null>(null);
-  const [asked, setAsked] = useState(false);
 
   const heading = (
     <StepHeading
@@ -70,7 +72,7 @@ export function AddHome({
   function addHome() {
     const valid = normalisePostcode(postcode);
     setError(valid ? null : postcodeError);
-    setAsked(valid !== null);
+    if (valid) onAddHome(valid);
   }
 
   return (
@@ -124,25 +126,15 @@ export function AddHome({
           error={error ?? undefined}
           value={postcode}
           autoComplete="postal-code"
-          onChange={(e) => {
-            setPostcode(e.target.value);
-            setAsked(false);
-          }}
+          onChange={(e) => setPostcode(e.target.value)}
         />
         <p>
           Next: confirm your property, contents and security, then past claims. We&rsquo;ll keep
           your car quote while you answer.
         </p>
-        <span className="quote-holding">
-          <Button variant="accent" onClick={addHome}>
-            Add home insurance
-          </Button>
-          {asked ? (
-            <span role="status" className="quote-holding__line">
-              Home quotes are coming soon
-            </span>
-          ) : null}
-        </span>
+        <Button variant="accent" onClick={addHome}>
+          Add home insurance
+        </Button>
       </Card>
 
       <p className="quote-addhome__note">
