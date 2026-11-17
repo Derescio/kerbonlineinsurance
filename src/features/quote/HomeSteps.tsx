@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { bundleLive } from "./bundle";
-import { useCarOnly } from "./ready-home";
+import { useBundleCar } from "./ready-home";
 import { BuyStep } from "./BuyGate";
 import { ChooseCover } from "./ChooseCover";
 import { ContentsStep } from "./ContentsStep";
@@ -149,9 +149,10 @@ export function HomeSteps({
     shown.current = view.step;
   }, [view]);
 
-  // Screen 04's car, priced only in a live bundle; a hook, so before the early return
+  // The bundle's car, priced only while the mark names it: off once it's priced and not quoted,
+  // and screen 04's car alone. A hook, so before the early return
   const liveCar = view ? readJourney("car") : null;
-  const carAlone = useCarOnly(
+  const bundleCar = useBundleCar(
     liveCar && view && bundleLive(liveCar, view.journey) ? liveCar : null,
   );
 
@@ -195,7 +196,7 @@ export function HomeSteps({
   // The bundle is on only while the mark names the tab's car journey (5.7b, decision 1)
   const car = readJourney("car");
   const bundle =
-    car && bundleLive(car, journey)
+    car && bundleLive(car, journey) && !bundleCar.off
       ? {
           car,
           onHomeOnly: () => {
@@ -297,7 +298,7 @@ export function HomeSteps({
           bundle={
             bundle
               ? {
-                  car: carAlone,
+                  car: bundleCar.carOnly,
                   onCarOnly: carOnly,
                   // A referred home goes for review on its own, out of the bundle
                   onSendForReview: () => {

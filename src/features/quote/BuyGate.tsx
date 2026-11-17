@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,6 +11,7 @@ import { SignUpForm } from "#/features/auth/SignUpForm";
 import { formatPounds } from "#/features/rating/money";
 import { useIdempotencyKey, writeOutcome } from "#/lib/writes";
 
+import { composeBundle } from "./bundle";
 import { useCoverPrice, type CoverMoves } from "./ChooseCover";
 import { composeCover, TIERS, usableCover, type CoverPrices } from "./cover";
 import {
@@ -24,6 +25,7 @@ import {
 } from "./journey-store";
 import type { HomeStep } from "./home-steps";
 import { JourneyPage, StepNav } from "./page-kit";
+import { priceQuery } from "./price-query";
 import type { BuyableProductId } from "./products";
 import { propertyTypeLabel } from "./schemas/home-steps";
 import { saveBundleQuoteFn, saveHomeQuoteFn, saveQuoteFn } from "./server";
@@ -459,6 +461,20 @@ function CoverWaiting({
   const property = journey.property;
   const chosen = prices ? usableCover(prices, journey.cover ?? DEFAULT_COVER) : null;
   const composed = prices && chosen ? composeCover(prices, chosen.coverLevel, chosen.addons) : null;
+  // In a bundle, both together at the bundle's price, as screen 22 showed it (5.7b)
+  const { data: carPrices } = useQuery(
+    bundledCar
+      ? priceQuery("car", bundledCar)
+      : { queryKey: ["quote-price", "car", "none"], queryFn: skipToken },
+  );
+  const carChosen =
+    bundledCar && carPrices?.status === "quoted"
+      ? usableCover(carPrices, bundledCar.cover ?? DEFAULT_COVER)
+      : null;
+  const together =
+    prices && chosen && carChosen && carPrices?.status === "quoted"
+      ? composeBundle({ prices: carPrices, cover: carChosen }, { prices, cover: chosen })
+      : null;
   return (
     <Card padding="lg" as="section" className="quote-waiting" aria-labelledby="waiting-heading">
       <h2 id="waiting-heading" className="kb-h4">
@@ -483,7 +499,21 @@ function CoverWaiting({
           .filter(Boolean)
           .join(" · ")}
       </p>
-      {composed ? (
+      {bundledCar?.vehicle ? (
+        <p className="quote-outcome__name">
+          And your {bundledCar.vehicle.make} {bundledCar.vehicle.model} {bundledCar.vehicle.variant}
+          {carChosen ? `, ${TIERS[carChosen.coverLevel].name} cover` : ""}
+        </p>
+      ) : null}
+      {bundledCar ? (
+        together ? (
+          <p className="quote-waiting__amount">
+            {journey.payment === "monthly"
+              ? `Together: 12 payments of ${formatPounds(together.monthlyPaymentPence)}`
+              : `Together: ${formatPounds(together.totalPence)} a year`}
+          </p>
+        ) : null
+      ) : composed ? (
         <>
           <p className="quote-waiting__amount">
             {journey.payment === "monthly"
@@ -494,12 +524,6 @@ function CoverWaiting({
             Total excess {whole(composed.compulsoryExcessPence + composed.voluntaryExcessPence)}
           </p>
         </>
-      ) : null}
-      {bundledCar?.vehicle ? (
-        <p className="quote-outcome__name">
-          And your {bundledCar.vehicle.make} {bundledCar.vehicle.model} {bundledCar.vehicle.variant}
-          , {TIERS[(bundledCar.cover ?? DEFAULT_COVER).coverLevel].name} cover
-        </p>
       ) : null}
       <p className="quote-waiting__note">
         No payment is taken when you sign in or create an account.

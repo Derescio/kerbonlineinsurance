@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
+import { renderWithRouter } from "#/test/router";
+
 import type { CarPriceResult, HomePriceResult } from "#/server/quote/price";
 
 import { composeBundle } from "./bundle";
@@ -209,17 +211,29 @@ describe("the panel's edge cases (checkpoint 2)", () => {
     await expect.poll(() => readJourney("home")?.payment).toBe("monthly");
   });
 
-  it("says the car quote needs attention when the car isn't quoted any more", async () => {
+  it("runs home alone when the car isn't quoted any more (final review 1)", async () => {
     store();
     carPrice.mockResolvedValue({ status: "declined", namedDriver: null });
     await withQuery(<Harness />);
     await expect
-      .element(panel().getByText("Your car quote needs another look before it can be bought."))
+      .element(page.getByRole("button", { name: /^Continue with Comprehensive$/ }))
       .toBeVisible();
-    expect(
-      panel()
-        .getByText(/Working out/)
-        .elements(),
-    ).toHaveLength(0);
+    expect(panel().elements()).toHaveLength(0);
+    expect(page.getByRole("button", { name: "Continue to sign in" }).elements()).toHaveLength(0);
+  });
+
+  it("shows home-alone's declined screen when the car isn't quoted either (final review 2)", async () => {
+    store();
+    carPrice.mockResolvedValue({ status: "declined", namedDriver: null });
+    homePrice.mockResolvedValue({ status: "declined", namedDriver: null });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await renderWithRouter(
+      <QueryClientProvider client={queryClient}>
+        <Harness initial="quote" />
+      </QueryClientProvider>,
+    );
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("We’re unable to offer home cover");
   });
 });

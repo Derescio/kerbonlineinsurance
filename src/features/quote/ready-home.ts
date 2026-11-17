@@ -23,19 +23,30 @@ export function useReadyHome(): Journey | null {
   return complete && data?.status === "quoted" ? home : null;
 }
 
-/** The car waiting in a bundle, alone at its own price, for screen 04 (5.7b, decision 5) */
-export function useCarOnly(car: Journey | null): CarOnly | null {
-  const { data } = useQuery(
+/**
+ * The car waiting in a bundle (5.7b, decisions 1 and 5): `off` once its price is in and isn't
+ * quoted (or couldn't be had), so home runs alone; else the car alone at its own price for screen
+ * 04, null while that price is on its way.
+ */
+export function useBundleCar(car: Journey | null): { off: boolean; carOnly: CarOnly | null } {
+  const query = useQuery(
     car ? priceQuery("car", car) : { queryKey: ["quote-price", "car", "none"], queryFn: skipToken },
   );
-  if (!car?.vehicle || data?.status !== "quoted") return null;
+  const data = query.data;
+  const settled = query.isError || data !== undefined;
+  if (!car?.vehicle || data?.status !== "quoted") {
+    return { off: car !== null && settled, carOnly: null };
+  }
   const chosen = usableCover(data, car.cover ?? DEFAULT_COVER);
   const composed = composeCover(data, chosen.coverLevel, chosen.addons);
-  if (!composed) return null;
+  if (!composed) return { off: true, carOnly: null };
   return {
-    name: `${car.vehicle.make} ${car.vehicle.model} ${car.vehicle.variant}`,
-    plate: car.vehicle.demoPlate,
-    coverName: TIERS[chosen.coverLevel].name,
-    totalPence: composed.totalPence,
+    off: false,
+    carOnly: {
+      name: `${car.vehicle.make} ${car.vehicle.model} ${car.vehicle.variant}`,
+      plate: car.vehicle.demoPlate,
+      coverName: TIERS[chosen.coverLevel].name,
+      totalPence: composed.totalPence,
+    },
   };
 }

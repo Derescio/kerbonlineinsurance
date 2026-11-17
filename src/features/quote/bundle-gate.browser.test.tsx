@@ -8,6 +8,9 @@ import type { WriteResult } from "#/lib/validation";
 import type { SaveBundleResult } from "#/server/quote/save";
 import { renderWithRouter } from "#/test/router";
 
+import { formatPounds } from "#/features/rating/money";
+
+import { composeBundle } from "./bundle";
 import { BuyStep } from "./BuyGate";
 import { GOLF_PRICES } from "./cover-fixtures";
 import { completeHomeJourney, completeJourney } from "./journey-fixtures";
@@ -109,6 +112,19 @@ describe("the gate in a bundle (5.7b)", () => {
     const waiting = page.getByRole("region", { name: "Your cover is waiting" });
     await expect.element(waiting.getByText("18 Albion Road, Hackney")).toBeVisible();
     await expect.element(waiting.getByText(/Volkswagen Golf/)).toBeVisible();
+  });
+
+  it("shows both together at the bundle's price, as screen 22 did (final review 3)", async () => {
+    session.mockResolvedValue(null);
+    await show(gate());
+    const money = composeBundle(
+      { prices: GOLF_PRICES, cover: DEFAULT_COVER },
+      { prices: GOLF_PRICES, cover: DEFAULT_COVER },
+    )!;
+    const waiting = page.getByRole("region", { name: "Your cover is waiting" });
+    await expect
+      .element(waiting.getByText(`Together: ${formatPounds(money.totalPence)} a year`))
+      .toBeVisible();
   });
 
   it("says the two policyholders don't match, and goes back to About you", async () => {
