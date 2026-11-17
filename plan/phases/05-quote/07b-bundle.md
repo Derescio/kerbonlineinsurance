@@ -122,6 +122,12 @@ Car and home bought together, as a bundle with the 8% saving:
 - [x] Car's and home's journeys on their own, and their tests, are unchanged. The only edits to their tests follow the reshaped types (`items`, `policyReferences`) and the holding lines that 5.7b replaces.
 - [ ] `vp check`, `vp test`, the integration tests and the bundle E2E pass in CI.
 
+## Preview manual check (Damion, 17 Nov 2026)
+
+- **Car first: bought.** A Ford Fiesta (FD69 KQB, Comprehensive, £250 voluntary excess) with 9 Rosebery Gardens, Hackney (Comprehensive), paid in full with Stripe's `4242…`. You're covered showed both policies (KRB-840887 and KRB-152544) under one bundle, both starting 18 Nov 2026. The policies' premiums, £694.59 and £338.86, plus 12% IPT on each, come to the £1,157.46 paid.
+- **Home first: screen 21 didn't know about the home.** After the car steps, screen 21 still asked for a home postcode. Fixed in this PR: screen 21 shows "Your home quote is ready" with "See both together" (decision 2).
+- **Answers typed twice.** The car's About you asked for the address again. Fixed in this PR: the address carries across both ways, and home's About you comes from the car (decision 3). Employment status stays a car question, because the car price reads the occupation.
+
 ## Notes from the build
 
 - **Found by the E2E:** pressing Continue on car's Choose cover without changing anything never stored the car's cover, so the bundle wasn't live on the home side. "Add home insurance" now stores it.
