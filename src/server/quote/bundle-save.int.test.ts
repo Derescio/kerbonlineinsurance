@@ -106,8 +106,11 @@ describe("saveBundleQuoteFor", () => {
     expect(items.map((i) => i.product).sort()).toEqual(["car", "home"]);
     expect(await getDb().select().from(vehicles)).toHaveLength(1);
     expect(await getDb().select().from(properties)).toHaveLength(1);
-    expect(await getDb().select().from(priorClaims)).toEqual([
-      expect.objectContaining({ product: "home", type: "escape_of_water" }),
+    // Car's incident is kept too (5.7c)
+    const claims = await getDb().select().from(priorClaims);
+    expect(claims.map((c) => [c.product, c.type]).sort()).toEqual([
+      ["car", "collision"],
+      ["home", "escape_of_water"],
     ]);
   });
 

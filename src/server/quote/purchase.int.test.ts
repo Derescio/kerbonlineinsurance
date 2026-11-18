@@ -488,6 +488,7 @@ const carDetails = (): CarDetails => ({
     usage: "commuting",
     overnightLocation: "driveway",
   },
+  priorClaims: [],
   drivers: [
     {
       firstName: "Alex",

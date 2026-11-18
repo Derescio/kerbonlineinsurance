@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -21,6 +21,8 @@ import { clearReferenceCaches, getCatalogue, upsertReferenceData } from "#/serve
 import { closeDb, getDb } from "#/server/db/client";
 import {
   customers,
+  drivers,
+  priorClaims,
   quoteItemAddons,
   quoteItemOptions,
   quoteItems,
@@ -114,6 +116,30 @@ describe("saveCarQuoteFor", () => {
     const saved = await getDb().select().from(quotes);
     expect(saved).toHaveLength(2);
     expect(saved.every((q) => q.customerId === rows[0]!.id)).toBe(true);
+  });
+
+  it("keeps each driver's licence, employment and relationship, and each incident (5.7c)", async () => {
+    const user = await makeUser();
+    const result = await save(user.id, await golf());
+    expect(result).toMatchObject({ status: "saved" });
+    const rows = await getDb().select().from(drivers).orderBy(asc(drivers.firstName));
+    expect(
+      rows.map((d) => [d.firstName, d.isMain, d.licenceType, d.employmentStatus, d.relationship]),
+    ).toEqual([
+      ["Alex", true, "full_uk", "employed", null],
+      ["Jamie", false, "full_uk", "employed", "spouse"],
+    ]);
+    const claims = await getDb().select().from(priorClaims);
+    expect(claims).toHaveLength(1);
+    expect(claims[0]).toMatchObject({
+      quoteItemId: rows[0]!.quoteItemId,
+      product: "car",
+      occurredOn: "2022-02-14",
+      type: "collision",
+      fault: "not_at_fault",
+      amountPence: 120_000,
+      status: null,
+    });
   });
 
   it("prices the chosen cover again on the server, ignoring any price sent", async () => {

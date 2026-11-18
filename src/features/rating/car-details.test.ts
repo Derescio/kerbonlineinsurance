@@ -48,6 +48,9 @@ describe("carDetailsFromJourney", () => {
           licenceYears: 16,
           noClaimsYears: 5,
           pastClaims: 1,
+          licenceType: "full_uk",
+          employmentStatus: "employed",
+          relationship: null,
         },
         {
           firstName: "Jamie",
@@ -57,6 +60,18 @@ describe("carDetailsFromJourney", () => {
           licenceYears: 16,
           noClaimsYears: 0,
           pastClaims: 0,
+          licenceType: "full_uk",
+          employmentStatus: "employed",
+          relationship: "spouse",
+        },
+      ],
+      priorClaims: [
+        {
+          occurredOn: "2022-02-14",
+          type: "collision",
+          fault: "not_at_fault",
+          amountPence: 120_000,
+          status: null,
         },
       ],
     });
@@ -72,6 +87,31 @@ describe("carDetailsFromJourney", () => {
     ];
     const details = carDetailsFromJourney(journey, car, FIXTURE_TODAY);
     expect(details.drivers.map((d) => d.pastClaims)).toEqual([0, 0, 2]);
+  });
+
+  it("stores one prior claim per incident, and none after a 'No' (5.7c, decision 1)", () => {
+    const journey = completeJourney();
+    const first = journey.claims!.incidents[0]!;
+    journey.claims!.incidents = [
+      first,
+      {
+        ...first,
+        id: "i2",
+        date: "2025-01-03",
+        type: "windscreen",
+        fault: "undecided",
+        costPounds: 0,
+      },
+    ];
+    const details = carDetailsFromJourney(journey, car, FIXTURE_TODAY);
+    expect(details.priorClaims.map((c) => [c.occurredOn, c.type, c.fault, c.amountPence])).toEqual([
+      ["2022-02-14", "collision", "not_at_fault", 120_000],
+      ["2025-01-03", "windscreen", "undecided", 0],
+    ]);
+    expect(details.drivers[0]!.pastClaims).toBe(2);
+
+    journey.claims = { ...journey.claims!, any: false };
+    expect(carDetailsFromJourney(journey, car, FIXTURE_TODAY).priorClaims).toEqual([]);
   });
 
   it("keeps the demo plate that found the car as its registration", () => {
