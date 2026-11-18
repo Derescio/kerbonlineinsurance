@@ -70,6 +70,9 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
   await page.getByLabel("First name").fill("Priya");
   await page.getByLabel("Last name").fill("Shah");
   await fillDate(page, "Date of birth", "2", "3", "1988");
+  // Employment, rated by home v2 (5.7c)
+  await page.getByLabel("Employment status").selectOption({ label: "Employed" });
+  await page.getByLabel("Occupation").selectOption({ label: "Teacher" });
   await page.getByRole("button", { name: "Continue to property" }).click();
 
   // 3. Property: the first demo address for the postcode

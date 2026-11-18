@@ -169,6 +169,8 @@ test("a home quote adds car, and the car journey comes back to the bundle", asyn
   await dob.getByRole("textbox", { name: "Day" }).fill("12");
   await dob.getByRole("textbox", { name: "Month" }).fill("5");
   await dob.getByRole("textbox", { name: "Year" }).fill("1991");
+  await page.getByLabel("Employment status").selectOption({ label: "Employed" });
+  await page.getByLabel("Occupation").selectOption({ label: "Plumber" });
   await page.getByRole("button", { name: "Continue to property" }).click();
   await answerHome(page);
   await expect(heading(page, "Your quote is ready")).toBeVisible();

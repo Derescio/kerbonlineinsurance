@@ -26,6 +26,7 @@ import {
   twoFactors,
   users,
   verifications,
+  priorClaims,
 } from "#/server/db/schema";
 import { accountClosedEmail, closureHeldEmail } from "#/server/email/templates";
 import {
@@ -335,6 +336,24 @@ describe("runClosures", () => {
     expect(await getDb().select().from(quotes).where(eq(quotes.id, policy.quoteId))).toHaveLength(
       1,
     );
+  });
+
+  it("takes a deleted car quote's incidents with it (5.7c)", async () => {
+    const { userId, customer } = await insured();
+    const { items } = await makeQuote({ customerId: customer.id, products: ["car"] });
+    await getDb().insert(priorClaims).values({
+      quoteItemId: items[0]!.item.id,
+      product: "car",
+      occurredOn: "2024-06-01",
+      type: "collision",
+      amountPence: 120_000,
+      fault: "at_fault",
+    });
+
+    const closure = await openClosure(userId);
+    expect(await runClosures(getDb(), dueAt(closure), deps)).toMatchObject({ closed: 1 });
+    await flush();
+    expect(await getDb().select().from(priorClaims)).toEqual([]);
   });
 
   it("holds once for an open claim, then closes after it settles", async () => {

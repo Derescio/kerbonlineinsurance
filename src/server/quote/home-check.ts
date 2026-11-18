@@ -30,12 +30,20 @@ export async function checkHomeJourney(raw: unknown, now: Date): Promise<HomeChe
 
   const tables = await getActiveRatingTables("home");
   const inputs = homeInputsFromJourney(journey);
+  const known = (lookup: string, key: string) =>
+    tables.lookups.some((l) => l.lookup === lookup && l.key === key);
+  // An occupation a version that rates it doesn't know is About you to answer again, as car's is
+  // (5.7c): v1 doesn't rate it
+  const ratesOccupation = tables.lookups.some((l) => l.lookup === "occupation");
+  if (ratesOccupation && !known("occupation", inputs.occupation)) {
+    return { ok: false, step: "about" };
+  }
   // An area the active version doesn't know is a postcode to change, not an error. Crown
   // dependencies pass, and priceQuote declines them (outside_cover_area).
-  const known = tables.lookups.some(
-    (l) => l.lookup === "postcode_area" && l.key === inputs.postcodeArea,
-  );
-  if (!(CROWN_DEPENDENCIES as readonly string[]).includes(inputs.postcodeArea) && !known) {
+  if (
+    !(CROWN_DEPENDENCIES as readonly string[]).includes(inputs.postcodeArea) &&
+    !known("postcode_area", inputs.postcodeArea)
+  ) {
     return { ok: false, step: "property" };
   }
   return { ok: true, journey, inputs, tables, today };
