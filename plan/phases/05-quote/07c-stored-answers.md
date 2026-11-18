@@ -1,6 +1,6 @@
 # 5.7c Car's unsaved answers, and employment for home
 
-**Status:** spec approved by Damion, 17 Nov 2026
+**Status:** done (spec approved by Damion, 17 Nov 2026)
 **Phase:** 05-quote
 
 ## Goal
@@ -90,6 +90,18 @@ Every answer the quote journeys ask is stored, and home is priced on employment 
 - [ ] A car quote with two incidents and a named driver, saved on the preview, has two car `prior_claims` rows and each driver's licence type, employment status and relationship in the database.
 - [ ] A home quote asks employment status and occupation, is priced under home v2, and stores both on `properties`.
 - [ ] A bundle started from car doesn't ask employment again on the home side.
-- [ ] The reference homes land in their expected ranges under v2, and car v1's content hash is unchanged.
+- [x] The reference homes land in their expected ranges under v2, and car v1's content hash is unchanged (`calibration.test.ts` H1–H4, `hash.test.ts` "car v1 hashes as deployed").
 - [ ] Staging's build log shows `home v2: inserted` and v2 active.
 - [ ] `vp check`, `vp test`, the integration tests and the E2E pass in CI.
+
+## Notes from the build
+
+- **Before the preview tests:** the preview reads the dev database, which needs migration 0024 (`db:migrate`) first.
+- **Home v2's `effectiveFrom` is 18 Nov 2026.** The deploy only needs it after v1's 1 Nov, and it activates v2 as soon as it's written.
+- **The validator allows home's `occupation_band` without requiring it** (`OPTIONAL_FACTORS` in `validate.ts`), so v1 stays valid and v2 is checked with it.
+- **The calibration and source tests use each product's newest version,** because only home v2 knows the reference homes' occupations.
+- **Found at checkpoint 2:** an occupation key the active version doesn't know threw a server error when home was priced. It now sends the visitor back to About you, as car's check does (`home-check.ts`).
+- **Left as they are:**
+  - A home tab saved before 5.7c, then bundled from screen 21, keeps its old About you, so the visitor answers employment there once.
+  - The new `drivers` columns are nullable for old rows, so the database doesn't require them on new rows. The app always writes them, and the tests check that.
+- **The seed** gives each car incident a `prior_claims` row and each seeded home its policyholder's occupation.
