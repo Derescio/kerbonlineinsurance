@@ -88,11 +88,11 @@ Every answer the quote journeys ask is stored, and home is priced on employment 
 ## Done when
 
 - [ ] A car quote with two incidents and a named driver, saved on the preview, has two car `prior_claims` rows and each driver's licence type, employment status and relationship in the database.
-- [ ] A home quote asks employment status and occupation, is priced under home v2, and stores both on `properties`.
-- [ ] A bundle started from car doesn't ask employment again on the home side.
+- [x] A home quote asks employment status and occupation, is priced under home v2, and stores both on `properties` (E2E `home-buy.spec.ts` on the preview, 18 Nov 2026: the property row has `employed` / `teacher`, and the item is home v2 with `occupation_band` B at 0.97).
+- [x] A bundle started from car doesn't ask employment again on the home side (E2E `bundle-buy.spec.ts` on the preview, 18 Nov 2026: home opens at Property).
 - [x] The reference homes land in their expected ranges under v2, and car v1's content hash is unchanged (`calibration.test.ts` H1–H4, `hash.test.ts` "car v1 hashes as deployed").
 - [ ] Staging's build log shows `home v2: inserted` and v2 active.
-- [ ] `vp check`, `vp test`, the integration tests and the E2E pass in CI.
+- [x] `vp check`, `vp test`, the integration tests and the E2E pass (CI on #102; the four buy E2E tests run locally against the preview on 18 Nov 2026, since `e2e.yml` runs main's copy of the specs).
 
 ## Notes from the build
 
