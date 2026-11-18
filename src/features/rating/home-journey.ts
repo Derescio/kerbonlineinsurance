@@ -12,6 +12,7 @@ function need<T>(value: T | undefined, part: string): T {
 }
 
 export function homeInputsFromJourney(journey: Journey): HomeInputs {
+  const about = need(journey.homeAbout, "homeAbout");
   const property = need(journey.property, "property");
   const contents = need(journey.contents, "contents");
   const claims = need(journey.homeClaims, "homeClaims");
@@ -27,5 +28,6 @@ export function homeInputsFromJourney(journey: Journey): HomeInputs {
     lockType: contents.lockType,
     // A "No" ignores anything left from an earlier "Yes", as car's does
     pastClaims: claims.any ? claims.claims.length : 0,
+    occupation: need(about.occupation, "occupation"),
   };
 }

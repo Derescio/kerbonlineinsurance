@@ -80,7 +80,12 @@ export function rateHome(t: Tables, i: HomeInputs): Rated {
     t.choice("smoke_alarm", i.hasSmokeAlarm ? "yes" : "no"),
     t.range("bedrooms", i.bedrooms),
   ];
-  const both = t.range("past_claims", i.pastClaims);
+  const both = [t.range("past_claims", i.pastClaims)];
+  // The policyholder's occupation, from home v2 (5.7c, decision 4); v1 doesn't rate it
+  if (t.has("occupation_band")) {
+    const occupation = t.lookup("occupation", "occupation_band", i.occupation, "occupation");
+    both.push(t.choice("occupation_band", occupation.band));
+  }
 
   const buildingsSection =
     (i.rebuildCostPence / 100_000) * t.param("buildings_rate_pence") * product(buildings);
@@ -88,8 +93,8 @@ export function rateHome(t: Tables, i: HomeInputs): Rated {
     (i.contentsValuePence / 100_000) * t.param("contents_rate_pence") * product(contents);
 
   return {
-    base: (buildingsSection + contentsSection) * both.multiplier,
-    factors: [...buildings, ...contents, both],
+    base: (buildingsSection + contentsSection) * product(both),
+    factors: [...buildings, ...contents, ...both],
     extraExcessPence: 0,
     addons: addons(t, []),
   };

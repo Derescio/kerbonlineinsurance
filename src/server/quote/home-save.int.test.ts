@@ -16,7 +16,15 @@ import { completeHomeJourney } from "#/features/quote/journey-fixtures";
 import { resolveActor } from "#/server/auth/actor";
 import { clearReferenceCaches, upsertReferenceData } from "#/server/data/reference";
 import { closeDb, getDb } from "#/server/db/client";
-import { customers, priorClaims, properties, quoteItems, quotes } from "#/server/db/schema";
+import {
+  customers,
+  priorClaims,
+  properties,
+  quoteItemFactors,
+  quoteItems,
+  quotes,
+  ratingVersions,
+} from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
@@ -93,6 +101,8 @@ describe("saveHomeQuoteFor", () => {
       alarmType: "installed_unmonitored",
       hasAlarm: true,
       pastClaims: 1,
+      employmentStatus: "employed",
+      occupation: "teacher",
     });
     expect(await getDb().select().from(priorClaims)).toEqual([
       expect.objectContaining({
@@ -103,6 +113,20 @@ describe("saveHomeQuoteFor", () => {
         fault: null,
       }),
     ]);
+  });
+
+  it("prices a new home quote with home v2, the policyholder's occupation included (5.7c)", async () => {
+    const user = await makeUser();
+    await save(user.id, completeHomeJourney());
+    const [item] = await getDb().select().from(quoteItems);
+    const [version] = await getDb()
+      .select()
+      .from(ratingVersions)
+      .where(eq(ratingVersions.id, item!.ratingVersionId));
+    expect(version).toMatchObject({ product: "home", version: 2 });
+    expect(await getDb().select().from(quoteItemFactors)).toContainEqual(
+      expect.objectContaining({ factor: "occupation_band", inputValue: "B" }),
+    );
   });
 
   it("saves a referred quote", async () => {

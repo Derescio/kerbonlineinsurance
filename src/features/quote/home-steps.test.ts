@@ -38,6 +38,14 @@ describe("firstIncompleteHomeStep", () => {
     expect(firstIncompleteHomeStep(completeHomeJourney(), FIXTURE_TODAY)).toBeNull();
   });
 
+  it("reopens About you for answers saved before it asked employment (5.7c)", () => {
+    const journey = completeHomeJourney();
+    const { status: _s, occupation: _o, ...before } = journey.homeAbout!;
+    expect(firstIncompleteHomeStep({ ...journey, homeAbout: before as never }, FIXTURE_TODAY)).toBe(
+      "about",
+    );
+  });
+
   it("reopens Property for an address the postcode change dropped", () => {
     const journey = completeHomeJourney();
     const { address: _a, ...rest } = journey.property!;

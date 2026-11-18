@@ -96,6 +96,12 @@ describe("priceHomeJourney", () => {
     expect(await price(null)).toEqual({ status: "invalid", step: "about" });
   });
 
+  it("sends an occupation the active version doesn't know back to About you (5.7c)", async () => {
+    const journey = completeHomeJourney();
+    journey.homeAbout = { ...journey.homeAbout!, occupation: "astronaut" };
+    expect(await price(journey)).toEqual({ status: "invalid", step: "about" });
+  });
+
   it("sends an excess it doesn't offer back to cover", async () => {
     expect(await price(completeHomeJourney(), 12_345)).toEqual({
       status: "invalid",

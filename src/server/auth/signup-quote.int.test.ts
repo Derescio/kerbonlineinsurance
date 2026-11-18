@@ -208,7 +208,13 @@ describe("sign-up with a quote (5.6, decision 1)", () => {
 
   it("saves a bundle when the sign-up came from a bundled home gate (5.7b)", async () => {
     const home = completeHomeJourney();
-    home.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+    home.homeAbout = {
+      firstName: "Alex",
+      lastName: "Morgan",
+      dateOfBirth: "1991-05-12",
+      status: "employed",
+      occupation: "plumber",
+    };
     const response = await post(makeAuth(), "/sign-up/email", {
       name: "Alex Morgan",
       email: EMAIL,

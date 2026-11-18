@@ -5,7 +5,7 @@ import type { CarDetails } from "#/server/data/quote-rows";
 import type { RatedCar } from "./car-journey";
 
 // The car journey as the rows a saved quote keeps (5.6, decision 5): the vehicle from the
-// catalogue row it was priced from, and the drivers as entered. The caller has already checked the
+// catalogue row it was priced from, the drivers as entered, and one prior claim per incident (5.7c). The caller has already checked the
 // journey, as for carInputsFromJourney; a missing part is a bug, so it throws.
 
 export type DetailedCar = RatedCar & {
@@ -30,6 +30,7 @@ export function carDetailsFromJourney(
   const usage = need(journey.usage, "usage");
   const claims = need(journey.claims, "claims");
   const named = need(journey.namedDrivers, "namedDrivers");
+  const incidents = claims.any ? claims.incidents : [];
 
   return {
     product: "car",
@@ -58,7 +59,10 @@ export function carDetailsFromJourney(
         licenceYears: wholeYearsBetween(need(main.licenceDate, "licenceDate"), today),
         noClaimsYears: need(main.noClaimsYears, "noClaimsYears"),
         // A "No" ignores anything left from an earlier "Yes", as the price does
-        pastClaims: claims.any ? claims.incidents.length : 0,
+        pastClaims: incidents.length,
+        licenceType: need(main.licenceType, "licenceType"),
+        employmentStatus: main.status,
+        relationship: null,
       },
       // Named drivers have no no-claims years of their own on this policy
       ...(named.any ? named.drivers : []).map((d) => ({
@@ -69,7 +73,17 @@ export function carDetailsFromJourney(
         licenceYears: wholeYearsBetween(d.licenceDate, today),
         noClaimsYears: 0,
         pastClaims: d.anyClaims ? d.pastClaims : 0,
+        licenceType: d.licenceType,
+        employmentStatus: d.status,
+        relationship: d.relationship,
       })),
     ],
+    priorClaims: incidents.map((c) => ({
+      occurredOn: c.date,
+      type: c.type,
+      fault: c.fault,
+      amountPence: c.costPounds * 100,
+      status: null,
+    })),
   };
 }

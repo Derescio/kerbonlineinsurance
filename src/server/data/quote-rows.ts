@@ -28,7 +28,10 @@ export interface CarDetails {
   vehicle: Detail<typeof vehicles>;
   /** The main driver first, then named drivers in the order entered */
   drivers: Detail<typeof drivers>[];
+  /** One per main-driver incident; as many as the main driver's `pastClaims` (5.7c, decision 1) */
+  priorClaims: PriorClaimDetail[];
 }
+
 /** A past claim as saved (5.7): the row without its item, which the builder fills */
 export type PriorClaimDetail = Omit<Detail<typeof priorClaims>, "product">;
 
@@ -89,6 +92,7 @@ function detailsMatch(priced: PricedItem, details: ItemDetails): boolean {
       const v = details.vehicle;
       return (
         details.drivers.length === 1 + car.namedDrivers.length &&
+        details.priorClaims.length === details.drivers[0]!.pastClaims &&
         v.year === car.vehicle.year &&
         v.insuranceGroup === car.vehicle.insuranceGroup &&
         v.fuelType === car.vehicle.fuelType &&
@@ -198,6 +202,10 @@ export function itemRows(
     businesses: [],
   };
 
+  const pushClaims = (product: "car" | "home", claims: PriorClaimDetail[]) =>
+    claims.forEach((c) =>
+      rows.priorClaims.push({ ...c, id: ctx.newId(), quoteItemId: id, product, createdAt: at }),
+    );
   const details = ctx.details;
   switch (details.product) {
     case "car":
@@ -211,18 +219,11 @@ export function itemRows(
           createdAt: at,
         }),
       );
+      pushClaims("car", details.priorClaims);
       break;
     case "home":
       rows.properties.push({ ...details.property, quoteItemId: id, createdAt: at });
-      details.priorClaims.forEach((c) =>
-        rows.priorClaims.push({
-          ...c,
-          id: ctx.newId(),
-          quoteItemId: id,
-          product: "home",
-          createdAt: at,
-        }),
-      );
+      pushClaims("home", details.priorClaims);
       break;
     case "business":
       rows.businesses.push({ ...details.business, quoteItemId: id, createdAt: at });

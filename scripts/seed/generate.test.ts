@@ -144,6 +144,30 @@ describe("generateSeed", () => {
     }
   });
 
+  it("keeps car's answers: one car prior claim per main-driver claim, and each driver's licence, status and relationship (5.7c)", () => {
+    const carItems = plan.quoteItems.filter((i) => i.product === "car");
+    expect(carItems.length).toBeGreaterThan(0);
+    for (const item of carItems) {
+      const drivers = plan.drivers.filter((d) => d.quoteItemId === item.id);
+      const main = drivers.find((d) => d.isMain)!;
+      const claims = plan.priorClaims.filter((c) => c.quoteItemId === item.id);
+      expect(claims).toHaveLength(main.pastClaims!);
+      expect(claims.every((c) => c.product === "car" && c.fault && c.status == null)).toBe(true);
+      expect(main).toMatchObject({ licenceType: "full_uk", relationship: null });
+      for (const d of drivers) expect(d.employmentStatus).toBeTruthy();
+      for (const d of drivers.filter((x) => !x.isMain)) expect(d.relationship).toBeTruthy();
+    }
+    expect(plan.priorClaims.some((c) => c.product === "car")).toBe(true);
+  });
+
+  it("gives every seeded home its policyholder's employment (5.7c)", () => {
+    expect(plan.properties.length).toBeGreaterThan(0);
+    for (const home of plan.properties) {
+      expect(home.employmentStatus).toBeTruthy();
+      expect(home.occupation).toBeTruthy();
+    }
+  });
+
   it("uses the 9-range references", () => {
     for (const q of plan.quotes) expect(q.reference).toMatch(/^KRB-Q-9[0-9]{4}$/);
     for (const p of plan.policies) expect(p.reference).toMatch(/^KRB-9[0-9]{5}$/);

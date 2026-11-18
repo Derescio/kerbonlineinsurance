@@ -65,21 +65,23 @@ describe("reference data", () => {
   afterAll(closeDb);
 
   describe("upsertReferenceData", () => {
-    it("inserts v1 of each product as active, with every row", async () => {
+    it("inserts v1 of each product, then home v2 as home's active version, with every row", async () => {
       const result = await upsertReferenceData(owner(), sources());
 
       expect(result.versions).toEqual([
         { product: "car", version: 1, action: "inserted" },
         { product: "home", version: 1, action: "inserted" },
         { product: "business", version: 1, action: "inserted" },
+        { product: "home", version: 2, action: "inserted" },
       ]);
       const versions = await owner().select().from(ratingVersions);
-      expect(versions).toHaveLength(3);
+      expect(versions).toHaveLength(RATING_SOURCES.length);
       for (const version of versions) {
-        expect(version.status).toBe("active");
-        expect(version.effectiveFrom).toBe("2026-11-01");
+        const retired = version.product === "home" && version.version === 1;
+        expect(version.status).toBe(retired ? "retired" : "active");
         expect(version.contentHash).toMatch(/^[0-9a-f]{64}$/);
       }
+      expect(await getActiveRatingVersion(getDb(), "home")).toMatchObject({ version: 2 });
       const total = (pick: (s: RatingSource) => unknown[]) =>
         RATING_SOURCES.reduce((n, s) => n + pick(s).length, 0);
       expect(await count(ratingParameters)).toBe(
@@ -204,7 +206,7 @@ describe("reference data", () => {
         upsertReferenceData(owner(), sources()),
         upsertReferenceData(owner(), sources()),
       ]);
-      expect(await count(ratingVersions)).toBe(3);
+      expect(await count(ratingVersions)).toBe(RATING_SOURCES.length);
       expect(await count(vehicleCatalogue)).toBe(expandCatalogue(CATALOGUE_SOURCES).length);
     });
 
@@ -238,7 +240,7 @@ describe("reference data", () => {
 
       await expect(upsertReferenceData(owner(), next)).rejects.toThrow(ReferenceDataConflict);
       expect(await catalogueRows()).toEqual(before);
-      expect(await count(ratingVersions)).toBe(3);
+      expect(await count(ratingVersions)).toBe(RATING_SOURCES.length);
     });
 
     it("refuses a new version that doesn't start after the active one, writing nothing", async () => {
@@ -253,7 +255,7 @@ describe("reference data", () => {
       await expect(upsertReferenceData(owner(), sources([v2]))).rejects.toThrow(
         "car v2: effectiveFrom 2026-11-01 must be after the active v1's 2026-11-01",
       );
-      expect(await count(ratingVersions)).toBe(3);
+      expect(await count(ratingVersions)).toBe(RATING_SOURCES.length);
     });
 
     it("refuses the same version listed twice", async () => {

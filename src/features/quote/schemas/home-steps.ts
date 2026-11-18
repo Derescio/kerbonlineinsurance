@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { addYears } from "./dates";
-import { errors } from "./driver-steps";
+import { checkOccupation, errors, status } from "./driver-steps";
 import { choice, dateOfBirth, isoDate, option, text, whole, yesNo } from "./fields";
 
 // The home journey's steps (5.7, decisions 3–6): about you, the property, contents and security,
@@ -82,16 +82,22 @@ export type ClaimStatus = (typeof claimStatusOptions)[number]["value"];
 // --- About you ----------------------------------------------------------------------------
 
 export const homeAboutSchema = (today: string) =>
-  z.object({
-    firstName: text(errors.firstName, 50, errors.max50),
-    lastName: text(errors.lastName, 50, errors.max50),
-    // A home policy is a contract, so 18, not car's 17 (decision 3)
-    dateOfBirth: dateOfBirth(
-      today,
-      { required: errors.dateOfBirth, tooYoung: homeErrors.under18, tooOld: errors.over100 },
-      18,
-    ),
-  });
+  z
+    .object({
+      firstName: text(errors.firstName, 50, errors.max50),
+      lastName: text(errors.lastName, 50, errors.max50),
+      // A home policy is a contract, so 18, not car's 17 (decision 3)
+      dateOfBirth: dateOfBirth(
+        today,
+        { required: errors.dateOfBirth, tooYoung: homeErrors.under18, tooOld: errors.over100 },
+        18,
+      ),
+      // Rated by home v2, asked as car's About you asks them (5.7c, decision 3)
+      status,
+      occupation: z.string().optional(),
+    })
+    .superRefine((value, ctx) => checkOccupation(value, ctx, []))
+    .transform((value) => ({ ...value, occupation: value.occupation! }));
 
 export type HomeAbout = z.output<ReturnType<typeof homeAboutSchema>>;
 

@@ -37,6 +37,8 @@ export interface HomeInputs {
   hasSmokeAlarm: boolean;
   lockType: string;
   pastClaims: number;
+  /** The policyholder's occupation key; rated from home v2 (5.7c), ignored by v1 */
+  occupation: string;
 }
 
 export interface BusinessInputs {

@@ -60,6 +60,7 @@ export function homeInputs(overrides: Partial<HomeInputs> = {}): HomeInputs {
     hasSmokeAlarm: true,
     lockType: "multipoint",
     pastClaims: 0,
+    occupation: "doctor",
     ...overrides,
   };
 }

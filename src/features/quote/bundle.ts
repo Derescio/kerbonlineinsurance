@@ -3,6 +3,7 @@ import { quoteTotals } from "#/features/rating/price-quote";
 
 import { coverLine, type CoverPrices } from "./cover";
 import type { CoverChoice, Journey } from "./journey-store";
+import type { EmploymentStatus } from "./occupation";
 
 // The car + home bundle in the tab (5.7b). The home journey carries a mark naming the car journey
 // it's bought with; the bundle is on only while that car journey is still the tab's and has a
@@ -53,14 +54,22 @@ export interface Person {
   dateOfBirth: string;
 }
 
-/** The other product's policyholder, to start an empty About you from (decision 3) */
-export function prefillAbout(from: Journey | null): Person | undefined {
+/** The policyholder with employment, which home asks from 5.7c; older home answers lack it */
+export interface PrefilledPerson extends Person {
+  status: EmploymentStatus | undefined;
+  occupation: string | undefined;
+}
+
+/** The other product's policyholder, to start an empty About you from (decision 3; 5.7c) */
+export function prefillAbout(from: Journey | null): PrefilledPerson | undefined {
   const person = from?.mainDriver ?? from?.homeAbout;
   if (!person) return undefined;
   return {
     firstName: person.firstName,
     lastName: person.lastName,
     dateOfBirth: person.dateOfBirth,
+    status: person.status,
+    occupation: person.occupation,
   };
 }
 

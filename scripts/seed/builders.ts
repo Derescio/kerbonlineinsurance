@@ -1,3 +1,4 @@
+import { statusFor } from "#/features/quote/occupation";
 import { priceQuote, quoteTotals, type PricedItem } from "#/features/rating/price-quote";
 import type { PricedAddon, PricedOption, RatingInputs } from "#/features/rating/types";
 import { itemRows, quoteStatus, type ItemDetails } from "#/server/data/quote-rows";
@@ -49,6 +50,20 @@ function homeClaims(count: number, at: Date) {
   }));
 }
 
+const INCIDENT_TYPES = ["collision", "windscreen", "theft", "vandalism"] as const;
+const FAULTS = ["not_at_fault", "at_fault", "undecided"] as const;
+
+/** The main driver's `count` incidents inside the 5 years before the quote, oldest last (5.7c) */
+function carIncidents(count: number, at: Date) {
+  return Array.from({ length: count }, (_, i) => ({
+    occurredOn: isoDate(addDays(at, -(150 + i * 380))),
+    type: INCIDENT_TYPES[i % INCIDENT_TYPES.length]!,
+    amountPence: 45_000 + i * 70_000,
+    status: null,
+    fault: FAULTS[i % FAULTS.length]!,
+  }));
+}
+
 /** Whole years from `dob` to `at` */
 export function ageAt(dob: string, at: Date): number {
   const born = new Date(`${dob}T00:00:00Z`);
@@ -97,6 +112,8 @@ export type ItemSpec =
     }
   | {
       product: "home";
+      /** The policyholder's (5.7c) */
+      occupation: string;
       addressLine1: string;
       propertyType: string;
       yearBuilt: number;
@@ -413,6 +430,7 @@ export class SeedBuilder {
             hasSmokeAlarm: spec.hasSmokeAlarm,
             lockType: spec.lockType,
             pastClaims: spec.pastClaims,
+            occupation: spec.occupation,
           },
         };
       case "business":
@@ -450,7 +468,7 @@ export class SeedBuilder {
             usage: spec.usage,
             overnightLocation: spec.overnightLocation,
           },
-          drivers: [spec.driver, ...(spec.namedDriver ? [spec.namedDriver] : [])].map((d) => ({
+          drivers: [spec.driver, ...(spec.namedDriver ? [spec.namedDriver] : [])].map((d, i) => ({
             firstName: d.firstName,
             lastName: d.lastName,
             dateOfBirth: d.dateOfBirth,
@@ -458,7 +476,13 @@ export class SeedBuilder {
             licenceYears: d.licenceYears,
             noClaimsYears: d.noClaimsYears,
             pastClaims: d.pastClaims,
+            // A job key doesn't say which working status chose it: the seed says employed
+            licenceType: "full_uk",
+            employmentStatus: statusFor(d.occupation) ?? "employed",
+            relationship:
+              i === 0 ? null : d.lastName === spec.driver.lastName ? "spouse" : "friend",
           })),
+          priorClaims: carIncidents(spec.driver.pastClaims, at),
         };
       }
       case "home": {
@@ -479,6 +503,8 @@ export class SeedBuilder {
             lockType: spec.lockType,
             pastClaims: spec.pastClaims,
             ...homeExtras(spec),
+            employmentStatus: statusFor(spec.occupation) ?? "employed",
+            occupation: spec.occupation,
           },
           priorClaims: homeClaims(spec.pastClaims, at),
         };

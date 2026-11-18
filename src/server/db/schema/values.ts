@@ -60,6 +60,36 @@ export const homeClaimTypes = [
   "other",
 ] as const;
 export const priorClaimStatuses = ["settled", "open", "withdrawn"] as const;
+// Car's answers kept from 5.7c (decisions 1 and 2): a car incident's type and fault, and each
+// driver's licence, employment status and relationship to the policyholder
+export const carClaimTypes = [
+  "collision",
+  "theft",
+  "fire",
+  "vandalism",
+  "windscreen",
+  "other",
+] as const;
+export const faultTypes = ["at_fault", "not_at_fault", "undecided"] as const;
+export const licenceTypes = ["full_uk", "full_eu"] as const;
+export const employmentStatuses = [
+  "employed",
+  "self_employed",
+  "retired",
+  "unemployed",
+  "student",
+  "homemaker",
+] as const;
+export type EmploymentStatus = (typeof employmentStatuses)[number];
+export const relationshipTypes = [
+  "spouse",
+  "partner",
+  "parent",
+  "child",
+  "sibling",
+  "other_relative",
+  "friend",
+] as const;
 
 // Reference data (4.8)
 export const bodyStyles = [

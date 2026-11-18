@@ -36,6 +36,12 @@ const QUOTED: HomePriceResult = { status: "quoted", ...GOLF_PRICES, addons: [] }
 
 const moves: { step: HomeQuoteStep | undefined; replace: boolean }[] = [];
 
+const OCCUPATIONS = [
+  { key: "plumber", label: "Plumber" },
+  { key: "retired", label: "Retired" },
+  { key: "teacher", label: "Teacher" },
+];
+
 function Harness({ initial }: { initial: HomeQuoteStep }) {
   const [step, setStep] = useState<HomeQuoteStep>(initial);
   return (
@@ -70,6 +76,7 @@ function empty(): Journey {
 async function show(step: HomeQuoteStep, journey: Journey = empty()) {
   store(journey);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(["occupations"], { occupations: OCCUPATIONS });
   return renderWithRouter(
     <QueryClientProvider client={queryClient}>
       <Harness initial={step} />
@@ -104,19 +111,49 @@ beforeEach(() => {
 });
 
 describe("About you (decision 3)", () => {
-  it("takes a name and date of birth, then goes on to the property", async () => {
+  it("takes a name, date of birth and employment, then goes on to the property (5.7c)", async () => {
     await show("about");
     await expect.element(heading()).toHaveTextContent("Tell us about you");
     await userEvent.fill(box("First name"), "Priya");
     await userEvent.fill(box("Last name"), "Shah");
     await fillDate("Date of birth", "2", "3", "1988");
+    await userEvent.selectOptions(select("Employment status"), "Employed");
+    await userEvent.selectOptions(select("Occupation"), "Teacher");
     await button("Continue to property").click();
     await expect.element(heading()).toHaveTextContent("Tell us about your property");
     expect(readJourney("home")?.homeAbout).toEqual({
       firstName: "Priya",
       lastName: "Shah",
       dateOfBirth: "1988-03-02",
+      status: "employed",
+      occupation: "teacher",
     });
+  });
+
+  it("asks for an employment status, and an occupation only for a job (5.7c)", async () => {
+    await show("about");
+    await userEvent.fill(box("First name"), "Priya");
+    await userEvent.fill(box("Last name"), "Shah");
+    await fillDate("Date of birth", "2", "3", "1988");
+    await button("Continue to property").click();
+    await expect
+      .element(select("Employment status"))
+      .toHaveAccessibleDescription(/Choose your employment status\./);
+    await userEvent.selectOptions(select("Employment status"), "Retired");
+    expect(select("Occupation").elements()).toHaveLength(0);
+    await button("Continue to property").click();
+    await expect.element(heading()).toHaveTextContent("Tell us about your property");
+    expect(readJourney("home")?.homeAbout).toMatchObject({
+      status: "retired",
+      occupation: "retired",
+    });
+  });
+
+  it("asks again for an occupation the list doesn't have", async () => {
+    const journey = empty();
+    journey.homeAbout = { ...completeHomeJourney().homeAbout!, occupation: "astronaut" };
+    await show("about", journey);
+    await expect.element(select("Occupation")).toHaveValue("");
   });
 
   it("keeps the later tabs locked until their step is reached", async () => {

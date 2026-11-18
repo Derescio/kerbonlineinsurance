@@ -83,7 +83,13 @@ export function completeHomeJourney(): Journey {
     postcode: "E8 3RL",
     startedAt: "2026-11-11T09:00:00.000Z",
     startRecorded: true,
-    homeAbout: { firstName: "Priya", lastName: "Shah", dateOfBirth: "1988-03-02" },
+    homeAbout: {
+      firstName: "Priya",
+      lastName: "Shah",
+      dateOfBirth: "1988-03-02",
+      status: "employed",
+      occupation: "teacher",
+    },
     property: {
       address: { line1: "18 Albion Road", town: "Hackney", picked: true },
       propertyType: "terraced",

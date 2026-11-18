@@ -5,12 +5,20 @@ import { STATUS_OCCUPATIONS } from "#/features/quote/occupation";
 import { expandCatalogue } from "../catalogue/expand";
 import { CATALOGUE_SOURCES } from "../catalogue/index";
 import { CALIBRATION_PEOPLE } from "./calibration";
+import { carV1 } from "./car-v1";
+import { homeV1 } from "./home-v1";
+import { homeV2 } from "./home-v2";
 import { RATING_SOURCES } from "./index";
 import type { RatingSource } from "./types";
 import { validateRatingSource } from "./validate";
 
 const source = (product: RatingSource["product"]) =>
   RATING_SOURCES.find((s) => s.product === product)!;
+/** The version a new quote is priced with: home v2 from 5.7c */
+const latest = (product: RatingSource["product"]) =>
+  RATING_SOURCES.filter((s) => s.product === product).reduce((a, b) =>
+    b.version > a.version ? b : a,
+  );
 const factor = (s: RatingSource, name: string, band: string) =>
   s.factors.find((f) => f.factor === name && f.band === band)!;
 
@@ -26,11 +34,12 @@ describe("the 5.3 status keys", () => {
 });
 
 describe("RATING_SOURCES v1", () => {
-  it("has version 1 of car, home and business", () => {
+  it("has version 1 of car, home and business, then home v2", () => {
     expect(RATING_SOURCES.map((s) => [s.product, s.version])).toEqual([
       ["car", 1],
       ["home", 1],
       ["business", 1],
+      ["home", 2],
     ]);
   });
 
@@ -64,8 +73,42 @@ describe("RATING_SOURCES v1", () => {
   });
 });
 
+describe("home v2 (5.7c, decision 4)", () => {
+  const occupations = (s: RatingSource) => s.lookups.filter((l) => l.lookup === "occupation");
+
+  it("is valid, and starts after v1", () => {
+    expect(validateRatingSource(homeV2)).toEqual([]);
+    expect(homeV2.effectiveFrom > homeV1.effectiveFrom).toBe(true);
+  });
+
+  it("reads car v1's occupation bands", () => {
+    expect(occupations(homeV2)).toEqual(occupations(carV1));
+  });
+
+  it("is v1 plus the occupation factor", () => {
+    expect(
+      homeV2.factors
+        .filter((f) => f.factor === "occupation_band")
+        .map((f) => [f.band, f.multiplier]),
+    ).toEqual([
+      ["A", 0.95],
+      ["B", 0.97],
+      ["C", 1],
+      ["D", 1.03],
+      ["E", 1.06],
+    ]);
+    expect(homeV2.version).toBe(2);
+    expect(homeV2.notes).toMatch(/5\.7c/);
+    expect(homeV2.parameters).toEqual(homeV1.parameters);
+    expect(homeV2.tiers).toEqual(homeV1.tiers);
+    expect(homeV2.addons).toEqual(homeV1.addons);
+    expect(homeV2.factors.filter((f) => f.factor !== "occupation_band")).toEqual(homeV1.factors);
+    expect(homeV2.lookups.filter((l) => l.lookup !== "occupation")).toEqual(homeV1.lookups);
+  });
+});
+
 describe("CALIBRATION_PEOPLE", () => {
-  it("has the spec's twelve people", () => {
+  it("has the spec's twelve people, and 5.7c's H4", () => {
     expect(CALIBRATION_PEOPLE.map((p) => p.id)).toEqual([
       "C1",
       "C2",
@@ -76,6 +119,7 @@ describe("CALIBRATION_PEOPLE", () => {
       "H1",
       "H2",
       "H3",
+      "H4",
       "B1",
       "B2",
       "B3",
@@ -83,9 +127,9 @@ describe("CALIBRATION_PEOPLE", () => {
   });
 
   it.each(CALIBRATION_PEOPLE.map((p) => [p.id, p] as const))(
-    "%s uses lookup keys that exist in its product's v1",
+    "%s uses lookup keys that exist in its product's latest version",
     (_id, person) => {
-      const keys = new Set(source(person.product).lookups.map((l) => `${l.lookup}:${l.key}`));
+      const keys = new Set(latest(person.product).lookups.map((l) => `${l.lookup}:${l.key}`));
       for (const key of person.lookupKeys) expect(keys.has(key), key).toBe(true);
     },
   );

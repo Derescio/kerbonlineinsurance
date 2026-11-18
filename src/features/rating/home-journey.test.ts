@@ -20,6 +20,7 @@ describe("homeInputsFromJourney", () => {
       hasSmokeAlarm: true,
       lockType: "five_lever",
       pastClaims: 1,
+      occupation: "teacher",
     });
   });
 

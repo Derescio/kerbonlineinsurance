@@ -107,16 +107,28 @@ describe("composeBundle (5.7b, decision 4)", () => {
 });
 
 describe("prefillAbout and samePerson (5.7b, decisions 3 and 6)", () => {
-  it("takes car's main driver, or home's About you", () => {
+  it("takes car's main driver, or home's About you, with employment (5.7c, decision 5)", () => {
     const car = completeJourney();
     expect(prefillAbout(car)).toEqual({
       firstName: car.mainDriver!.firstName,
       lastName: car.mainDriver!.lastName,
       dateOfBirth: car.mainDriver!.dateOfBirth,
+      status: "employed",
+      occupation: "plumber",
     });
     const home = completeHomeJourney();
     expect(prefillAbout(home)).toEqual(home.homeAbout);
     expect(prefillAbout(null)).toBeUndefined();
+  });
+
+  it("leaves employment empty from home answers saved before 5.7c asked it", () => {
+    const home = completeHomeJourney();
+    const { status: _s, occupation: _o, ...before } = home.homeAbout!;
+    expect(prefillAbout({ ...home, homeAbout: before })).toEqual({
+      ...before,
+      status: undefined,
+      occupation: undefined,
+    });
   });
 
   it("compares names trimmed and case-blind, and dates of birth exactly", () => {

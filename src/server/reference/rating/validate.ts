@@ -218,12 +218,20 @@ export const REQUIRED_FACTORS: Readonly<Record<Product, readonly string[]>> = {
   business: ["trade_band", "turnover_band", "postcode_band"],
 };
 
+/** Factors the formulas read only when a version has them: home's occupation, from v2 (5.7c) */
+export const OPTIONAL_FACTORS: Readonly<Record<Product, readonly string[]>> = {
+  car: [],
+  home: ["occupation_band"],
+  business: [],
+};
+
 /** Factor names against the formulas: unknown ones first, then missing ones */
 export function formulaProblems(source: Pick<RatingSource, "product" | "factors">): string[] {
   const required = new Set(REQUIRED_FACTORS[source.product]);
+  const known = new Set([...required, ...OPTIONAL_FACTORS[source.product]]);
   const present = new Set(source.factors.map((f) => f.factor));
   return [
-    ...[...present].filter((f) => !required.has(f)).map((f) => `unknown factor ${f}`),
+    ...[...present].filter((f) => !known.has(f)).map((f) => `unknown factor ${f}`),
     ...[...required].filter((f) => !present.has(f)).map((f) => `missing factor ${f}`),
   ];
 }
