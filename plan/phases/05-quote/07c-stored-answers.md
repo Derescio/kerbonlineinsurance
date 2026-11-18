@@ -96,7 +96,12 @@ Every answer the quote journeys ask is stored, and home is priced on employment 
 
 ## Notes from the build
 
-- **Before the preview tests:** the preview reads the dev database, which needs migration 0024 (`db:migrate`) first.
+- **Before the preview tests:** the preview reads the dev database, which needs migration 0024 (`db:migrate`) and home v2 (`db:reference`) first. Previews run neither.
+- **A short window on the first deploy** (found by the final review; Damion, 18 Nov 2026: accepted):
+  - Every load re-checks a rating version, and code from before 5.7c rejects `occupation_band` as an unknown factor.
+  - The build activates home v2 before the new code serves, so for those few minutes the old deployment can't price home or a bundle. Car is unaffected.
+  - This happens once on staging, and once on production at the Phase 5 release.
+- **Don't roll back past this slice** without first setting home v1 back to `active` by hand. Older code can't load home v2.
 - **Home v2's `effectiveFrom` is 18 Nov 2026.** The deploy only needs it after v1's 1 Nov, and it activates v2 as soon as it's written.
 - **The validator allows home's `occupation_band` without requiring it** (`OPTIONAL_FACTORS` in `validate.ts`), so v1 stays valid and v2 is checked with it.
 - **The calibration and source tests use each product's newest version,** because only home v2 knows the reference homes' occupations.
