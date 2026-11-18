@@ -205,4 +205,21 @@ describe("sign-up with a quote (5.6, decision 1)", () => {
       expect.objectContaining({ firstName: "Priya", addressLine1: "18 Albion Road" }),
     ]);
   });
+
+  it("saves a bundle when the sign-up came from a bundled home gate (5.7b)", async () => {
+    const home = completeHomeJourney();
+    home.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+    const response = await post(makeAuth(), "/sign-up/email", {
+      name: "Alex Morgan",
+      email: EMAIL,
+      password: PASSWORD,
+      acceptTerms: true,
+      callbackURL: "/email-confirmed",
+      quote: { product: "bundle", car: await golf(), home },
+    });
+    expect(response.status).toBe(200);
+    await vi.waitFor(async () => expect(await getDb().select().from(quotes)).toHaveLength(1));
+    const items = await getDb().select().from(quoteItems);
+    expect(items.map((i) => i.product).sort()).toEqual(["car", "home"]);
+  });
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { completeHomeJourney, completeJourney } from "#/features/quote/journey-fixtures";
@@ -35,7 +35,7 @@ import { fakeStripe } from "#/test/stripe-fake";
 
 import { startCheckout, type CheckoutDeps } from "./checkout";
 import { purchase } from "./purchase";
-import { saveCarQuoteFor, saveHomeQuoteFor } from "./save";
+import { saveBundleQuoteFor, saveCarQuoteFor, saveHomeQuoteFor } from "./save";
 
 // Starting a Stripe checkout (5.6b, decision 5): the 5.6 checks, then the Stripe customer, the
 // previous open session expired, a new embedded session, and a checkout_sessions row with the
@@ -303,6 +303,33 @@ describe("startCheckout: a session", () => {
     ];
     expect(params.line_items[0]!.price_data.product_data.name).toBe(
       "Kerb home insurance, Comprehensive, 18 Albion Road",
+    );
+  });
+
+  it("names a bundle by both covers, the plate and the address (5.7b)", async () => {
+    const user = await makeUser();
+    const car = await golf();
+    const home = completeHomeJourney();
+    home.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+    const saved = await withTx(getDb(), (tx) =>
+      saveBundleQuoteFor(tx, user.id, { car, home, now: NOW }),
+    );
+    if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
+    const [carItem] = await getDb()
+      .select()
+      .from(quoteItems)
+      .where(and(eq(quoteItems.quoteId, saved.quoteId), eq(quoteItems.product, "car")));
+    await getOwnerDb()
+      .update(vehicles)
+      .set({ registration: "KR24 BXL" })
+      .where(eq(vehicles.quoteItemId, carItem!.id));
+    const actor = (await resolveActor(getDb(), user.id))!;
+    expect((await start(actor, saved.quoteId)).ok).toBe(true);
+    const [params] = created()[0]! as [
+      { line_items: { price_data: { product_data: { name: string } } }[] },
+    ];
+    expect(params.line_items[0]!.price_data.product_data.name).toBe(
+      "Kerb car + home insurance, Comprehensive and Comprehensive, KR24 BXL and 18 Albion Road",
     );
   });
 

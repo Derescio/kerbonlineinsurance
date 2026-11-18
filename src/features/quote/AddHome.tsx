@@ -9,15 +9,17 @@ import { formatPounds } from "#/features/rating/money";
 
 import { useCoverPrice, type CoverMoves } from "./ChooseCover";
 import { composeCover, TIERS, usableCover } from "./cover";
+import { homeSummary } from "./HomeQuote";
 import { DEFAULT_COVER, type Journey } from "./journey-store";
+import { useReadyHome } from "./ready-home";
 import { JourneyPage, StepNav } from "./page-kit";
 import { normalisePostcode, postcodeError } from "./postcode";
 import { StepHeading } from "./step-kit";
 
 // "Add home insurance to your car quote?" (5.5, decision 11; screen 21, 230:1434, in 5.4b's frame),
 // after Choose cover. The car quote is "kept", not "saved": it's saved at the gate (5.6), which
-// "Continue with car only" goes to. The footnote shows the bundle saving that v1 keeps. The home
-// journey arrives in 5.7.
+// "Continue with car only" goes to. The footnote shows the bundle saving that v1 keeps. "Add home
+// insurance" starts the home journey bundled with this car (5.7b, decision 2).
 
 const whole = (pence: number) => formatPounds(pence).replace(".00", "");
 
@@ -26,6 +28,7 @@ export function AddHome({
   aside,
   onBack,
   onCarOnly,
+  onAddHome,
   ...moves
 }: {
   journey: Journey;
@@ -34,11 +37,14 @@ export function AddHome({
   onBack: () => void;
   /** "Continue with car only": the gate (5.6, decision 2) */
   onCarOnly: () => void;
+  /** "Add home insurance" with a valid postcode (5.7b, decision 2) */
+  onAddHome: (postcode: string) => void;
 } & CoverMoves) {
   const { result } = useCoverPrice("car", journey, moves);
   const [postcode, setPostcode] = useState(journey.postcode);
   const [error, setError] = useState<string | null>(null);
-  const [asked, setAsked] = useState(false);
+  // A finished home quote in the tab: the card shows it (Damion's preview check, 17 Nov 2026)
+  const readyHome = useReadyHome();
 
   const heading = (
     <StepHeading
@@ -70,7 +76,7 @@ export function AddHome({
   function addHome() {
     const valid = normalisePostcode(postcode);
     setError(valid ? null : postcodeError);
-    setAsked(valid !== null);
+    if (valid) onAddHome(valid);
   }
 
   return (
@@ -108,42 +114,57 @@ export function AddHome({
         </div>
       </Card>
 
-      <Card
-        padding="lg"
-        as="section"
-        className="quote-addhome__home"
-        aria-labelledby="home-heading"
-      >
-        <Icon name="house" size={22} />
-        <h2 id="home-heading" className="kb-h3">
-          Let&rsquo;s get a home quote
-        </h2>
-        <Input
-          label="Home postcode"
-          hint="Carried over from your quote. Change it if the home is elsewhere."
-          error={error ?? undefined}
-          value={postcode}
-          autoComplete="postal-code"
-          onChange={(e) => {
-            setPostcode(e.target.value);
-            setAsked(false);
-          }}
-        />
-        <p>
-          Next: confirm your property, contents and security, then past claims. We&rsquo;ll keep
-          your car quote while you answer.
-        </p>
-        <span className="quote-holding">
+      {readyHome ? (
+        <Card
+          padding="lg"
+          as="section"
+          className="quote-addhome__home"
+          aria-labelledby="home-heading"
+        >
+          <Badge tone="success" dot>
+            Your home quote
+          </Badge>
+          <Icon name="house" size={22} />
+          <h2 id="home-heading" className="kb-h3">
+            Your home quote is ready
+          </h2>
+          <p className="quote-outcome__name">{homeSummary(readyHome).address}</p>
+          <p className="quote-outcome__meta">
+            {readyHome.postcode} · {TIERS[(readyHome.cover ?? DEFAULT_COVER).coverLevel].name} cover
+          </p>
+          <p>See your car and home side by side, with the saving for having both.</p>
+          <Button variant="accent" onClick={() => onAddHome(readyHome.postcode)}>
+            See both together
+          </Button>
+        </Card>
+      ) : (
+        <Card
+          padding="lg"
+          as="section"
+          className="quote-addhome__home"
+          aria-labelledby="home-heading"
+        >
+          <Icon name="house" size={22} />
+          <h2 id="home-heading" className="kb-h3">
+            Let&rsquo;s get a home quote
+          </h2>
+          <Input
+            label="Home postcode"
+            hint="Carried over from your quote. Change it if the home is elsewhere."
+            error={error ?? undefined}
+            value={postcode}
+            autoComplete="postal-code"
+            onChange={(e) => setPostcode(e.target.value)}
+          />
+          <p>
+            Next: confirm your property, contents and security, then past claims. We&rsquo;ll keep
+            your car quote while you answer.
+          </p>
           <Button variant="accent" onClick={addHome}>
             Add home insurance
           </Button>
-          {asked ? (
-            <span role="status" className="quote-holding__line">
-              Home quotes are coming soon
-            </span>
-          ) : null}
-        </span>
-      </Card>
+        </Card>
+      )}
 
       <p className="quote-addhome__note">
         Car and home are separate policies, each assessed on its own. Insure both with us and save{" "}

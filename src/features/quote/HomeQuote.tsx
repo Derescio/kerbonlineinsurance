@@ -6,7 +6,13 @@ import { Card } from "#/components/display/Card";
 import { TIERS, usableCover } from "./cover";
 import type { HomeStep } from "./home-steps";
 import type { CoverChoice, Journey } from "./journey-store";
-import { HomeDeclined, HomeReferred, type HomeSummary } from "./Outcomes";
+import {
+  HomeDeclined,
+  HomeDeclinedBundle,
+  HomeReferred,
+  type CarOnly,
+  type HomeSummary,
+} from "./Outcomes";
 import { HelpCard, JourneyPage, StepNav } from "./page-kit";
 import { QuotePrice, usePrice } from "./QuotePrice";
 import { useSignedIn } from "./restart";
@@ -87,6 +93,7 @@ export function HomeQuote({
   onChooseCover,
   onCover,
   onSaveAndExit,
+  bundle,
 }: {
   journey: Journey;
   /** The "Your home" card */
@@ -100,6 +107,8 @@ export function HomeQuote({
   onCover: (cover: CoverChoice) => void;
   /** The gate and the save, then Your saved quotes; also screen 03's "Sign in to send this for review" */
   onSaveAndExit: () => void;
+  /** In a live bundle (5.7b, decision 5): the car, buyable alone when the home can't be bought */
+  bundle?: { car: CarOnly | null; onCarOnly: () => void; onSendForReview: () => void };
 }) {
   const price = usePrice("home", journey, (step) => onInvalid(step as HomeStep), onCover);
   const { result } = price;
@@ -162,8 +171,29 @@ export function HomeQuote({
           aside={aside}
           signedIn={signedIn}
           onCheckAnswers={() => onEdit("about")}
-          onSendForReview={onSaveAndExit}
+          onSendForReview={bundle?.onSendForReview ?? onSaveAndExit}
+          onContinueCar={bundle?.onCarOnly}
         />
+      ) : outcome === "declined" && bundle ? (
+        bundle.car ? (
+          <HomeDeclinedBundle
+            home={homeSummary(journey)}
+            car={bundle.car}
+            aside={aside}
+            onCheckHome={() => onEdit("property")}
+            onContinueCar={bundle.onCarOnly}
+          />
+        ) : (
+          // Screen 04 waits for the car's own price, rather than flash home-alone's screen
+          <JourneyPage
+            heading={<StepHeading overline="Your bundle / Quote update" title="Your quote" />}
+            aside={aside}
+          >
+            <Card padding="lg" className="quote-slot">
+              <p role="status">Working out your price&hellip;</p>
+            </Card>
+          </JourneyPage>
+        )
       ) : outcome === "declined" ? (
         <HomeDeclined
           home={homeSummary(journey)}

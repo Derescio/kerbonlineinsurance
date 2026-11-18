@@ -5,9 +5,15 @@ import { AddHome } from "./AddHome";
 import { BuyStep } from "./BuyGate";
 import { ChooseCover } from "./ChooseCover";
 import { ClaimsStep } from "./ClaimsStep";
+import { firstIncompleteHomeStep } from "./home-steps";
 import {
+  beginJourney,
+  clearBundle,
+  DEFAULT_COVER,
+  markBundle,
   readJourney,
   setCover,
+  setHomeStepAnswers,
   setStepAnswers,
   setVehicle,
   type CoverChoice,
@@ -19,7 +25,7 @@ import { CarCard, DetailsTabs, HelpCard } from "./page-kit";
 import { QuoteHolding } from "./QuoteHolding";
 import { restartTarget, type RestartTo } from "./restart";
 import { todayIso } from "./schemas/dates";
-import type { QuoteStep } from "./search";
+import type { HomeQuoteStep, QuoteStep } from "./search";
 import {
   DRIVER_STEPS,
   firstIncompleteStep,
@@ -64,11 +70,19 @@ const previous: Record<DriverStep, QuoteStep | undefined> = {
   drivers: "claims",
 };
 
+/** Where a move to the home journey goes (5.7b): the route turns it into a link */
+export interface HomeMove {
+  product: "home";
+  postcode: string;
+  step?: HomeQuoteStep;
+}
+
 export function DriverSteps({
   step,
   after,
   onStep,
   onRestart,
+  onOtherProduct,
 }: {
   step: QuoteStep;
   /** The gate's `after` from the URL (5.6) */
@@ -76,6 +90,8 @@ export function DriverSteps({
   onStep: Move;
   /** The start page, for the gate with no journey in the tab (a paid quote clears it, 5.6) */
   onRestart?: (to: RestartTo) => void;
+  /** Opens the home journey: screen 21's "Add home insurance", or home on its own (5.7b) */
+  onOtherProduct?: (to: HomeMove) => void;
 }) {
   const [view, setView] = useState<{ step: QuoteStep; journey: Journey; today: string } | null>(
     null,
@@ -228,6 +244,11 @@ export function DriverSteps({
           onChooseCover={() => onStep("cover")}
           onCover={saveCover}
           onSaveAndExit={saveAndExit}
+          onHomeOnly={(home) => {
+            clearBundle();
+            onOtherProduct?.({ product: "home", postcode: home.postcode, step: "buy" });
+          }}
+          onGetHome={() => onOtherProduct?.({ product: "home", postcode: journey.postcode })}
           // Replaced, not pushed: Back would return to the quote, which redirects again
           onInvalid={(s) => invalid(s as "car" | DriverStep | "cover")}
         />
@@ -251,6 +272,25 @@ export function DriverSteps({
           aside={coverAside}
           onBack={() => onStep("cover")}
           onCarOnly={() => onStep("buy")}
+          onAddHome={(postcode) => {
+            // Bundled with this car; a home already answered goes straight to Choose cover. The
+            // car's cover is kept in the tab: Continue with nothing changed doesn't write it
+            setCover("car", readJourney("car")?.cover ?? DEFAULT_COVER);
+            beginJourney("home", postcode);
+            markBundle(journey.journeyId);
+            // Home's About you is car's main driver: the home steps open at Property (decision 3)
+            const main = readJourney("car")?.mainDriver;
+            if (!readJourney("home")?.homeAbout && main) {
+              setHomeStepAnswers("about", {
+                firstName: main.firstName,
+                lastName: main.lastName,
+                dateOfBirth: main.dateOfBirth,
+              });
+            }
+            const home = readJourney("home");
+            const first = firstIncompleteHomeStep(home, today);
+            onOtherProduct?.({ product: "home", postcode, step: first ?? "cover" });
+          }}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}
           onInvalid={(s) => invalid(s as "car" | DriverStep | "cover")}

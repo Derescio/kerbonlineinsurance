@@ -67,11 +67,21 @@ type CheckoutInput = z.output<ReturnType<typeof checkoutInput>>;
 
 /**
  * "Kerb car insurance, Comprehensive, KR24 BXL", or the make and model without a registration;
- * "Kerb home insurance, Comprehensive, 18 Albion Road" for a home (5.7)
+ * "Kerb home insurance, Comprehensive, 18 Albion Road" for a home (5.7); a bundle names both
  */
 function lineName(items: PurchaseItem[]): string {
   const first = items[0]!;
-  const car = items.find((i) => i.car)?.car;
+  const carItem = items.find((i) => i.car);
+  const homeItem = items.find((i) => i.home);
+  const car = carItem?.car;
+  // A bundle (5.7b): both covers, then the car and the address
+  if (car && homeItem) {
+    return [
+      "Kerb car + home insurance",
+      `${tierName(carItem!.coverLevel)} and ${tierName(homeItem.coverLevel)}`,
+      `${car.registration ?? `${car.make} ${car.model}`} and ${homeItem.home!.addressLine1}`,
+    ].join(", ");
+  }
   if (!car && first.home) {
     return ["Kerb home insurance", tierName(first.coverLevel), first.home.addressLine1].join(", ");
   }
@@ -159,7 +169,11 @@ async function start(
       const { customer, quote, items } = checked;
       const amountPence =
         input.plan === "monthly"
-          ? await monthlyPaymentFor(tx, items[0]!.ratingVersionId, quote.totalPence)
+          ? await monthlyPaymentFor(
+              tx,
+              items.map((i) => i.ratingVersionId),
+              quote.totalPence,
+            )
           : quote.totalPence;
 
       // 2 to 4. The Stripe customer, the previous session expired, the new session

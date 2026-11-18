@@ -328,7 +328,31 @@ describe("the account page's policies (5.6, decision 12)", () => {
     startsOn: "2026-11-20",
     endsOn: "2027-11-19",
     monthly: false,
+    bundle: null,
     ...over,
+  });
+
+  it("groups a car + home bundle under one heading, with the saving, and tags each policy (5.7b)", async () => {
+    const bundle = { id: "b1", savingPence: 15_856 };
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[
+          policy({ bundle }),
+          policy({ id: "p2", reference: "KRB-759616", product: "home", bundle }),
+          policy({ id: "p3", reference: "KRB-111111" }),
+        ]}
+      />,
+    );
+    const group = page.getByRole("group", { name: "Car + home bundle" });
+    await expect.element(group).toBeVisible();
+    await expect.element(group.getByText("You save £158.56 a year")).toBeVisible();
+    await expect.element(group.getByText("KRB-482913")).toBeVisible();
+    await expect.element(group.getByText("KRB-759616")).toBeVisible();
+    expect(group.getByText("Bundle", { exact: true }).elements()).toHaveLength(2);
+    expect(group.getByText("KRB-111111").elements()).toHaveLength(0);
+    await expect.element(page.getByText("KRB-111111")).toBeVisible();
   });
 
   it("lists each policy and links to saved quotes", async () => {

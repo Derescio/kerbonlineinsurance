@@ -1,8 +1,8 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { AuthzError } from "#/server/auth/errors";
-import { payments, policies } from "#/server/db/schema";
+import { payments, policies, quotes } from "#/server/db/schema";
 
 import type { ClaimSummary } from "./claims";
 import { defineRead } from "./define";
@@ -21,8 +21,14 @@ export interface PolicySummary {
   endsOn: string;
 }
 
-/** A listed policy, and whether it's paid monthly by a Stripe subscription (5.6b, decision 9) */
-export type PolicyListItem = PolicySummary & { monthly: boolean };
+/**
+ * A listed policy, whether it's paid monthly by a Stripe subscription (5.6b, decision 9), and the
+ * car + home bundle it was bought in, with the saving that quote gave (5.7b)
+ */
+export type PolicyListItem = PolicySummary & {
+  monthly: boolean;
+  bundle: { id: string; savingPence: number } | null;
+};
 
 export type PolicyDetail = PolicySummary & {
   annualPremiumPence: number;
@@ -48,7 +54,7 @@ export const listMyPolicies = defineRead(
   async (actor, _input, db): Promise<PolicyListItem[]> => {
     if (!actor.customerId) return [];
     const rows = await db.query.policies.findMany({
-      columns: { ...summaryColumns, quoteId: true },
+      columns: { ...summaryColumns, quoteId: true, bundleId: true },
       where: eq(policies.customerId, actor.customerId),
       orderBy: desc(policies.createdAt),
     });
@@ -61,9 +67,24 @@ export const listMyPolicies = defineRead(
         and(eq(payments.customerId, actor.customerId), isNotNull(payments.stripeSubscriptionId)),
       );
     const monthlyQuotes = new Set(subscribed.map((row) => row.quoteId));
-    return rows.map(({ quoteId, ...policy }) => ({
+    // A bundle's saving is its quote's discount on the combined premiums
+    const bundledQuotes = [...new Set(rows.filter((r) => r.bundleId).map((r) => r.quoteId))];
+    const savings = new Map(
+      bundledQuotes.length
+        ? (
+            await db
+              .select({ id: quotes.id, savingPence: quotes.bundleDiscountPence })
+              .from(quotes)
+              .where(
+                and(eq(quotes.customerId, actor.customerId), inArray(quotes.id, bundledQuotes)),
+              )
+          ).map((q) => [q.id, q.savingPence ?? 0])
+        : [],
+    );
+    return rows.map(({ quoteId, bundleId, ...policy }) => ({
       ...policy,
       monthly: monthlyQuotes.has(quoteId),
+      bundle: bundleId ? { id: bundleId, savingPence: savings.get(quoteId) ?? 0 } : null,
     }));
   },
 );

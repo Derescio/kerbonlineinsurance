@@ -185,6 +185,9 @@ export const DEFAULT_COVER: CoverChoice = {
 const savedSchema = z.object({ quoteId: z.string().min(1), key: z.string().min(1) });
 export type SavedQuote = z.infer<typeof savedSchema>;
 
+/** On the home journey: bought with this car journey's quote (5.7b, decision 1) */
+const bundleSchema = z.object({ carJourneyId: z.string().min(1) });
+
 /** Read one at a time: a part that fails is dropped alone (call 15) */
 const partSchemas = {
   vehicle: vehicleSchema,
@@ -199,6 +202,7 @@ const partSchemas = {
   payment: paymentSchema,
   cover: coverSchema,
   saved: savedSchema,
+  bundle: bundleSchema,
 };
 
 const baseSchema = z.object({
@@ -236,6 +240,8 @@ export type Journey = z.infer<typeof baseSchema> & {
   cover?: CoverChoice;
   /** Set once the gate saved the quote (5.6); the key says whether the answers have changed since */
   saved?: SavedQuote;
+  /** Home only: the car journey this home is bundled with (5.7b) */
+  bundle?: z.infer<typeof bundleSchema>;
 };
 
 function stable(value: unknown): unknown {
@@ -253,11 +259,11 @@ function stable(value: unknown): unknown {
 
 /**
  * A stable hash of what the quote prices on: the journey without `lastPlate`, `payment` and
- * `saved`, cover included (5.6, decision 7). FNV-1a over sorted-key JSON, so it tells "changed"
+ * `saved` (or a bundle mark), cover included (5.6, decision 7). FNV-1a over sorted-key JSON, so it tells "changed"
  * from "same" and nothing more; it isn't a security check.
  */
 export function savedQuoteKey(journey: Journey): string {
-  const { lastPlate: _plate, payment: _payment, saved: _saved, ...rest } = journey;
+  const { lastPlate: _plate, payment: _payment, saved: _saved, bundle: _bundle, ...rest } = journey;
   const json = JSON.stringify(stable(rest));
   let hash = 0x811c9dc5;
   for (let i = 0; i < json.length; i++) {
@@ -401,6 +407,23 @@ export function setCover(
 ): void {
   const stored = readJourney(product, storage);
   if (stored) writeJourney(product, { ...stored, cover }, storage);
+}
+
+/** Marks the home journey as bundled with this car journey (5.7b, decision 1) */
+export function markBundle(
+  carJourneyId: string,
+  storage: JourneyStorage | null = sessionStore(),
+): void {
+  const stored = readJourney("home", storage);
+  if (stored) writeJourney("home", { ...stored, bundle: { carJourneyId } }, storage);
+}
+
+/** Home on its own again: "Continue with home only" or "with car only" (5.7b) */
+export function clearBundle(storage: JourneyStorage | null = sessionStore()): void {
+  const stored = readJourney("home", storage);
+  if (!stored?.bundle) return;
+  const { bundle: _bundle, ...rest } = stored;
+  writeJourney("home", rest, storage);
 }
 
 /** The quote the gate saved this journey as (5.6, decision 5). Nothing happens without a journey. */

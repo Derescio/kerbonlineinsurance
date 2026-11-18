@@ -66,6 +66,18 @@ describe("renderEmail", () => {
     }
   });
 
+  it("names the home on a home or bundle confirmation, and leaves it out otherwise (5.7b)", () => {
+    const bundle = renderEmail("policy_confirmed", { ...params, home: "18 Albion Road, LS6 2AB" });
+    for (const part of [bundle.html, bundle.text]) {
+      expect(part).toContain("Car: Volkswagen Golf");
+      expect(part).toContain("Home: 18 Albion Road, LS6 2AB");
+    }
+    const car = renderEmail("policy_confirmed", { ...params, home: "" });
+    expect(car.text).not.toContain("Home:");
+    // A job queued before 5.7b has no home at all
+    expect(renderEmail("policy_confirmed", params).text).not.toContain("Home:");
+  });
+
   it("tells the customer a payment was refunded, why, with the account link (5.6b)", () => {
     const email = renderEmail("payment_refunded", {
       name: "Maya Patel",

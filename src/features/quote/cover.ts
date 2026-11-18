@@ -1,6 +1,6 @@
 import { ipt, monthlyPayment, representativeApr } from "#/features/rating/money";
-import { quoteTotals } from "#/features/rating/price-quote";
-import type { CoverLevel } from "#/server/db/schema/values";
+import { quoteTotals, type TotalsLine } from "#/features/rating/price-quote";
+import type { CoverLevel, Product } from "#/server/db/schema/values";
 
 import type { CoverChoice } from "./journey-store";
 import type { BuyableProductId } from "./products";
@@ -51,6 +51,27 @@ export interface ComposedCover {
   voluntaryExcessPence: number;
 }
 
+/** One product's line for quoteTotals(), or null when that tier can't be chosen */
+export function coverLine(
+  product: Product,
+  prices: CoverPrices,
+  coverLevel: CoverLevel,
+  chosenAddons: readonly string[],
+): TotalsLine | null {
+  const tier = prices.levels.find((t) => t.coverLevel === coverLevel);
+  if (!tier || tier.outcome !== "quoted" || tier.premiumPence === null) return null;
+  return {
+    product,
+    premiumPence: tier.premiumPence,
+    addonsPence: prices.addons
+      .filter((a) => chosenAddons.includes(a.addon))
+      .reduce((sum, a) => sum + a.annualPricePence, 0),
+    iptRate: prices.iptRate,
+    feePence: prices.feePence,
+    bundleRate: prices.bundleDiscountRate,
+  };
+}
+
 /** A tier with the chosen extras, or null when that tier can't be chosen */
 export function composeCover(
   prices: CoverPrices,
@@ -58,22 +79,13 @@ export function composeCover(
   chosenAddons: readonly string[],
 ): ComposedCover | null {
   const tier = prices.levels.find((t) => t.coverLevel === coverLevel);
-  if (!tier || tier.outcome !== "quoted" || tier.premiumPence === null) return null;
+  const priced = coverLine("car", prices, coverLevel, chosenAddons);
+  if (!tier || !priced) return null;
   const addons = prices.addons.filter((a) => chosenAddons.includes(a.addon));
-  const totals = quoteTotals([
-    {
-      product: "car",
-      premiumPence: tier.premiumPence,
-      addonsPence: addons.reduce((sum, a) => sum + a.annualPricePence, 0),
-      iptRate: prices.iptRate,
-      feePence: prices.feePence,
-      bundleRate: prices.bundleDiscountRate,
-    },
-  ]);
-  const line = totals.lines.get("car")!;
+  const line = quoteTotals([priced]).lines.get("car")!;
   return {
     coverLevel,
-    premiumPence: tier.premiumPence,
+    premiumPence: priced.premiumPence,
     addons,
     feePence: line.feePence,
     iptPence: line.iptPence,

@@ -5,7 +5,9 @@ import { Card } from "#/components/display/Card";
 
 import { TIERS, usableCover } from "./cover";
 import type { CoverChoice, Journey } from "./journey-store";
+import { homeSummary } from "./HomeQuote";
 import { CarDeclined, CarReferred } from "./Outcomes";
+import { useReadyHome } from "./ready-home";
 import type { NamedDrivers } from "./schemas/driver-steps";
 import { DriverReview, reviewIntro } from "./DriverReview";
 import { QuotePrice, RemovedLine, useQuotePrice } from "./QuotePrice";
@@ -77,6 +79,8 @@ export function QuoteHolding({
   onCover,
   onSaveAndExit,
   carCard,
+  onHomeOnly,
+  onGetHome,
 }: {
   journey: Journey;
   /** "Back to your details": Named drivers (5.4b, call 10) */
@@ -99,10 +103,16 @@ export function QuoteHolding({
   onNamedDrivers: (namedDrivers: NamedDrivers) => void;
   /** Where the server sends a step that no longer passes (5.4) */
   onInvalid: (step: "car" | DriverStep) => void;
+  /** The home quote waiting in the tab, bought on its own (5.7b, decision 5) */
+  onHomeOnly?: (home: Journey) => void;
+  /** Screen 20's "Get a home quote" (5.7b, decision 5) */
+  onGetHome?: () => void;
 }) {
   const car = journey.vehicle;
   const price = useQuotePrice(journey, onNamedDrivers, onInvalid, onCover);
   const signedIn = useSignedIn();
+  const readyHome = useReadyHome();
+  const homeOnly = readyHome && onHomeOnly ? () => onHomeOnly(readyHome) : undefined;
   const stopper = price.stopper;
   const { result } = price;
   const outcome =
@@ -168,9 +178,17 @@ export function QuoteHolding({
           signedIn={signedIn}
           onCheckAnswers={() => onEdit("about")}
           onSendForReview={onSaveAndExit}
+          onContinueHome={homeOnly}
         />
       ) : outcome === "declined" ? (
-        <CarDeclined journey={journey} aside={aside} onCheckAnswers={() => onEdit("about")} />
+        <CarDeclined
+          journey={journey}
+          aside={aside}
+          home={readyHome && homeOnly ? homeSummary(readyHome) : undefined}
+          onCheckAnswers={() => onEdit("about")}
+          onContinueHome={homeOnly}
+          onGetHome={onGetHome}
+        />
       ) : stopper ? (
         <JourneyPage
           heading={

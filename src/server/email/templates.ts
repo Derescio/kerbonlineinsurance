@@ -185,11 +185,14 @@ export function accountClosedEmail(): EmailContent {
 }
 
 // The policy confirmation (5.6, decision 9): sent once a purchase commits, with what You're
-// covered shows and a link to the account. `car` is empty for a quote with no car on it (5.7).
+// covered shows and a link to the account. `car` is empty for a quote with no car on it (5.7), and
+// `home` names the insured address on a home or bundle (5.7b).
 export interface PolicyConfirmedParams {
   name: string;
   policyReference: string;
   car: string;
+  /** The insured address, or empty; missing on a job queued before 5.7b */
+  home?: string;
   startsOn: string;
   endsOn: string;
   amount: string;
@@ -201,6 +204,7 @@ export function policyConfirmedEmail(p: PolicyConfirmedParams): EmailContent {
   const details = [
     `Policy: ${p.policyReference}`,
     ...(p.car ? [`Car: ${p.car}`] : []),
+    ...(p.home ? [`Home: ${p.home}`] : []),
     `Cover starts: ${p.startsOn}`,
     `Cover ends: ${p.endsOn}`,
     `Payment: ${p.amount}`,

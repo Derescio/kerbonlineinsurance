@@ -4,7 +4,8 @@ import { Input } from "#/components/forms/Input";
 import { fieldErrors, focusFirstError } from "#/lib/validation";
 
 import { DateField, isoOf, partsOf, type DateParts } from "./DateField";
-import { setStepAnswers } from "./journey-store";
+import { prefillAbout, prefillAddress } from "./bundle";
+import { readJourney, setStepAnswers } from "./journey-store";
 import { OccupationField, type OccupationValue } from "./OccupationField";
 import { aboutYouSchema, type AboutYou } from "./schemas/driver-steps";
 import { chosen, StepActions, StepHeading, type Errors, type StepProps } from "./step-kit";
@@ -47,7 +48,22 @@ export function AboutYouStep({
   tabs,
   aside,
 }: StepProps) {
-  const [form, setForm] = useState(() => initial(storedAnswers(journey, "about") as AboutYou));
+  // Empty, it starts from home's policyholder and address when a home quote is in the tab
+  // (5.7b, decision 3)
+  const [form, setForm] = useState(() => {
+    const own = storedAnswers(journey, "about") as AboutYou | undefined;
+    if (own) return initial(own);
+    const home = readJourney("home");
+    const address = prefillAddress(home);
+    return initial({
+      ...prefillAbout(home),
+      ...(address && {
+        addressLine1: address.line1,
+        addressLine2: address.line2,
+        town: address.town,
+      }),
+    } as AboutYou);
+  });
   const [errors, setErrors] = useState<Errors>(() =>
     revalidate ? storedErrors(journey, "about", today) : {},
   );

@@ -121,6 +121,12 @@ function amountLine(plan: "annual" | "monthly", firstPence: number, eachPence: n
     : `${formatPounds(firstPence)} paid today, then 11 monthly payments of ${formatPounds(eachPence)}`;
 }
 
+/** "18 Albion Road, LS6 2AB" for a home item, or "" (5.7b) */
+function homeLine(items: PurchaseItem[]): string {
+  const home = items.find((i) => i.home)?.home;
+  return home ? `${home.addressLine1}, ${home.postcode}` : "";
+}
+
 function carLine(items: PurchaseItem[]): string {
   const car = items.find((i) => i.car)?.car;
   if (!car) return "";
@@ -164,10 +170,14 @@ export async function purchase(tx: Tx, input: PurchaseInput): Promise<PurchaseRe
     );
   }
 
-  // 5. The payments, from the saved total; the credit charge is the first item's version's, as
-  // priceQuote takes it. A monthly plan's due dates are Stripe's billing dates when given. Only
+  // 5. The payments, from the saved total; the credit charge is the items' versions' (one rate,
+  // checked). A monthly plan's due dates are Stripe's billing dates when given. Only
   // the first payment has an invoice and payment intent yet; every monthly row has the subscription.
-  const monthly = await monthlyPaymentFor(tx, items[0]!.ratingVersionId, quote.totalPence);
+  const monthly = await monthlyPaymentFor(
+    tx,
+    items.map((i) => i.ratingVersionId),
+    quote.totalPence,
+  );
   const schedule = paymentSchedule(input.plan, quote.totalPence, monthly, input.startsOn);
   const dates = input.plan === "monthly" ? input.stripe.instalmentDates : undefined;
   if (dates && dates.length !== schedule.length) {
@@ -224,6 +234,7 @@ export async function purchase(tx: Tx, input: PurchaseInput): Promise<PurchaseRe
         name: customer.firstName,
         policyReference: bought.map((p) => p.reference).join(", "),
         car: carLine(items),
+        home: homeLine(items),
         startsOn: formatDay(input.startsOn),
         endsOn: formatDay(endsOn),
         amount: amountLine(input.plan, amountPence, monthly),

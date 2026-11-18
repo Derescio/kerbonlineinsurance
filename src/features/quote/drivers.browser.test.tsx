@@ -754,8 +754,7 @@ describe("the price on the holding view (5.4)", () => {
     await showQuote();
     await expect.element(heading()).toHaveTextContent("We’re unable to offer car cover");
     await expect.element(page.getByText("Car · Not available")).toBeVisible();
-    await page.getByRole("button", { name: "Get a home quote" }).click();
-    await expect.element(page.getByText("Home quotes are coming soon")).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Get a home quote" })).toBeVisible();
     await page.getByRole("button", { name: "Check car answers" }).click();
     expect(moves.at(-1)).toEqual({ step: "about", replace: false });
   });

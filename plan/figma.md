@@ -46,7 +46,7 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 01 | Quote start: type picker + postcode from the link | `222:6702` | 5.1 |
 | 02 | Coming soon, with car and home offered instead | `222:6717` | 5.1 |
 | 03 | Home quote referred. Built in 5.5 with sample home answers; "Your quote is saved" becomes "Sign in to send this for review" until 5.6 (5.5, decision 12) | `222:6732` | 5.5 |
-| 04 | Bundle partially declined (home declined, car buyable). Built in 5.5 with sample home answers; shown by 5.7b | `222:6747` | 5.5 |
+| 04 | Bundle partially declined (home declined, car buyable). Built in 5.5 with sample home answers; shown for real in 5.7b, with the car's own total (5.7b, decision 5) | `222:6747` | 5.5 / 5.7b |
 | 05 | Home · Property. Built in 5.4b's frame after a home "Tell us about you" step (name and date of birth, not drawn); a Bedrooms field is added, and the address list is made up for the postcode (5.7, decisions 3 and 4) | `222:6762` | 5.7 |
 | 06 | Home · Contents & security. Built in 5.4b's frame as drawn (5.7, decision 5) | `222:6777` | 5.7 |
 | 07 | Home · Past claims. Built in 5.4b's frame, up to 5 claims (5.7, decision 6) | `222:6792` | 5.7 |
@@ -64,8 +64,8 @@ Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey a
 | 18 | You're covered. Built in 5.6; "Your policy documents" and "View policy" wait for 6.2, and the email line reads "A confirmation has been sent to {email}. You can also see your policy in your account." (5.6, decision 9) | `226:774` | 5.6 |
 | 19 | Car · Referred. "Your car quote is saved" becomes "What happens next?" and "Sign in to send this for review" until 5.6 (5.5, decision 9) | `226:789` | 5.5 |
 | 20 | Car declined · Home available. On the car journey the home card offers "Get a home quote"; the half as drawn waits for a home quote (5.7) (5.5, decision 10) | `226:804` | 5.5 |
-| 21 | Start a car + home bundle. Built in 5.5 after Choose cover: "Car quote saved" reads "Your car quote", and the footnote shows the 8% saving; "Add home insurance" waits for 5.7b (5.5, decision 11) | `230:1434` | 5.5 / 5.7 |
-| 22 | Home quote & choose cover (1440 wide). Home's Choose cover is built in 5.7 from screen 13 with home's levels and extras and no voluntary excess; the bundle half waits for 5.7b | `230:1449` | 5.7 / 5.7b |
+| 21 | Start a car + home bundle. Built in 5.5 after Choose cover: "Car quote saved" reads "Your car quote", and the footnote shows the 8% saving. "Add home insurance" starts the home steps bundled with the car in 5.7b, or goes straight to home's Choose cover when the home is already answered (5.7b, decision 2) | `230:1434` | 5.5 / 5.7b |
+| 22 | Home quote & choose cover (1440 wide). Home's Choose cover is built in 5.7 from screen 13 with home's levels and extras and no voluntary excess. The bundle half is built in 5.7b under the breakdown: "Your car quote" (not "still saved"), Car and Home at their prices after the saving, "Bundle saving", "Together", and the 8% saving shown where Figma says "no bundle discount"; home's own tiers, not the drawn buildings/contents split. Off a bundle, the page offers "Add car insurance" (5.7b, decisions 3 and 4) | `230:1449` | 5.7 / 5.7b |
 
 **About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12). Replaced by Revamp R03 (5.4b).
 

@@ -11,7 +11,7 @@ import { AuthzError } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
 import { quotes } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
-import { saveCarQuoteFor, saveHomeQuoteFor } from "#/server/quote/save";
+import { saveBundleQuoteFor, saveCarQuoteFor, saveHomeQuoteFor } from "#/server/quote/save";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "#/test/db";
@@ -112,11 +112,17 @@ describe("listMyQuotes", () => {
       quoteId: saved.quoteId,
       reference: saved.reference,
       state: "ready",
-      car: { make: "Volkswagen", model: "Golf" },
-      coverLevel: "comprehensive",
+      items: [
+        expect.objectContaining({
+          product: "car",
+          car: expect.objectContaining({ make: "Volkswagen", model: "Golf" }),
+          home: null,
+          coverLevel: "comprehensive",
+        }),
+      ],
       annualTotalPence: row!.totalPence,
       monthlyPaymentPence: monthlyPayment(row!.totalPence, rate),
-      policyReference: null,
+      policyReferences: [],
       postcode: "E8 3RL",
     });
   });
@@ -164,7 +170,46 @@ describe("listMyQuotes", () => {
       ratingVersionId: (await getActiveRatingTables("car")).id,
     });
     const [card] = await listMyQuotes(actor, {});
-    expect(card).toMatchObject({ state: "bought", policyReference: policy.reference });
+    expect(card).toMatchObject({ state: "bought", policyReferences: [policy.reference] });
+  });
+});
+
+/** A customer with a saved car + home bundle, saved as the gate saves it (5.7b) */
+async function customerWithBundle() {
+  const user = await makeUser();
+  const home = completeHomeJourney();
+  home.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+  const saved = await withTx(getDb(), async (tx) =>
+    saveBundleQuoteFor(tx, user.id, { car: await golf(), home, now: SAVED_AT }),
+  );
+  if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
+  const actor = (await resolveActor(getDb(), user.id))!;
+  return { actor, saved, userId: user.id };
+}
+
+// Before getQuoteForPayment's tests: one activates a car v2 with another monthly rate, and a
+// bundle refuses versions whose rates differ
+describe("a bundle's reads (5.7b)", () => {
+  it("gives Confirm and pay both items, car first, and the saving", async () => {
+    const { actor, saved } = await customerWithBundle();
+    const summary = await getQuoteForPayment(actor, { quoteId: saved.quoteId });
+    const [row] = await getDb().select().from(quotes).where(eq(quotes.id, saved.quoteId));
+    expect(summary.items.map((i) => i.product)).toEqual(["car", "home"]);
+    expect(summary.items[1]!.home).toMatchObject({ addressLine1: "18 Albion Road" });
+    expect(summary.bundleSavingPence).toBe(row!.bundleDiscountPence);
+    expect(summary.bundleSavingPence).toBeGreaterThan(0);
+  });
+
+  it("lists a bundle as one card with both items", async () => {
+    const { actor, saved } = await customerWithBundle();
+    const cards = await listMyQuotes(actor, {});
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({
+      quoteId: saved.quoteId,
+      state: "ready",
+      policyReferences: [],
+    });
+    expect(cards[0]!.items.map((i) => i.product)).toEqual(["car", "home"]);
   });
 });
 
@@ -180,15 +225,22 @@ describe("getQuoteForPayment", () => {
       status: "priced",
       expired: false,
       policyholder: { firstName: "Alex", lastName: "Morgan" },
-      car: { make: "Volkswagen", model: "Golf" },
-      coverLevel: "comprehensive",
-      voluntaryExcessPence: 0,
+      items: [
+        expect.objectContaining({
+          product: "car",
+          car: expect.objectContaining({ make: "Volkswagen", model: "Golf" }),
+          home: null,
+          coverLevel: "comprehensive",
+          voluntaryExcessPence: 0,
+          addons: [],
+        }),
+      ],
+      bundleSavingPence: 0,
       annualTotalPence: row!.totalPence,
       monthlyPaymentPence: monthlyPayment(row!.totalPence, rate),
       startDate: "2026-11-12",
-      addons: [],
     });
-    expect(summary.compulsoryExcessPence).toBeGreaterThan(0);
+    expect(summary.items[0]!.compulsoryExcessPence).toBeGreaterThan(0);
   });
 
   it("marks a lapsed quote expired", async () => {
@@ -206,7 +258,7 @@ describe("getQuoteForPayment", () => {
     const journey = await golf();
     journey.cover = { coverLevel: "plus", voluntaryExcessPence: 25_000, addons: ["breakdown_uk"] };
     const { actor, saved } = await customerWithQuote(journey);
-    expect(await getQuoteForPayment(actor, { quoteId: saved.quoteId })).toMatchObject({
+    expect((await getQuoteForPayment(actor, { quoteId: saved.quoteId })).items[0]).toMatchObject({
       coverLevel: "plus",
       voluntaryExcessPence: 25_000,
       addons: ["breakdown_uk"],
@@ -359,19 +411,21 @@ describe("a home quote (5.7, decision 11)", () => {
   it("lists a home card with its property and no car", async () => {
     const { actor } = await homeQuote();
     const [card] = await listMyQuotes(actor, {});
-    expect(card).toMatchObject({ state: "ready", car: null, home });
+    expect(card).toMatchObject({ state: "ready" });
+    expect(card!.items).toEqual([expect.objectContaining({ product: "home", car: null, home })]);
   });
 
   it("still lists a car card with its car and no home", async () => {
     const { actor } = await customerWithQuote();
     const [card] = await listMyQuotes(actor, {});
-    expect(card!.car).toMatchObject({ make: "Volkswagen", model: "Golf" });
-    expect(card!.home).toBeNull();
+    expect(card!.items[0]!.car).toMatchObject({ make: "Volkswagen", model: "Golf" });
+    expect(card!.items[0]!.home).toBeNull();
   });
 
   it("gives Confirm and pay the property", async () => {
     const { actor, saved } = await homeQuote();
     const summary = await getQuoteForPayment(actor, { quoteId: saved.quoteId });
-    expect(summary).toMatchObject({ car: null, home, policyholder: { firstName: "Priya" } });
+    expect(summary).toMatchObject({ policyholder: { firstName: "Priya" } });
+    expect(summary.items).toEqual([expect.objectContaining({ product: "home", car: null, home })]);
   });
 });

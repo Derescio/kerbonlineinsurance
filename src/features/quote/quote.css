@@ -993,6 +993,32 @@ button.quote-tabs__tab:focus-visible {
   font-size: 14px;
 }
 
+/* Screen 22's panel and home's "Add car insurance" (5.7b, decisions 3 and 4) */
+.quote-bundle,
+.quote-addcar {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.quote-bundle h2,
+.quote-bundle p,
+.quote-addcar p {
+  margin: 0;
+}
+.quote-bundle {
+  background: var(--green-50);
+}
+.quote-bundle h2,
+.quote-bundle__total {
+  color: var(--green-800);
+}
+.quote-bundle .quote-breakdown__lines {
+  justify-self: stretch;
+}
+.quote-bundle__total {
+  font: 700 22px/28px var(--font-display);
+}
+
 /* The gate (5.6, decisions 2 and 3; screens 14 and 15): 4.4's forms on a card, "Your cover is
    waiting" beside them */
 .quote-nav__actions {

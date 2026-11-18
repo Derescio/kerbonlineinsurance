@@ -33,6 +33,7 @@ import {
   type Payment,
 } from "./journey-store";
 import { JourneyPage, StepNav } from "./page-kit";
+import { BundlePanel } from "./BundlePanel";
 import { PayChoice } from "./PayChoice";
 import { priceQuery } from "./price-query";
 import type { BuyableProductId } from "./products";
@@ -99,6 +100,8 @@ export function ChooseCover({
   product,
   journey,
   aside,
+  bundle,
+  onAddCar,
   onCover,
   onBack,
   onContinue,
@@ -109,6 +112,10 @@ export function ChooseCover({
   product: BuyableProductId;
   journey: Journey;
   aside: ReactNode;
+  /** Home in a live bundle (5.7b, decision 4): screen 22's panel with the car beside it */
+  bundle?: { car: Journey; onHomeOnly: () => void; onBackToCar: () => void };
+  /** Home on its own (5.7b, decision 3): the offer to add car */
+  onAddCar?: () => void;
   onBack: () => void;
   onContinue: () => void;
   /** "Save and exit" (5.6, decision 13): the gate, then Your saved quotes */
@@ -119,7 +126,16 @@ export function ChooseCover({
     onNotQuoted,
     onInvalid,
   });
-  const [payment, setPaymentState] = useState<Payment>(journey.payment ?? "annual");
+  // A bundle has one way of paying, the car's to start with (5.7b, decision 4)
+  const [payment, setPaymentState] = useState<Payment>(
+    (bundle ? bundle.car.payment : undefined) ?? journey.payment ?? "annual",
+  );
+  // The gate and Pay read the home's own choice: start it from the car's, untouched or not
+  const bundled = Boolean(bundle);
+  useEffect(() => {
+    if (bundled && journey.payment !== payment) setPayment(product, payment);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the bundle shows
+  }, [bundled]);
   const copy = coverCopy(product);
   const address = journey.property?.address;
   const subject =
@@ -180,6 +196,7 @@ export function ChooseCover({
   const choosePayment = (value: Payment) => {
     setPaymentState(value);
     setPayment(product, value);
+    if (bundle) setPayment("car", value);
   };
 
   return (
@@ -256,6 +273,18 @@ export function ChooseCover({
           </Card>
         ) : null}
 
+        {onAddCar && !bundle ? (
+          <Card padding="lg" as="section" className="quote-addcar" aria-labelledby="addcar-heading">
+            <p id="addcar-heading">
+              Insure your car with us too and save {Math.round(result.bundleDiscountRate * 100)}% on
+              both.
+            </p>
+            <Button variant="secondary" onClick={onAddCar}>
+              Add car insurance
+            </Button>
+          </Card>
+        ) : null}
+
         <Card padding="lg">
           <PayChoice
             annualPence={composed.totalPence}
@@ -271,6 +300,16 @@ export function ChooseCover({
           monthlyRate={result.monthlyCreditChargeRate}
           iptRate={result.iptRate}
         />
+
+        {bundle ? (
+          <BundlePanel
+            car={bundle.car}
+            homePrices={result}
+            homeCover={chosen}
+            onHomeOnly={bundle.onHomeOnly}
+            onBackToCar={bundle.onBackToCar}
+          />
+        ) : null}
       </div>
       <StepNav
         onBack={onBack}
@@ -281,7 +320,7 @@ export function ChooseCover({
               Save and exit
             </Button>
             <Button variant="accent" iconRight="arrow-right" onClick={onContinue}>
-              Continue with {name}
+              {bundle ? "Continue to sign in" : `Continue with ${name}`}
             </Button>
           </span>
         }

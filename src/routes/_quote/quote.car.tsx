@@ -65,6 +65,9 @@ function CarQuotePage() {
                 : { to: "/quote", search: { type: "car" }, replace: true },
             )
           }
+          onOtherProduct={(to) =>
+            void navigate({ to: "/quote/home", search: { postcode: to.postcode, step: to.step } })
+          }
         />
       </JourneyShell>
     );
