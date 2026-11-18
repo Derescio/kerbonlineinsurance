@@ -1,4 +1,5 @@
 import { choices, listLookups, postcodeBands, postcodeLookups, ranges } from "./build";
+import { OCCUPATION_BANDS } from "./occupations";
 import type { RatingSource } from "./types";
 
 // Car rating v1 (4.8, spec "Rating tables v1"). Kerb's own estimates, calibrated to 2026 UK market
@@ -132,86 +133,7 @@ export const carV1: RatingSource = {
   ],
   lookups: [
     ...postcodeLookups("postcode_band", (area) => area.car),
-    // The 5.3 dropdown; keys are stored as drivers.occupation. Bands follow the 2025–26 occupation
-    // studies (MoneySuperMarket, Quotezone, Honest John)
-    ...listLookups("occupation", "occupation_band", [
-      {
-        band: "A",
-        group: null,
-        items: [
-          ["retired", "Retired"],
-          ["police_officer", "Police officer"],
-          ["civil_servant", "Civil servant"],
-          ["accountant", "Accountant"],
-          ["engineer", "Engineer"],
-          ["software_developer", "Software developer"],
-          ["pharmacist", "Pharmacist"],
-          ["librarian", "Librarian"],
-          ["architect", "Architect"],
-          ["nurse", "Nurse"],
-        ],
-      },
-      {
-        band: "B",
-        group: null,
-        items: [
-          ["teacher", "Teacher"],
-          ["office_manager", "Office manager"],
-          ["administrator", "Administrator"],
-          ["solicitor", "Solicitor"],
-          ["dentist", "Dentist"],
-          ["receptionist", "Receptionist"],
-          ["project_manager", "Project manager"],
-          ["social_worker", "Social worker"],
-          ["firefighter", "Firefighter"],
-          ["paramedic", "Paramedic"],
-          ["hgv_driver", "HGV driver"],
-        ],
-      },
-      {
-        band: "C",
-        group: null,
-        items: [
-          ["doctor", "Doctor"],
-          ["sales_assistant", "Sales assistant"],
-          ["electrician", "Electrician"],
-          ["plumber", "Plumber"],
-          ["carpenter", "Carpenter"],
-          ["mechanic", "Mechanic"],
-          ["hairdresser", "Hairdresser"],
-          ["builder", "Builder"],
-          ["farmer", "Farmer"],
-          ["homemaker", "Homemaker"],
-          ["self_employed", "Self-employed (other)"],
-        ],
-      },
-      {
-        band: "D",
-        group: null,
-        items: [
-          ["student", "Student"],
-          ["chef", "Chef"],
-          ["warehouse_operative", "Warehouse operative"],
-          ["healthcare_assistant", "Healthcare assistant"],
-          ["care_worker", "Care worker"],
-          ["bar_staff", "Bar staff"],
-          ["delivery_driver", "Delivery driver"],
-          ["apprentice", "Apprentice"],
-          ["labourer", "Labourer"],
-          ["sales_representative", "Sales representative"],
-        ],
-      },
-      {
-        band: "E",
-        group: null,
-        items: [
-          ["unemployed", "Unemployed"],
-          ["taxi_driver", "Taxi driver"],
-          ["musician", "Musician"],
-          ["entertainer", "Entertainer"],
-          ["professional_sportsperson", "Professional sportsperson"],
-        ],
-      },
-    ]),
+    // The 5.3 dropdown; keys are stored as drivers.occupation (and, from 5.7c, home's occupation)
+    ...listLookups("occupation", "occupation_band", OCCUPATION_BANDS),
   ],
 };

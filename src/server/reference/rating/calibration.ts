@@ -2,8 +2,9 @@ import type { Product } from "#/server/db/schema/values";
 
 // The spec's example people (4.8, call 22). 5.4's tests price each one with priceQuote() and check
 // it lands in its target; a miss there is fixed with a v2, not by editing v1. Prices are annual, in
-// pence, including IPT. `handPence` is the spec's hand calculation with the v1 numbers; the targets
-// are the ranges the 2026 market research supports.
+// pence, including IPT. `handPence` is the spec's hand calculation with the v1 numbers (home from
+// 5.7c: v2, whose occupation band leaves H1–H3's band C unchanged); the targets are the ranges the
+// 2026 market research supports.
 
 export type CalibrationExpectation =
   | { outcome: "quoted"; minPence: number; maxPence: number; handPence: number }
@@ -181,9 +182,10 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
       hasSmokeAlarm: true,
       lockType: "multipoint",
       pastClaims: 0,
+      occupation: "doctor",
       coverLevel: "comprehensive",
     },
-    lookupKeys: ["postcode_area:LS"],
+    lookupKeys: ["postcode_area:LS", "occupation:doctor"],
     // buildings 240 × 0.75 × 1.03 = £185.40; contents 45 × 1.90 × 1.15 × 0.95 = £93.41; + IPT
     expected: { outcome: "quoted", minPence: 25_000, maxPence: 40_000, handPence: 31_227 },
   },
@@ -201,9 +203,10 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
       hasSmokeAlarm: true,
       lockType: "multipoint",
       pastClaims: 0,
+      occupation: "doctor",
       coverLevel: "comprehensive",
     },
-    lookupKeys: ["postcode_area:E"],
+    lookupKeys: ["postcode_area:E", "occupation:doctor"],
     // buildings 150 × 0.75 × 0.85 × 1.15 = £109.97; contents 30 × 1.90 × 1.55 × 0.95 (alarm) ×
     // 0.95 (multipoint) × 0.95 (2 bedrooms) = £75.73; + IPT
     expected: { outcome: "quoted", minPence: 18_000, maxPence: 32_000, handPence: 20_798 },
@@ -222,12 +225,35 @@ export const CALIBRATION_PEOPLE: readonly CalibrationPerson[] = [
       hasSmokeAlarm: true,
       lockType: "standard",
       pastClaims: 0,
+      occupation: "doctor",
       coverLevel: "comprehensive",
     },
-    lookupKeys: ["postcode_area:SY"],
+    lookupKeys: ["postcode_area:SY", "occupation:doctor"],
     // buildings 450 × 0.75 × 1.05 × 1.25 × 1.25 = £553.71; contents 80 × 1.90 × 0.90 × 1.05 ×
     // 1.06 = £152.26; + IPT
     expected: { outcome: "quoted", minPence: 60_000, maxPence: 100_000, handPence: 79_069 },
+  },
+  {
+    // 5.7c: H1 with a band E occupation, priced by home v2
+    id: "H4",
+    product: "home",
+    inputs: {
+      postcodeArea: "LS",
+      propertyType: "semi",
+      yearBuilt: 1965,
+      bedrooms: 3,
+      rebuildCostPence: 24_000_000,
+      contentsValuePence: 4_500_000,
+      hasAlarm: false,
+      hasSmokeAlarm: true,
+      lockType: "multipoint",
+      pastClaims: 0,
+      occupation: "taxi_driver",
+      coverLevel: "comprehensive",
+    },
+    lookupKeys: ["postcode_area:LS", "occupation:taxi_driver"],
+    // H1's £278.81 × 1.06 (band E) = £295.54; + IPT
+    expected: { outcome: "quoted", minPence: 25_000, maxPence: 40_000, handPence: 33_101 },
   },
   {
     id: "B1",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { carV1 } from "./car-v1";
 import { contentHash } from "./hash";
 import type { RatingSource } from "./types";
 
@@ -59,5 +60,14 @@ describe("contentHash", () => {
     const renoted = source();
     renoted.notes = "second";
     expect(contentHash(renoted)).toBe(contentHash(source()));
+  });
+});
+
+// Car v1 is deployed: moving its occupation list into a shared module (5.7c) must not change it
+describe("car v1", () => {
+  it("hashes as deployed", () => {
+    expect(contentHash(carV1)).toBe(
+      "333210781ff299957123e12a19d66fcbd47f79c2dd2e3199479448fc2f04903f",
+    );
   });
 });

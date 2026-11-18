@@ -386,7 +386,7 @@ describe("saveQuote", () => {
     expect(option!.annualPremiumPence).toBe(quote.items[0]!.selected!.premiumPence);
     const [row] = await getDb().select().from(quotes).where(eq(quotes.id, saved.quoteId));
     expect(row!.totalPence).toBe(quote.totalPence);
-    expect(await getDb().select().from(ratingVersions)).toHaveLength(4);
+    expect(await getDb().select().from(ratingVersions)).toHaveLength(RATING_SOURCES.length + 1);
   });
 
   it("keeps named drivers in the order entered, so 'named driver n' finds the right row", async () => {

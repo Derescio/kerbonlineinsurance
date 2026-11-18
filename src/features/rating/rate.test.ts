@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { carV1 } from "#/server/reference/rating/car-v1";
+import { homeV1 } from "#/server/reference/rating/home-v1";
+import { homeV2 } from "#/server/reference/rating/home-v2";
+import type { RatingSource } from "#/server/reference/rating/types";
 
 import { priceOptions, rateBusiness, rateCar, rateHome } from "./rate";
 import { Tables } from "./tables";
@@ -134,5 +137,26 @@ describe("each factor is recorded once", () => {
   it("business", () => {
     const t = new Tables(flatBusiness());
     once(rateBusiness(t, businessInputs()).factors.map((f) => f.factor));
+  });
+});
+
+describe("rateHome's occupation (5.7c, decision 4)", () => {
+  const rated = (source: RatingSource, occupation: string) =>
+    rateHome(new Tables(source), homeInputs({ occupation }));
+
+  it("multiplies the whole premium by v2's band", () => {
+    const e = rated(homeV2, "taxi_driver");
+    expect(e.base / rated(homeV2, "doctor").base).toBeCloseTo(1.06, 10);
+    expect(e.factors).toContainEqual({
+      factor: "occupation_band",
+      inputValue: "E",
+      multiplier: 1.06,
+    });
+  });
+
+  it("is ignored with v1's tables", () => {
+    const e = rated(homeV1, "taxi_driver");
+    expect(e.base).toBe(rated(homeV1, "doctor").base);
+    expect(e.factors.map((f) => f.factor)).not.toContain("occupation_band");
   });
 });

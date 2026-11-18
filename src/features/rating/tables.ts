@@ -14,6 +14,11 @@ export class Tables {
     return value;
   }
 
+  /** Whether this version rates `factor` at all: home's occupation is v2's (5.7c) */
+  has(factor: string): boolean {
+    return this.data.factors.some((f) => f.factor === factor);
+  }
+
   private rows(factor: string): readonly RatingFactor[] {
     const rows = this.data.factors.filter((f) => f.factor === factor);
     if (rows.length === 0) throw new Error(`${this.data.product}: no factor ${factor}`);

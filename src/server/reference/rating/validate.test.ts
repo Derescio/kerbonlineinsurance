@@ -126,7 +126,7 @@ describe("validateRatingSource", () => {
 });
 
 describe("formulaProblems (5.4)", () => {
-  it("accepts every v1: each has exactly the factors its formulas read", () => {
+  it("accepts every version: each has exactly the factors its formulas read", () => {
     for (const source of RATING_SOURCES) expect(formulaProblems(source)).toEqual([]);
   });
 

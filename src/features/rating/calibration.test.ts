@@ -14,7 +14,11 @@ import type { RatingInputs } from "./types";
 // product's tables, never by editing v1 (spec decision 12).
 
 const catalogue = expandCatalogue(CATALOGUE_SOURCES);
-const sourceFor = (product: Product) => RATING_SOURCES.find((s) => s.product === product)!;
+/** The version a new quote is priced with (home v2 from 5.7c) */
+const sourceFor = (product: Product) =>
+  RATING_SOURCES.filter((s) => s.product === product).reduce((a, b) =>
+    b.version > a.version ? b : a,
+  );
 
 interface PersonCar {
   make: string;
