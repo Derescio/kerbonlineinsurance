@@ -294,9 +294,25 @@ describe("Add home insurance (screen 21)", () => {
       firstName: "Alex",
       lastName: "Morgan",
       dateOfBirth: "1991-05-12",
+      status: "employed",
+      occupation: "plumber",
     });
     expect(home?.bundle).toEqual({ carJourneyId: readJourney("car")!.journeyId });
     expect(page.getByText("Home quotes are coming soon").elements()).toHaveLength(0);
+  });
+
+  it("carries a retired driver's employment to home, which opens at Property (5.7c)", async () => {
+    await show("add-home", (j) => {
+      j.mainDriver = { ...j.mainDriver!, status: "retired", occupation: "retired" };
+    });
+    const field = page.getByRole("textbox", { name: "Home postcode" });
+    await field.fill("n1 9gu");
+    await page.getByRole("button", { name: "Add home insurance" }).click();
+    expect(others).toEqual([{ product: "home", postcode: "N1 9GU", step: "property" }]);
+    expect(readJourney("home")?.homeAbout).toMatchObject({
+      status: "retired",
+      occupation: "retired",
+    });
   });
 
   it("keeps the car's cover in the tab, so the bundle is live on the home side (5.7b)", async () => {

@@ -7,14 +7,16 @@ import { DateField, isoOf, partsOf, type DateParts } from "./DateField";
 import { storedHomeAnswers, storedHomeErrors } from "./home-steps";
 import { prefillAbout } from "./bundle";
 import { readJourney, setHomeStepAnswers } from "./journey-store";
+import { OccupationField, type OccupationValue } from "./OccupationField";
 import { JourneyPage } from "./page-kit";
 import { homeAboutSchema, type HomeAbout } from "./schemas/home-steps";
-import { StepActions, StepHeading, type Errors, type StepProps } from "./step-kit";
+import { chosen, StepActions, StepHeading, type Errors, type StepProps } from "./step-kit";
 
 // About you on the home journey (5.7, decision 3): the policyholder's name and date of birth, so a
-// first-time buyer's customer row can be made. Not drawn in Figma; it takes car's About you fields.
+// first-time buyer's customer row can be made, and from 5.7c their employment, which home v2 rates.
+// Not drawn in Figma; it takes car's About you fields.
 
-interface Form {
+interface Form extends OccupationValue {
   firstName: string;
   lastName: string;
   dateOfBirth: DateParts;
@@ -31,12 +33,14 @@ export function HomeAboutStep({
 }: StepProps) {
   // Empty, it starts from car's main driver when a car quote is in the tab (5.7b, decision 3)
   const stored =
-    (storedHomeAnswers(journey, "about") as HomeAbout | undefined) ??
+    (storedHomeAnswers(journey, "about") as Partial<HomeAbout> | undefined) ??
     prefillAbout(readJourney("car"));
   const [form, setForm] = useState<Form>(() => ({
     firstName: stored?.firstName ?? "",
     lastName: stored?.lastName ?? "",
     dateOfBirth: partsOf(stored?.dateOfBirth),
+    status: stored?.status ?? "",
+    occupation: stored?.occupation ?? "",
   }));
   const [errors, setErrors] = useState<Errors>(() =>
     revalidate ? storedHomeErrors(journey, "about", today) : {},
@@ -48,6 +52,8 @@ export function HomeAboutStep({
     const result = fieldErrors(homeAboutSchema(today), {
       ...form,
       dateOfBirth: isoOf(form.dateOfBirth),
+      status: chosen(form.status),
+      occupation: form.occupation || undefined,
     });
     if (result.errors) {
       setErrors(result.errors);
@@ -98,6 +104,11 @@ export function HomeAboutStep({
             value={form.dateOfBirth}
             error={errors.dateOfBirth}
             onChange={(dateOfBirth) => setForm((f) => ({ ...f, dateOfBirth }))}
+          />
+          <OccupationField
+            value={form}
+            errors={{ status: errors.status, occupation: errors.occupation }}
+            onChange={(value) => setForm((f) => ({ ...f, ...value }))}
           />
         </section>
         <StepActions onBack={onBack} submit="Continue to property" />

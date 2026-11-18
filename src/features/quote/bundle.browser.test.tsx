@@ -69,6 +69,12 @@ function Harness({ initial = "cover" }: { initial?: HomeQuoteStep }) {
 
 function withQuery(ui: ReactNode) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(["occupations"], {
+    occupations: [
+      { key: "plumber", label: "Plumber" },
+      { key: "teacher", label: "Teacher" },
+    ],
+  });
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
@@ -167,6 +173,13 @@ describe("home's About you filled in from car (5.7b, decision 3)", () => {
     await withQuery(<Harness initial="about" />);
     await expect.element(page.getByRole("textbox", { name: "First name" })).toHaveValue("Alex");
     await expect.element(page.getByRole("textbox", { name: "Last name" })).toHaveValue("Morgan");
+    // Employment is asked once in a bundle (5.7c, decision 5)
+    await expect
+      .element(page.getByRole("combobox", { name: "Employment status" }))
+      .toHaveDisplayValue("Employed");
+    await expect
+      .element(page.getByRole("combobox", { name: "Occupation" }))
+      .toHaveDisplayValue("Plumber");
   });
 });
 
