@@ -87,7 +87,7 @@ Every answer the quote journeys ask is stored, and home is priced on employment 
 
 ## Done when
 
-- [ ] A car quote with two incidents and a named driver, saved on the preview, has two car `prior_claims` rows and each driver's licence type, employment status and relationship in the database.
+- [x] A car quote with two incidents and a named driver, saved on the preview, has two car `prior_claims` rows and each driver's licence type, employment status and relationship in the database (Damion's preview check, 18 Nov 2026: KRB-Q-88174 has a collision, at fault, £1,200, and a windscreen claim, not at fault, £650, as car rows with no status. John is `full_uk` / `employed` / `engineer` with no relationship and 2 claims. Jason is `full_eu` / `self_employed` / `farmer` / `friend`).
 - [x] A home quote asks employment status and occupation, is priced under home v2, and stores both on `properties` (E2E `home-buy.spec.ts` on the preview, 18 Nov 2026: the property row has `employed` / `teacher`, and the item is home v2 with `occupation_band` B at 0.97).
 - [x] A bundle started from car doesn't ask employment again on the home side (E2E `bundle-buy.spec.ts` on the preview, 18 Nov 2026: home opens at Property).
 - [x] The reference homes land in their expected ranges under v2, and car v1's content hash is unchanged (`calibration.test.ts` H1–H4, `hash.test.ts` "car v1 hashes as deployed").
