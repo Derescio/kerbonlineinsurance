@@ -47,7 +47,7 @@ Every answer the quote journeys ask is stored, and home is priced on employment 
    - **Home's multipliers, on the whole premium** *(my call: home insurers weight occupation lightly)*: A 0.95, B 0.97, C 1, D 1.03, E 1.06. They multiply the buildings and contents sections together, before the tier.
    - **`HomeInputs` gains `occupation`.** `rateHome` applies the factor only when the version has an `occupation_band` factor, so pricing with v1's tables ignores it.
    - **Quotes saved under v1 keep v1's price.** Their items point at v1, and nothing reprices a saved item. A home journey priced in the tab before the deploy is priced under v2 the next time it's priced, as any version change is.
-   - **The reference homes still land in range.** H1, H2 and H3 gain a band C occupation (`teacher`), so their hand prices don't move. A new H4, an H1 with a band E occupation, checks the factor end to end with its own hand price.
+   - **The reference homes still land in range.** H1, H2 and H3 gain a band C occupation (`doctor`), so their hand prices don't move. A new H4, an H1 with a band E occupation (`taxi_driver`), checks the factor end to end with its own hand price.
 5. **In a bundle, employment is asked once** (Damion, 17 Nov 2026).
    - **`prefillAbout` also copies `status` and `occupation`,** both ways, with name and date of birth. The visitor can still change them.
    - **Screen 21's "Add home insurance"** writes all five answers from car's main driver into home's About you, so the home steps still open at Property.
