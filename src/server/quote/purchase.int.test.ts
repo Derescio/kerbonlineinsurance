@@ -25,6 +25,7 @@ import {
   clearReferenceCaches,
   getActiveRatingTables,
   getCatalogue,
+  getRatingTables,
   upsertReferenceData,
 } from "#/server/data/reference";
 import { saveQuote } from "#/server/data/save-quote";
@@ -603,13 +604,46 @@ describe("purchase: a bundle", () => {
   });
 });
 
+describe("purchase: a home saved under v1 (5.7c)", () => {
+  it("is bought at its saved v1 premium after v2 is active", async () => {
+    const [v1] = await getDb()
+      .select({ id: ratingVersions.id })
+      .from(ratingVersions)
+      .where(and(eq(ratingVersions.product, "home"), eq(ratingVersions.version, 1)));
+    expect((await getActiveRatingTables("home")).id).not.toBe(v1!.id);
+    const customer = await makeCustomer();
+    // A band E occupation, which v2 would price 6% higher
+    const inputs = homeInputs({ occupation: "taxi_driver" });
+    const priced = priceQuote([
+      {
+        product: "home",
+        inputs,
+        tables: await getRatingTables(getDb(), v1!.id),
+        coverLevel: "comprehensive",
+        addons: [],
+      },
+    ]);
+    const saved = await saveQuote(getDb(), {
+      customerId: customer.id,
+      postcode: "LS6 2AB",
+      priced,
+      items: [{ startDate: "2026-11-12", voluntaryExcessPence: 0, details: homeDetails() }],
+      now: NOW,
+    });
+    const actor = (await resolveActor(getDb(), customer.userId))!;
+    expect((await buy(actor, saved.quoteId)).status).toBe("bought");
+    const [policy] = await getDb().select().from(policies);
+    expect(policy!.annualPremiumPence).toBe(priced.items[0]!.selected!.premiumPence);
+  });
+});
+
 describe("monthlyPaymentFor (5.7b)", () => {
   it("refuses items whose versions have different monthly rates", async () => {
-    // Home v2 with another credit charge, not yet in force, so the active versions don't move
+    // Home v3 with another credit charge, not yet in force, so the active versions don't move
     const homeV1 = RATING_SOURCES.find((src) => src.product === "home")!;
     const v2 = {
       ...structuredClone(homeV1),
-      version: 2,
+      version: 3,
       effectiveFrom: "2099-01-01",
       notes: "test v2",
       parameters: { ...homeV1.parameters, monthly_credit_charge_rate: 0.12 },
@@ -622,7 +656,7 @@ describe("monthlyPaymentFor (5.7b)", () => {
     const [homeV2] = await getDb()
       .select({ id: ratingVersions.id })
       .from(ratingVersions)
-      .where(and(eq(ratingVersions.product, "home"), eq(ratingVersions.version, 2)));
+      .where(and(eq(ratingVersions.product, "home"), eq(ratingVersions.version, 3)));
     const car = (await getActiveRatingTables("car")).id;
 
     await expect(monthlyPaymentFor(getDb(), [car, homeV2!.id], 100_000)).rejects.toThrow(

@@ -178,7 +178,13 @@ describe("listMyQuotes", () => {
 async function customerWithBundle() {
   const user = await makeUser();
   const home = completeHomeJourney();
-  home.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+  home.homeAbout = {
+    firstName: "Alex",
+    lastName: "Morgan",
+    dateOfBirth: "1991-05-12",
+    status: "employed",
+    occupation: "plumber",
+  };
   const saved = await withTx(getDb(), async (tx) =>
     saveBundleQuoteFor(tx, user.id, { car: await golf(), home, now: SAVED_AT }),
   );

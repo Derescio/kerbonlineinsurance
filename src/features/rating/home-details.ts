@@ -34,6 +34,8 @@ export function homeDetailsFromJourney(journey: Journey): HomeDetails {
       windowLocks: contents.windowLocks,
       alarmType: contents.alarm,
       pastClaims: inputs.pastClaims,
+      employmentStatus: journey.homeAbout!.status!,
+      occupation: inputs.occupation,
     },
     priorClaims: (claims.any ? claims.claims : []).map((c) => ({
       occurredOn: c.date,

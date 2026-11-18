@@ -112,6 +112,8 @@ export type ItemSpec =
     }
   | {
       product: "home";
+      /** The policyholder's (5.7c) */
+      occupation: string;
       addressLine1: string;
       propertyType: string;
       yearBuilt: number;
@@ -428,6 +430,7 @@ export class SeedBuilder {
             hasSmokeAlarm: spec.hasSmokeAlarm,
             lockType: spec.lockType,
             pastClaims: spec.pastClaims,
+            occupation: spec.occupation,
           },
         };
       case "business":
@@ -500,6 +503,8 @@ export class SeedBuilder {
             lockType: spec.lockType,
             pastClaims: spec.pastClaims,
             ...homeExtras(spec),
+            employmentStatus: statusFor(spec.occupation) ?? "employed",
+            occupation: spec.occupation,
           },
           priorClaims: homeClaims(spec.pastClaims, at),
         };

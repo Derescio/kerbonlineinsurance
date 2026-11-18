@@ -133,7 +133,8 @@ export type Relationship = (typeof relationshipOptions)[number]["value"];
 
 const yesNo = yesNoField(errors.yesNo);
 
-const status = z.enum(values(statusOptions), { error: errors.status });
+/** Employment status; home's About you asks it too (5.7c) */
+export const status = z.enum(values(statusOptions), { error: errors.status });
 
 /** A date of birth that makes the driver 17 to 100 today */
 const dateOfBirth = (today: string, under17: string) =>
@@ -148,7 +149,7 @@ const licenceDate = (today: string) =>
   isoDate(errors.licenceDate).refine((date) => date <= today, { error: errors.licenceFuture });
 
 /** The occupation must be the status's fixed key, or a job a working status may choose */
-function checkOccupation(
+export function checkOccupation(
   value: { status: EmploymentStatus; occupation?: string },
   ctx: z.RefinementCtx,
   path: (string | number)[],

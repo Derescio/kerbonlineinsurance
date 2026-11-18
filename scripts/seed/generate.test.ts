@@ -160,6 +160,14 @@ describe("generateSeed", () => {
     expect(plan.priorClaims.some((c) => c.product === "car")).toBe(true);
   });
 
+  it("gives every seeded home its policyholder's employment (5.7c)", () => {
+    expect(plan.properties.length).toBeGreaterThan(0);
+    for (const home of plan.properties) {
+      expect(home.employmentStatus).toBeTruthy();
+      expect(home.occupation).toBeTruthy();
+    }
+  });
+
   it("uses the 9-range references", () => {
     for (const q of plan.quotes) expect(q.reference).toMatch(/^KRB-Q-9[0-9]{4}$/);
     for (const p of plan.policies) expect(p.reference).toMatch(/^KRB-9[0-9]{5}$/);

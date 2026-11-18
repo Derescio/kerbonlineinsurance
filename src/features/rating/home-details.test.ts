@@ -27,6 +27,8 @@ describe("homeDetailsFromJourney", () => {
         windowLocks: "all_accessible",
         alarmType: "installed_unmonitored",
         pastClaims: 1,
+        employmentStatus: "employed",
+        occupation: "teacher",
       },
       priorClaims: [
         {

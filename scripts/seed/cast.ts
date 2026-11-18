@@ -106,6 +106,7 @@ export function buildCast(b: SeedBuilder, root: Rng, staff: Staff) {
       },
       {
         product: "home",
+        occupation: "teacher",
         addressLine1: "14 Larch Grove",
         propertyType: "semi",
         yearBuilt: 1965,
@@ -279,6 +280,7 @@ export function buildCast(b: SeedBuilder, root: Rng, staff: Staff) {
     const quote = b.quote(rng, grace, at("2026-08-20T20:09:00Z"), [
       {
         product: "home",
+        occupation: "software_developer",
         addressLine1: "Flat 4, 61 Clarendon Way",
         propertyType: "flat",
         yearBuilt: 1990,

@@ -121,6 +121,9 @@ const homeAboutSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   dateOfBirth: z.string(),
+  /** Asked from 5.7c; a tab saved before it has neither, so About you is asked again */
+  status: status.optional(),
+  occupation: z.string().optional(),
 });
 
 const propertyPartSchema = z.object({

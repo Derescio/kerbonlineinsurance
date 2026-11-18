@@ -310,7 +310,13 @@ describe("startCheckout: a session", () => {
     const user = await makeUser();
     const car = await golf();
     const home = completeHomeJourney();
-    home.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+    home.homeAbout = {
+      firstName: "Alex",
+      lastName: "Morgan",
+      dateOfBirth: "1991-05-12",
+      status: "employed",
+      occupation: "plumber",
+    };
     const saved = await withTx(getDb(), (tx) =>
       saveBundleQuoteFor(tx, user.id, { car, home, now: NOW }),
     );

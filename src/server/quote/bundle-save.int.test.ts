@@ -55,7 +55,13 @@ async function golf(): Promise<Journey> {
 /** Car's main driver as the home's policyholder, with an extra on the home */
 function home(): Journey {
   const journey = completeHomeJourney();
-  journey.homeAbout = { firstName: "Alex", lastName: "Morgan", dateOfBirth: "1991-05-12" };
+  journey.homeAbout = {
+    firstName: "Alex",
+    lastName: "Morgan",
+    dateOfBirth: "1991-05-12",
+    status: "employed",
+    occupation: "plumber",
+  };
   journey.cover = {
     coverLevel: "comprehensive",
     voluntaryExcessPence: 0,
@@ -108,7 +114,9 @@ describe("saveBundleQuoteFor", () => {
     expect(await getDb().select().from(properties)).toHaveLength(1);
     // Car's incident is kept too (5.7c)
     const claims = await getDb().select().from(priorClaims);
-    expect(claims.map((c) => [c.product, c.type]).sort()).toEqual([
+    expect(
+      claims.map((c) => [c.product, c.type]).sort((a, b) => a[0]!.localeCompare(b[0]!)),
+    ).toEqual([
       ["car", "collision"],
       ["home", "escape_of_water"],
     ]);

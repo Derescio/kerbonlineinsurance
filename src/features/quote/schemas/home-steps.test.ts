@@ -29,7 +29,13 @@ function parsed<T>(
   return result.data as T;
 }
 
-const about = { firstName: "Priya", lastName: "Shah", dateOfBirth: "1988-03-02" };
+const about = {
+  firstName: "Priya",
+  lastName: "Shah",
+  dateOfBirth: "1988-03-02",
+  status: "employed",
+  occupation: "teacher",
+};
 
 const property = {
   address: { line1: "18 Albion Road", town: "London", picked: true },
@@ -63,6 +69,23 @@ describe("homeAboutSchema", () => {
     });
     expect(homeErrors.under18).toBe("You must be 18 or over to get a home quote.");
     expect(fields(homeAboutSchema(today), { ...about, dateOfBirth: "2008-11-16" })).toEqual({});
+  });
+
+  it("asks employment status and occupation as car's About you does (5.7c, decision 3)", () => {
+    const schema = homeAboutSchema(today);
+    expect(fields(schema, { ...about, status: "" })).toMatchObject({
+      status: "Choose your employment status.",
+    });
+    expect(fields(schema, { ...about, occupation: "" })).toEqual({
+      occupation: "Choose your occupation.",
+    });
+    expect(fields(schema, { ...about, status: "retired", occupation: "retired" })).toEqual({});
+    expect(fields(schema, { ...about, status: "retired", occupation: "teacher" })).toEqual({
+      occupation: "Choose your occupation.",
+    });
+    expect(fields(schema, { ...about, occupation: "retired" })).toEqual({
+      occupation: "Choose your occupation.",
+    });
   });
 
   it("uses car's name messages", () => {
