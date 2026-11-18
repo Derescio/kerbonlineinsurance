@@ -1,15 +1,11 @@
 // Employment status picks the occupation (5.3, call 10). The 4.8 occupation list already holds
 // the statuses that aren't jobs (retired, unemployed, student, homemaker), so those store their own
 // key; employed and self-employed choose a job. The tab keeps the status too, because an employed
-// and a self-employed plumber both store `plumber`. 5.6 saves only the key.
+// and a self-employed plumber both store `plumber`. 5.7c saves the status beside the key.
 
-export type EmploymentStatus =
-  | "employed"
-  | "self_employed"
-  | "retired"
-  | "unemployed"
-  | "student"
-  | "homemaker";
+import type { EmploymentStatus } from "#/server/db/schema/values";
+
+export type { EmploymentStatus };
 
 export const statusOptions: { value: EmploymentStatus; label: string }[] = [
   { value: "employed", label: "Employed" },

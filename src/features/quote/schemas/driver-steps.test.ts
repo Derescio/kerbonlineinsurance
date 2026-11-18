@@ -1,14 +1,27 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { parseInput } from "#/lib/validation";
+import {
+  carClaimTypes,
+  employmentStatuses,
+  faultTypes,
+  licenceTypes,
+  relationshipTypes,
+} from "#/server/db/schema/values";
+
+import { statusOptions } from "../occupation";
 
 import {
   aboutYouSchema,
   claimsSchema,
   errors,
+  faultOptions,
+  incidentTypeOptions,
+  licenceOptions,
   licenceSchema,
   namedDriversSchema,
   noClaimsOptions,
+  relationshipOptions,
 } from "./driver-steps";
 
 // 5.3, call 13. Every schema takes today, so the boundaries are pinned to 11 Nov 2026.
@@ -353,5 +366,18 @@ describe("error messages", () => {
       for (const message of messages) expect(message).not.toContain(typed);
     }
     expect(Object.values(errors).every((m) => !m.includes(typed))).toBe(true);
+  });
+});
+
+// 5.7c: what the forms offer is what Postgres accepts
+describe("the option lists are the stored lists", () => {
+  const values = (options: readonly { value: string }[]) => options.map((o) => o.value);
+
+  it("matches each list", () => {
+    expect(values(incidentTypeOptions)).toEqual([...carClaimTypes]);
+    expect(values(faultOptions)).toEqual([...faultTypes]);
+    expect(values(relationshipOptions)).toEqual([...relationshipTypes]);
+    expect(values(licenceOptions).filter((v) => v !== "provisional")).toEqual([...licenceTypes]);
+    expect(values(statusOptions)).toEqual([...employmentStatuses]);
   });
 });

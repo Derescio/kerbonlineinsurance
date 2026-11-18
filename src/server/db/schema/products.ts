@@ -19,13 +19,18 @@ import { quoteItems } from "./quotes";
 import { vehicleCatalogue } from "./reference";
 import {
   alarmTypes,
+  carClaimTypes,
+  employmentStatuses,
+  faultTypes,
   fuelTypes,
   homeClaimTypes,
+  licenceTypes,
   lockTypes,
   overnightLocations,
   propertyTypes,
   priorClaimStatuses,
   type Product,
+  relationshipTypes,
   vehicleUsages,
   windowLockTypes,
 } from "./values";
@@ -111,6 +116,10 @@ export const drivers = pgTable(
     licenceYears: smallint().notNull(),
     noClaimsYears: smallint().notNull(),
     pastClaims: smallint().notNull().default(0),
+    // Stored from 5.7c (decision 2); null on rows saved before it. A main driver has no relationship
+    licenceType: text(),
+    employmentStatus: text(),
+    relationship: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -123,6 +132,19 @@ export const drivers = pgTable(
         "drivers_history_check",
         sql`${t.licenceYears} >= 0 and ${t.noClaimsYears} >= 0 and ${t.pastClaims} >= 0`,
       ),
+      check(
+        "drivers_licence_type_check",
+        sql`${t.licenceType} is null or ${oneOf(t.licenceType, licenceTypes)}`,
+      ),
+      check(
+        "drivers_employment_status_check",
+        sql`${t.employmentStatus} is null or ${oneOf(t.employmentStatus, employmentStatuses)}`,
+      ),
+      check(
+        "drivers_relationship_check",
+        sql`${t.relationship} is null or ${oneOf(t.relationship, relationshipTypes)}`,
+      ),
+      check("drivers_main_relationship_check", sql`not ${t.isMain} or ${t.relationship} is null`),
       // One main driver per item
       uniqueIndex("drivers_one_main_idx")
         .on(t.quoteItemId)
@@ -158,6 +180,10 @@ export const properties = pgTable(
     valuablesPence: integer(),
     windowLocks: text(),
     alarmType: text(),
+    // The policyholder's, asked on home's About you and rated by home v2 (5.7c, decisions 3 and 4);
+    // null on rows saved before it
+    employmentStatus: text(),
+    occupation: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -177,6 +203,10 @@ export const properties = pgTable(
         sql`${t.alarmType} is null or ${oneOf(t.alarmType, alarmTypes)}`,
       ),
       check(
+        "properties_employment_status_check",
+        sql`${t.employmentStatus} is null or ${oneOf(t.employmentStatus, employmentStatuses)}`,
+      ),
+      check(
         "properties_amounts_check",
         sql`${t.bedrooms} >= 0 and ${t.rebuildCostPence} >= 0 and ${t.contentsValuePence} >= 0 and ${t.pastClaims} >= 0 and (${t.valuablesPence} is null or ${t.valuablesPence} >= 0)`,
       ),
@@ -185,8 +215,9 @@ export const properties = pgTable(
   },
 );
 
-// One row per past claim on a quote item (5.7, decision 10). Home's from 5.7; car's incidents join
-// in 5.7c, which widens the type list. A home claim has a status and no fault.
+// One row per past claim on a quote item (5.7, decision 10). Home's from 5.7; car's incidents from
+// 5.7c, each type checked against its product's list. A home claim has a status and no fault; a car
+// incident has a fault and no status.
 export const priorClaims = pgTable(
   "prior_claims",
   {
@@ -209,7 +240,11 @@ export const priorClaims = pgTable(
       foreignColumns: [quoteItems.id, quoteItems.product],
     }).onDelete("cascade"),
     check("prior_claims_amount_check", sql`${t.amountPence} >= 0`),
-    check("prior_claims_type_check", oneOf(t.type, homeClaimTypes)),
+    check(
+      "prior_claims_type_check",
+      sql`(${t.product} = 'car' and ${oneOf(t.type, carClaimTypes)}) or (${t.product} = 'home' and ${oneOf(t.type, homeClaimTypes)})`,
+    ),
+    check("prior_claims_fault_check", sql`${t.fault} is null or ${oneOf(t.fault, faultTypes)}`),
     check(
       "prior_claims_status_check",
       sql`${t.status} is null or ${oneOf(t.status, priorClaimStatuses)}`,
@@ -217,6 +252,10 @@ export const priorClaims = pgTable(
     check(
       "prior_claims_home_shape_check",
       sql`${t.product} <> 'home' or (${t.status} is not null and ${t.fault} is null)`,
+    ),
+    check(
+      "prior_claims_car_shape_check",
+      sql`${t.product} <> 'car' or (${t.fault} is not null and ${t.status} is null)`,
     ),
     index().on(t.quoteItemId),
     index().on(t.updatedAt),

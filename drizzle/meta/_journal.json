@@ -169,6 +169,13 @@
       "when": 1794854122733,
       "tag": "0023_jittery_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794966211424,
+      "tag": "0024_same_sauron",
+      "breakpoints": true
     }
   ]
 }

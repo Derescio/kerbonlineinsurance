@@ -939,6 +939,138 @@ describe("Postgres integrity rules", () => {
     });
   });
 
+  describe("car's stored answers (5.7c, decisions 1–3)", () => {
+    async function carItem() {
+      const { items } = await makeQuote({ products: ["car"] });
+      return items[0]!.item.id;
+    }
+    const incident = (quoteItemId: string) => ({
+      quoteItemId,
+      product: "car",
+      occurredOn: "2024-06-01",
+      type: "collision",
+      amountPence: 120_000,
+      fault: "at_fault",
+    });
+    const named = (quoteItemId: string) => ({
+      quoteItemId,
+      firstName: "Jo",
+      lastName: "Taylor",
+      dateOfBirth: "1994-02-02",
+      occupation: "nurse",
+      licenceYears: 4,
+      noClaimsYears: 0,
+    });
+
+    it("keeps a car incident with a fault and no status", async () => {
+      const id = await carItem();
+      await db().insert(priorClaims).values(incident(id));
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...incident(id), status: "settled" }),
+        CHECK,
+        "prior_claims_car_shape_check",
+      );
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...incident(id), fault: null }),
+        CHECK,
+        "prior_claims_car_shape_check",
+      );
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...incident(id), fault: "maybe" }),
+        CHECK,
+        "prior_claims_fault_check",
+      );
+    });
+
+    it("checks each product's claim types against its own list", async () => {
+      const car = await carItem();
+      await expectRefused(
+        db()
+          .insert(priorClaims)
+          .values({ ...incident(car), type: "escape_of_water" }),
+        CHECK,
+        "prior_claims_type_check",
+      );
+      const { items } = await makeQuote({ products: ["home"] });
+      await expectRefused(
+        db().insert(priorClaims).values({
+          quoteItemId: items[0]!.item.id,
+          product: "home",
+          occurredOn: "2024-03-12",
+          type: "collision",
+          amountPence: 1,
+          status: "settled",
+        }),
+        CHECK,
+        "prior_claims_type_check",
+      );
+    });
+
+    it("keeps drivers' licence type, employment and relationship to the lists", async () => {
+      const id = await carItem();
+      await db().insert(drivers).values(named(id));
+      await db()
+        .insert(drivers)
+        .values({
+          ...named(id),
+          licenceType: "full_eu",
+          employmentStatus: "employed",
+          relationship: "sibling",
+        });
+      await expectRefused(
+        db()
+          .insert(drivers)
+          .values({ ...named(id), licenceType: "provisional" }),
+        CHECK,
+        "drivers_licence_type_check",
+      );
+      await expectRefused(
+        db()
+          .insert(drivers)
+          .values({ ...named(id), employmentStatus: "contractor" }),
+        CHECK,
+        "drivers_employment_status_check",
+      );
+      await expectRefused(
+        db()
+          .insert(drivers)
+          .values({ ...named(id), relationship: "neighbour" }),
+        CHECK,
+        "drivers_relationship_check",
+      );
+    });
+
+    it("gives the main driver no relationship", async () => {
+      const id = await carItem();
+      await expectRefused(
+        db()
+          .update(drivers)
+          .set({ relationship: "spouse" })
+          .where(and(eq(drivers.quoteItemId, id), eq(drivers.isMain, true))),
+        CHECK,
+        "drivers_main_relationship_check",
+      );
+    });
+
+    it("keeps a home's employment status to the list", async () => {
+      const { items } = await makeQuote({ products: ["home"] });
+      await expectRefused(
+        db()
+          .update(properties)
+          .set({ employmentStatus: "contractor" })
+          .where(eq(properties.quoteItemId, items[0]!.item.id)),
+        CHECK,
+        "properties_employment_status_check",
+      );
+    });
+  });
+
   describe("data side (decision 16)", () => {
     it("tombstones a deleted quote, its items and their details, cascades included", async () => {
       const { quote, items } = await makeQuote({ products: ["car", "home"] });
