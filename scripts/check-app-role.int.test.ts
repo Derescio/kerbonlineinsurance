@@ -42,6 +42,7 @@ describe("checkAppRole", () => {
       "UPDATE, DELETE and TRUNCATE on audit_log refused",
       "audit_log triggers present",
       "writes on reference tables refused",
+      "updates on postcode_areas refused",
       "audit chain verifies",
     ]);
     expect(results.filter((r) => !r.ok)).toEqual([]);
@@ -53,6 +54,7 @@ describe("checkAppRole", () => {
     expect(byName.get("no superuser, CREATEROLE, CREATEDB or BYPASSRLS")).toBe(false);
     expect(byName.get("UPDATE, DELETE and TRUNCATE on audit_log refused")).toBe(false);
     expect(byName.get("writes on reference tables refused")).toBe(false);
+    expect(byName.get("updates on postcode_areas refused")).toBe(false);
   });
 
   it("fails the chain check after a row is tampered with", async () => {

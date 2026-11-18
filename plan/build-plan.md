@@ -48,27 +48,33 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 5. Quote · `s5-quote` · [phase](phases/05-quote/phase.md)
 
-- [ ] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
-- [ ] 5.2 **Vehicle step**: make → model → year → variant picker, faked plate lookup
-- [ ] 5.3 **Driving habits + driver steps**
-- [ ] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
-- [ ] 5.5 **Cover options + summary**: cover comparison table, price breakdown
-- [ ] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
-- [ ] 5.7 **Home steps**: property → contents and security → past claims, then the shared cover, summary and pay; home quote → policy Playwright journey
+- [x] 5.1 **Quote start + flow shell + Stepper**: `/quote` takes `?postcode` and `?type`, asks for whichever is missing; car and home continue, other types show "coming soon"
+- [x] 5.2 **Vehicle step**: make → model → year → variant picker, faked plate lookup
+- [x] 5.3 **Driving habits + driver steps**: about you, licence and driving, claims, named drivers; occupation list from the active car rating version
+- [x] 5.4 **Rating engine** `priceQuote()`: table-driven, versioned, all three products + bundle discount, with tests
+- [x] 5.4b **Journey revamp**: the car journey in the Revamp frames, journey header and footer, details tabs, Your car card, pay annually or monthly, named-driver review
+- [x] 5.5 **Cover options + summary**: cover comparison table, voluntary excess, extras, price breakdown with the APR, add-home offer, referred and declined screens
+- [x] 5.6 **Pay → policy saved** (sign-in gate keeps the quote); "Retrieve my quote" lists a signed-in user's saved quotes; quote → policy Playwright journey
+- [x] 5.6b **Pay with Stripe**: Stripe's embedded Checkout in test mode in place of the demo card; paying in full or monthly by subscription; a webhook that marks each payment, warns about a failed one, lapses and resumes cover and cancels it after 30 days unpaid; billing link on the account; Stripe buy-journey Playwright test
+- [x] 5.7 **Home steps**: about you → property → contents and security → past claims, then the shared cover, summary and pay; every answer stored (`prior_claims`); home quote → policy Playwright journey
+- [x] 5.7b **Car + home bundle**: add home to a car quote, screens 21, 22 and 04, one Stripe checkout for both policies
+- [x] 5.7c **Store car's unsaved answers, and employment for home**: incidents as `prior_claims` rows, licence type, employment status and relationship on `drivers`; home asks employment status and occupation, priced by a home rating v2, and shared across a bundle
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
 
-- [ ] 6.1 **Dashboard**
+- [ ] 6.1 **Dashboard**, and the public header shows "My account" when signed in
 - [ ] 6.2 **Policy detail**, with downloadable documents (certificate of insurance, policy schedule)
 - [ ] 6.3 **Settings**: address, drivers, 2FA on/off, sign out everywhere, recent activity; `policy_versions` history
 - [ ] 6.4 **Claims overview + incident step**
 - [ ] 6.5 **Damage + review + submit**: damage photos and claim documents (PDF)
 - [ ] 6.6 **Claim tracker** (shows `claim_events` written by staff in 6.10), settlement card, messages, notification bell
 - [ ] 6.7 **Reviews: write**: review UI designed in Figma; uses the `reviews` table from 4.2; up to 3 photos; "Leave a review" card on the dashboard for policyholders
-- [ ] 6.8 **Admin area**: review moderation queue (approve / reject) + `/admin/users` role assignment and staff deactivation (audited) + `/admin/audit` viewer with chain check
+- [ ] 6.8 **Admin area**: review moderation queue (approve / reject) + `/admin/users` role assignment (claims handler, admin, data uploader) and staff deactivation (audited) + `/admin/audit` viewer with chain check
 - [ ] 6.9 **Reviews: public**: `/reviews` page (average, filters) + latest reviews in the landing trust section; `/media/r/:fileId` photo route
 - [ ] 6.10 **Staff claims console**: designed in Figma first; `/staff/claims` queue + claim detail (photos, documents, notes); status changes write `claim_events`; staff views of claims and files audited; claim → approval Playwright journey
 - [ ] 6.11 **Staff referral queue**: designed in Figma first; `/staff/referrals` for quote items the eligibility rules referred; approve (with optional loading) or decline, audited; referral → approval → purchase Playwright journey
+- [ ] 6.12 **Staff spreadsheet imports**: `data_uploader` role, `/staff/imports`, `.xlsx` templates checked on upload, withdraw and supersede
+- [ ] 6.13 **Import endpoint for ADF**: read-only paged JSON API with a pipeline key; ADF hooks up in 9.3
 
 ## 7. Kerbie · `s7-kerbie` · [phase](phases/07-kerbie/phase.md)
 

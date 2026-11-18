@@ -6,7 +6,13 @@ import {
   closureCancelledEmail,
   closureHeldEmail,
   closureRequestedEmail,
+  coverLapsedEmail,
+  coverResumedEmail,
   existingAccountEmail,
+  paymentFailedEmail,
+  paymentRefundedEmail,
+  policyCancelledUnpaidEmail,
+  policyConfirmedEmail,
   resetPasswordEmail,
   verifyEmail,
   type EmailContent,
@@ -35,6 +41,27 @@ export const EMAIL_TEMPLATES = {
   closure_cancelled: entry(none, closureCancelledEmail),
   closure_held: entry(z.object({ claimReference: z.string() }), closureHeldEmail),
   account_closed: entry(none, accountClosedEmail),
+  policy_confirmed: entry(
+    z.object({
+      name: z.string(),
+      policyReference: z.string(),
+      car: z.string(),
+      home: z.string().optional(),
+      startsOn: z.string(),
+      endsOn: z.string(),
+      amount: z.string(),
+      url: z.string(),
+    }),
+    policyConfirmedEmail,
+  ),
+  payment_refunded: entry(
+    z.object({ name: z.string(), reason: z.string(), url: z.string() }),
+    paymentRefundedEmail,
+  ),
+  payment_failed: entry(nameAndUrl, paymentFailedEmail),
+  cover_lapsed: entry(nameAndUrl, coverLapsedEmail),
+  cover_resumed: entry(nameAndUrl, coverResumedEmail),
+  policy_cancelled_unpaid: entry(nameAndUrl, policyCancelledUnpaidEmail),
 };
 
 export type EmailTemplate = keyof typeof EMAIL_TEMPLATES;

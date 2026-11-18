@@ -5,12 +5,16 @@ import { CLOSURE_WINDOW_DAYS, PRIVACY_EMAIL, RETENTION } from "#/server/account/
 // content: the page is CDN-cached (src/routes/_site/privacy.tsx).
 
 /** Bump when the copy changes */
-export const PRIVACY_LAST_UPDATED = "7 November 2026";
+export const PRIVACY_LAST_UPDATED = "9 November 2026";
 
 const processors = [
   { name: "Vercel", does: "Hosts the website.", where: "Global network" },
   { name: "Neon", does: "Stores the database (Postgres).", where: "London, UK" },
-  { name: "Resend", does: "Sends our emails.", where: "United States" },
+  {
+    name: "Resend",
+    does: "Sends our emails and receives the ones you send us.",
+    where: "United States",
+  },
   { name: "PostHog", does: "Analytics, only after you accept cookies.", where: "United States" },
   { name: "Google", does: "Sign-in with Google, if you choose it.", where: "United States" },
   {
@@ -73,7 +77,8 @@ export function PrivacyNotice() {
           <li>
             <strong>Emails.</strong> We send the emails your account needs, like confirming your
             address, resetting a password or telling you about closing your account. Resend sends
-            them for us, so it sees your address and the message.
+            them for us, so it sees your address and the message. If you email
+            hello@kerb.opsedsolutions.com, Resend receives it and passes it on to our Gmail inbox.
           </li>
         </ul>
       </section>

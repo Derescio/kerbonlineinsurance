@@ -21,3 +21,8 @@ export const postcodeSchema = z.string().transform((value, ctx) => {
   }
   return postcode;
 });
+
+/** "E8 3RL" → "E8": the district, the only part of a postcode the funnel keeps (5.1, call 11). */
+export function postcodeDistrict(postcode: string): string {
+  return postcode.split(" ")[0] ?? postcode;
+}

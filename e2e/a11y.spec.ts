@@ -1,10 +1,27 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { withCompleteJourney } from "./quote-journey";
+
 // axe on each key page (plan/engineering.md section 4). Fails on serious or critical violations.
 // Pages join the list as they ship.
-const pages = ["/", "/login", "/signup", "/forgot-password", "/reset-password"];
-const widths = [390, 1440];
+const pages = [
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/quote",
+  "/quote?type=car&postcode=E8+3RL",
+  "/quote/coming-soon?type=landlord&postcode=E8+3RL",
+  "/quote/car?postcode=E8+3RL",
+  "/quote/car?postcode=E8+3RL&vehicle=manual",
+  "/quote/car?postcode=E8+3RL&vehicle=not-found",
+];
+// Pages with Turnstile's robot check, which keeps polling, so the network never goes idle
+const TURNSTILE_PAGES = ["/signup", "/forgot-password"];
+// Phone, tablet and laptop: the revamp's columns stack below 960px (5.4b, call 12)
+const widths = [390, 768, 1440];
 
 // Signed-in pages redirect a signed-out visitor, so each is checked where it lands. The two-factor
 // setup page signed in (frame 12, the staff gate) is checked in auth.spec.ts with the E2E staff
@@ -30,7 +47,80 @@ for (const path of pages) {
     test(`${path} at ${width}px has no serious or critical axe violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(path);
+      if (TURNSTILE_PAGES.includes(path)) {
+        // Turnstile keeps the network busy, so wait for its token instead of network idle
+        await expect(page.locator('[name="cf-turnstile-response"]')).not.toHaveValue("", {
+          timeout: 15_000,
+        });
+      } else {
+        await page.waitForLoadState("networkidle");
+      }
+      await expectNoBlockingViolations(page);
+    });
+  }
+}
+
+// The driver steps (5.3), Choose cover and the home offer (5.5) open only with the earlier answers
+// in the tab, so each is checked with a complete journey already in sessionStorage
+const quoteSteps = ["about", "driving", "claims", "drivers", "quote", "cover", "add-home"];
+
+for (const step of quoteSteps) {
+  for (const width of widths) {
+    test(`/quote/car?step=${step} at ${width}px has no serious or critical axe violations`, async ({
+      page,
+    }) => {
+      await withCompleteJourney(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/quote/car?postcode=E8+3RL&step=${step}`);
+      await expect(page).toHaveURL(new RegExp(`step=${step}`));
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await page.waitForLoadState("networkidle");
+      await expectNoBlockingViolations(page);
+    });
+  }
+}
+
+// The named-driver review step (5.4b, R10): the Tesla with a 19-year-old named driver
+for (const width of widths) {
+  test(`/quote/car?step=quote, named driver review, at ${width}px has no serious or critical axe violations`, async ({
+    page,
+  }) => {
+    await withCompleteJourney(page, { declined: true });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/quote/car?postcode=E8+3RL&step=quote");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Let’s review your named driver" }),
+    ).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expectNoBlockingViolations(page);
+  });
+}
+
+// The gate (5.6, screens 14 and 15) for a guest: sign in, then create an account. Pay, You're
+// covered and Your saved quotes are signed-in pages, checked in buy.spec.ts.
+for (const auth of ["", "&auth=signup"]) {
+  for (const width of widths) {
+    test(`/quote/car?step=buy${auth} at ${width}px has no serious or critical axe violations`, async ({
+      page,
+    }) => {
+      await withCompleteJourney(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/quote/car?postcode=E8+3RL&step=buy${auth}`);
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: auth ? "Create your account to continue" : "Sign in before you pay",
+        }),
+      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Your cover is waiting" })).toBeVisible();
+      // Turnstile's widget can keep the network busy, so wait for its token, not network idle
+      if (auth) {
+        await expect(page.locator('[name="cf-turnstile-response"]')).not.toHaveValue("", {
+          timeout: 15_000,
+        });
+      } else {
+        await page.waitForLoadState("networkidle");
+      }
       await expectNoBlockingViolations(page);
     });
   }

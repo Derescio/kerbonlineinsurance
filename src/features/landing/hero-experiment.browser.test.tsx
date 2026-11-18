@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
-import { render } from "vitest-browser-react";
+import type { ReactNode } from "react";
 
 import { getFlag } from "#/lib/analytics";
+import { renderWithRouter } from "#/test/router";
 
 import { ctaLabels, Hero } from "./Hero";
+
+// The hero navigates with the router (5.1), so it renders in one
+const render = async (ui: ReactNode) => (await renderWithRouter(ui)).screen;
 
 // The flag's own rules (consent, timeout, PostHog not configured) are tested in
 // src/lib/analytics.test.ts. Here getFlag is stubbed to check what the hero does with the answer.

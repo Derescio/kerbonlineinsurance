@@ -4,12 +4,32 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { accountClosures, files, idempotencyKeys, jobs, rateLimits } from "#/server/db/schema";
+import { recordSecurityEvent } from "#/server/auth/security-events";
+import { deleteExpiredRows } from "#/server/data/job-rows";
+import {
+  accountClosures,
+  customers,
+  files,
+  idempotencyKeys,
+  jobs,
+  quotes,
+  rateLimits,
+  securityEvents,
+  stripeEvents,
+  users,
+} from "#/server/db/schema";
 import { setObjectStore } from "#/server/uploads/store";
 import { MemoryObjectStore } from "#/server/uploads/store-memory";
 import { env, sent } from "#/test/auth";
 import { getOwnerDb, truncateAll } from "#/test/db";
-import { makeCustomer, makeFile, makePolicy, makeUser } from "#/test/factories";
+import {
+  makeCustomer,
+  makeFile,
+  makePolicy,
+  makeQuote,
+  makeStaff,
+  makeUser,
+} from "#/test/factories";
 
 import { DAILY_JOBS, queueDailyJobs } from "./daily";
 import { runDueJobs } from "./runner";
@@ -50,14 +70,21 @@ afterEach(() => {
 });
 
 describe("queueDailyJobs", () => {
-  it("queues the four daily jobs once per day, in order", async () => {
-    expect(await queueDailyJobs(getDb(), now)).toBe(4);
+  it("queues the five daily jobs once per day, in order", async () => {
+    expect(DAILY_JOBS).toEqual([
+      "account.closures",
+      "payments.lapsed_cancellations",
+      "uploads.cleanup",
+      "housekeeping.expired_rows",
+      "audit.anchor",
+    ]);
+    expect(await queueDailyJobs(getDb(), now)).toBe(5);
     expect(await queueDailyJobs(getDb(), new Date(now.getTime() + 60_000))).toBe(0);
     expect((await allJobs()).map((j) => [j.type, j.idempotencyKey])).toEqual(
       DAILY_JOBS.map((type) => [type, `${type}:2026-11-09`]),
     );
-    expect(await queueDailyJobs(getDb(), new Date(now.getTime() + DAY))).toBe(4);
-    expect(await allJobs()).toHaveLength(8);
+    expect(await queueDailyJobs(getDb(), new Date(now.getTime() + DAY))).toBe(5);
+    expect(await allJobs()).toHaveLength(10);
   });
 });
 
@@ -178,5 +205,80 @@ describe("housekeeping.expired_rows", () => {
     expect((await getDb().select().from(rateLimits)).map((r) => r.key)).toEqual(["fresh"]);
     const left = (await allJobs()).filter((j) => j.type === "uploads.cleanup");
     expect(left.map((j) => j.status).sort()).toEqual(["dead", "done"]);
+  });
+
+  it("deletes Stripe event ids after 30 days and keeps newer ones (5.6b, decision 13)", async () => {
+    await getDb()
+      .insert(stripeEvents)
+      .values([
+        {
+          eventId: "evt_old",
+          type: "invoice.paid",
+          receivedAt: new Date(now.getTime() - 31 * DAY),
+        },
+        {
+          eventId: "evt_new",
+          type: "invoice.paid",
+          receivedAt: new Date(now.getTime() - 29 * DAY),
+        },
+      ]);
+    expect(await deleteExpiredRows(getDb(), now)).toMatchObject({ stripeEvents: 1 });
+    expect((await getDb().select().from(stripeEvents)).map((e) => e.eventId)).toEqual(["evt_new"]);
+  });
+
+  it("deletes accounts never confirmed after 7 days, with their quotes, and keeps the rest (5.6, decision 1)", async () => {
+    const aged = (days: number, emailVerified = false) =>
+      makeUser({ emailVerified, createdAt: new Date(now.getTime() - days * DAY) });
+    const stale = await aged(8);
+    const { quote } = await makeQuote({
+      customerId: (await makeCustomer({ userId: stale.id })).id,
+    });
+    // As a real sign-up leaves it: the append-only sign_up event goes with its user by cascade
+    await recordSecurityEvent(getDb(), env.BETTER_AUTH_SECRET, {
+      type: "sign_up",
+      userId: stale.id,
+    });
+    expect(await getDb().select().from(securityEvents)).toHaveLength(1);
+    const recent = await aged(6);
+    const confirmed = await aged(30, true);
+    const staff = await aged(30);
+    await makeStaff({ userId: staff.id });
+
+    expect(await deleteExpiredRows(getDb(), now)).toMatchObject({ unconfirmedUsers: 1 });
+
+    const ids = (await getDb().select({ id: users.id }).from(users)).map((u) => u.id).sort();
+    expect(ids).toEqual([recent.id, confirmed.id, staff.id].sort());
+    expect(await getDb().select().from(customers)).toHaveLength(0);
+    expect(await getDb().select().from(securityEvents)).toHaveLength(0);
+    expect(await getDb().select().from(quotes).where(eq(quotes.id, quote.id))).toHaveLength(0);
+  });
+
+  it("keeps a closed account, unconfirmed with a policy, and the job still finishes", async () => {
+    // Closing an account sets it unconfirmed (4.7); its closure and policy rows RESTRICT a delete.
+    // Older than 7 days, as any closed account is: the 30-day window ended yesterday
+    const closed = await makeUser({ createdAt: new Date(now.getTime() - 40 * DAY) });
+    const customer = await makeCustomer({ userId: closed.id });
+    await makePolicy({ customerId: customer.id });
+    await getDb()
+      .insert(accountClosures)
+      .values({
+        userId: closed.id,
+        requestedAt: new Date(now.getTime() - 31 * DAY),
+        closesAt: new Date(now.getTime() - DAY),
+        closedAt: new Date(now.getTime() - DAY),
+      });
+    await getDb().insert(jobs).values({
+      type: "housekeeping.expired_rows",
+      payload: {},
+      idempotencyKey: "housekeeping",
+      runAfter: now,
+    });
+
+    await runDueJobs(getDb(), deps, now);
+
+    const [job] = (await allJobs()).filter((j) => j.type === "housekeeping.expired_rows");
+    expect(job).toMatchObject({ status: "done", attempts: 1 });
+    expect(await getDb().select().from(users).where(eq(users.id, closed.id))).toHaveLength(1);
+    expect(await getDb().select().from(customers)).toHaveLength(1);
   });
 });

@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
 import { jobs } from "#/server/db/schema";
+import { claimNextJob } from "#/server/data/job-rows";
 import { truncateAll } from "#/test/db";
 
 import { enqueue } from "./enqueue";
@@ -143,12 +144,43 @@ describe("runDueJobs", () => {
     expect(await row(other)).toMatchObject({ status: "done" });
   });
 
+  it("stamps a finished job with the run's clock, not the database's", async () => {
+    const future = new Date("2030-01-01T00:00:00Z");
+    const id = await queue("uploads.cleanup", future);
+    await runDueJobs(db(), deps, future, { handlers: { "uploads.cleanup": counting() } });
+    const done = await row(id);
+    expect(done.status).toBe("done");
+    // The run's `now` plus how long the job took: never the real date
+    expect(done.updatedAt.getTime() - future.getTime()).toBeGreaterThan(0);
+    expect(done.updatedAt.getTime() - future.getTime()).toBeLessThan(60_000);
+  });
+
+  it("fails a job whose type names an Object.prototype method", async () => {
+    const id = await queue("uploads.cleanup");
+    await db().update(jobs).set({ type: "constructor" }).where(eq(jobs.id, id));
+    await runDueJobs(db(), deps, start, { handlers: { "uploads.cleanup": counting() } });
+    expect(await row(id)).toMatchObject({ status: "failed", lastError: "Error" });
+  });
+
   it("stops at max", async () => {
     await queue();
     await queue();
     await queue();
     const handlers = { "uploads.cleanup": counting() };
     expect((await runDueJobs(db(), deps, start, { handlers, max: 2 })).ran).toBe(2);
+  });
+});
+
+describe("claimNextJob", () => {
+  it("never takes a stale running job that has used all its attempts", async () => {
+    // Even without runDueJobs marking it dead first: another runner, or one with another clock
+    const id = await queue();
+    await db()
+      .update(jobs)
+      .set({ status: "running", attempts: 5, updatedAt: later(-16 * 60_000) })
+      .where(eq(jobs.id, id));
+    expect(await claimNextJob(db(), start, later(-15 * 60_000))).toBeNull();
+    expect(await row(id)).toMatchObject({ status: "running", attempts: 5 });
   });
 });
 

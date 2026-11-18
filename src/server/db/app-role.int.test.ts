@@ -20,6 +20,8 @@ const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
   account_closures: ALL,
   accounts: ALL,
   audit_log: ["INSERT", "SELECT"],
+  // The postcodes.io cache is only added to (5.2)
+  postcode_areas: ["INSERT", "SELECT"],
   auth_rate_limits: ALL,
   bundles: ALL,
   businesses: ALL,
@@ -52,6 +54,11 @@ const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
   sessions: ALL,
   staff_members: ALL,
   staff_roles: ALL,
+  // 5.6b: the default grants
+  checkout_sessions: ALL,
+  stripe_events: ALL,
+  // 5.7: the default grants
+  prior_claims: ALL,
   two_factors: ALL,
   underwriting_decisions: ALL,
   users: ALL,

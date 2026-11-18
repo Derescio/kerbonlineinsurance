@@ -346,13 +346,13 @@ export async function makeReferral({ customerId }: { customerId?: string } = {})
   const { quote, items } = await makeQuote({ customerId });
   const [item] = await getDb()
     .update(quoteItems)
-    .set({ outcome: "referred", reasonCode: "high_value_vehicle" })
+    .set({ outcome: "referred", reasonCode: "high_vehicle_value" })
     .where(eq(quoteItems.id, items[0]!.item.id))
     .returning();
   await getDb().insert(underwritingDecisions).values({
     quoteItemId: item!.id,
     outcome: "referred",
-    reasonCode: "high_value_vehicle",
+    reasonCode: "high_vehicle_value",
     decidedBy: null,
   });
   return { quote, item: item! };

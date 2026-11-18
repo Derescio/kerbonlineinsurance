@@ -42,22 +42,27 @@ async function execute(
   now: Date,
   handlers: Handlers,
 ): Promise<Outcome> {
+  // The run's clock moved on by however long the job took (at least 1 ms, so the claim's stamp
+  // changes and the database's own clock doesn't replace it; see finishJob)
+  const startedAt = Date.now();
+  const finishedAt = () => new Date(now.getTime() + Math.max(1, Date.now() - startedAt));
   try {
-    const handler = handlers[job.type as JobType];
+    // Own keys only: a type such as "constructor" mustn't find an Object.prototype method
+    const handler = Object.hasOwn(handlers, job.type) ? handlers[job.type as JobType] : undefined;
     if (!handler) throw new Error("No handler for job type");
     const result = await handler(job, { db, deps, now });
     const lastError = result ? `skipped: ${result.skipped}` : null;
-    await finishJob(db, job.id, now, { status: "done", lastError });
+    await finishJob(db, job.id, finishedAt(), { status: "done", lastError });
     return "done";
   } catch (error) {
     const lastError = safeError(error);
     console.error("[jobs] failed:", job.id, job.type, lastError);
     const runAfter = nextRunAfter(job.attempts, now);
     if (!runAfter) {
-      await finishJob(db, job.id, now, { status: "dead", lastError });
+      await finishJob(db, job.id, finishedAt(), { status: "dead", lastError });
       return "dead";
     }
-    await finishJob(db, job.id, now, { status: "failed", lastError, runAfter });
+    await finishJob(db, job.id, finishedAt(), { status: "failed", lastError, runAfter });
     return "failed";
   }
 }

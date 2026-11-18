@@ -247,14 +247,14 @@ function driverFor(
 }
 
 function specsFor(rng: Rng, person: DriverSpec, lists: Lists): ItemSpec[] {
-  if (rng.chance(0.12)) return [carSpec(rng, person, lists), homeSpec(rng)];
+  if (rng.chance(0.12)) return [carSpec(rng, person, lists), homeSpec(rng, person.occupation)];
   const product = rng.weighted([
     ["car", 60],
     ["home", 30],
     ["business", 10],
   ] as const);
   if (product === "car") return [carSpec(rng, person, lists)];
-  if (product === "home") return [homeSpec(rng)];
+  if (product === "home") return [homeSpec(rng, person.occupation)];
   return [businessSpec(rng, lists)];
 }
 
@@ -303,7 +303,8 @@ function carSpec(rng: Rng, person: DriverSpec, lists: Lists): ItemSpec {
   };
 }
 
-function homeSpec(rng: Rng): ItemSpec {
+/** The policyholder's occupation is the person's, rated by home v2 (5.7c) */
+function homeSpec(rng: Rng, occupation: string): ItemSpec {
   const bedrooms = rng.weighted([
     [1, 10],
     [2, 25],
@@ -313,6 +314,7 @@ function homeSpec(rng: Rng): ItemSpec {
   ] as const);
   return {
     product: "home",
+    occupation,
     addressLine1: `${rng.int(1, 140)} ${rng.pick(STREET_NAMES)}`,
     propertyType: rng.weighted([
       ["detached", 20],

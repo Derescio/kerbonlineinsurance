@@ -1,0 +1,277 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+import { Button, type ButtonProps } from "#/components/actions/Button";
+import { Card } from "#/components/display/Card";
+import { Icon } from "#/components/display/Icon";
+import { cx } from "#/lib/cx";
+
+import { fuelLabel } from "./catalogue";
+import { helpHref } from "./help";
+import { propertyTypeLabel } from "./schemas/home-steps";
+import type { DetailsTab, TabState } from "./steps";
+
+// The revamp's page parts (5.4b; Revamp 249:5806): the two-column page, the details tabs, the
+// "Your car" card, the help card and the Back / next row. Every car view is laid out with them.
+
+export function JourneyPage({
+  heading,
+  tabs,
+  aside,
+  asideLabel = "Your car and help",
+  children,
+}: {
+  heading: ReactNode;
+  tabs?: ReactNode;
+  aside: ReactNode;
+  /** "Your home and help" on the home journey (5.7) */
+  asideLabel?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="quote-page">
+      {heading}
+      {tabs}
+      <div className="quote-page__columns">
+        <div className="quote-page__main">{children}</div>
+        <aside className="quote-page__aside" aria-label={asideLabel}>
+          {aside}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+const carTabLabels: Record<DetailsTab, string> = {
+  car: "Car",
+  about: "About you",
+  driving: "Driving",
+  claims: "Claims",
+  drivers: "Drivers",
+};
+
+/**
+ * Car, About you, Driving, Claims, Drivers: only steps up to the first unfinished one open (call 5).
+ * Home passes its own four (5.7).
+ */
+export function DetailsTabs<T extends string = DetailsTab>({
+  states,
+  onOpen,
+  labels = carTabLabels as Record<T, string>,
+}: {
+  states: Record<T, TabState>;
+  onOpen: (tab: T) => void;
+  labels?: Record<T, string>;
+}) {
+  const list = useRef<HTMLOListElement>(null);
+  const current = (Object.keys(states) as T[]).find((tab) => states[tab] === "current");
+  // At phone width the tabs scroll sideways: bring the current one into view when it changes. Only
+  // the strip scrolls, never the page, and a re-render with the same current tab does nothing.
+  useEffect(() => {
+    const strip = list.current?.parentElement;
+    const item = list.current?.querySelector<HTMLElement>("[aria-current]");
+    if (!strip || !item || strip.scrollWidth <= strip.clientWidth) return;
+    strip.scrollLeft += item.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+  }, [current]);
+
+  // The nav is what scrolls at phone width, so it takes focus: a keyboard can then scroll it even
+  // when every tab is plain text, as on a fresh journey (axe: scrollable-region-focusable)
+  return (
+    <nav aria-label="Your details" className="quote-tabs" tabIndex={0}>
+      <ol ref={list}>
+        {(Object.keys(labels) as T[]).map((tab, i) => {
+          const state = states[tab];
+          const label = labels[tab];
+          return (
+            <li
+              key={tab}
+              className={`quote-tabs__item quote-tabs__item--${state}`}
+              aria-current={state === "current" ? "step" : undefined}
+            >
+              {state === "done" || state === "open" ? (
+                <button
+                  type="button"
+                  className="quote-tabs__tab"
+                  aria-label={state === "done" ? `${label}, done` : undefined}
+                  onClick={() => onOpen(tab)}
+                >
+                  {state === "done" ? (
+                    <Icon name="check" size={16} />
+                  ) : (
+                    <span className="quote-tabs__number" aria-hidden="true">
+                      {i + 1}
+                    </span>
+                  )}
+                  {label}
+                </button>
+              ) : (
+                <span className="quote-tabs__tab">
+                  <span className="quote-tabs__number" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  {label}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+/** As much of the car as is known: the picker fills it in as the visitor chooses (call 6) */
+export interface CarCardCar {
+  make: string;
+  model?: string;
+  variant?: string;
+  year?: number;
+  fuelType?: string;
+  doors?: number;
+}
+
+export function CarCard({
+  car,
+  postcode,
+  onChange,
+}: {
+  car: CarCardCar | null;
+  postcode: string;
+  onChange?: () => void;
+}) {
+  const name = car ? [car.make, car.model, car.variant].filter(Boolean).join(" ") : null;
+  const details = car
+    ? [
+        car.year,
+        car.fuelType ? fuelLabel(car.fuelType) : undefined,
+        car.doors ? `${car.doors} doors` : undefined,
+      ].filter(Boolean)
+    : [];
+  return (
+    <section className="quote-car-card" aria-label="Your car">
+      {/* At phone width only the name, postcode and Change show, on one line (call 12) */}
+      <Icon name="car" size={22} className="quote-car-card__icon" />
+      <p className="quote-car-card__overline">Your car</p>
+      {name ? <p className="quote-car-card__name">{name}</p> : null}
+      {details.length ? <p className="quote-car-card__details">{details.join(" · ")}</p> : null}
+      <p className="quote-car-card__postcode">Postcode {postcode}</p>
+      {onChange ? (
+        <button type="button" className="quote-link" onClick={onChange}>
+          Change car or postcode
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** The insured home, as far as it's known (5.7, decision 11) */
+export interface HomeCardHome {
+  line1?: string;
+  town?: string;
+  propertyType?: string;
+  bedrooms?: number;
+}
+
+/** "Your home" beside each home step, as "Your car" is beside car's */
+export function HomeCard({
+  home,
+  postcode,
+  onChange,
+}: {
+  home: HomeCardHome | null;
+  postcode: string;
+  onChange?: () => void;
+}) {
+  const name = home?.line1 ? [home.line1, home.town].filter(Boolean).join(", ") : null;
+  const details = home
+    ? [
+        home.propertyType ? propertyTypeLabel(home.propertyType) : undefined,
+        home.bedrooms === undefined
+          ? undefined
+          : home.bedrooms === 0
+            ? "Studio"
+            : `${home.bedrooms} bedroom${home.bedrooms === 1 ? "" : "s"}`,
+      ].filter(Boolean)
+    : [];
+  return (
+    <section className="quote-car-card" aria-label="Your home">
+      <Icon name="house" size={22} className="quote-car-card__icon" />
+      <p className="quote-car-card__overline">Your home</p>
+      {name ? <p className="quote-car-card__name">{name}</p> : null}
+      {details.length ? <p className="quote-car-card__details">{details.join(" · ")}</p> : null}
+      <p className="quote-car-card__postcode">Postcode {postcode}</p>
+      {onChange ? (
+        <button type="button" className="quote-link" onClick={onChange}>
+          Change address or postcode
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+export function HelpCard({
+  title = "A little help along the way",
+  children,
+}: {
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card padding="md" className="quote-help-card">
+      <Icon name="message-circle" size={22} />
+      <h2 className="kb-h4">{title}</h2>
+      <p>{children}</p>
+      <a href={helpHref} className="quote-link">
+        Contact us
+      </a>
+    </Card>
+  );
+}
+
+/** Back on the left (a link-style button with an arrow), the step's own next button on the right */
+export function StepNav({
+  onBack,
+  backLabel = "Back",
+  next,
+}: {
+  onBack?: () => void;
+  backLabel?: string;
+  next?: ReactNode;
+}) {
+  return (
+    <div className="quote-nav">
+      {onBack ? (
+        <button type="button" className={cx("quote-link", "quote-back-link")} onClick={onBack}>
+          <Icon name="arrow-left" size={18} />
+          {backLabel}
+        </button>
+      ) : (
+        <span />
+      )}
+      {next}
+    </div>
+  );
+}
+
+/**
+ * A button whose screen is a later slice's: pressing it says when it arrives (5.1, 5.4b and 5.5
+ * did the same). Staging only: Phase 5 reaches production at its release.
+ */
+export function HoldingButton({
+  line,
+  children,
+  ...button
+}: Omit<ButtonProps, "onClick"> & { line: string }) {
+  const [asked, setAsked] = useState(false);
+  return (
+    <span className="quote-holding">
+      <Button {...button} onClick={() => setAsked(true)}>
+        {children}
+      </Button>
+      {asked ? (
+        <span role="status" className="quote-holding__line">
+          {line}
+        </span>
+      ) : null}
+    </span>
+  );
+}

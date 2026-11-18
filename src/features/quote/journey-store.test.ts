@@ -1,0 +1,511 @@
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+
+import {
+  beginJourney,
+  clearBundle,
+  DEFAULT_COVER,
+  journeyKey,
+  markBundle,
+  markStartRecorded,
+  readJourney,
+  savedQuoteKey,
+  sessionStore,
+  setCover,
+  setHomePostcode,
+  setHomeStepAnswers,
+  setLastPlate,
+  setPayment,
+  setSaved,
+  setStepAnswers,
+  setVehicle,
+  type JourneyStorage,
+  type VehicleChoice,
+} from "./journey-store";
+import { completeHomeJourney, completeJourney } from "./journey-fixtures";
+
+function memoryStorage(): JourneyStorage & { map: Map<string, string> } {
+  const map = new Map<string, string>();
+  return {
+    map,
+    getItem: (key) => map.get(key) ?? null,
+    setItem: (key, value) => void map.set(key, value),
+  };
+}
+
+const broken: JourneyStorage = {
+  getItem: () => {
+    throw new Error("SecurityError");
+  },
+  setItem: () => {
+    throw new Error("QuotaExceededError");
+  },
+};
+
+const now = new Date("2026-11-09T10:00:00.000Z");
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+describe("journey store", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keys each product apart", () => {
+    expect(journeyKey("car")).toBe("kerb.quote.v1.car");
+    expect(journeyKey("home")).toBe("kerb.quote.v1.home");
+  });
+
+  it("round-trips a new journey", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    expect(journey).toEqual({
+      version: 1,
+      journeyId: expect.stringMatching(uuid),
+      postcode: "E8 3RL",
+      startedAt: "2026-11-09T10:00:00.000Z",
+      startRecorded: false,
+    });
+    expect(readJourney("car", storage)).toEqual(journey);
+    expect(readJourney("home", storage)).toBeNull();
+  });
+
+  it("keeps the journey when the postcode changes", () => {
+    const storage = memoryStorage();
+    const first = beginJourney("car", "E8 3RL", now, storage);
+    const later = beginJourney("car", "N1 9GU", new Date("2026-11-09T11:00:00Z"), storage);
+    expect(later).toEqual({ ...first, postcode: "N1 9GU" });
+    expect(readJourney("car", storage)).toEqual(later);
+  });
+
+  it("ignores a corrupt or old-version value", () => {
+    const storage = memoryStorage();
+    const key = journeyKey("home");
+    storage.setItem(key, "{");
+    expect(readJourney("home", storage)).toBeNull();
+    const good = beginJourney("home", "E8 3RL", now, memoryStorage());
+    storage.setItem(key, JSON.stringify({ ...good, version: 0 }));
+    expect(readJourney("home", storage)).toBeNull();
+    const { postcode: _, ...missing } = good;
+    storage.setItem(key, JSON.stringify(missing));
+    expect(readJourney("home", storage)).toBeNull();
+    // A corrupt value is replaced by a fresh journey, not kept
+    expect(beginJourney("home", "E8 3RL", now, storage).journeyId).toMatch(uuid);
+  });
+
+  it("marks the start as recorded", () => {
+    const storage = memoryStorage();
+    beginJourney("home", "E8 3RL", now, storage);
+    markStartRecorded("home", storage);
+    expect(readJourney("home", storage)?.startRecorded).toBe(true);
+    // Nothing to mark: no journey is made up
+    markStartRecorded("car", storage);
+    expect(readJourney("car", storage)).toBeNull();
+  });
+
+  it("survives storage throwing on read and write", () => {
+    const journey = beginJourney("car", "E8 3RL", now, broken);
+    expect(journey.postcode).toBe("E8 3RL");
+    expect(readJourney("car", broken)).toBeNull();
+    expect(() => markStartRecorded("car", broken)).not.toThrow();
+  });
+
+  it("works with no storage at all", () => {
+    expect(beginJourney("car", "E8 3RL", now, null).journeyId).toMatch(uuid);
+    expect(readJourney("car", null)).toBeNull();
+  });
+
+  it("sessionStore is null when there's no window or the getter throws", () => {
+    expect(sessionStore()).toBeNull();
+    vi.stubGlobal("window", {
+      get sessionStorage() {
+        throw new Error("SecurityError");
+      },
+    });
+    expect(sessionStore()).toBeNull();
+    const storage = memoryStorage();
+    vi.stubGlobal("window", { sessionStorage: storage });
+    expect(sessionStore()).toBe(storage);
+  });
+});
+
+// 5.2 (call 12): the confirmed car, and the last plate typed for screen 10 (call 9)
+describe("the car in the journey", () => {
+  const golf: VehicleChoice = {
+    catalogueVariantId: "0195b2c4-7d1e-7a3f-9b2c-5e6f7a8b9c0d",
+    make: "Volkswagen",
+    model: "Golf",
+    year: 2021,
+    variant: "1.0 TSI Life 5dr",
+    fuelType: "petrol",
+    doors: 5,
+    demoPlate: "VW21 GQL",
+  };
+
+  it("still reads a 5.1 journey with no car", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    expect(readJourney("car", storage)?.vehicle).toBeUndefined();
+  });
+
+  it("keeps the confirmed car, and removes it", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    setVehicle(golf, storage);
+    expect(readJourney("car", storage)?.vehicle).toEqual(golf);
+    setVehicle(null, storage);
+    expect(readJourney("car", storage)?.vehicle).toBeUndefined();
+    expect(readJourney("car", storage)?.postcode).toBe("E8 3RL");
+  });
+
+  it("keeps the last plate typed", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    setLastPlate("KR24BXL", storage);
+    expect(readJourney("car", storage)?.lastPlate).toBe("KR24BXL");
+  });
+
+  it("does nothing without a car journey", () => {
+    const storage = memoryStorage();
+    setVehicle(golf, storage);
+    setLastPlate("KR24BXL", storage);
+    expect(storage.map.size).toBe(0);
+  });
+
+  it("drops a malformed car and keeps the rest of the journey (5.3, call 15)", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    storage.map.set(
+      journeyKey("car"),
+      JSON.stringify({ ...journey, vehicle: { ...golf, year: "2021" } }),
+    );
+    expect(readJourney("car", storage)).toEqual(journey);
+  });
+
+  it("treats a malformed base as a corrupt journey", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    storage.map.set(journeyKey("car"), JSON.stringify({ ...journey, journeyId: 7 }));
+    expect(readJourney("car", storage)).toBeNull();
+  });
+
+  it("survives storage throwing", () => {
+    expect(() => setVehicle(golf, broken)).not.toThrow();
+    expect(() => setLastPlate("KR24BXL", broken)).not.toThrow();
+  });
+});
+
+describe("the driver steps in the journey (5.3)", () => {
+  function carJourney(storage: JourneyStorage) {
+    beginJourney("car", "E8 3RL", now, storage);
+    setVehicle(fixture.vehicle!, storage);
+  }
+  const fixture = completeJourney();
+
+  it("round-trips all four parts", () => {
+    const storage = memoryStorage();
+    carJourney(storage);
+    const { licenceType, licenceDate, noClaimsYears, ...about } = fixture.mainDriver!;
+    setStepAnswers("about", about, storage);
+    setStepAnswers(
+      "driving",
+      {
+        licenceType: licenceType!,
+        licenceDate: licenceDate!,
+        noClaimsYears: noClaimsYears!,
+        ...fixture.usage!,
+      },
+      storage,
+    );
+    setStepAnswers("claims", { ...fixture.claims!, confirmed: true }, storage);
+    setStepAnswers("drivers", fixture.namedDrivers!, storage);
+    const read = readJourney("car", storage)!;
+    expect(read.mainDriver).toEqual(fixture.mainDriver);
+    expect(read.usage).toEqual(fixture.usage);
+    expect(read.claims).toEqual(fixture.claims);
+    expect(read.namedDrivers).toEqual(fixture.namedDrivers);
+  });
+
+  it("keeps the licence answers when About you is saved again", () => {
+    const storage = memoryStorage();
+    storage.map.set(journeyKey("car"), JSON.stringify(fixture));
+    const { licenceType: _t, licenceDate: _d, noClaimsYears: _n, ...about } = fixture.mainDriver!;
+    setStepAnswers("about", { ...about, firstName: "Sam" }, storage);
+    expect(readJourney("car", storage)!.mainDriver).toEqual({
+      ...fixture.mainDriver,
+      firstName: "Sam",
+    });
+  });
+
+  it("still reads a 5.2 journey with only a car", () => {
+    const storage = memoryStorage();
+    carJourney(storage);
+    const read = readJourney("car", storage)!;
+    expect(read.vehicle).toEqual(fixture.vehicle);
+    expect(read.mainDriver).toBeUndefined();
+  });
+
+  it("drops only a part that no longer parses", () => {
+    const storage = memoryStorage();
+    const bad = completeJourney();
+    (bad.claims!.incidents[0] as { type: string }).type = "meteor";
+    storage.map.set(journeyKey("car"), JSON.stringify(bad));
+    const read = readJourney("car", storage)!;
+    expect(read.claims).toBeUndefined();
+    expect(read.vehicle).toEqual(fixture.vehicle);
+    expect(read.mainDriver).toEqual(fixture.mainDriver);
+    expect(read.namedDrivers).toEqual(fixture.namedDrivers);
+  });
+
+  it("keeps the driver answers when the car changes", () => {
+    const storage = memoryStorage();
+    storage.map.set(journeyKey("car"), JSON.stringify(fixture));
+    setVehicle({ ...fixture.vehicle!, catalogueVariantId: "fiesta-1", model: "Fiesta" }, storage);
+    expect(readJourney("car", storage)!.mainDriver).toEqual(fixture.mainDriver);
+  });
+
+  it("does nothing without a car journey", () => {
+    const storage = memoryStorage();
+    setStepAnswers("drivers", fixture.namedDrivers!, storage);
+    expect(storage.map.size).toBe(0);
+  });
+});
+
+describe("the pay choice in the journey (5.4b, call 10)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps annual or monthly", () => {
+    const storage = memoryStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    expect(readJourney("car", storage)?.payment).toBeUndefined();
+    setPayment("car", "monthly", storage);
+    expect(readJourney("car", storage)?.payment).toBe("monthly");
+    setPayment("car", "annual", storage);
+    expect(readJourney("car", storage)?.payment).toBe("annual");
+  });
+
+  it("drops only a pay choice that isn't annual or monthly", () => {
+    const storage = memoryStorage();
+    const journey = beginJourney("car", "E8 3RL", now, storage);
+    storage.setItem(journeyKey("car"), JSON.stringify({ ...journey, payment: "weekly" }));
+    const read = readJourney("car", storage);
+    expect(read?.journeyId).toBe(journey.journeyId);
+    expect(read?.payment).toBeUndefined();
+  });
+
+  it("does nothing without a journey", () => {
+    const storage = memoryStorage();
+    setPayment("car", "monthly", storage);
+    expect(readJourney("car", storage)).toBeNull();
+  });
+});
+
+describe("the cover choice in the journey (5.5, decision 3)", () => {
+  it("starts at Comprehensive, no voluntary excess and no extras", () => {
+    expect(DEFAULT_COVER).toEqual({
+      coverLevel: "comprehensive",
+      voluntaryExcessPence: 0,
+      addons: [],
+    });
+  });
+
+  it("keeps the tier, the excess and the extras, alongside the answers", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("car"), JSON.stringify(completeJourney()));
+    const cover = {
+      coverLevel: "plus",
+      voluntaryExcessPence: 25_000,
+      addons: ["breakdown_uk"],
+    } as const;
+    setCover("car", { ...cover, addons: [...cover.addons] }, storage);
+    const read = readJourney("car", storage);
+    expect(read?.cover).toEqual(cover);
+    expect(read?.namedDrivers).toEqual(completeJourney().namedDrivers);
+  });
+
+  it("drops only a cover choice that doesn't parse, and reads a 5.4b journey without one", () => {
+    const storage = memoryStorage();
+    const journey = completeJourney();
+    storage.setItem(journeyKey("car"), JSON.stringify(journey));
+    expect(readJourney("car", storage)?.cover).toBeUndefined();
+    storage.setItem(
+      journeyKey("car"),
+      JSON.stringify({
+        ...journey,
+        cover: { coverLevel: "gold", voluntaryExcessPence: 0, addons: [] },
+      }),
+    );
+    const read = readJourney("car", storage);
+    expect(read?.cover).toBeUndefined();
+    expect(read?.mainDriver).toEqual(journey.mainDriver);
+  });
+
+  it("does nothing without a car journey", () => {
+    const storage = memoryStorage();
+    setCover("car", DEFAULT_COVER, storage);
+    expect(storage.map.size).toBe(0);
+  });
+});
+
+describe("the saved quote and its key (5.6, decision 7)", () => {
+  const withCover = () => ({ ...completeJourney(), cover: DEFAULT_COVER });
+
+  it("is the same for equal journeys", () => {
+    expect(savedQuoteKey(withCover())).toBe(savedQuoteKey(withCover()));
+    expect(savedQuoteKey(withCover())).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("changes with the cover or an answer", () => {
+    const base = savedQuoteKey(withCover());
+    const plus = { ...withCover(), cover: { ...DEFAULT_COVER, coverLevel: "plus" as const } };
+    expect(savedQuoteKey(plus)).not.toBe(base);
+    const journey = withCover();
+    const renamed = {
+      ...journey,
+      namedDrivers: {
+        any: true,
+        drivers: [
+          { ...completeJourney().namedDrivers!.drivers[0]!, firstName: "Changed" },
+          ...completeJourney().namedDrivers!.drivers.slice(1),
+        ],
+      },
+    };
+    expect(savedQuoteKey(renamed)).not.toBe(base);
+  });
+
+  it("ignores key order, lastPlate, payment and saved", () => {
+    const base = savedQuoteKey(withCover());
+    expect(savedQuoteKey({ ...withCover(), lastPlate: "AB12CDE" })).toBe(base);
+    expect(savedQuoteKey({ ...withCover(), payment: "monthly" })).toBe(base);
+    expect(savedQuoteKey({ ...withCover(), saved: { quoteId: "q", key: "k" } })).toBe(base);
+    const j = withCover();
+    const reordered = Object.fromEntries(Object.entries(j).reverse()) as typeof j;
+    expect(savedQuoteKey(reordered)).toBe(base);
+  });
+
+  it("round-trips a saved part and drops a bad one alone", () => {
+    const storage = memoryStorage();
+    const journey = { ...withCover(), saved: { quoteId: "KRB-Q-12345", key: "abcd1234" } };
+    storage.setItem(journeyKey("car"), JSON.stringify(journey));
+    expect(readJourney("car", storage)?.saved).toEqual(journey.saved);
+    storage.setItem(journeyKey("car"), JSON.stringify({ ...journey, saved: { quoteId: 5 } }));
+    const read = readJourney("car", storage);
+    expect(read?.saved).toBeUndefined();
+    expect(read?.cover).toEqual(DEFAULT_COVER);
+  });
+});
+
+describe("the home journey (5.7, decision 12)", () => {
+  function homeStorage() {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    return storage;
+  }
+
+  it("round-trips the four home parts", () => {
+    const storage = homeStorage();
+    expect(readJourney("home", storage)).toEqual(completeHomeJourney());
+  });
+
+  it("drops a home part that doesn't parse, alone", () => {
+    const storage = memoryStorage();
+    const journey = completeHomeJourney();
+    storage.setItem(
+      journeyKey("home"),
+      JSON.stringify({ ...journey, property: { ...journey.property, yearBuilt: "1985" } }),
+    );
+    const read = readJourney("home", storage);
+    expect(read?.property).toBeUndefined();
+    expect(read?.homeAbout).toEqual(journey.homeAbout);
+    expect(read?.contents).toEqual(journey.contents);
+  });
+
+  it("keeps the home cover and saved quote apart from the car's", () => {
+    const storage = homeStorage();
+    beginJourney("car", "E8 3RL", now, storage);
+    setCover("home", { ...DEFAULT_COVER, coverLevel: "plus" }, storage);
+    setSaved("home", { quoteId: "q1", key: "k1" }, storage);
+    expect(readJourney("home", storage)?.cover?.coverLevel).toBe("plus");
+    expect(readJourney("home", storage)?.saved).toEqual({ quoteId: "q1", key: "k1" });
+    expect(readJourney("car", storage)?.cover).toBeUndefined();
+    expect(readJourney("car", storage)?.saved).toBeUndefined();
+  });
+
+  it("saves each home step's answers into the home journey", () => {
+    const storage = memoryStorage();
+    beginJourney("home", "E8 3RL", now, storage);
+    const full = completeHomeJourney();
+    setHomeStepAnswers("about", full.homeAbout!, storage);
+    setHomeStepAnswers("property", full.property!, storage);
+    setHomeStepAnswers("contents", full.contents!, storage);
+    setHomeStepAnswers("claims", full.homeClaims!, storage);
+    const read = readJourney("home", storage)!;
+    expect(read.homeAbout).toEqual(full.homeAbout);
+    expect(read.property).toEqual(full.property);
+    expect(read.contents).toEqual(full.contents);
+    expect(read.homeClaims).toEqual(full.homeClaims);
+    expect(readJourney("car", storage)).toBeNull();
+  });
+
+  it("drops a picked address when the postcode changes, and keeps a typed one", () => {
+    const storage = homeStorage();
+    setHomePostcode("M1 1AE", storage);
+    const read = readJourney("home", storage)!;
+    expect(read.postcode).toBe("M1 1AE");
+    expect(read.property?.address).toBeUndefined();
+    expect(read.property?.bedrooms).toBe(3);
+
+    const typed = completeHomeJourney();
+    typed.property!.address = { line1: "4 Mill Lane", town: "Leeds", picked: false };
+    storage.setItem(journeyKey("home"), JSON.stringify(typed));
+    setHomePostcode("LS1 4AP", storage);
+    expect(readJourney("home", storage)?.property?.address).toEqual(typed.property!.address);
+  });
+});
+
+describe("a new postcode from the link (5.7, final review)", () => {
+  it("drops a home address picked for the old postcode, and keeps one typed in", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    const moved = beginJourney("home", "M1 1AE", now, storage);
+    expect(moved.postcode).toBe("M1 1AE");
+    expect(moved.property?.address).toBeUndefined();
+    expect(readJourney("home", storage)?.property?.address).toBeUndefined();
+
+    const typed = completeHomeJourney();
+    typed.property!.address = { line1: "4 Mill Lane", town: "Leeds", picked: false };
+    storage.setItem(journeyKey("home"), JSON.stringify(typed));
+    expect(beginJourney("home", "LS1 4AP", now, storage).property?.address).toEqual(
+      typed.property!.address,
+    );
+  });
+
+  it("keeps a picked address when the postcode is the same", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    expect(beginJourney("home", "E8 3RL", now, storage).property?.address?.picked).toBe(true);
+  });
+});
+
+describe("the bundle mark (5.7b, decision 1)", () => {
+  it("is set on the home journey and removed again", () => {
+    const storage = memoryStorage();
+    storage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
+    markBundle("c1", storage);
+    expect(readJourney("home", storage)?.bundle).toEqual({ carJourneyId: "c1" });
+    clearBundle(storage);
+    expect(readJourney("home", storage)?.bundle).toBeUndefined();
+  });
+
+  it("drops a mark that doesn't parse, and keeps the rest of the home journey", () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      journeyKey("home"),
+      JSON.stringify({ ...completeHomeJourney(), bundle: { carJourneyId: 3 } }),
+    );
+    const read = readJourney("home", storage);
+    expect(read?.bundle).toBeUndefined();
+    expect(read?.property).toEqual(completeHomeJourney().property);
+  });
+
+  it("doesn't change the saved quote's key", () => {
+    const home = completeHomeJourney();
+    expect(savedQuoteKey({ ...home, bundle: { carJourneyId: "c1" } })).toBe(savedQuoteKey(home));
+  });
+});

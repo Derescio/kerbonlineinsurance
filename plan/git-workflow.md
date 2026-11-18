@@ -77,7 +77,7 @@ Only once every slice in the phase is merged into `staging` and checked on the s
 ```
 git switch staging
 git pull --ff-only
-gh pr create --base main --head staging --title "release: Phase 2 Design System (s2-Design Ssystem)"--body "## Summary
+gh pr create --base main --head staging --title "release: Phase 2 Design System (s2-Design-System)" --body "## Summary
 
 Completes Phase 2: Design System.
 

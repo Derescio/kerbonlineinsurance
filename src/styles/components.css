@@ -1076,8 +1076,18 @@
 .kb-cover__list .kb-icon {
   margin-top: 0;
 }
+/* Muted, but readable: fg-4 text fails contrast (5.5); the minus icon keeps the faint colour */
 .kb-cover__list li.is-off {
-  color: var(--fg-4);
+  color: var(--fg-3);
+}
+.kb-cover__note {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--fg-2);
+}
+.kb-cover[aria-disabled="true"] {
+  cursor: default;
+  background: var(--bg-sunken);
 }
 
 /* Timeline */
@@ -1205,9 +1215,10 @@
 }
 
 /* App additions (2.3) */
-/* Grey placeholder without making the select required (the original used select:invalid) */
+/* Grey placeholder without making the select required (the original used select:invalid). It's
+   the select's visible value, so it needs text contrast: fg-3, not fg-4 (2.74:1, axe in 5.2). */
 .kb-control select:has(option[value=""]:checked) {
-  color: var(--fg-4);
+  color: var(--fg-3);
 }
 .kb-control select:invalid {
   color: var(--fg-1);

@@ -65,21 +65,23 @@ describe("reference data", () => {
   afterAll(closeDb);
 
   describe("upsertReferenceData", () => {
-    it("inserts v1 of each product as active, with every row", async () => {
+    it("inserts v1 of each product, then home v2 as home's active version, with every row", async () => {
       const result = await upsertReferenceData(owner(), sources());
 
       expect(result.versions).toEqual([
         { product: "car", version: 1, action: "inserted" },
         { product: "home", version: 1, action: "inserted" },
         { product: "business", version: 1, action: "inserted" },
+        { product: "home", version: 2, action: "inserted" },
       ]);
       const versions = await owner().select().from(ratingVersions);
-      expect(versions).toHaveLength(3);
+      expect(versions).toHaveLength(RATING_SOURCES.length);
       for (const version of versions) {
-        expect(version.status).toBe("active");
-        expect(version.effectiveFrom).toBe("2026-11-01");
+        const retired = version.product === "home" && version.version === 1;
+        expect(version.status).toBe(retired ? "retired" : "active");
         expect(version.contentHash).toMatch(/^[0-9a-f]{64}$/);
       }
+      expect(await getActiveRatingVersion(getDb(), "home")).toMatchObject({ version: 2 });
       const total = (pick: (s: RatingSource) => unknown[]) =>
         RATING_SOURCES.reduce((n, s) => n + pick(s).length, 0);
       expect(await count(ratingParameters)).toBe(
@@ -204,7 +206,7 @@ describe("reference data", () => {
         upsertReferenceData(owner(), sources()),
         upsertReferenceData(owner(), sources()),
       ]);
-      expect(await count(ratingVersions)).toBe(3);
+      expect(await count(ratingVersions)).toBe(RATING_SOURCES.length);
       expect(await count(vehicleCatalogue)).toBe(expandCatalogue(CATALOGUE_SOURCES).length);
     });
 
@@ -238,7 +240,7 @@ describe("reference data", () => {
 
       await expect(upsertReferenceData(owner(), next)).rejects.toThrow(ReferenceDataConflict);
       expect(await catalogueRows()).toEqual(before);
-      expect(await count(ratingVersions)).toBe(3);
+      expect(await count(ratingVersions)).toBe(RATING_SOURCES.length);
     });
 
     it("refuses a new version that doesn't start after the active one, writing nothing", async () => {
@@ -253,7 +255,7 @@ describe("reference data", () => {
       await expect(upsertReferenceData(owner(), sources([v2]))).rejects.toThrow(
         "car v2: effectiveFrom 2026-11-01 must be after the active v1's 2026-11-01",
       );
-      expect(await count(ratingVersions)).toBe(3);
+      expect(await count(ratingVersions)).toBe(RATING_SOURCES.length);
     });
 
     it("refuses the same version listed twice", async () => {
@@ -281,8 +283,104 @@ describe("reference data", () => {
       await owner().delete(ratingFactors).where(eq(ratingFactors.ratingVersionId, active!.id));
       expect(await getRatingTables(getDb(), active!.id)).toBe(first);
 
+      // Reloaded with no factors, the version fails its check (5.4, spec decision 9)
       clearReferenceCaches();
-      expect((await getRatingTables(getDb(), active!.id)).factors).toEqual([]);
+      await expect(getRatingTables(getDb(), active!.id)).rejects.toThrow("failed its check");
+    });
+
+    describe("the check on load (5.4)", () => {
+      async function loadedAfter(change: (id: string) => Promise<unknown>) {
+        await upsertReferenceData(owner(), sources());
+        const active = await getActiveRatingVersion(getDb(), "car");
+        await change(active!.id);
+        return getRatingTables(getDb(), active!.id);
+      }
+
+      it("loads every v1", async () => {
+        await upsertReferenceData(owner(), sources());
+        for (const product of ["car", "home", "business"] as const) {
+          const active = await getActiveRatingVersion(getDb(), product);
+          await expect(getRatingTables(getDb(), active!.id)).resolves.toBeDefined();
+        }
+      });
+
+      it("refuses a version missing a parameter", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner()
+              .delete(ratingParameters)
+              .where(
+                and(
+                  eq(ratingParameters.ratingVersionId, id),
+                  eq(ratingParameters.name, "base_rate_pence"),
+                ),
+              ),
+          ),
+        ).rejects.toThrow("missing parameter base_rate_pence");
+      });
+
+      it("refuses a factor the formulas don't read", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner().insert(ratingFactors).values({
+              ratingVersionId: id,
+              factor: "star_sign",
+              band: "leo",
+              multiplier: "1.1000",
+            }),
+          ),
+        ).rejects.toThrow("unknown factor star_sign");
+      });
+
+      it("refuses a version missing a factor the formulas read", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner()
+              .delete(ratingFactors)
+              .where(and(eq(ratingFactors.ratingVersionId, id), eq(ratingFactors.factor, "usage"))),
+          ),
+        ).rejects.toThrow("missing factor usage");
+      });
+
+      it("refuses a gap between range bands", async () => {
+        await expect(
+          loadedAfter((id) =>
+            owner()
+              .delete(ratingFactors)
+              .where(
+                and(
+                  eq(ratingFactors.ratingVersionId, id),
+                  eq(ratingFactors.factor, "insurance_group"),
+                  eq(ratingFactors.band, "20"),
+                ),
+              ),
+          ),
+        ).rejects.toThrow("insurance_group: gap after 19");
+      });
+
+      it("refuses an unknown version id", async () => {
+        await expect(
+          getRatingTables(getDb(), "00000000-0000-7000-8000-000000000000"),
+        ).rejects.toThrow("not found");
+      });
+
+      it("drops a failed load from the memo, so a fixed version loads next time", async () => {
+        await upsertReferenceData(owner(), sources());
+        const active = await getActiveRatingVersion(getDb(), "car");
+        const [row] = await owner()
+          .delete(ratingParameters)
+          .where(
+            and(
+              eq(ratingParameters.ratingVersionId, active!.id),
+              eq(ratingParameters.name, "base_rate_pence"),
+            ),
+          )
+          .returning();
+        await expect(getRatingTables(getDb(), active!.id)).rejects.toThrow();
+        const { id: _id, ...restored } = row!;
+        await owner().insert(ratingParameters).values(restored);
+        await expect(getRatingTables(getDb(), active!.id)).resolves.toBeDefined();
+      });
     });
 
     it("returns the active version", async () => {

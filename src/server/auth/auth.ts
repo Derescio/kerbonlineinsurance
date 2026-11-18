@@ -9,12 +9,16 @@ import { generateRandomString } from "better-auth/crypto";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
 import { PASSWORD_MAX, PASSWORD_MIN } from "#/features/auth/schemas";
+import { QUOTE_SAVE_RULE } from "#/server/data/rate-limit-rules";
 import { getDb, type Db } from "#/server/db/client";
+import { limit, rateLimitSubject } from "#/server/db/rate-limit";
+import { withTx } from "#/server/db/tx";
 import { resendSender, type SendEmail } from "#/server/email/send";
 import type { EmailTemplate } from "#/server/email/registry";
 import { queueEmail } from "#/server/jobs/email";
 import { runJob } from "#/server/jobs/runner";
 import { getAuthEnv, type AuthEnv } from "#/server/env";
+import { saveBundleQuoteFor, saveCarQuoteFor, saveHomeQuoteFor } from "#/server/quote/save";
 
 import { logSafeError } from "./errors";
 import { breachedPasswordCheck } from "./breached-password";
@@ -85,7 +89,7 @@ export function createAuth(deps: AuthDeps) {
     const work = queueEmail(db, { to, template, params, expiresAt })
       .then((id) => runJob(db, id, { sendEmail: deps.sendEmail, defer }))
       .catch((error: unknown) => {
-        console.error("[auth] email not queued:", logSafeError(error));
+        console.error("[auth] email job error:", logSafeError(error));
       });
     defer(work);
   };
@@ -221,6 +225,42 @@ export function createAuth(deps: AuthDeps) {
               method,
               headers: ctx?.request?.headers,
             });
+            // Creating an account mid-quote saves the quote against the new user (5.6, decision
+            // 1). Better Auth runs this after its transaction commits, and only for a user it
+            // created, so a sign-up for a taken email attaches nothing. The save runs after the
+            // response, like the emails, so a new email's answer takes no longer than a taken
+            // one's (4.4b). Sign-up never fails because of the quote: the tab still holds it.
+            // The journey is never logged
+            // The home gate sends its product (5.7); a quote without one is car's, as before. A
+            // bundled home gate sends both journeys (5.7b)
+            const quote = (
+              ctx?.body as
+                | {
+                    quote?:
+                      | { product?: "car" | "home"; journey?: unknown }
+                      | { product: "bundle"; car?: unknown; home?: unknown };
+                  }
+                | undefined
+            )?.quote;
+            if (ctx?.path === "/sign-up/email" && quote) {
+              const headers = ctx.request?.headers ?? new Headers();
+              const work = (async () => {
+                try {
+                  const subject = await rateLimitSubject(null, headers, secret);
+                  await limit(`quote.save:${subject}`, QUOTE_SAVE_RULE);
+                  await withTx(db, async (tx): Promise<unknown> =>
+                    quote.product === "bundle"
+                      ? saveBundleQuoteFor(tx, user.id, { car: quote.car, home: quote.home })
+                      : quote.product === "home"
+                        ? saveHomeQuoteFor(tx, user.id, { journey: quote.journey })
+                        : saveCarQuoteFor(tx, user.id, { journey: quote.journey }),
+                  );
+                } catch (error) {
+                  console.error("[auth] sign-up quote save error:", logSafeError(error));
+                }
+              })();
+              defer(work);
+            }
           },
         },
       },

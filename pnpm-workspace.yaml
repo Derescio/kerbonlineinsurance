@@ -7,13 +7,19 @@ onlyBuiltDependencies:
   - esbuild
   - lightningcss
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
-  vite-plus: 1.4.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
+  vite-plus: 1.6.0
 overrides:
   vite@*: "catalog:"
   # @vercel/functions → @vercel/oidc → @vercel/cli-config pins zod 4.1.11 (GHSA-mrhx-c7xc-m3w5,
   # fixed in 4.6.6). Drop once a @vercel/functions release depends on a patched zod.
   "@vercel/cli-config>zod": ^4.6.6
+auditConfig:
+  ignoreGhsas:
+    # picomatch ReDoS through attacker-supplied extglobs; no patched release (4.0.7 is the latest).
+    # Only build tooling (TanStack Router's route generator, via tinyglobby) reaches it, with our own
+    # fixed globs, never user input. Drop once picomatch ships a fix.
+    - GHSA-fc5q-39xc-vjpf
 peerDependencyRules:
   allowAny:
     - vite

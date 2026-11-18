@@ -1,12 +1,15 @@
 import type { Db, JobRow } from "#/server/data/job-rows";
 import type { jobStatuses } from "#/server/db/schema/values";
 import type { SendEmail } from "#/server/email/send";
+import type { StripeClient } from "#/server/payments/stripe";
 
 // The shapes the jobs runner and its handlers share (4.11).
 
 export type JobType =
   | "email.send"
   | "account.closures"
+  | "payments.lapsed_cancellations"
+  | "payments.retry_invoice"
   | "uploads.cleanup"
   | "housekeeping.expired_rows"
   | "audit.anchor";
@@ -23,6 +26,8 @@ export interface JobDeps {
    * SEND_EMAILS=1, so a run never marks someone's pending email done unsent
    */
   holdEmails?: boolean;
+  /** The Stripe client for the payment jobs (5.6b); getStripe() when unset, the fake in tests */
+  stripe?: StripeClient;
 }
 
 /** A skip ends the job `done`, with the reason in `last_error` (e.g. a link that has expired) */

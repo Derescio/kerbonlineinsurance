@@ -62,6 +62,7 @@ type Client = Pick<
   | "clear_opt_in_out_capturing"
   | "startSessionRecording"
   | "stopSessionRecording"
+  | "get_distinct_id"
 >;
 
 let client: Client | undefined;
@@ -131,6 +132,16 @@ export function getFlag(key: string, timeoutMs = 1500): Promise<string | boolean
     if (client) read(client);
     else waitingForLoad.push(read);
   });
+}
+
+/**
+ * PostHog's distinct id for the `events` table's `anonymous_id` (engineering.md §13), so Phase 9 can
+ * join the two. Only after the visitor accepts cookies: before that the id is a shared cookieless
+ * placeholder, and storing it would link nothing.
+ */
+export function anonymousId(): string | null {
+  if (client?.get_explicit_consent_status() !== "granted") return null;
+  return client.get_distinct_id() || null;
 }
 
 /** Reports an error caught by a React error boundary. Uncaught errors are captured by PostHog itself. */

@@ -1,51 +1,16 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
-import pg from "pg";
+import { expect, test } from "@playwright/test";
 
+import { expectNoSeriousAxeViolations } from "./axe";
 import { expectCdnCached } from "./cdn-cache";
+import { confirmEmailInDatabase, databaseUrl } from "./db";
 
 // 4.7: the privacy and cookies pages, and deleting a fresh sign-up. Previews use Cloudflare's
 // always-pass Turnstile test keys and the `dev` database. The run can't open the confirmation
-// email (Resend's test inbox), so the delete test confirms the address straight in the database:
-// set E2E_DATABASE_URL (the deploy's Neon `dev` URL) to run it. Without it that test is skipped
-// with the reason; the public-page tests need nothing.
+// email (Resend's test inbox), so the delete test confirms the address straight in the database
+// (e2e/db.ts): set E2E_DATABASE_URL (the deploy's Neon `dev` URL) to run it. Without it that test
+// is skipped with the reason; the public-page tests need nothing.
 
 const PASSWORD = "kerb e2e password 2026";
-const databaseUrl = process.env.E2E_DATABASE_URL ?? "";
-
-async function expectNoSeriousAxeViolations(page: Page) {
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(
-    violations
-      .filter((v) => v.impact === "serious" || v.impact === "critical")
-      .map((v) => `${v.id}: ${v.help}`),
-  ).toEqual([]);
-}
-
-// Only ever touches the address this spec just made, so a mis-set E2E_DATABASE_URL can't confirm
-// anyone else. It must be the Neon `dev` branch's credentials, never prod.
-const OWN_EMAIL = /^delivered\+e2e-close-\d+@resend\.dev$/;
-
-async function confirmEmailInDatabase(email: string) {
-  if (!OWN_EMAIL.test(email)) {
-    throw new Error(`Refusing to confirm ${email}: not an address this spec created`);
-  }
-  const client = new pg.Client({ connectionString: databaseUrl });
-  await client.connect();
-  try {
-    const result = await client.query("update users set email_verified = true where email = $1", [
-      email,
-    ]);
-    expect(
-      result.rowCount,
-      "E2E_DATABASE_URL must point at the same database as the deploy under test",
-    ).toBe(1);
-  } finally {
-    await client.end();
-  }
-}
 
 for (const path of ["/privacy", "/cookies"]) {
   test(`${path} is cached publicly and carries no closure banner`, async ({ request, page }) => {

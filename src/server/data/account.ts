@@ -18,6 +18,7 @@ import {
   accountClosures,
   accounts,
   bundles,
+  checkoutSessions,
   claims,
   customers,
   idempotencyKeys,
@@ -178,6 +179,33 @@ export async function hasAnyClosure(tx: Tx, userId: string): Promise<boolean> {
     .where(eq(accountClosures.userId, userId))
     .limit(1);
   return rows.length > 0;
+}
+
+/** The Stripe ids of the user's open checkout sessions (5.6b), to expire before a delete */
+export async function openCheckoutsOfUser(tx: Tx, userId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ stripeSessionId: checkoutSessions.stripeSessionId })
+    .from(checkoutSessions)
+    .innerJoin(customers, eq(customers.id, checkoutSessions.customerId))
+    .where(and(eq(customers.userId, userId), eq(checkoutSessions.status, "open")))
+    .orderBy(asc(checkoutSessions.createdAt));
+  return rows.map((row) => row.stripeSessionId);
+}
+
+/**
+ * Deletes the user's checkout sessions (5.6b). An account deleted at once bought nothing, so each is
+ * an attempt abandoned, expired or refunded; they go before the user because
+ * checkout_sessions_quote_fk is RESTRICT and the user's quotes cascade from the users row.
+ */
+export async function deleteCheckoutsOfUser(tx: Tx, userId: string): Promise<void> {
+  await tx
+    .delete(checkoutSessions)
+    .where(
+      inArray(
+        checkoutSessions.customerId,
+        tx.select({ id: customers.id }).from(customers).where(eq(customers.userId, userId)),
+      ),
+    );
 }
 
 /** Deletes the user; the foreign keys cascade to the rest and record_delete tombstones them */
@@ -359,24 +387,28 @@ export async function closeAccountRows(tx: Tx, userId: string): Promise<void> {
       .delete(claims)
       .where(and(eq(claims.customerId, customerId), eq(claims.status, "draft")));
     // Quotes that never became a policy and have no payment or bundle (their items, options,
-    // details and decisions cascade). A quote any of those point at is kept, so RESTRICT is
-    // never hit.
+    // details and decisions cascade). A quote any of those point at is kept. Their checkout
+    // sessions (5.6b) go first: attempts abandoned, expired or refunded, nothing bought, and
+    // checkout_sessions_quote_fk is RESTRICT. With them gone, RESTRICT is never hit.
+    const unbought = and(
+      eq(quotes.customerId, customerId),
+      notExists(
+        tx.select({ id: policies.id }).from(policies).where(eq(policies.quoteId, quotes.id)),
+      ),
+      notExists(
+        tx.select({ id: payments.id }).from(payments).where(eq(payments.quoteId, quotes.id)),
+      ),
+      notExists(tx.select({ id: bundles.id }).from(bundles).where(eq(bundles.quoteId, quotes.id))),
+    );
     await tx
-      .delete(quotes)
+      .delete(checkoutSessions)
       .where(
-        and(
-          eq(quotes.customerId, customerId),
-          notExists(
-            tx.select({ id: policies.id }).from(policies).where(eq(policies.quoteId, quotes.id)),
-          ),
-          notExists(
-            tx.select({ id: payments.id }).from(payments).where(eq(payments.quoteId, quotes.id)),
-          ),
-          notExists(
-            tx.select({ id: bundles.id }).from(bundles).where(eq(bundles.quoteId, quotes.id)),
-          ),
+        inArray(
+          checkoutSessions.quoteId,
+          tx.select({ id: quotes.id }).from(quotes).where(unbought),
         ),
       );
+    await tx.delete(quotes).where(unbought);
   }
 
   // The row stays (customers, audit_log and security_events point at it); the address is freed

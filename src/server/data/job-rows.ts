@@ -1,9 +1,18 @@
-import { and, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, lte, notExists, sql } from "drizzle-orm";
 
 import { getDb, type Db } from "#/server/db/client";
+import { MAX_ATTEMPTS } from "#/server/jobs/backoff";
 
 export type { Db };
-import { idempotencyKeys, jobs, rateLimits } from "#/server/db/schema";
+import {
+  accountClosures,
+  idempotencyKeys,
+  jobs,
+  rateLimits,
+  staffMembers,
+  stripeEvents,
+  users,
+} from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
 
 // The jobs table's row helpers behind src/server/jobs/ (4.11). Plain functions, not defineRead:
@@ -48,7 +57,8 @@ export async function claimJobById(db: Db, id: number, now: Date): Promise<JobRo
 
 /**
  * Takes the next due job: queued or failed with its time come, or running but not updated since
- * `staleBefore` (its function died). SKIP LOCKED, so two runners never take the same row.
+ * `staleBefore` (its function died) with attempts left. SKIP LOCKED, so two runners never take the
+ * same row. The attempts guard holds even when no runner has marked the stale job dead yet.
  */
 export async function claimNextJob(
   db: Db,
@@ -65,7 +75,8 @@ export async function claimNextJob(
         jobs.id,
         sql`(select id from jobs
              where ((status in ('queued', 'failed') and run_after <= ${now})
-                or (status = 'running' and updated_at < ${staleBefore}))
+                or (status = 'running' and updated_at < ${staleBefore}
+                    and attempts < ${MAX_ATTEMPTS}))
                ${skip}
              order by run_after, id
              limit 1
@@ -106,11 +117,15 @@ export async function markStaleJobsDead(
   return rows.length;
 }
 
-/** Records how an attempt ended. A finished job's payload is emptied (spec call 9) */
+/**
+ * Records how an attempt ended, at `at`. A finished job's payload is emptied (spec call 9). `at`
+ * must differ from the claim's `updated_at`: the jobs_set_updated_at trigger (0002) replaces an
+ * unchanged value with the database clock
+ */
 export async function finishJob(
   db: Db,
   id: number,
-  now: Date,
+  at: Date,
   outcome:
     | { status: "done"; lastError: string | null }
     | { status: "failed"; lastError: string; runAfter: Date }
@@ -118,7 +133,7 @@ export async function finishJob(
 ): Promise<void> {
   await db
     .update(jobs)
-    .set({ ...outcome, ...(outcome.status === "done" ? { payload: {} } : {}), updatedAt: now })
+    .set({ ...outcome, ...(outcome.status === "done" ? { payload: {} } : {}), updatedAt: at })
     .where(eq(jobs.id, id));
 }
 
@@ -129,16 +144,22 @@ export interface ExpiredRows {
   rateLimits: number;
   doneJobs: number;
   deadJobs: number;
+  unconfirmedUsers: number;
+  stripeEvents: number;
 }
 
 /**
  * The daily housekeeping (4.5c call 20, 4.11 call 13): expired idempotency keys, rate-limit windows
  * over a day old (the longest window is an hour), done jobs after 7 days and dead jobs after 30.
+ * Accounts whose email is still unconfirmed 7 days after sign-up go too (5.6, decision 1), their
+ * customer and quotes by cascade. Staff are never touched; nor is a user with a closure row, whose
+ * RESTRICT would fail the whole statement (an unconfirmed account can't sign in to make one).
+ * Stripe event ids go after 30 days (5.6b, decision 13): Stripe retries for 3 days at most.
  */
 export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows> {
   const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
   const ids = { id: jobs.id };
-  const [keys, windows, done, dead] = await Promise.all([
+  const [keys, windows, done, dead, unconfirmed, events] = await Promise.all([
     db
       .delete(idempotencyKeys)
       .where(lt(idempotencyKeys.expiresAt, now))
@@ -155,11 +176,28 @@ export async function deleteExpiredRows(db: Db, now: Date): Promise<ExpiredRows>
       .delete(jobs)
       .where(and(eq(jobs.status, "dead"), lt(jobs.updatedAt, before(30))))
       .returning(ids),
+    db
+      .delete(users)
+      .where(
+        and(
+          eq(users.emailVerified, false),
+          lt(users.createdAt, before(7)),
+          notExists(db.select().from(staffMembers).where(eq(staffMembers.userId, users.id))),
+          notExists(db.select().from(accountClosures).where(eq(accountClosures.userId, users.id))),
+        ),
+      )
+      .returning({ id: users.id }),
+    db
+      .delete(stripeEvents)
+      .where(lt(stripeEvents.receivedAt, before(30)))
+      .returning({ id: stripeEvents.eventId }),
   ]);
   return {
     idempotencyKeys: keys.length,
     rateLimits: windows.length,
     doneJobs: done.length,
     deadJobs: dead.length,
+    unconfirmedUsers: unconfirmed.length,
+    stripeEvents: events.length,
   };
 }

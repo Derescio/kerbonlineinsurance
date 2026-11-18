@@ -11,13 +11,20 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
 import { createdAt, id, lastFour, oneOf, pence, updatedAt } from "./columns";
 import { customers } from "./customers";
 import { quoteItems, quotes } from "./quotes";
-import { paymentPlans, paymentStatuses, policyStatuses, products } from "./values";
+import {
+  checkoutSessionStatuses,
+  paymentPlans,
+  paymentStatuses,
+  policyStatuses,
+  products,
+} from "./values";
 
 // Policies are history: RESTRICT from the customer, the quote item and each other (4.2, decision
 // 11). Delete account (4.7) removes them explicitly, on purpose.
@@ -72,6 +79,8 @@ export const policies = pgTable(
     termsAcceptedAt: timestamp({ withTimezone: true }).notNull(),
     version: integer().notNull().default(1),
     cancelledAt: timestamp({ withTimezone: true }),
+    // Set while `lapsed`: a monthly instalment went unpaid (5.6b, decision 8)
+    lapsedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -89,6 +98,7 @@ export const policies = pgTable(
       "policies_cancelled_at_check",
       sql`(${t.status} = 'cancelled') = (${t.cancelledAt} is not null)`,
     ),
+    check("policies_lapsed_at_check", sql`${t.lapsedAt} is null or ${t.status} = 'lapsed'`),
     check("policies_renewal_check", sql`${t.renewalOfPolicyId} <> ${t.id}`),
     // Ownership is checked by composite keys (review M4): the quote is the customer's, the item is
     // on that quote and of the same product, the bundle is that quote's, and a renewal renews one
@@ -141,6 +151,13 @@ export const payments = pgTable(
     cardLast4: text().notNull(),
     dueOn: date().notNull(),
     paidAt: timestamp({ withTimezone: true }),
+    // Stripe's ids; null on 5.6's demo rows and on instalments not yet charged
+    stripePaymentIntentId: text().unique("payments_stripe_payment_intent_id_unique"),
+    stripeInvoiceId: text().unique("payments_stripe_invoice_id_unique"),
+    stripeSubscriptionId: text(),
+    // When Kerb voided this month's invoice because the cover had lapsed (5.6b, decision 8): the
+    // row stays `failed`, but the month had no cover, so it's never owed for a resume
+    voidedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -167,5 +184,54 @@ export const payments = pgTable(
     index().on(t.status),
     index().on(t.dueOn),
     index().on(t.updatedAt),
+    index().on(t.stripeSubscriptionId),
   ],
+);
+
+// One row per Stripe Checkout Session (5.6b, decisions 5 to 7): what the customer chose when it was
+// made, so fulfilment reruns the purchase with the same answers. One `open` row per quote.
+export const checkoutSessions = pgTable(
+  "checkout_sessions",
+  {
+    id: id(),
+    quoteId: uuid().notNull(),
+    customerId: uuid().notNull(),
+    stripeSessionId: text().notNull().unique("checkout_sessions_stripe_session_id_unique"),
+    plan: text().notNull(),
+    startsOn: date().notNull(),
+    detailsConfirmedAt: timestamp({ withTimezone: true }).notNull(),
+    coverAcknowledgedAt: timestamp({ withTimezone: true }).notNull(),
+    // The expected total (annual) or the monthly payment
+    amountPence: pence(),
+    status: text().notNull().default("open"),
+    fulfilledAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("checkout_sessions_plan_check", oneOf(t.plan, paymentPlans)),
+    check("checkout_sessions_status_check", oneOf(t.status, checkoutSessionStatuses)),
+    check("checkout_sessions_amount_check", sql`${t.amountPence} > 0`),
+    foreignKey({
+      name: "checkout_sessions_quote_fk",
+      columns: [t.quoteId, t.customerId],
+      foreignColumns: [quotes.id, quotes.customerId],
+    }).onDelete("restrict"),
+    uniqueIndex("checkout_sessions_one_open_per_quote")
+      .on(t.quoteId)
+      .where(sql`${t.status} = 'open'`),
+    index().on(t.customerId),
+  ],
+);
+
+// Stripe event ids already handled: the gate that makes a webhook delivered twice act once. Ids
+// and types only, never the body; the daily housekeeping deletes rows after 30 days.
+export const stripeEvents = pgTable(
+  "stripe_events",
+  {
+    eventId: text().primaryKey(),
+    type: text().notNull(),
+    receivedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index().on(t.receivedAt)],
 );

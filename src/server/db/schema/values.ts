@@ -16,15 +16,80 @@ export const quoteStatuses = [
   "expired",
 ] as const;
 export const underwritingOutcomes = ["quoted", "referred", "declined"] as const;
+// Why an item was referred or declined (5.4, spec decision 8). Rule types are code; the numbers that
+// trigger them are rating-version data.
+export const reasonCodes = [
+  "outside_cover_area",
+  "vehicle_value_too_high",
+  "young_driver_high_group",
+  "high_insurance_group",
+  "high_vehicle_value",
+  "past_claims",
+  "new_licence_high_group",
+  "driver_age",
+  "rebuild_cost_too_high",
+  "high_rebuild_cost",
+  "high_contents_value",
+  "old_property",
+  "high_turnover",
+  "many_employees",
+  "high_risk_employees",
+  "premium_above_max",
+] as const;
+export type ReasonCode = (typeof reasonCodes)[number];
 export const ratingVersionStatuses = ["draft", "active", "retired"] as const;
 export const paymentPlans = ["annual", "monthly"] as const;
 export const paymentStatuses = ["scheduled", "succeeded", "failed", "refunded"] as const;
+export const checkoutSessionStatuses = ["open", "completed", "expired", "refunded"] as const;
 
 export const fuelTypes = ["petrol", "diesel", "hybrid", "electric"] as const;
 export const vehicleUsages = ["social", "commuting", "business"] as const;
 export const overnightLocations = ["garage", "driveway", "street"] as const;
 export const propertyTypes = ["detached", "semi", "terraced", "flat", "bungalow"] as const;
 export const lockTypes = ["standard", "five_lever", "multipoint"] as const;
+// A home's answers that aren't rated, and its past claims (5.7, decision 10)
+export const windowLockTypes = ["all_accessible", "some", "none"] as const;
+export const alarmTypes = ["none", "installed_unmonitored", "monitored"] as const;
+export const homeClaimTypes = [
+  "escape_of_water",
+  "theft",
+  "accidental_damage",
+  "storm_flood",
+  "fire",
+  "subsidence",
+  "other",
+] as const;
+export const priorClaimStatuses = ["settled", "open", "withdrawn"] as const;
+// Car's answers kept from 5.7c (decisions 1 and 2): a car incident's type and fault, and each
+// driver's licence, employment status and relationship to the policyholder
+export const carClaimTypes = [
+  "collision",
+  "theft",
+  "fire",
+  "vandalism",
+  "windscreen",
+  "other",
+] as const;
+export const faultTypes = ["at_fault", "not_at_fault", "undecided"] as const;
+export const licenceTypes = ["full_uk", "full_eu"] as const;
+export const employmentStatuses = [
+  "employed",
+  "self_employed",
+  "retired",
+  "unemployed",
+  "student",
+  "homemaker",
+] as const;
+export type EmploymentStatus = (typeof employmentStatuses)[number];
+export const relationshipTypes = [
+  "spouse",
+  "partner",
+  "parent",
+  "child",
+  "sibling",
+  "other_relative",
+  "friend",
+] as const;
 
 // Reference data (4.8)
 export const bodyStyles = [

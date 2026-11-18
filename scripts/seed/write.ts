@@ -74,6 +74,7 @@ const TABLES: readonly (readonly [Exclude<keyof SeedPlan, "users" | "audit">, Pg
   ["vehicles", schema.vehicles],
   ["drivers", schema.drivers],
   ["properties", schema.properties],
+  ["priorClaims", schema.priorClaims],
   ["businesses", schema.businesses],
   ["bundles", schema.bundles],
   ["policies", schema.policies],

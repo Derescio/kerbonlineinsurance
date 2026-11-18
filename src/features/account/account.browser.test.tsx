@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
+import { AccountPage } from "#/features/auth/AccountPage";
+import type { AccountSummary } from "#/features/auth/session";
 import { PublicError } from "#/server/auth/errors";
+import type { PolicyListItem } from "#/server/data/policies";
 import { renderWithRouter } from "#/test/router";
 
 import { ClosePage } from "./ClosePage";
@@ -307,4 +310,124 @@ describe("delete: an UNAUTHENTICATED answer", () => {
       await expect.poll(() => router.state.location.pathname).toBe("/login");
     },
   );
+});
+
+describe("the account page's policies (5.6, decision 12)", () => {
+  const summary: AccountSummary = {
+    user: { id: "u1", name: "Alex Morgan", email: "alex@example.com", emailVerified: true },
+    providers: ["credential"],
+    greeting: "Good morning",
+    twoFactorEnabled: false,
+  };
+  const policy = (over: Partial<PolicyListItem>): PolicyListItem => ({
+    id: "p1",
+    reference: "KRB-482913",
+    product: "car",
+    coverLevel: "comprehensive",
+    status: "active",
+    startsOn: "2026-11-20",
+    endsOn: "2027-11-19",
+    monthly: false,
+    bundle: null,
+    ...over,
+  });
+
+  it("groups a car + home bundle under one heading, with the saving, and tags each policy (5.7b)", async () => {
+    const bundle = { id: "b1", savingPence: 15_856 };
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[
+          policy({ bundle }),
+          policy({ id: "p2", reference: "KRB-759616", product: "home", bundle }),
+          policy({ id: "p3", reference: "KRB-111111" }),
+        ]}
+      />,
+    );
+    const group = page.getByRole("group", { name: "Car + home bundle" });
+    await expect.element(group).toBeVisible();
+    await expect.element(group.getByText("You save £158.56 a year")).toBeVisible();
+    await expect.element(group.getByText("KRB-482913")).toBeVisible();
+    await expect.element(group.getByText("KRB-759616")).toBeVisible();
+    expect(group.getByText("Bundle", { exact: true }).elements()).toHaveLength(2);
+    expect(group.getByText("KRB-111111").elements()).toHaveLength(0);
+    await expect.element(page.getByText("KRB-111111")).toBeVisible();
+  });
+
+  it("lists each policy and links to saved quotes", async () => {
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[
+          policy({}),
+          policy({
+            id: "p2",
+            reference: "KRB-123456",
+            coverLevel: "essential",
+            status: "lapsed",
+            startsOn: "2025-03-01",
+            endsOn: "2026-02-28",
+          }),
+        ]}
+      />,
+    );
+    await expect.element(page.getByRole("heading", { name: "Your policies" })).toBeVisible();
+    await expect.element(page.getByText("KRB-482913")).toBeVisible();
+    await expect.element(page.getByText("Car · Comprehensive")).toBeVisible();
+    await expect.element(page.getByText("Active", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("20 Nov 2026 to 19 Nov 2027")).toBeVisible();
+    await expect.element(page.getByText("KRB-123456")).toBeVisible();
+    await expect.element(page.getByText("Car · Essential")).toBeVisible();
+    await expect.element(page.getByText("Lapsed", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("1 Mar 2025 to 28 Feb 2026")).toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Your saved quotes" }))
+      .toHaveAttribute("href", "/quote/retrieve");
+  });
+
+  it("links a monthly policy to /account/billing to update the card, and only a monthly one (5.6b, decision 9)", async () => {
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[policy({ monthly: true }), policy({ id: "p2", reference: "KRB-123456" })]}
+      />,
+    );
+    const links = page.getByRole("link", { name: "Update your payment card" });
+    await expect.element(links).toHaveAttribute("href", "/account/billing");
+    expect(links.elements()).toHaveLength(1);
+    const monthly = page.getByRole("listitem").filter({ hasText: "KRB-482913" });
+    await expect
+      .element(monthly.getByRole("link", { name: "Update your payment card" }))
+      .toBeVisible();
+  });
+
+  it("shows no billing link when nothing is paid monthly", async () => {
+    await renderWithRouter(<AccountPage summary={summary} notice={{}} policies={[policy({})]} />);
+    await expect.element(page.getByText("KRB-482913")).toBeVisible();
+    expect(page.getByRole("link", { name: "Update your payment card" }).elements()).toHaveLength(0);
+  });
+
+  it("shows Lapsed in the warning style, and Active not", async () => {
+    await renderWithRouter(
+      <AccountPage
+        summary={summary}
+        notice={{}}
+        policies={[policy({}), policy({ id: "p2", reference: "KRB-123456", status: "lapsed" })]}
+      />,
+    );
+    await expect
+      .element(page.getByText("Lapsed", { exact: true }))
+      .toHaveClass("kb-badge--warning");
+    await expect
+      .element(page.getByText("Active", { exact: true }))
+      .not.toHaveClass("kb-badge--warning");
+  });
+
+  it("says so when there are no policies", async () => {
+    await renderWithRouter(<AccountPage summary={summary} notice={{}} policies={[]} />);
+    await expect.element(page.getByText("You don’t have any policies yet.")).toBeVisible();
+  });
 });

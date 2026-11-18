@@ -1,4 +1,4 @@
-import { quoteHref, retrieveQuoteLink } from "#/components/site/links";
+import { retrieveQuoteLink } from "#/components/site/links";
 import { track } from "#/lib/analytics";
 
 import { ButtonLink } from "./ButtonLink";
@@ -17,7 +17,6 @@ export function ClosingCta() {
           </div>
           <div className="closing__actions">
             <ButtonLink
-              href={quoteHref}
               variant="accent"
               size="lg"
               className="closing__cta"

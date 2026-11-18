@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { PgTransaction } from "drizzle-orm/pg-core";
 
 import { Rejected } from "#/lib/validation";
 
@@ -39,4 +40,18 @@ export async function withTx<T>(db: Db, run: (tx: Tx) => Promise<T>): Promise<T>
     if (error instanceof RollBack) return error.rejection as T;
     throw error;
   }
+}
+
+/** A Tx rather than a Db: a function given one runs inside it (5.6, saveQuote) */
+export function isTx(db: Db | Tx): db is Tx {
+  return db instanceof PgTransaction;
+}
+
+/**
+ * A savepoint inside a transaction already open: a failure rolls back to it and leaves the outer
+ * transaction usable, so a step can be retried in it (5.6: saveQuote's reference retry). The
+ * outer transaction already has the timeouts.
+ */
+export function withSavepoint<T>(tx: Tx, run: (tx: Tx) => Promise<T>): Promise<T> {
+  return tx.transaction(run);
 }

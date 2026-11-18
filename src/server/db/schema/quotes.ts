@@ -18,7 +18,7 @@ import {
 import { createdAt, id, oneOf, pence, postcodeDistrictSql, updatedAt } from "./columns";
 import { customers } from "./customers";
 import { ratingVersions } from "./underwriting";
-import { paymentPlans, products, quoteStatuses, underwritingOutcomes } from "./values";
+import { paymentPlans, products, quoteStatuses, reasonCodes, underwritingOutcomes } from "./values";
 
 // A quote always belongs to a customer (4.2, decision 5): a guest's quote stays in the browser until
 // the sign-in gate (5.6). Its totals reconcile in Postgres (decision 14); the UI never recomputes.
@@ -100,6 +100,7 @@ export const quoteItems = pgTable(
       "quote_items_reason_code_check",
       sql`${t.outcome} = 'quoted' or ${t.reasonCode} is not null`,
     ),
+    check("quote_items_reason_code_values_check", oneOf(t.reasonCode, reasonCodes)),
     check("quote_items_voluntary_excess_check", sql`${t.voluntaryExcessPence} >= 0`),
     // Rated by a version of the same product
     foreignKey({

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { IdempotencyConflictError, PublicError, RateLimitError } from "./errors";
-import { actorMiddleware, userMiddleware } from "./middleware";
+import { actorMiddleware, publicMiddleware, userMiddleware } from "./middleware";
 
 vi.mock("@tanstack/react-start/server", () => ({ getRequestHeaders: () => new Headers() }));
 vi.mock("./actor", async (importOriginal) => ({
@@ -64,5 +64,24 @@ describe("actorMiddleware", () => {
     }).catch((e: unknown) => e);
     expect((error as PublicError).code).toBe("INTERNAL");
     expect(errorSpy).toHaveBeenCalledWith("[server fn]", { name: "Error" });
+  });
+});
+
+describe("publicMiddleware", () => {
+  it("runs the handler without reading the session", async () => {
+    const { getActor } = await import("./actor");
+    vi.mocked(getActor).mockClear();
+    const next = vi.fn(async () => "ok");
+    await expect(run(publicMiddleware, next)).resolves.toBe("ok");
+    expect(next).toHaveBeenCalledWith();
+    expect(getActor).not.toHaveBeenCalled();
+  });
+
+  it("turns a RateLimitError into RATE_LIMITED", async () => {
+    const error = await run(publicMiddleware, async () => {
+      throw new RateLimitError("quote.started");
+    }).catch((e: unknown) => e);
+    expect((error as PublicError).code).toBe("RATE_LIMITED");
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

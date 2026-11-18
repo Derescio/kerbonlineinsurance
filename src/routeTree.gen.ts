@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as QuoteRouteImport } from './routes/_quote'
 import { Route as SiteRouteImport } from './routes/_site'
 import { Route as StaffRouteImport } from './routes/_staff'
 import { Route as AccountRouteImport } from './routes/account'
@@ -24,17 +25,33 @@ import { Route as SiteIndexRouteImport } from './routes/_site/index'
 import { Route as SiteCookiesRouteImport } from './routes/_site/cookies'
 import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as AccountBillingRouteImport } from './routes/account_.billing'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
+import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
+import { Route as ApiOccupationsRouteImport } from './routes/api/occupations'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
+import { Route as QuoteQuoteIndexRouteImport } from './routes/_quote/quote.index'
+import { Route as QuoteQuoteCarRouteImport } from './routes/_quote/quote.car'
+import { Route as QuoteQuoteComingSoonRouteImport } from './routes/_quote/quote.coming-soon'
+import { Route as QuoteQuoteHomeRouteImport } from './routes/_quote/quote.home'
+import { Route as QuoteQuoteRetrieveRouteImport } from './routes/_quote/quote.retrieve'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
+import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as QuoteQuoteCoveredQuoteIdRouteImport } from './routes/_quote/quote.covered.$quoteId'
+import { Route as QuoteQuotePayQuoteIdRouteImport } from './routes/_quote/quote.pay.$quoteId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuoteRoute = QuoteRouteImport.update({
+  id: '/_quote',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SiteRoute = SiteRouteImport.update({
@@ -105,6 +122,11 @@ const StaffStaffRoute = StaffStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => StaffRoute,
 } as any)
+const AccountBillingRoute = AccountBillingRouteImport.update({
+  id: '/account_/billing',
+  path: '/account/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountCloseRoute = AccountCloseRouteImport.update({
   id: '/account_/close',
   path: '/account/close',
@@ -113,6 +135,16 @@ const AccountCloseRoute = AccountCloseRouteImport.update({
 const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
   id: '/account_/two-factor',
   path: '/account/two-factor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCatalogueRoute = ApiCatalogueRouteImport.update({
+  id: '/api/catalogue',
+  path: '/api/catalogue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOccupationsRoute = ApiOccupationsRouteImport.update({
+  id: '/api/occupations',
+  path: '/api/occupations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
@@ -130,6 +162,31 @@ const AuthLoginTwoFactorRoute = AuthLoginTwoFactorRouteImport.update({
   path: '/login/two-factor',
   getParentRoute: () => AuthRoute,
 } as any)
+const QuoteQuoteIndexRoute = QuoteQuoteIndexRouteImport.update({
+  id: '/quote/',
+  path: '/quote/',
+  getParentRoute: () => QuoteRoute,
+} as any)
+const QuoteQuoteCarRoute = QuoteQuoteCarRouteImport.update({
+  id: '/quote/car',
+  path: '/quote/car',
+  getParentRoute: () => QuoteRoute,
+} as any)
+const QuoteQuoteComingSoonRoute = QuoteQuoteComingSoonRouteImport.update({
+  id: '/quote/coming-soon',
+  path: '/quote/coming-soon',
+  getParentRoute: () => QuoteRoute,
+} as any)
+const QuoteQuoteHomeRoute = QuoteQuoteHomeRouteImport.update({
+  id: '/quote/home',
+  path: '/quote/home',
+  getParentRoute: () => QuoteRoute,
+} as any)
+const QuoteQuoteRetrieveRoute = QuoteQuoteRetrieveRouteImport.update({
+  id: '/quote/retrieve',
+  path: '/quote/retrieve',
+  getParentRoute: () => QuoteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -145,6 +202,27 @@ const ApiCronJobsRoute = ApiCronJobsRouteImport.update({
   path: '/api/cron/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksResendRoute = ApiWebhooksResendRouteImport.update({
+  id: '/api/webhooks/resend',
+  path: '/api/webhooks/resend',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuoteQuoteCoveredQuoteIdRoute =
+  QuoteQuoteCoveredQuoteIdRouteImport.update({
+    id: '/quote/covered/$quoteId',
+    path: '/quote/covered/$quoteId',
+    getParentRoute: () => QuoteRoute,
+  } as any)
+const QuoteQuotePayQuoteIdRoute = QuoteQuotePayQuoteIdRouteImport.update({
+  id: '/quote/pay/$quoteId',
+  path: '/quote/pay/$quoteId',
+  getParentRoute: () => QuoteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
@@ -159,14 +237,26 @@ export interface FileRoutesByFullPath {
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
+  '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
+  '/api/catalogue': typeof ApiCatalogueRoute
+  '/api/occupations': typeof ApiOccupationsRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
+  '/quote/car': typeof QuoteQuoteCarRoute
+  '/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
+  '/quote/home': typeof QuoteQuoteHomeRoute
+  '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/quote/': typeof QuoteQuoteIndexRoute
+  '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
+  '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
@@ -181,18 +271,31 @@ export interface FileRoutesByTo {
   '/cookies': typeof SiteCookiesRoute
   '/privacy': typeof SitePrivacyRoute
   '/staff': typeof StaffStaffRoute
+  '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
+  '/api/catalogue': typeof ApiCatalogueRoute
+  '/api/occupations': typeof ApiOccupationsRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
+  '/quote/car': typeof QuoteQuoteCarRoute
+  '/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
+  '/quote/home': typeof QuoteQuoteHomeRoute
+  '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/quote': typeof QuoteQuoteIndexRoute
+  '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
+  '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
+  '/_quote': typeof QuoteRouteWithChildren
   '/_site': typeof SiteRouteWithChildren
   '/_staff': typeof StaffRouteWithChildren
   '/account': typeof AccountRoute
@@ -206,15 +309,27 @@ export interface FileRoutesById {
   '/_site/cookies': typeof SiteCookiesRoute
   '/_site/privacy': typeof SitePrivacyRoute
   '/_staff/staff': typeof StaffStaffRoute
+  '/account_/billing': typeof AccountBillingRoute
   '/account_/close': typeof AccountCloseRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
+  '/api/catalogue': typeof ApiCatalogueRoute
+  '/api/occupations': typeof ApiOccupationsRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
   '/_auth/login_/two-factor': typeof AuthLoginTwoFactorRoute
+  '/_quote/quote/car': typeof QuoteQuoteCarRoute
+  '/_quote/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
+  '/_quote/quote/home': typeof QuoteQuoteHomeRoute
+  '/_quote/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
+  '/api/webhooks/resend': typeof ApiWebhooksResendRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/_quote/quote/': typeof QuoteQuoteIndexRoute
+  '/_quote/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
+  '/_quote/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -231,14 +346,26 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/privacy'
     | '/staff'
+    | '/account/billing'
     | '/account/close'
     | '/account/two-factor'
+    | '/api/catalogue'
+    | '/api/occupations'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
+    | '/quote/car'
+    | '/quote/coming-soon'
+    | '/quote/home'
+    | '/quote/retrieve'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
+    | '/quote/'
+    | '/quote/covered/$quoteId'
+    | '/quote/pay/$quoteId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -253,17 +380,30 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/privacy'
     | '/staff'
+    | '/account/billing'
     | '/account/close'
     | '/account/two-factor'
+    | '/api/catalogue'
+    | '/api/occupations'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
+    | '/quote/car'
+    | '/quote/coming-soon'
+    | '/quote/home'
+    | '/quote/retrieve'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
+    | '/quote'
+    | '/quote/covered/$quoteId'
+    | '/quote/pay/$quoteId'
   id:
     | '__root__'
     | '/_auth'
+    | '/_quote'
     | '/_site'
     | '/_staff'
     | '/account'
@@ -277,30 +417,48 @@ export interface FileRouteTypes {
     | '/_site/cookies'
     | '/_site/privacy'
     | '/_staff/staff'
+    | '/account_/billing'
     | '/account_/close'
     | '/account_/two-factor'
+    | '/api/catalogue'
+    | '/api/occupations'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/_site/'
     | '/_auth/login_/two-factor'
+    | '/_quote/quote/car'
+    | '/_quote/quote/coming-soon'
+    | '/_quote/quote/home'
+    | '/_quote/quote/retrieve'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
+    | '/api/webhooks/resend'
+    | '/api/webhooks/stripe'
+    | '/_quote/quote/'
+    | '/_quote/quote/covered/$quoteId'
+    | '/_quote/quote/pay/$quoteId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
+  QuoteRoute: typeof QuoteRouteWithChildren
   SiteRoute: typeof SiteRouteWithChildren
   StaffRoute: typeof StaffRouteWithChildren
   AccountRoute: typeof AccountRoute
   SystemRoute: typeof SystemRoute
+  AccountBillingRoute: typeof AccountBillingRoute
   AccountCloseRoute: typeof AccountCloseRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
+  ApiCatalogueRoute: typeof ApiCatalogueRoute
+  ApiOccupationsRoute: typeof ApiOccupationsRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCronDailyRoute: typeof ApiCronDailyRoute
   ApiCronJobsRoute: typeof ApiCronJobsRoute
+  ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
+  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -310,6 +468,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_quote': {
+      id: '/_quote'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof QuoteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_site': {
@@ -410,6 +575,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffStaffRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/account_/billing': {
+      id: '/account_/billing'
+      path: '/account/billing'
+      fullPath: '/account/billing'
+      preLoaderRoute: typeof AccountBillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account_/close': {
       id: '/account_/close'
       path: '/account/close'
@@ -422,6 +594,20 @@ declare module '@tanstack/react-router' {
       path: '/account/two-factor'
       fullPath: '/account/two-factor'
       preLoaderRoute: typeof AccountTwoFactorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/catalogue': {
+      id: '/api/catalogue'
+      path: '/api/catalogue'
+      fullPath: '/api/catalogue'
+      preLoaderRoute: typeof ApiCatalogueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/occupations': {
+      id: '/api/occupations'
+      path: '/api/occupations'
+      fullPath: '/api/occupations'
+      preLoaderRoute: typeof ApiOccupationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
@@ -445,6 +631,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginTwoFactorRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_quote/quote/': {
+      id: '/_quote/quote/'
+      path: '/quote'
+      fullPath: '/quote/'
+      preLoaderRoute: typeof QuoteQuoteIndexRouteImport
+      parentRoute: typeof QuoteRoute
+    }
+    '/_quote/quote/car': {
+      id: '/_quote/quote/car'
+      path: '/quote/car'
+      fullPath: '/quote/car'
+      preLoaderRoute: typeof QuoteQuoteCarRouteImport
+      parentRoute: typeof QuoteRoute
+    }
+    '/_quote/quote/coming-soon': {
+      id: '/_quote/quote/coming-soon'
+      path: '/quote/coming-soon'
+      fullPath: '/quote/coming-soon'
+      preLoaderRoute: typeof QuoteQuoteComingSoonRouteImport
+      parentRoute: typeof QuoteRoute
+    }
+    '/_quote/quote/home': {
+      id: '/_quote/quote/home'
+      path: '/quote/home'
+      fullPath: '/quote/home'
+      preLoaderRoute: typeof QuoteQuoteHomeRouteImport
+      parentRoute: typeof QuoteRoute
+    }
+    '/_quote/quote/retrieve': {
+      id: '/_quote/quote/retrieve'
+      path: '/quote/retrieve'
+      fullPath: '/quote/retrieve'
+      preLoaderRoute: typeof QuoteQuoteRetrieveRouteImport
+      parentRoute: typeof QuoteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -465,6 +686,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cron/jobs'
       preLoaderRoute: typeof ApiCronJobsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/resend': {
+      id: '/api/webhooks/resend'
+      path: '/api/webhooks/resend'
+      fullPath: '/api/webhooks/resend'
+      preLoaderRoute: typeof ApiWebhooksResendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_quote/quote/covered/$quoteId': {
+      id: '/_quote/quote/covered/$quoteId'
+      path: '/quote/covered/$quoteId'
+      fullPath: '/quote/covered/$quoteId'
+      preLoaderRoute: typeof QuoteQuoteCoveredQuoteIdRouteImport
+      parentRoute: typeof QuoteRoute
+    }
+    '/_quote/quote/pay/$quoteId': {
+      id: '/_quote/quote/pay/$quoteId'
+      path: '/quote/pay/$quoteId'
+      fullPath: '/quote/pay/$quoteId'
+      preLoaderRoute: typeof QuoteQuotePayQuoteIdRouteImport
+      parentRoute: typeof QuoteRoute
     }
   }
 }
@@ -490,6 +739,28 @@ const AuthRouteChildren: AuthRouteChildren = {
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
+interface QuoteRouteChildren {
+  QuoteQuoteCarRoute: typeof QuoteQuoteCarRoute
+  QuoteQuoteComingSoonRoute: typeof QuoteQuoteComingSoonRoute
+  QuoteQuoteHomeRoute: typeof QuoteQuoteHomeRoute
+  QuoteQuoteRetrieveRoute: typeof QuoteQuoteRetrieveRoute
+  QuoteQuoteIndexRoute: typeof QuoteQuoteIndexRoute
+  QuoteQuoteCoveredQuoteIdRoute: typeof QuoteQuoteCoveredQuoteIdRoute
+  QuoteQuotePayQuoteIdRoute: typeof QuoteQuotePayQuoteIdRoute
+}
+
+const QuoteRouteChildren: QuoteRouteChildren = {
+  QuoteQuoteCarRoute: QuoteQuoteCarRoute,
+  QuoteQuoteComingSoonRoute: QuoteQuoteComingSoonRoute,
+  QuoteQuoteHomeRoute: QuoteQuoteHomeRoute,
+  QuoteQuoteRetrieveRoute: QuoteQuoteRetrieveRoute,
+  QuoteQuoteIndexRoute: QuoteQuoteIndexRoute,
+  QuoteQuoteCoveredQuoteIdRoute: QuoteQuoteCoveredQuoteIdRoute,
+  QuoteQuotePayQuoteIdRoute: QuoteQuotePayQuoteIdRoute,
+}
+
+const QuoteRouteWithChildren = QuoteRoute._addFileChildren(QuoteRouteChildren)
 
 interface SiteRouteChildren {
   SiteCookiesRoute: typeof SiteCookiesRoute
@@ -517,17 +788,23 @@ const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
+  QuoteRoute: QuoteRouteWithChildren,
   SiteRoute: SiteRouteWithChildren,
   StaffRoute: StaffRouteWithChildren,
   AccountRoute: AccountRoute,
   SystemRoute: SystemRoute,
+  AccountBillingRoute: AccountBillingRoute,
   AccountCloseRoute: AccountCloseRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
+  ApiCatalogueRoute: ApiCatalogueRoute,
+  ApiOccupationsRoute: ApiOccupationsRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCronDailyRoute: ApiCronDailyRoute,
   ApiCronJobsRoute: ApiCronJobsRoute,
+  ApiWebhooksResendRoute: ApiWebhooksResendRoute,
+  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

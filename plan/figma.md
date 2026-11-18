@@ -37,6 +37,65 @@ File: [Kerb Online Insurance](https://www.figma.com/design/ajpEaPwbWtwbsSmRheyDA
 | Claims – Mobile | `37:31506` | 6 |
 | Rating / 5 Stars (component) | `104:2502` | 6.9 reviews |
 
+## Quote · Phase 5 additions, Web (`222:6701`)
+
+Drawn by Damion on 9 Nov 2026 to fill the gaps in the `Quote & Policy` journey above. Web only: tablet and mobile adapt these with the existing `Quote & Policy – Tablet / Mobile` frames (Damion, 9 Nov 2026). The header in these frames is a placeholder; the build uses the live site header from 3.1, and Figma is updated to match later.
+
+| # | Screen | Node | Slice |
+|---|---|---|---|
+| 01 | Quote start: type picker + postcode from the link | `222:6702` | 5.1 |
+| 02 | Coming soon, with car and home offered instead | `222:6717` | 5.1 |
+| 03 | Home quote referred. Built in 5.5 with sample home answers; "Your quote is saved" becomes "Sign in to send this for review" until 5.6 (5.5, decision 12) | `222:6732` | 5.5 |
+| 04 | Bundle partially declined (home declined, car buyable). Built in 5.5 with sample home answers; shown for real in 5.7b, with the car's own total (5.7b, decision 5) | `222:6747` | 5.5 / 5.7b |
+| 05 | Home · Property. Built in 5.4b's frame after a home "Tell us about you" step (name and date of birth, not drawn); a Bedrooms field is added, and the address list is made up for the postcode (5.7, decisions 3 and 4) | `222:6762` | 5.7 |
+| 06 | Home · Contents & security. Built in 5.4b's frame as drawn (5.7, decision 5) | `222:6777` | 5.7 |
+| 07 | Home · Past claims. Built in 5.4b's frame, up to 5 claims (5.7, decision 6) | `222:6792` | 5.7 |
+| 08 | Car · Enter registration. The build adds the demo plates under the box; `KR24 BXL` is only the placeholder, since the lookup knows just the six demo plates (5.2, call 6) | `226:624` | 5.2 |
+| 09 | Car · Manual vehicle picker (make → model → year → variant). Replaced by Revamp R01 (5.4b) | `226:639` | 5.2 |
+| 10 | Car · Vehicle not found | `226:654` | 5.2 |
+| 11 | Car · Licence & driving. Replaced by Revamp R04 (5.4b) | `226:669` | 5.3 |
+| 12 | Car · Claims & convictions. Built as "Claims" without the convictions card (5.3, decision 3); Figma loses it too. Replaced by Revamp R05/R06 (5.4b) | `226:684` | 5.3 |
+| 12a | Car · Named drivers (drawn 11 Nov 2026). Built without the convictions question (5.3, decision 3). Replaced by Revamp R07/R08 (5.4b) | `235:1638` | 5.3 |
+| 13 | Cover cards & comparison (1440 wide). Its monthly figures (annual ÷ 12) and footnote are out of date: paying monthly costs 10% more, so £458.40 a year is 12 payments of £42.02 (5.4, decision 1). Built in 5.5 with the real figures, a voluntary excess, the pay cards and a price breakdown; the table is hidden on a phone | `226:699` | 5.5 |
+| 14 | Before payment · Sign in. Built in 5.6 in 5.4b's frame without the "Quote saved" badge or "Cover starts" line (neither is true before the save); the intro reads "We’ll save your quote and selected cover when you sign in. You’ll review your payment details next." (5.6, decisions 3 and 8) | `226:714` | 5.6 |
+| 15 | Before payment · Create account. Built in 5.6 as screen 14, with "…when you create your account."; after sign-up, "Check your inbox" adds "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under Your saved quotes." (5.6, decisions 1 and 3) | `226:729` | 5.6 |
+| 16 | Retrieve quote · Access (email link): **not built**, sign-in only (Damion, 9 Nov 2026) | `226:744` | — |
+| 17 | Retrieve quote · Saved quotes. Built in 5.6 in 5.4b's frame without the Stepper, with four badges: Ready to buy, Under review, Bought and Expired (5.6, decision 10) | `226:759` | 5.6 |
+| 18 | You're covered. Built in 5.6; "Your policy documents" and "View policy" wait for 6.2, and the email line reads "A confirmation has been sent to {email}. You can also see your policy in your account." (5.6, decision 9) | `226:774` | 5.6 |
+| 19 | Car · Referred. "Your car quote is saved" becomes "What happens next?" and "Sign in to send this for review" until 5.6 (5.5, decision 9) | `226:789` | 5.5 |
+| 20 | Car declined · Home available. On the car journey the home card offers "Get a home quote"; the half as drawn waits for a home quote (5.7) (5.5, decision 10) | `226:804` | 5.5 |
+| 21 | Start a car + home bundle. Built in 5.5 after Choose cover: "Car quote saved" reads "Your car quote", and the footnote shows the 8% saving. "Add home insurance" starts the home steps bundled with the car in 5.7b, or goes straight to home's Choose cover when the home is already answered (5.7b, decision 2) | `230:1434` | 5.5 / 5.7b |
+| 22 | Home quote & choose cover (1440 wide). Home's Choose cover is built in 5.7 from screen 13 with home's levels and extras and no voluntary excess. The bundle half is built in 5.7b under the breakdown: "Your car quote" (not "still saved"), Car and Home at their prices after the saving, "Bundle saving", "Together", and the 8% saving shown where Figma says "no bundle discount"; home's own tiers, not the drawn buildings/contents split. Off a bundle, the page offers "Add car insurance" (5.7b, decisions 3 and 4) | `230:1449` | 5.7 / 5.7b |
+
+**About you (5.3):** the `Quote & Policy – Web` step "Tell us about you and your car" (`157:10429`) is the car journey's About you screen, before screen 11. It's built as "Tell us about you", without the overnight parking question (moved to 11) or the confirmation box (moved to 12). Replaced by Revamp R03 (5.4b).
+
+**Confirm and pay (5.6):** the `Quote & Policy – Web` Purchase frame (`157:11256`) is built as "Confirm and pay" in 5.4b's frame, after screens 14 and 15. It adds a cover start date (today up to 30 days ahead, tomorrow by default), "How would you like to pay?" with 5.4b's annual and monthly cards, and the demo cards under the card form. The frame's one confirmation line becomes two tick boxes: "I confirm my details are correct" and "I agree to the policy terms and understand my cover" (5.6, decision 6).
+
+**Confirm and pay, the card column (5.6b):** the Purchase frame's card form is now Stripe's embedded Checkout form, mounted under "Continue to payment" (the "Car insurance · Purchase" overline above it is Kerb's copy). Its fields are Stripe's, so they aren't drawn in Figma; the test-card line sits under the form.
+
+**Stepper:** both journeys use "Your details · Your quote · Choose cover · Buy" (Damion, 9 Nov 2026). Screens 05–07 draw a home-only Stepper; property, contents and claims are the three parts of "Your details".
+
+**To update in Figma:** screens 21 and 22 say "no bundle discount", but bundles keep the 8% discount from rating tables v1 (Damion, 9 Nov 2026). Show the saving instead.
+
+## Quote · Revamp, Web (`249:5806`)
+
+Drawn by Damion on 12 Nov 2026 after the 5.4 manual check, and built in 5.4b. The car journey in its own frame: a journey header with the Stepper and "Need help?", the details tabs, a "Your car" card and a help card beside every step, and a one-line footer. 1280 wide; tablet and phone stack the right-hand cards (5.4b, call 12). They replace screens 09, 11, 12 and 12a and the About you frame (`157:10429`); screens 08 and 10 have no Revamp frame and move into it as they are. 5.5's screens (13, 19, 20, 03, 04, 21) take this style without being redrawn (5.4b, decision 3).
+
+| # | Screen | Node | Slice |
+|---|---|---|---|
+| R01 | Choose your car | `249:5807` | 5.4b |
+| R02 | Your car, confirmed | `249:5858` | 5.4b |
+| R03 | Tell us about you | `249:5907` | 5.4b |
+| R04 | Your licence and driving | `249:5967` | 5.4b |
+| R05 | Your driving history, with an incident | `249:6028` | 5.4b |
+| R06 | Your driving history, no incidents | `249:6092` | 5.4b |
+| R07 | Who else will drive your car?, with a driver | `249:6143` | 5.4b |
+| R08 | Who else will drive your car?, nobody else | `249:6226` | 5.4b |
+| R09 | Your quote is ready (pay annually or monthly) | `249:6275` | 5.4b |
+| R10 | Let's review your named driver. Only the declined version is drawn; the referred wording is 5.4b's (call 11) | `249:6337` | 5.4b |
+
+**Differences from the frames:** the demo notice bar stays above the journey header, and the footer has no Accessibility link until there's a statement to link to; Help, "Need help?" and "Contact us" open the hello@ inbox (5.4b, decision 4). The frames' sample content (the Oshawa address) isn't copied.
+
 ## Lo Fidelity Wireframes (`18:7822`)
 
 | Frame | Node |
@@ -96,5 +155,3 @@ All 20 local components (`../components/**`) have a matching Figma component set
 - Review UI (6.7)
 - Staff claims console (6.10)
 - Kerbie confirm cards (7.1); the panel and mark are designed
-- Quote start: type picker + postcode, and the "coming soon" panel (5.1)
-- Home quote steps (5.7), unless the `Quote & Policy` frames already have them (check first)

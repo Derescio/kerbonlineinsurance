@@ -35,7 +35,7 @@
 ## Calls this plan makes (for Damion to check)
 
 - **P1. `JobDeps` is today's `AccountDeps`:** `{ sendEmail, defer }`. `AccountDeps` becomes an alias, so the account and auth tests keep their fake sender and `sent` array, and still see the emails after they flush what was deferred.
-- **P2. Account emails run straight away.** Inside a closure or delete, the email job is queued in the transaction. After the commit, `deps.defer(runJob(db, id, deps))` runs it. In a daily run, the cron's next loop pass would pick it up anyway; the claim is atomic, so only one of the two sends it.
+- **P2. Account emails run straight away.** Inside a closure or delete, the email job is queued in the transaction. After the commit, `deps.defer(runJob(db, id, deps))` runs it. (Correction after the build: the cron's loop does *not* pick it up in the same run, because the email is queued at the real time, which is later than the run's fixed `now`. If that deferred run dies, the next 6-hourly cron sends it.)
 - **P3. The scripts don't send email by default.** `vp run jobs:run` and `vp run jobs:daily` count email jobs and drop them, as `account:run-closures` does today, and the dropped jobs end `done` with `skipped: email off in scripts`. `SEND_EMAILS=1` sends through Resend for real.
 - **P4. One script, two commands:** `scripts/jobs.ts run|daily`, and a separate `scripts/audit-verify.ts`.
 - **P5. `ObjectStore` gains three methods:** `putObject`, `getText` and `list`. `verifyAgainstAnchors` needs to list and read the anchors, not only write them.

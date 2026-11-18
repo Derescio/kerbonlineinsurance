@@ -1,0 +1,197 @@
+import { notFound } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders, setResponseHeader } from "@tanstack/react-start/server";
+
+import type { WriteResult } from "#/lib/validation";
+import { AuthzError } from "#/server/auth/errors";
+import { actorMiddleware, publicMiddleware } from "#/server/auth/middleware";
+import type { PaymentSummary, Purchase, SavedQuoteCard } from "#/server/data/quotes";
+import type { AddressLookup } from "#/server/quote/addresses";
+import type { StartCheckoutResult } from "#/server/quote/checkout";
+import type { FulfilStatus } from "#/server/quote/fulfil";
+import type { PostcodeCheck } from "#/server/quote/postcode";
+import type { CarPriceResult, HomePriceResult } from "#/server/quote/price";
+import type { SaveBundleResult, SaveCarResult, SaveHomeResult } from "#/server/quote/save";
+import type { StartQuoteInput } from "#/server/quote/start";
+
+// The quote journey's server functions. Server modules are imported inside the handlers, which
+// the client build strips, so the database stays server-side.
+
+/** Records quote.started for a journey (5.1, call 11). The shell sends it once and ignores failures. */
+export const startQuote = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: StartQuoteInput) => input)
+  .handler(async ({ data }): Promise<{ recorded: boolean }> => {
+    const { recordQuoteStart } = await import("#/server/quote/start");
+    return recordQuoteStart(data, getRequestHeaders());
+  });
+
+/** Does the car journey's postcode exist (5.2, call 15)? Only "not_found" stops the visitor. */
+export const checkPostcode = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: { postcode: string }) => ({ postcode: String(input?.postcode ?? "") }))
+  .handler(async ({ data }): Promise<{ result: PostcodeCheck }> => {
+    const { checkPostcodeExists } = await import("#/server/quote/postcode");
+    return { result: await checkPostcodeExists(data.postcode, getRequestHeaders()) };
+  });
+
+/** The Property step's address list (5.7, decision 4): the postcode checked, then the demo list */
+export const findAddresses = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: { postcode: string }) => ({ postcode: String(input?.postcode ?? "") }))
+  .handler(async ({ data }): Promise<AddressLookup> => {
+    const { findAddressesFor } = await import("#/server/quote/addresses");
+    return findAddressesFor(data.postcode, getRequestHeaders());
+  });
+
+/**
+ * The car journey's Comprehensive price, or why there isn't one (5.4, spec decision 3). The tab
+ * sends its journey; the server checks it again and prices it. Nothing is saved.
+ */
+export const priceCar = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data }): Promise<CarPriceResult> => {
+    const { priceCarJourney } = await import("#/server/quote/price");
+    return priceCarJourney(data, getRequestHeaders());
+  });
+
+/** The home journey's price at every level, or why there isn't one (5.7, decision 7). Nothing is saved. */
+export const priceHome = createServerFn({ method: "POST" })
+  .middleware([publicMiddleware])
+  .validator((input: unknown) => input)
+  .handler(async ({ data }): Promise<HomePriceResult> => {
+    const { priceHomeJourney } = await import("#/server/quote/price");
+    return priceHomeJourney(data, getRequestHeaders());
+  });
+
+export interface SaveQuoteEnvelope {
+  input: { journey: unknown };
+  idempotencyKey: string;
+}
+
+/**
+ * Saves the signed-in user's car journey at the gate (5.6, decision 5). The server checks and
+ * prices it again; the key makes a double click or a retry one save.
+ */
+export const saveQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveQuoteEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveCarResult>> => {
+    const { saveCarQuote } = await import("#/server/quote/save");
+    return saveCarQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+/** Saves the signed-in user's home journey at the gate (5.7, decision 9), as saveQuoteFn does car's */
+export const saveHomeQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveQuoteEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveHomeResult>> => {
+    const { saveHomeQuote } = await import("#/server/quote/save");
+    return saveHomeQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+export interface SaveBundleEnvelope {
+  input: { car: unknown; home: unknown };
+  idempotencyKey: string;
+}
+
+/** Saves the signed-in user's car and home journeys as one bundle quote at the gate (5.7b) */
+export const saveBundleQuoteFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: SaveBundleEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<SaveBundleResult>> => {
+    const { saveBundleQuote } = await import("#/server/quote/save");
+    return saveBundleQuote(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+export interface CheckoutEnvelope {
+  input: {
+    quoteId: string;
+    plan: "annual" | "monthly";
+    startsOn: string;
+    detailsConfirmed: boolean;
+    coverAcknowledged: boolean;
+  };
+  idempotencyKey: string;
+}
+
+/**
+ * Starts a Stripe checkout for a saved quote (5.6b, decision 5): the 5.6 checks, then an embedded
+ * Checkout Session recorded in checkout_sessions. It returns the session's client secret for
+ * Stripe's form; nothing is bought until the payment is fulfilled. The key makes a double click or
+ * a retry one session.
+ */
+export const startCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: CheckoutEnvelope) => data)
+  .handler(async ({ context, data }): Promise<WriteResult<StartCheckoutResult>> => {
+    const { startCheckout } = await import("#/server/quote/checkout");
+    return startCheckout(context.actor, data, { headers: getRequestHeaders() });
+  });
+
+/** Someone else's quote, or a missing one, is the site's not-found page (5.6, decision 2) */
+async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
+  setResponseHeader("Cache-Control", "private, no-store");
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof AuthzError && error.code === "NOT_FOUND") throw notFound();
+    throw error;
+  }
+}
+
+/**
+ * The return page's fulfilment (5.6b, decision 6): You're covered sends Stripe's session id, and
+ * the server reads the session from Stripe and fulfils it now rather than waiting on the webhook.
+ * Only the signed-in customer's own session for their own quote; anyone else's is not found.
+ */
+export const confirmCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((input: { quoteId: string; sessionId: string }) => ({
+    quoteId: String(input?.quoteId ?? ""),
+    sessionId: String(input?.sessionId ?? ""),
+  }))
+  .handler(async ({ context, data }): Promise<{ status: FulfilStatus }> => {
+    const { confirmCheckout } = await import("#/server/quote/fulfil");
+    return orNotFound(() => confirmCheckout(context.actor, data));
+  });
+
+const quoteIdInput = (input: { quoteId: string }) => ({ quoteId: String(input?.quoteId ?? "") });
+
+/** Confirm and pay's quote, read from the saved rows (5.6, decision 6). Owner only. */
+export const getQuoteForPaymentFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator(quoteIdInput)
+  .handler(async ({ context, data }): Promise<PaymentSummary> => {
+    const { getQuoteForPayment } = await import("#/server/data/quotes");
+    return orNotFound(() => getQuoteForPayment(context.actor, data));
+  });
+
+/** What You're covered shows: the policies and payment bought from a quote (5.6, decision 9) */
+export const getPurchaseFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator(quoteIdInput)
+  .handler(async ({ context, data }): Promise<Purchase> => {
+    const { getPurchase } = await import("#/server/data/quotes");
+    return orNotFound(() => getPurchase(context.actor, data));
+  });
+
+export interface SavedQuotes {
+  owner: { firstName: string; lastName: string };
+  cards: SavedQuoteCard[];
+}
+
+/** Your saved quotes: the customer's own, newest first, and their name for the eyebrow (decision 10) */
+export const listMyQuotesFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .handler(async ({ context }): Promise<SavedQuotes> => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    const { getMyCustomerName, listMyQuotes } = await import("#/server/data/quotes");
+    const [name, cards] = await Promise.all([
+      getMyCustomerName(context.actor, {}),
+      listMyQuotes(context.actor, {}),
+    ]);
+    // No customer row yet means nothing saved; a blank name leaves the overline "Saved quotes"
+    return { owner: name ?? { firstName: "", lastName: "" }, cards };
+  });
