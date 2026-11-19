@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
@@ -14,8 +14,30 @@ vi.mock("#/features/account/closure", () => ({
   keepMyAccount: vi.fn(),
 }));
 
+const client = vi.hoisted(() => ({ signOut: vi.fn() }));
+vi.mock("#/features/auth/auth-client", () => ({ authClient: client }));
+const leave = vi.hoisted(() => ({ leaveTo: vi.fn() }));
+vi.mock("#/lib/leave", () => leave);
+
+/** The session hint's answer (6.1, decision 8); null leaves the request hanging */
+function hint(signedIn: boolean | null) {
+  const answer =
+    signedIn === null
+      ? new Promise<Response>(() => {})
+      : Promise.resolve(Response.json({ signedIn }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => answer),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("SiteHeader", () => {
   it("links the wordmark home and names its links", async () => {
+    hint(false);
     await render(<SiteHeader />);
     await expect
       .element(page.getByRole("link", { name: "Kerb home" }))
@@ -168,5 +190,82 @@ describe("NotFound", () => {
     await expect
       .element(page.getByRole("main").getByRole("link", { name: /home/i }))
       .toHaveAttribute("href", "/");
+  });
+});
+
+describe("SiteHeader: My account when signed in (6.1, decision 8)", () => {
+  it("shows Log in while the hint hasn't answered", async () => {
+    hint(null);
+    await render(<SiteHeader />);
+    await expect.element(page.getByRole("link", { name: "Log in" })).toBeVisible();
+    expect(fetch).toHaveBeenCalledWith("/api/session-hint", expect.anything());
+  });
+
+  it("keeps Log in when nobody is signed in, or the hint fails", async () => {
+    hint(false);
+    await render(<SiteHeader />);
+    await expect.element(page.getByRole("link", { name: "Log in" })).toBeVisible();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("offline"))),
+    );
+    await render(<SiteHeader />);
+    await expect.element(page.getByRole("link", { name: "Log in" }).first()).toBeVisible();
+  });
+
+  it("offers My account, with Overview and Log out, when signed in", async () => {
+    await page.viewport(1280, 800);
+    hint(true);
+    await render(<SiteHeader />);
+    const button = page.getByRole("button", { name: "My account" });
+    await expect.element(button).toBeVisible();
+    await expect.element(page.getByRole("link", { name: "Log in" })).not.toBeInTheDocument();
+
+    await userEvent.click(button);
+    await expect.element(button).toHaveAttribute("aria-expanded", "true");
+    await expect
+      .element(page.getByRole("link", { name: "Overview" }))
+      .toHaveAttribute("href", "/account");
+    await userEvent.keyboard("{Escape}");
+    await expect.element(button).toHaveAttribute("aria-expanded", "false");
+    await expect.element(button).toHaveFocus();
+  });
+
+  it("logs out from the menu, then goes home", async () => {
+    await page.viewport(1280, 800);
+    hint(true);
+    client.signOut.mockResolvedValue({});
+    await render(<SiteHeader />);
+    await userEvent.click(page.getByRole("button", { name: "My account" }));
+    await userEvent.click(page.getByRole("button", { name: "Log out" }));
+    await expect.poll(() => leave.leaveTo.mock.calls).toEqual([["/"]]);
+    expect(client.signOut).toHaveBeenCalled();
+  });
+
+  it("doesn't change the account slot's width when the answer arrives", async () => {
+    await page.viewport(1280, 800);
+    let answer!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))),
+    );
+    const { container } = await render(<SiteHeader />);
+    const slot = container.querySelector<HTMLElement>(".site-header__account")!;
+    const before = slot.offsetWidth;
+    answer(Response.json({ signedIn: true }));
+    await expect.element(page.getByRole("button", { name: "My account" })).toBeVisible();
+    expect(slot.offsetWidth).toBe(before);
+  });
+
+  it("lists Overview and Log out in the mobile menu when signed in", async () => {
+    await page.viewport(390, 800);
+    hint(true);
+    await render(<SiteHeader />);
+    await userEvent.click(page.getByRole("button", { name: "Menu" }));
+    const sheet = page.getByRole("dialog", { name: "Menu" });
+    await expect
+      .element(sheet.getByRole("link", { name: "Overview" }))
+      .toHaveAttribute("href", "/account");
+    await expect.element(sheet.getByRole("button", { name: "Log out" })).toBeVisible();
   });
 });

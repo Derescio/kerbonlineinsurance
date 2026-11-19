@@ -18,6 +18,8 @@ export const retrieveQuoteLink: SiteLink = {
   href: "/quote/retrieve",
 };
 export const loginLink: SiteLink = { label: "Log in", href: "/login" };
+/** The header's "My account" menu when signed in (6.1, decision 8); Log out is an action beside it */
+export const accountMenuLinks: SiteLink[] = [{ label: "Overview", href: "/account" }];
 export const notificationsLink: SiteLink = {
   label: "Notifications",
   href: "/account/notifications",

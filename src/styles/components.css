@@ -1374,3 +1374,45 @@ a.kb-iconbtn--primary:hover {
 a.kb-btn--accent:hover {
   color: var(--fg-on-accent);
 }
+
+/* MenuButton (6.1): a short list of links and actions under a button */
+.kb-menu {
+  position: relative;
+}
+.kb-menu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  min-width: 200px;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+.kb-menu__panel[hidden] {
+  display: none;
+}
+.kb-menu__item {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--fg-brand);
+  font: 600 16px/24px var(--font-body);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.kb-menu__item:hover {
+  background: var(--bg-surface-hover);
+}
+.kb-menu__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
