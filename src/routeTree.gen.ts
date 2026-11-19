@@ -30,6 +30,7 @@ import { Route as AccountCloseRouteImport } from './routes/account_.close'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
 import { Route as ApiOccupationsRouteImport } from './routes/api/occupations'
+import { Route as ApiSessionHintRouteImport } from './routes/api/session-hint'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
@@ -147,6 +148,11 @@ const ApiOccupationsRoute = ApiOccupationsRouteImport.update({
   path: '/api/occupations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSessionHintRoute = ApiSessionHintRouteImport.update({
+  id: '/api/session-hint',
+  path: '/api/session-hint',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
   id: '/api/stream-test',
   path: '/api/stream-test',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
+  '/api/session-hint': typeof ApiSessionHintRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -276,6 +283,7 @@ export interface FileRoutesByTo {
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
+  '/api/session-hint': typeof ApiSessionHintRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -314,6 +322,7 @@ export interface FileRoutesById {
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
+  '/api/session-hint': typeof ApiSessionHintRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
@@ -351,6 +360,7 @@ export interface FileRouteTypes {
     | '/account/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
+    | '/api/session-hint'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -385,6 +395,7 @@ export interface FileRouteTypes {
     | '/account/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
+    | '/api/session-hint'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -422,6 +433,7 @@ export interface FileRouteTypes {
     | '/account_/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
+    | '/api/session-hint'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/_site/'
@@ -452,6 +464,7 @@ export interface RootRouteChildren {
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
   ApiOccupationsRoute: typeof ApiOccupationsRoute
+  ApiSessionHintRoute: typeof ApiSessionHintRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -608,6 +621,13 @@ declare module '@tanstack/react-router' {
       path: '/api/occupations'
       fullPath: '/api/occupations'
       preLoaderRoute: typeof ApiOccupationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session-hint': {
+      id: '/api/session-hint'
+      path: '/api/session-hint'
+      fullPath: '/api/session-hint'
+      preLoaderRoute: typeof ApiSessionHintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
@@ -798,6 +818,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,
   ApiOccupationsRoute: ApiOccupationsRoute,
+  ApiSessionHintRoute: ApiSessionHintRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
@@ -809,6 +830,7 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
 
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'
