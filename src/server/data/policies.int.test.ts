@@ -3,11 +3,11 @@ import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { resolveActor } from "#/server/auth/actor";
 import { closeDb, getDb } from "#/server/db/client";
-import { bundles, quotes } from "#/server/db/schema";
+import { bundles, properties, quotes, vehicles } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
 import { makeCustomer, makePayment, makePolicy, makeQuote, makeUser } from "#/test/factories";
 
-import { listMyPolicies } from "./policies";
+import { getMyNextPayment, listMyPolicies } from "./policies";
 
 // The account page's "Your policies" (5.6, decision 12; 5.6b, decision 9): a policy is monthly
 // when its quote's payments are a Stripe subscription, which is what /account/billing's portal
@@ -106,5 +106,111 @@ describe("listMyPolicies: a bundle (5.7b, Damion's preview check)", () => {
     expect(bundled.every((p) => p.bundle?.id === bundle!.id)).toBe(true);
     expect(bundled[0]!.bundle?.savingPence).toBe(15_856);
     expect(listed.find((p) => p.id === single.id)?.bundle).toBeNull();
+  });
+});
+
+describe("listMyPolicies: label (6.1)", () => {
+  it("names a car by its plate, make and model, and a home by its address", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const car = await makePolicy({ customerId: customer.id });
+    await getDb()
+      .update(vehicles)
+      .set({ registration: "KR24 BXL" })
+      .where(eq(vehicles.quoteItemId, car.quoteItemId));
+    const home = await makePolicy({ customerId: customer.id, product: "home" });
+    await getDb()
+      .update(properties)
+      .set({ addressLine1: "11 Rosebery Gardens", town: "London" })
+      .where(eq(properties.quoteItemId, home.quoteItemId));
+
+    const byId = Object.fromEntries((await listMyPolicies(actor, {})).map((p) => [p.id, p]));
+    expect(byId[car.id]!.label).toEqual({
+      kind: "car",
+      plate: "KR24 BXL",
+      make: "Volkswagen",
+      model: "Golf",
+    });
+    expect(byId[home.id]!.label).toEqual({
+      kind: "home",
+      line1: "11 Rosebery Gardens",
+      town: "London",
+    });
+    expect(byId[car.id]!.annualPremiumPence).toBe(50_000);
+  });
+
+  it("has no plate for a car picked from the catalogue without one", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const car = await makePolicy({ customerId: customer.id });
+    await getDb()
+      .update(vehicles)
+      .set({ registration: null })
+      .where(eq(vehicles.quoteItemId, car.quoteItemId));
+    const [listed] = await listMyPolicies(actor, {});
+    expect(listed!.label).toEqual({ kind: "car", plate: null, make: "Volkswagen", model: "Golf" });
+  });
+
+  it("lists nothing of another customer's, and nothing for a user with no customer row", async () => {
+    const { actor } = await signedInCustomer();
+    await makePolicy();
+    expect(await listMyPolicies(actor, {})).toEqual([]);
+    const loner = await makeUser();
+    const lonerActor = (await resolveActor(getDb(), loner.id))!;
+    expect(await listMyPolicies(lonerActor, {})).toEqual([]);
+  });
+});
+
+describe("getMyNextPayment (6.1)", () => {
+  // 23:30 UTC on 1 Jul is 00:30 on 2 Jul in London (summer time)
+  const now = new Date("2026-07-01T23:30:00Z");
+
+  async function unpaid(customerId: string, dueOn: string, extra = {}) {
+    const policy = await makePolicy({ customerId });
+    return makePayment({
+      customerId,
+      quoteId: policy.quoteId,
+      plan: "monthly",
+      instalmentNumber: 2,
+      amountPence: 4_470,
+      status: "scheduled",
+      paidAt: null,
+      dueOn,
+      ...extra,
+    });
+  }
+
+  it("is the earliest unpaid payment due today in London, not overdue", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await unpaid(customer.id, "2026-07-02");
+    await unpaid(customer.id, "2026-08-02");
+    expect(await getMyNextPayment(actor, { now })).toEqual({
+      kind: "due",
+      amountPence: 4_470,
+      dueOn: "2026-07-02",
+    });
+  });
+
+  it("adds up every overdue payment, across subscriptions", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await unpaid(customer.id, "2026-06-15", { status: "failed", stripeSubscriptionId: "sub_a" });
+    await unpaid(customer.id, "2026-06-20", { amountPence: 2_000, stripeSubscriptionId: "sub_b" });
+    await unpaid(customer.id, "2026-07-10");
+    expect(await getMyNextPayment(actor, { now })).toEqual({
+      kind: "overdue",
+      outstandingPence: 6_470,
+    });
+  });
+
+  it("is none when everything is paid, or for someone else's unpaid payment", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await makePayment({ customerId: customer.id });
+    const other = await makeCustomer();
+    await unpaid(other.id, "2026-07-05");
+    expect(await getMyNextPayment(actor, { now })).toEqual({ kind: "none" });
+  });
+
+  it("is none for a user with no customer row", async () => {
+    const loner = await makeUser();
+    const actor = (await resolveActor(getDb(), loner.id))!;
+    expect(await getMyNextPayment(actor, { now })).toEqual({ kind: "none" });
   });
 });

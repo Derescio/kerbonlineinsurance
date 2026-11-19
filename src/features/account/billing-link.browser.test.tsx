@@ -59,6 +59,8 @@ async function showAccount() {
               endsOn: "2027-11-19",
               monthly: true,
               bundle: null,
+              label: null,
+              annualPremiumPence: 50_000,
             },
           ]}
         />

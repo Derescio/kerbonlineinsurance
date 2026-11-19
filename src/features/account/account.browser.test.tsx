@@ -329,6 +329,8 @@ describe("the account page's policies (5.6, decision 12)", () => {
     endsOn: "2027-11-19",
     monthly: false,
     bundle: null,
+    label: null,
+    annualPremiumPence: 50_000,
     ...over,
   });
 
