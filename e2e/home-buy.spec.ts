@@ -82,6 +82,10 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);
   await addressList.selectOption({ index: 1 });
+  // The Overview names the home by the address's first line (6.1)
+  const firstLine = ((await addressList.locator("option:checked").textContent()) ?? "")
+    .split(",")[0]!
+    .trim();
   await page.getByLabel("Property type").selectOption({ label: "Terraced house" });
   await page.getByLabel("Year built").fill("1985");
   await page.getByLabel("Bedrooms").selectOption("3");
@@ -170,8 +174,10 @@ test("a guest gets a home quote, creates an account, pays in full, and finds the
   await expect(page.getByText("Home insurance · Purchase complete")).toBeVisible();
   const policy = page.getByRole("region", { name: /^Policy KRB-\d{6}$/ });
   await expect(policy).toHaveCount(1);
-  const reference = (await policy.getAttribute("aria-label"))!.replace("Policy ", "");
   await page.getByRole("link", { name: "Go to my account" }).click();
   await expect(page).toHaveURL(/\/account$/);
-  await expect(page.getByRole("region", { name: "Your policies" })).toContainText(reference);
+  // The Overview (6.1) names the home by its address, not the reference
+  const policies = page.getByRole("region", { name: "Your policies" });
+  await expect(policies).toContainText(firstLine);
+  await expect(policies).toContainText("Active");
 });

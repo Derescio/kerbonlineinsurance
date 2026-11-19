@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { expectNoSeriousAxeViolations } from "./axe";
+import { expectCdnCached } from "./cdn-cache";
 import { confirmEmailInDatabase, databaseUrl } from "./db";
 import { payWithTestCard } from "./stripe";
 import { withCompleteJourney } from "./quote-journey";
@@ -149,10 +150,26 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);
 
-  // 8. The policy is on the account page
+  // 8. The Overview (6.1): the car by name, Active, and the next monthly payment; then settings
   await page.getByRole("link", { name: "Go to my account" }).click();
   await expect(page).toHaveURL(/\/account$/);
-  await expect(page.getByRole("region", { name: "Your policies" })).toContainText(reference);
+  const policies = page.getByRole("region", { name: "Your policies" });
+  await expect(policies).toContainText("Volkswagen Golf");
+  await expect(policies).toContainText("Active");
+  await expect(page.getByRole("group", { name: "Next payment" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expectNoSeriousAxeViolationsAtEachWidth(page);
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("link", { name: "Account settings" }).click();
+  await expect(page).toHaveURL(/\/account\/settings$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Ways to log in" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expectNoSeriousAxeViolationsAtEachWidth(page);
+
+  // 8b. The public home page is still cached, and its header says My account (decision 8)
+  const home = await page.goto("/");
+  await expectCdnCached(page.request, "/", home);
+  await expect(page.getByRole("button", { name: "My account" })).toBeVisible();
 
   // 9. The saved quote now shows "Bought", with the policy
   await page.goto("/quote/retrieve");

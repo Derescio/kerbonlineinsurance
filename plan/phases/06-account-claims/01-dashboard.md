@@ -1,6 +1,6 @@
 # 6.1 Dashboard
 
-**Status:** in progress (spec approved by Damion, 18 Nov 2026)
+**Status:** done (spec approved by Damion, 18 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -92,6 +92,18 @@ Adding a product later, with the 8% saving, is **6.1b** (split from this row on 
 - The public header shows "My account" when signed in, with the pages still cached.
 - The migration has run on dev, and the tests above pass in `ci`.
 - Preview manual check by Damion.
+
+## Notes from the build
+
+- **Next payment counts only what's owed** (checkpoint review): a month Kerb voided while the cover had lapsed (`voided_at`) is never owed, and a cancelled policy's later instalments stay `scheduled` but are never taken, so neither shows. A quote whose policies are all cancelled shows no payment at all.
+- **"Renews"** is the day after `ends_on`, the start of the next term, as on Policy overview.
+- **A bundle's saving** is named under "A year" only while every policy in the bundle is held.
+- **Copy** uses curly apostrophes (you’re, don’t, didn’t), like the rest of the site.
+- **Shared pieces:** `MenuButton` (`src/components/navigation`) serves both "My account" and the avatar menu; `.kb-plate` is the Figma Plate; `londonDate` (`src/lib/london-date.ts`) is "today" in London on the server and in the browser.
+- **Removed:** `AccountPage.tsx`, the 4.4 greeting (`greetingFor`), and the old account header and policy-list CSS.
+- **Migration 0025** only adds two indexes. Staging's current code is unaffected, so dev can be migrated any time before the preview checks.
+- **The E2E changes** (buy, home-buy, bundle-buy, a11y) run against the PR's preview, as in 5.7: `e2e.yml` runs main's copy of the specs.
+- **The full `vp test` run** had 14 timeouts in untouched browser tests under load; the 11 files pass when run alone (242/242).
 
 ## Commit message
 

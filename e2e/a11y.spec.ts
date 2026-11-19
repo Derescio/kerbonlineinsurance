@@ -29,6 +29,7 @@ const widths = [390, 768, 1440];
 const redirected: [path: string, lands: RegExp][] = [
   ["/login/two-factor", /\/login$/],
   ["/account/two-factor", /\/login\?redirect=%2Faccount%2Ftwo-factor$/],
+  ["/account/settings", /\/login\?redirect=%2Faccount%2Fsettings$/],
 ];
 
 async function expectNoBlockingViolations(page: Page) {

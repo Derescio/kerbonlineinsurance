@@ -144,16 +144,13 @@ test("a guest adds home to a car quote, pays once for both, and finds both polic
   await expect(page.getByText("Car + home insurance · Purchase complete")).toBeVisible();
   const policies = page.getByRole("region", { name: /^Policy KRB-\d{6}$/ });
   await expect(policies).toHaveCount(2);
-  const references = await Promise.all(
-    (await policies.all()).map(async (p) =>
-      (await p.getAttribute("aria-label"))!.replace("Policy ", ""),
-    ),
-  );
   await page.getByRole("link", { name: "Go to my account" }).click();
   await expect(page).toHaveURL(/\/account$/);
-  for (const reference of references) {
-    await expect(page.getByRole("region", { name: "Your policies" })).toContainText(reference);
-  }
+  // The Overview (6.1): both under the bundle, the car by name
+  const yours = page.getByRole("region", { name: "Your policies" });
+  await expect(yours.getByRole("group", { name: "Car + home bundle" })).toBeVisible();
+  await expect(yours).toContainText("Volkswagen Golf");
+  await expect(yours.getByText("Active")).toHaveCount(2);
 });
 
 test("a home quote adds car, and the car journey comes back to the bundle", async ({ page }) => {
