@@ -62,7 +62,8 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 ## 6. Account and claims · `s6-account-claims` · [phase](phases/06-account-claims/phase.md)
 
-- [ ] 6.1 **Dashboard**, and the public header shows "My account" when signed in
+- [ ] 6.1 **Dashboard**: the account shell and Overview, and the public header shows "My account" when signed in
+- [ ] 6.1b **Add another product later**: "Add home / Add car insurance" for products the customer doesn't hold, with 8% off the new policy while they hold another
 - [ ] 6.2 **Policy detail**, with downloadable documents (certificate of insurance, policy schedule)
 - [ ] 6.3 **Settings**: address, drivers, 2FA on/off, sign out everywhere, recent activity; `policy_versions` history
 - [ ] 6.4 **Claims overview + incident step**
