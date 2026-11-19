@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
 import { z } from "zod";
 
 import { AuthzError } from "#/server/auth/errors";
+import { londonDate } from "#/lib/london-date";
 import { payments, policies, properties, quotes, vehicles } from "#/server/db/schema";
 
 import type { ClaimSummary } from "./claims";
@@ -147,11 +148,6 @@ export type NextPayment =
 
 /** Unpaid: not taken yet, or taken and refused */
 const UNPAID = ["scheduled", "failed"] as const;
-
-/** Today's date in London as YYYY-MM-DD, which is how payments.due_on is stored */
-export function londonDate(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(now);
-}
 
 /**
  * Overdue payments first (their total), else the earliest unpaid payment due today or later in

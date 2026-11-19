@@ -51,6 +51,7 @@ let purchaseA: { quoteId: string };
 
 const cases: Case[] = [
   { read: data.listMyPolicies, input: () => ({}), owner: null },
+  { read: data.getMyNextPayment, input: () => ({}), owner: null },
   { read: data.getMyPolicy, input: (w) => ({ policyId: w.records.policyA.id }), owner: "A" },
   { read: data.listMyQuotes, input: () => ({}), owner: null },
   { read: data.getMyCustomerName, input: () => ({}), owner: null },

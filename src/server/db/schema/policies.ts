@@ -126,6 +126,8 @@ export const policies = pgTable(
     // Target of claims' and reviews' composite keys (decision 7)
     unique("policies_id_customer_id_unique").on(t.id, t.customerId),
     index().on(t.customerId),
+    // "My policies, newest first" in one index scan (6.1, from 4.5)
+    index().on(t.customerId, t.createdAt),
     index().on(t.quoteId),
     index().on(t.bundleId),
     index().on(t.status),

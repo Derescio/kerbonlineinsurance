@@ -1,5 +1,5 @@
 import { createMiddleware } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { getRequest, getRequestHeaders } from "@tanstack/react-start/server";
 
 import { getActor, requirePermission, requireUser, type Actor } from "./actor";
 import {
@@ -10,6 +10,7 @@ import {
   RateLimitError,
 } from "./errors";
 import type { Permission } from "./permissions";
+import { actorForRequest } from "./request-actor";
 
 // Server-function middleware (4.5): resolves the Actor from the session cookie and refuses the
 // call before the handler runs. Both put `actor` on the context. Any other failure is logged
@@ -32,10 +33,15 @@ function fail(error: unknown): never {
   throw out;
 }
 
+/** The request's actor, read once however many server functions the request calls (6.1) */
+function requestActor(): Promise<Actor | null> {
+  return actorForRequest(getRequest(), () => getActor(getRequestHeaders()));
+}
+
 /** Any signed-in user */
 export const userMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
   try {
-    const actor: Actor = requireUser(await getActor(getRequestHeaders()));
+    const actor: Actor = requireUser(await requestActor());
     return await next({ context: { actor } });
   } catch (error) {
     return fail(error);
@@ -45,7 +51,7 @@ export const userMiddleware = createMiddleware({ type: "function" }).server(asyn
 /** Anyone, signed in or not: `actor` is null when signed out */
 export const actorMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
   try {
-    const actor: Actor | null = await getActor(getRequestHeaders());
+    const actor: Actor | null = await requestActor();
     return await next({ context: { actor } });
   } catch (error) {
     return fail(error);
@@ -56,7 +62,7 @@ export const actorMiddleware = createMiddleware({ type: "function" }).server(asy
 export function permissionMiddleware(permission: Permission) {
   return createMiddleware({ type: "function" }).server(async ({ next }) => {
     try {
-      const actor: Actor = requirePermission(await getActor(getRequestHeaders()), permission);
+      const actor: Actor = requirePermission(await requestActor(), permission);
       return await next({ context: { actor } });
     } catch (error) {
       return fail(error);
