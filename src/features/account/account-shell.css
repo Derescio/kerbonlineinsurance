@@ -1,0 +1,61 @@
+/* The account header (6.1; Figma Acct / Header 181:3310, Overview 258:3608) */
+.acct-header {
+  background: var(--green-950);
+}
+.acct-header__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 64px;
+}
+.acct-header__home {
+  display: inline-flex;
+  border-radius: var(--radius-sm);
+}
+.acct-header__nav {
+  flex: 1;
+}
+.acct-header__nav ul {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.acct-header__nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--fg-inverse-2);
+  font: 500 15px/20px var(--font-body);
+  text-decoration: none;
+}
+.acct-header__nav a:hover {
+  color: var(--fg-inverse);
+}
+.acct-header__nav a[aria-current="page"] {
+  background: var(--green-800);
+  color: var(--fg-inverse);
+}
+.acct-header__avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--fg-on-accent);
+  font: 700 13px/1 var(--font-body);
+  cursor: pointer;
+}
+.acct-header__avatar:hover {
+  background: var(--accent-hover);
+}
+.acct-header a:focus-visible,
+.acct-header__avatar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

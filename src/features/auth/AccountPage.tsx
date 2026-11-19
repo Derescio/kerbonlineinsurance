@@ -1,17 +1,12 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 
-import { Button } from "#/components/actions/Button";
 import { Badge } from "#/components/display/Badge";
 import { Icon } from "#/components/display/Icon";
-import { Wordmark } from "#/components/display/Wordmark";
 import { tierName } from "#/features/quote/labels";
 import { formatPounds } from "#/features/rating/money";
 import type { PolicyListItem } from "#/server/data/policies";
 
-import { ClosureBanner } from "../account/ClosureBanner";
-import { authClient } from "./auth-client";
-import { DemoStrip, GoogleMark } from "./parts";
+import { AccountShell } from "../account/AccountShell";
 import type { AccountSummary } from "./session";
 import { useOneTimeToast } from "./use-one-time-toast";
 
@@ -35,8 +30,7 @@ export function AccountPage({
   notice: AccountNotice;
 }) {
   const navigate = useNavigate();
-  const { user, providers, greeting } = summary;
-  const [signingOut, setSigningOut] = useState(false);
+  const { user, greeting } = summary;
 
   useOneTimeToast(
     notice.confirmed
@@ -54,47 +48,15 @@ export function AccountPage({
     () => void navigate({ to: "/account", search: {}, replace: true }),
   );
 
-  async function signOut() {
-    setSigningOut(true);
-    await authClient.signOut();
-    await navigate({ to: "/" });
-  }
-
-  const firstName = user.name.trim().split(/\s+/)[0] ?? user.name;
+  const firstName = user.name.trim().split(/s+/)[0] ?? user.name;
 
   return (
-    <div className="account">
-      <a href="#main" className="site-skip">
-        Skip to content
-      </a>
-      <DemoStrip />
-      <header className="account__header">
-        <div className="site-container account__header-inner">
-          <a href="/" aria-label="Kerb home">
-            <Wordmark tone="inverse" size={26} />
-          </a>
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft="log-out"
-            loading={signingOut}
-            onClick={signOut}
-          >
-            Log out
-          </Button>
-        </div>
-      </header>
-      <ClosureBanner />
-      <main id="main" tabIndex={-1} className="site-container account__body">
-        <h1 className="account__title">
-          {greeting}, {firstName}
-        </h1>
-        <YourPolicies policies={policies} />
-        <WaysToLogIn providers={providers} />
-        <TwoFactor enabled={summary.twoFactorEnabled} />
-        <CloseAccount />
-      </main>
-    </div>
+    <AccountShell name={user.name} current="overview">
+      <h1 className="account__title">
+        {greeting}, {firstName}
+      </h1>
+      <YourPolicies policies={policies} />
+    </AccountShell>
   );
 }
 
@@ -219,87 +181,5 @@ function PolicyRow({ policy }: { policy: PolicyListItem }) {
         </Link>
       ) : null}
     </li>
-  );
-}
-
-/** Two-factor (4.6): a link to /account/two-factor until 6.3's Settings reuses the steps */
-function TwoFactor({ enabled }: { enabled: boolean }) {
-  return (
-    <section className="account__ways" aria-labelledby="two-factor-title">
-      <div>
-        <h2 id="two-factor-title" className="account__ways-title">
-          Two-factor
-        </h2>
-        <p className="account__ways-text">
-          {enabled
-            ? "On. You'll enter a code from your authenticator app when you log in."
-            : "Off. Add a code from an authenticator app when you log in."}
-        </p>
-      </div>
-      {enabled ? null : (
-        <Link to="/account/two-factor" className="kb-btn kb-btn--secondary kb-btn--md">
-          <span>Set up two-factor</span>
-        </Link>
-      )}
-    </section>
-  );
-}
-
-function WaysToLogIn({ providers }: { providers: string[] }) {
-  const hasPassword = providers.includes("credential");
-  const hasGoogle = providers.includes("google");
-  const [busy, setBusy] = useState(false);
-
-  async function connectGoogle() {
-    setBusy(true);
-    const { error } = await authClient.linkSocial({
-      provider: "google",
-      callbackURL: "/account?linked=google",
-      errorCallbackURL: "/account?error=link",
-    });
-    if (error) setBusy(false);
-  }
-
-  const description =
-    hasPassword && hasGoogle
-      ? "Email and password, or Google."
-      : hasGoogle
-        ? "Google. To add a password, use “Forgotten your password?” on the log-in page."
-        : "Email and password. Connect Google to log in with one tap.";
-
-  return (
-    <section className="account__ways" aria-labelledby="ways-title">
-      <div>
-        <h2 id="ways-title" className="account__ways-title">
-          Ways to log in
-        </h2>
-        <p className="account__ways-text">{description}</p>
-      </div>
-      {hasPassword && !hasGoogle ? (
-        <Button variant="secondary" size="md" onClick={connectGoogle} loading={busy}>
-          {busy ? null : <GoogleMark size={18} />}
-          Connect Google
-        </Button>
-      ) : null}
-    </section>
-  );
-}
-
-/** Close your account (4.7): the choice between deleting and closing is made on the next page */
-function CloseAccount() {
-  return (
-    <section className="account__ways" aria-labelledby="close-title">
-      <div>
-        <h2 id="close-title" className="account__ways-title">
-          Close your account
-        </h2>
-        <p className="account__ways-text">
-          Delete your account, or close it if you have insurance records we must keep.
-        </p>
-      </div>
-      <Link to="/account/close" className="kb-btn kb-btn--secondary kb-btn--md">
-        <span>Close your account</span>
-      </Link>
-    </section>
   );
 }

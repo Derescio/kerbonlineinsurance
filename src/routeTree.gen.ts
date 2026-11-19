@@ -27,6 +27,7 @@ import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountBillingRouteImport } from './routes/account_.billing'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
+import { Route as AccountSettingsRouteImport } from './routes/account_.settings'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
 import { Route as ApiOccupationsRouteImport } from './routes/api/occupations'
@@ -131,6 +132,11 @@ const AccountBillingRoute = AccountBillingRouteImport.update({
 const AccountCloseRoute = AccountCloseRouteImport.update({
   id: '/account_/close',
   path: '/account/close',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountSettingsRoute = AccountSettingsRouteImport.update({
+  id: '/account_/settings',
+  path: '/account/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
@@ -245,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/staff': typeof StaffStaffRoute
   '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
+  '/account/settings': typeof AccountSettingsRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
@@ -280,6 +287,7 @@ export interface FileRoutesByTo {
   '/staff': typeof StaffStaffRoute
   '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
+  '/account/settings': typeof AccountSettingsRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
@@ -319,6 +327,7 @@ export interface FileRoutesById {
   '/_staff/staff': typeof StaffStaffRoute
   '/account_/billing': typeof AccountBillingRoute
   '/account_/close': typeof AccountCloseRoute
+  '/account_/settings': typeof AccountSettingsRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
@@ -357,6 +366,7 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/billing'
     | '/account/close'
+    | '/account/settings'
     | '/account/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
@@ -392,6 +402,7 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/billing'
     | '/account/close'
+    | '/account/settings'
     | '/account/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
@@ -430,6 +441,7 @@ export interface FileRouteTypes {
     | '/_staff/staff'
     | '/account_/billing'
     | '/account_/close'
+    | '/account_/settings'
     | '/account_/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
@@ -461,6 +473,7 @@ export interface RootRouteChildren {
   SystemRoute: typeof SystemRoute
   AccountBillingRoute: typeof AccountBillingRoute
   AccountCloseRoute: typeof AccountCloseRoute
+  AccountSettingsRoute: typeof AccountSettingsRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
   ApiOccupationsRoute: typeof ApiOccupationsRoute
@@ -600,6 +613,13 @@ declare module '@tanstack/react-router' {
       path: '/account/close'
       fullPath: '/account/close'
       preLoaderRoute: typeof AccountCloseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account_/settings': {
+      id: '/account_/settings'
+      path: '/account/settings'
+      fullPath: '/account/settings'
+      preLoaderRoute: typeof AccountSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account_/two-factor': {
@@ -815,6 +835,7 @@ const rootRouteChildren: RootRouteChildren = {
   SystemRoute: SystemRoute,
   AccountBillingRoute: AccountBillingRoute,
   AccountCloseRoute: AccountCloseRoute,
+  AccountSettingsRoute: AccountSettingsRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,
   ApiOccupationsRoute: ApiOccupationsRoute,
