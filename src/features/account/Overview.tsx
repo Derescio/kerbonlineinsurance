@@ -27,15 +27,16 @@ export function Overview({
   name,
   policies,
   nextPayment,
-  now = new Date(),
+  now,
 }: {
   name: string;
   policies: PolicyListItem[];
   nextPayment: NextPayment;
-  now?: Date;
+  /** From the loader, so the server and the browser render the same day (and greeting) */
+  now: Date;
 }) {
   const today = londonDate(now);
-  const firstName = name.trim().split(/\s+/)[0] || name;
+  const firstName = name.trim().split(/\s+/)[0] ?? "";
   const covered = policies.some((p) => isCovered(p, today));
   const stats = overviewStats(policies, today);
 
@@ -44,7 +45,7 @@ export function Overview({
       <div>
         <p className="ovw__date">{greetingLine(now)}</p>
         <h1 className="account__title">
-          Hi {firstName}
+          Hi{firstName ? ` ${firstName}` : ""}
           {covered ? ", you’re covered." : ""}
         </h1>
       </div>

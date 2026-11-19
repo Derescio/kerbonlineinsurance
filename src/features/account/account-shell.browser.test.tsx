@@ -64,7 +64,8 @@ describe("AccountShell", () => {
       </AccountShell>,
       "/account",
     );
-    const avatar = page.getByRole("button", { name: "Account menu" });
+    // Its name starts with what it shows, for voice control (WCAG 2.5.3)
+    const avatar = page.getByRole("button", { name: "MP, account menu", exact: true });
     await expect.element(avatar).toHaveTextContent("MP");
     await userEvent.click(avatar);
     await expect
@@ -82,7 +83,7 @@ describe("AccountShell", () => {
       </AccountShell>,
       "/account",
     );
-    await userEvent.click(page.getByRole("button", { name: "Account menu" }));
+    await userEvent.click(page.getByRole("button", { name: "MP, account menu" }));
     await userEvent.click(page.getByRole("button", { name: "Log out" }));
     await expect.poll(() => leave.leaveTo.mock.calls).toEqual([["/"]]);
     expect(client.signOut).toHaveBeenCalled();

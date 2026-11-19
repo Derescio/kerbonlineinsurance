@@ -159,7 +159,7 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await expect(page.getByRole("group", { name: "Next payment" })).toBeVisible();
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);
-  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: /account menu$/ }).click();
   await page.getByRole("link", { name: "Account settings" }).click();
   await expect(page).toHaveURL(/\/account\/settings$/);
   await expect(page.getByRole("heading", { level: 2, name: "Ways to log in" })).toBeVisible();

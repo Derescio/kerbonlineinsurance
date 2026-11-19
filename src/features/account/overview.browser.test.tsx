@@ -141,6 +141,13 @@ describe("Overview, other cases", () => {
     expect(document.querySelector(".kb-plate")).toBeNull();
   });
 
+  it("greets without a name when there isn't one", async () => {
+    await show({ name: "   ", policies: [policy()] });
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toHaveTextContent("Hi, you’re covered.");
+  });
+
   it("greets a one-word name, and doesn't count a cancelled policy", async () => {
     await show({ name: "Cher", policies: [policy(), policy({ id: "p2", status: "cancelled" })] });
     await expect

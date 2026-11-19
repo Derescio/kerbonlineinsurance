@@ -28,14 +28,15 @@ export const Route = createFileRoute("/account")({
   },
   loader: async ({ context }) => {
     const [policies, nextPayment] = await Promise.all([listMyPoliciesFn(), getMyNextPaymentFn()]);
-    return { summary: context.summary, policies, nextPayment };
+    // One instant for the server render and the browser's hydration (6.1, final review)
+    return { summary: context.summary, policies, nextPayment, now: Date.now() };
   },
   head: () => ({ meta: [{ title: "Your account · Kerb" }] }),
   component: Account,
 });
 
 function Account() {
-  const { summary, policies, nextPayment } = Route.useLoaderData();
+  const { summary, policies, nextPayment, now } = Route.useLoaderData();
   const notice = Route.useSearch();
   const navigate = useNavigate();
   useOneTimeToast(
@@ -55,7 +56,12 @@ function Account() {
   );
   return (
     <AccountShell name={summary.user.name} current="overview">
-      <Overview name={summary.user.name} policies={policies} nextPayment={nextPayment} />
+      <Overview
+        name={summary.user.name}
+        policies={policies}
+        nextPayment={nextPayment}
+        now={new Date(now)}
+      />
     </AccountShell>
   );
 }

@@ -68,7 +68,7 @@ export function AccountShell({
             </ul>
           </nav>
           <MenuButton
-            accessibleName="Account menu"
+            accessibleName={`${initialsOf(name)}, account menu`}
             items={menu}
             buttonClassName="acct-header__avatar"
             className="acct-header__menu"

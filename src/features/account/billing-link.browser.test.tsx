@@ -42,6 +42,7 @@ async function showAccount() {
           name="Alex Morgan"
           policies={[policy({ monthly: true })]}
           nextPayment={{ kind: "due", amountPence: 4_470, dueOn: "2026-12-01" }}
+          now={new Date("2026-11-18T09:00:00Z")}
         />
       </Toaster>
     ),
