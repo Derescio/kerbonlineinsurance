@@ -208,6 +208,36 @@ describe("getMyNextPayment (6.1)", () => {
     expect(await getMyNextPayment(actor, { now })).toEqual({ kind: "none" });
   });
 
+  it("leaves out a month Kerb voided while the cover had lapsed, which is never owed", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await unpaid(customer.id, "2026-06-15", { status: "failed", voidedAt: new Date() });
+    expect(await getMyNextPayment(actor, { now })).toEqual({ kind: "none" });
+  });
+
+  it("leaves out the instalments of a cancelled policy", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const cancelled = await makePolicy({
+      customerId: customer.id,
+      status: "cancelled",
+      cancelledAt: new Date(),
+    });
+    for (const [instalmentNumber, dueOn] of [
+      [2, "2026-06-20"],
+      [3, "2026-07-20"],
+    ] as const) {
+      await makePayment({
+        customerId: customer.id,
+        quoteId: cancelled.quoteId,
+        plan: "monthly",
+        instalmentNumber,
+        status: "scheduled",
+        paidAt: null,
+        dueOn,
+      });
+    }
+    expect(await getMyNextPayment(actor, { now })).toEqual({ kind: "none" });
+  });
+
   it("is none for a user with no customer row", async () => {
     const loner = await makeUser();
     const actor = (await resolveActor(getDb(), loner.id))!;

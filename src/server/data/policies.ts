@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { AuthzError } from "#/server/auth/errors";
@@ -146,8 +146,31 @@ export type NextPayment =
   | { kind: "due"; amountPence: number; dueOn: string }
   | { kind: "none" };
 
-/** Unpaid: not taken yet, or taken and refused */
-const UNPAID = ["scheduled", "failed"] as const;
+/**
+ * Unpaid and still owed: not taken yet, or taken and refused but not a month Kerb voided while the
+ * cover had lapsed (isOwed, 5.6b decision 8). Only while the quote still has a policy in force or
+ * lapsed: cancelling leaves the later instalments `scheduled`, and they're never taken.
+ */
+function owedBy(db: Db, customerId: string) {
+  return and(
+    eq(payments.customerId, customerId),
+    or(
+      eq(payments.status, "scheduled"),
+      and(eq(payments.status, "failed"), isNull(payments.voidedAt)),
+    ),
+    exists(
+      db
+        .select({ id: policies.id })
+        .from(policies)
+        .where(
+          and(
+            eq(policies.quoteId, payments.quoteId),
+            inArray(policies.status, ["active", "lapsed"]),
+          ),
+        ),
+    ),
+  );
+}
 
 /**
  * Overdue payments first (their total), else the earliest unpaid payment due today or later in
@@ -159,10 +182,7 @@ export const getMyNextPayment = defineRead(
   async (actor, { now }, db): Promise<NextPayment> => {
     if (!actor.customerId) return { kind: "none" };
     const today = londonDate(now ?? new Date());
-    const mine = and(
-      eq(payments.customerId, actor.customerId),
-      inArray(payments.status, [...UNPAID]),
-    );
+    const mine = owedBy(db, actor.customerId);
     const overdue = await db
       .select({ amountPence: payments.amountPence })
       .from(payments)
