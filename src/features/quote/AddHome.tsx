@@ -46,7 +46,14 @@ export function AddHome({
   // A finished home quote in the tab: the card shows it (Damion's preview check, 17 Nov 2026)
   const readyHome = useReadyHome();
 
-  const heading = (
+  // With the home answered too, there's nothing left to get: the heading says both are ready
+  const heading = readyHome ? (
+    <StepHeading
+      overline="Your car quote / Your home quote"
+      title="Your car and home quotes are ready"
+      intro="See them side by side with the saving for having both. You can still buy car insurance on its own."
+    />
+  ) : (
     <StepHeading
       overline="Your car quote / Add another policy"
       title="Add home insurance to your car quote?"

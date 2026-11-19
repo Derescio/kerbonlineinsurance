@@ -328,6 +328,7 @@ describe("Add home insurance (screen 21)", () => {
   it("shows a home quote already in the tab, and goes on to see both together (5.7b)", async () => {
     sessionStorage.setItem(journeyKey("home"), JSON.stringify(completeHomeJourney()));
     await show("add-home");
+    await expect.element(heading()).toHaveTextContent("Your car and home quotes are ready");
     await expect.element(page.getByText("Your home quote is ready")).toBeVisible();
     await expect.element(page.getByText("18 Albion Road, Hackney")).toBeVisible();
     expect(page.getByRole("textbox", { name: "Home postcode" }).elements()).toHaveLength(0);
