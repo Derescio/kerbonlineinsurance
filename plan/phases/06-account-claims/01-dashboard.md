@@ -1,6 +1,6 @@
 # 6.1 Dashboard
 
-**Status:** done (spec approved by Damion, 18 Nov 2026)
+**Status:** done (#105; spec approved by Damion, 18 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -104,6 +104,15 @@ Adding a product later, with the 8% saving, is **6.1b** (split from this row on 
 - **Migration 0025** only adds two indexes. Staging's current code is unaffected, so dev can be migrated any time before the preview checks.
 - **The E2E changes** (buy, home-buy, bundle-buy, a11y) run against the PR's preview, as in 5.7: `e2e.yml` runs main's copy of the specs.
 - **The full `vp test` run** had 14 timeouts in untouched browser tests under load; the 11 files pass when run alone (242/242).
+
+## Staging check (Damion, 19 Nov 2026)
+
+- **`/` is still CDN-cached** with the signed-in header: `X-Vercel-Cache: STALE`, `Age: 523`, `Cache-Control: public, max-age=0` to the browser.
+- **`/api/session-hint`** answers `private, no-store`, `X-Vercel-Cache: MISS`, `Age: 0`, JSON.
+- **`/account`** is `private, no-store` and never cached (`MISS`).
+- **At 360px** (Galaxy A55) the public header fits on one line: wordmark, "My account", bell, Menu. The account header fits too: wordmark, Overview, avatar. The account Overview showed the date, "Hi …, you’re covered." and the Policies card.
+- **The "My account" menu at 360px:** to confirm (Overview and Log out on screen).
+- **The E2E against staging** (buy, home-buy, bundle-buy, a11y): 64 passed, and 12 stopped at the Turnstile captcha on sign-up. Staging has the real Turnstile key, which blocks headless Chrome, so the 6.1 steps of the buy journeys didn't run there. They run against this follow-up PR's preview, which has Cloudflare's test key: results below once run.
 
 ## Commit message
 
