@@ -1,0 +1,2 @@
+CREATE INDEX "claims_customer_id_created_at_index" ON "claims" USING btree ("customer_id","created_at");--> statement-breakpoint
+CREATE INDEX "policies_customer_id_created_at_index" ON "policies" USING btree ("customer_id","created_at");

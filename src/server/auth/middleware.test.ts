@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { IdempotencyConflictError, PublicError, RateLimitError } from "./errors";
 import { actorMiddleware, publicMiddleware, userMiddleware } from "./middleware";
 
-vi.mock("@tanstack/react-start/server", () => ({ getRequestHeaders: () => new Headers() }));
+// A new request per call, so the per-request actor memo (6.1) never carries between calls here
+vi.mock("@tanstack/react-start/server", () => ({
+  getRequestHeaders: () => new Headers(),
+  getRequest: () => new Request("http://localhost/"),
+}));
 vi.mock("./actor", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./actor")>()),
   getActor: vi.fn(async () => null),

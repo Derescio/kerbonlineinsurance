@@ -176,6 +176,13 @@
       "when": 1794966211424,
       "tag": "0024_same_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795110489703,
+      "tag": "0025_uneven_liz_osborn",
+      "breakpoints": true
     }
   ]
 }

@@ -116,6 +116,7 @@ Drawn by Damion on 12 Nov 2026 after the 5.4 manual check, and built in 5.4b. Th
 | Account · Mobile (auth) | `207:5249` | Every screen above at 390 px except 13; 08b `209:6142` and the Connect Google panel `209:6260` added in 4.4 | 4.3, 4.4 |
 | Account · Settings | `182:3249` | Personal details (view, editing), notifications, payment methods, communication preferences | 6.3 |
 | Account · Policy | `183:3502` | Policy overview, plus the six "Make a change" dialogs | 6.x |
+| Account · Overview | `258:3602` | 01 Overview `258:3608`, 02 one lapsed policy `258:3635`, 03 no policies yet `258:3659`, 04 avatar menu `258:3683`. Drawn 18 Nov 2026. The bell and Open claims wait for 6.6; the add-product card is 6.1b | 6.1, 6.1b |
 | Ops · Admin | `184:3886` | Overview, customers, policies, payments, customer panel, refund dialog | 6.8 |
 
 ## Kerbie (`187:2850`)

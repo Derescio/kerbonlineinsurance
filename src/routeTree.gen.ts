@@ -27,9 +27,11 @@ import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountBillingRouteImport } from './routes/account_.billing'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
+import { Route as AccountSettingsRouteImport } from './routes/account_.settings'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
 import { Route as ApiOccupationsRouteImport } from './routes/api/occupations'
+import { Route as ApiSessionHintRouteImport } from './routes/api/session-hint'
 import { Route as ApiStreamTestRouteImport } from './routes/api/stream-test'
 import { Route as DevUploadsRouteImport } from './routes/dev.uploads'
 import { Route as AuthLoginTwoFactorRouteImport } from './routes/_auth/login_.two-factor'
@@ -132,6 +134,11 @@ const AccountCloseRoute = AccountCloseRouteImport.update({
   path: '/account/close',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountSettingsRoute = AccountSettingsRouteImport.update({
+  id: '/account_/settings',
+  path: '/account/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountTwoFactorRoute = AccountTwoFactorRouteImport.update({
   id: '/account_/two-factor',
   path: '/account/two-factor',
@@ -145,6 +152,11 @@ const ApiCatalogueRoute = ApiCatalogueRouteImport.update({
 const ApiOccupationsRoute = ApiOccupationsRouteImport.update({
   id: '/api/occupations',
   path: '/api/occupations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSessionHintRoute = ApiSessionHintRouteImport.update({
+  id: '/api/session-hint',
+  path: '/api/session-hint',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStreamTestRoute = ApiStreamTestRouteImport.update({
@@ -239,9 +251,11 @@ export interface FileRoutesByFullPath {
   '/staff': typeof StaffStaffRoute
   '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
+  '/account/settings': typeof AccountSettingsRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
+  '/api/session-hint': typeof ApiSessionHintRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -273,9 +287,11 @@ export interface FileRoutesByTo {
   '/staff': typeof StaffStaffRoute
   '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
+  '/account/settings': typeof AccountSettingsRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
+  '/api/session-hint': typeof ApiSessionHintRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/login/two-factor': typeof AuthLoginTwoFactorRoute
@@ -311,9 +327,11 @@ export interface FileRoutesById {
   '/_staff/staff': typeof StaffStaffRoute
   '/account_/billing': typeof AccountBillingRoute
   '/account_/close': typeof AccountCloseRoute
+  '/account_/settings': typeof AccountSettingsRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
   '/api/occupations': typeof ApiOccupationsRoute
+  '/api/session-hint': typeof ApiSessionHintRoute
   '/api/stream-test': typeof ApiStreamTestRoute
   '/dev/uploads': typeof DevUploadsRoute
   '/_site/': typeof SiteIndexRoute
@@ -348,9 +366,11 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/billing'
     | '/account/close'
+    | '/account/settings'
     | '/account/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
+    | '/api/session-hint'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -382,9 +402,11 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/billing'
     | '/account/close'
+    | '/account/settings'
     | '/account/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
+    | '/api/session-hint'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/login/two-factor'
@@ -419,9 +441,11 @@ export interface FileRouteTypes {
     | '/_staff/staff'
     | '/account_/billing'
     | '/account_/close'
+    | '/account_/settings'
     | '/account_/two-factor'
     | '/api/catalogue'
     | '/api/occupations'
+    | '/api/session-hint'
     | '/api/stream-test'
     | '/dev/uploads'
     | '/_site/'
@@ -449,9 +473,11 @@ export interface RootRouteChildren {
   SystemRoute: typeof SystemRoute
   AccountBillingRoute: typeof AccountBillingRoute
   AccountCloseRoute: typeof AccountCloseRoute
+  AccountSettingsRoute: typeof AccountSettingsRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
   ApiOccupationsRoute: typeof ApiOccupationsRoute
+  ApiSessionHintRoute: typeof ApiSessionHintRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -589,6 +615,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountCloseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account_/settings': {
+      id: '/account_/settings'
+      path: '/account/settings'
+      fullPath: '/account/settings'
+      preLoaderRoute: typeof AccountSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account_/two-factor': {
       id: '/account_/two-factor'
       path: '/account/two-factor'
@@ -608,6 +641,13 @@ declare module '@tanstack/react-router' {
       path: '/api/occupations'
       fullPath: '/api/occupations'
       preLoaderRoute: typeof ApiOccupationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session-hint': {
+      id: '/api/session-hint'
+      path: '/api/session-hint'
+      fullPath: '/api/session-hint'
+      preLoaderRoute: typeof ApiSessionHintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stream-test': {
@@ -795,9 +835,11 @@ const rootRouteChildren: RootRouteChildren = {
   SystemRoute: SystemRoute,
   AccountBillingRoute: AccountBillingRoute,
   AccountCloseRoute: AccountCloseRoute,
+  AccountSettingsRoute: AccountSettingsRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,
   ApiOccupationsRoute: ApiOccupationsRoute,
+  ApiSessionHintRoute: ApiSessionHintRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

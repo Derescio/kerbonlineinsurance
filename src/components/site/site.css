@@ -358,3 +358,25 @@
   text-align: left;
   font-weight: 600;
 }
+
+/* Log in and My account share one width, so the bar doesn't move when the hint answers (6.1) */
+.site-header__login {
+  min-width: 132px;
+  justify-content: center;
+}
+.site-menu__action {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-1);
+  border: 0;
+  border-bottom: 1px solid var(--border-1);
+  background: none;
+  color: var(--fg-1);
+  font: 600 17px/24px var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.site-menu__action:hover {
+  color: var(--fg-brand);
+}

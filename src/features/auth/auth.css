@@ -269,27 +269,10 @@
   color: var(--marker-400);
 }
 
-/* Minimal account page (decision 6; Figma 07) */
+/* The account pages: page, body, title, and the settings sections (4.4; 6.1 moved the header and policies to features/account) */
 .account {
   min-height: 100vh;
   background: var(--bg-page);
-}
-.account__header {
-  background: var(--green-950);
-}
-.account__header-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 64px;
-}
-.account__header a {
-  display: inline-flex;
-  border-radius: var(--radius-sm);
-}
-.account__header a:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 .account__body {
   display: flex;
@@ -336,86 +319,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-}
-.account__policies {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-}
-.account__policies-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-  justify-content: space-between;
-}
-.account__policies-head .account__ways-title {
-  margin: 0;
-}
-.account__policies-head .kb-btn > span {
-  display: inline-flex;
-  align-items: center;
-}
-.account__policy-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-3);
-}
-.account__policy {
-  display: grid;
-  gap: var(--space-1);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-1);
-}
-.account__policy p {
-  margin: 0;
-}
-.account__policy-ref {
-  font: 600 var(--text-body-s) / var(--lh-body-s) var(--font-mono);
-  color: var(--fg-1);
-}
-.account__policy .auth__link {
-  justify-self: start;
-}
-
-/* A car + home bundle's policies, together (5.7b) */
-.account__bundle {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-4);
-  border: 1px solid var(--green-200, var(--border-1));
-  border-left: 4px solid var(--green-700);
-  border-radius: var(--radius-md);
-  background: var(--green-50);
-}
-.account__bundle-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  align-items: center;
-}
-.account__bundle-head p {
-  margin: 0;
-}
-.account__bundle-icons {
-  display: inline-flex;
-  gap: var(--space-1);
-  color: var(--green-700);
-}
-.account__bundle-title {
-  font-weight: 600;
-  color: var(--green-800);
-}
-.account__policy-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
 }
 
 /* Two-factor screens (4.6; Figma Account · Web (two-factor) 205:4701) */

@@ -27,8 +27,6 @@ export interface AccountSummary {
   user: SessionUser;
   /** Sign-in methods: "credential" (a password) and "google" */
   providers: string[];
-  /** "Good morning" etc., worked out in UK time on the server so it matches after hydration */
-  greeting: string;
   /** Read with the cookie cache off, so it's right straight after setup (4.6) */
   twoFactorEnabled: boolean;
 }
@@ -47,7 +45,6 @@ export const getAccountSummary = createServerFn({ method: "GET" }).handler(
     return {
       user: { id, name, email, emailVerified },
       providers: accounts.map((account) => account.providerId),
-      greeting: greetingFor(new Date()),
       twoFactorEnabled: session.user.twoFactorEnabled === true,
     };
   },
@@ -88,16 +85,3 @@ export const signOutEverywhereFn = createServerFn({ method: "POST" })
     const { signOutEverywhereNow } = await import("#/server/auth/sessions");
     return signOutEverywhereNow(context.actor, getRequestHeaders());
   });
-
-export function greetingFor(now: Date): string {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "numeric",
-      hourCycle: "h23",
-      timeZone: "Europe/London",
-    }).format(now),
-  );
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}

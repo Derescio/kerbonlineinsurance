@@ -1,0 +1,142 @@
+/* The Overview (6.1; Figma 01 258:3608, 02 258:3635, 03 258:3659) */
+.ovw__date {
+  margin: 0 0 var(--space-1);
+  color: var(--fg-3);
+  font: 400 15px/20px var(--font-body);
+}
+.ovw__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.ovw__stat p {
+  margin: 0;
+}
+.ovw__stat-label {
+  color: var(--fg-3);
+  font: 500 13px/18px var(--font-body);
+}
+.ovw__stat-value {
+  margin-top: var(--space-3) !important;
+  color: var(--fg-1);
+  font: 700 26px/32px var(--font-display);
+  letter-spacing: var(--tracking-heading);
+  font-variant-numeric: tabular-nums;
+}
+.ovw__stat-value--warning {
+  color: var(--warning);
+}
+.ovw__stat-sub {
+  margin-top: var(--space-2) !important;
+  color: var(--fg-2);
+  font: 400 15px/20px var(--font-body);
+}
+.ovw__stat-link {
+  display: inline-block;
+  margin-top: var(--space-6);
+  color: var(--fg-brand);
+  font: 600 15px/20px var(--font-body);
+  text-decoration: none;
+}
+.ovw__stat-link:hover {
+  text-decoration: underline;
+}
+.ovw__policies-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.ovw__title {
+  margin: 0;
+  font: 600 20px/28px var(--font-display);
+  color: var(--fg-1);
+}
+.ovw__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+.ovw__empty p {
+  margin: 0;
+  color: var(--fg-2);
+}
+.ovw__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ovw__bundle-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-block: var(--space-6) var(--space-3);
+  border-bottom: 1px solid var(--border-1);
+}
+.ovw__bundle-head p {
+  margin: 0;
+}
+.ovw__bundle-icons {
+  display: inline-flex;
+  gap: var(--space-2);
+  color: var(--fg-1);
+}
+.ovw__bundle-title {
+  font: 600 17px/24px var(--font-display);
+  color: var(--fg-1);
+}
+.ovw__bundle-saving {
+  color: var(--fg-brand);
+  font: 400 14px/20px var(--font-body);
+}
+.ovw__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-6);
+  padding-block: var(--space-5);
+  border-bottom: 1px solid var(--border-1);
+}
+.ovw__list > li:last-child > .ovw__row,
+.ovw__list > .ovw__row:last-child {
+  border-bottom: 0;
+}
+.ovw__row p {
+  margin: 0;
+}
+.ovw__row-icon {
+  color: var(--fg-1);
+}
+.ovw__row-name {
+  color: var(--fg-1);
+  font: 600 17px/24px var(--font-display);
+}
+.ovw__row-meta {
+  color: var(--fg-2);
+  font: 400 14px/20px var(--font-body);
+}
+.ovw__row-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  text-align: right;
+}
+@media (max-width: 767px) {
+  .ovw__stats {
+    grid-template-columns: 1fr;
+  }
+  .ovw__row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ovw__row-status {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .ovw__policies-head {
+    flex-wrap: wrap;
+  }
+}

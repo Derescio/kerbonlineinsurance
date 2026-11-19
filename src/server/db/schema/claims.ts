@@ -76,6 +76,8 @@ export const claims = pgTable(
     }).onDelete("restrict"),
     index().on(t.policyId),
     index().on(t.customerId),
+    // "My claims, newest first" in one index scan (6.1, from 4.5)
+    index().on(t.customerId, t.createdAt),
     index().on(t.assignedHandlerId),
     index().on(t.status),
     index().on(t.createdAt),
