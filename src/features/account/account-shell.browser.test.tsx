@@ -93,7 +93,6 @@ describe("AccountSettings (moved from /account)", () => {
   const summary: AccountSummary = {
     user: { id: "u1", name: "Maya Patel", email: "maya@example.com", emailVerified: true },
     providers: ["credential"],
-    greeting: "Good morning",
     twoFactorEnabled: false,
   };
 

@@ -9,14 +9,14 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 
 import { Toaster } from "#/components/feedback/Toaster";
-import { AccountPage } from "#/features/auth/AccountPage";
-import type { AccountSummary } from "#/features/auth/session";
 import { Route as BillingRoute } from "#/routes/account_.billing";
 
 import { getBillingPortal } from "./billing";
+import { Overview } from "./Overview";
+import { policy } from "./overview.fixtures";
 
 // /account/billing makes a Stripe customer-portal session each time it loads (5.6b, decision 9),
-// and the router preloads a link's route on hover. Hovering "Update your payment card", or any
+// and the router preloads a link's route on hover. Hovering the Overview's "Manage payments" (6.1), or any
 // preload of the route, must never make one: only going there does.
 
 vi.mock("./billing", () => ({
@@ -29,13 +29,6 @@ vi.mock("./closure", () => ({ getClosureBanner: vi.fn().mockResolvedValue(null) 
 
 const portal = vi.mocked(getBillingPortal);
 
-const summary: AccountSummary = {
-  user: { id: "u1", name: "Alex Morgan", email: "alex@example.com", emailVerified: true },
-  providers: ["credential"],
-  greeting: "Good morning",
-  twoFactorEnabled: false,
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
   portal.mockResolvedValue({ kind: "no_monthly" });
@@ -45,24 +38,10 @@ async function showAccount() {
   const rootRoute = createRootRoute({
     component: () => (
       <Toaster>
-        <AccountPage
-          summary={summary}
-          notice={{}}
-          policies={[
-            {
-              id: "p1",
-              reference: "KRB-482913",
-              product: "car",
-              coverLevel: "comprehensive",
-              status: "active",
-              startsOn: "2026-11-20",
-              endsOn: "2027-11-19",
-              monthly: true,
-              bundle: null,
-              label: null,
-              annualPremiumPence: 50_000,
-            },
-          ]}
+        <Overview
+          name="Alex Morgan"
+          policies={[policy({ monthly: true })]}
+          nextPayment={{ kind: "due", amountPence: 4_470, dueOn: "2026-12-01" }}
         />
       </Toaster>
     ),
@@ -83,10 +62,10 @@ async function showAccount() {
   return router;
 }
 
-describe("Update your payment card never makes a portal session on a preload", () => {
+describe("Manage payments never makes a portal session on a preload", () => {
   it("doesn't preload when the link is hovered or focused", async () => {
     await showAccount();
-    const link = page.getByRole("link", { name: "Update your payment card" });
+    const link = page.getByRole("link", { name: "Manage payments" });
     await userEvent.hover(link);
     link.element().focus();
     // Give an intent preload (no delay configured) time to start

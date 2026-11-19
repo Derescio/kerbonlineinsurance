@@ -1416,3 +1416,16 @@ a.kb-btn--accent:hover {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* A number plate (Figma Plate 181:3317), for a car on the account pages (6.1) */
+.kb-plate {
+  display: inline-block;
+  padding: 3px var(--space-2);
+  color: var(--green-900);
+  font: 600 14px/1.2 var(--font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  background: var(--marker-300);
+  border: 1.5px solid var(--green-900);
+  border-radius: var(--radius-sm);
+}

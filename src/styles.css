@@ -9,6 +9,7 @@
 @import "./features/landing/landing.css";
 @import "./features/auth/auth.css";
 @import "./features/account/account-shell.css";
+@import "./features/account/overview.css";
 @import "./features/quote/quote.css";
 
 * {
