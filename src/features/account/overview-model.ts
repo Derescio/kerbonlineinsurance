@@ -1,7 +1,7 @@
 import type { PolicyListItem } from "#/server/data/policies";
 
 // The Overview's sums and labels (6.1, decisions 3–5; Figma 258:3608, 258:3635). Dates are the
-// stored YYYY-MM-DD strings, compared with London's today (londonDate), so they never shift by a
+// stored YYYY-MM-DD strings, compared with London's today (todayIso), so they never shift by a
 // time zone.
 
 /** Cover has run its term: the day after `endsOn` has come */
@@ -55,7 +55,7 @@ const LONG = new Intl.DateTimeFormat("en-GB", {
 /** "1 Dec" */
 export const shortDay = (iso: string) => SHORT.format(utc(iso));
 /** "14 Mar 2027" */
-export const longDay = (iso: string) => LONG.format(utc(iso));
+const longDay = (iso: string) => LONG.format(utc(iso));
 
 /** The day after `iso`: a policy renews the day after its cover ends */
 function dayAfter(iso: string): string {

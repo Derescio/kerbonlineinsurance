@@ -99,7 +99,7 @@ Adding a product later, with the 8% saving, is **6.1b** (split from this row on 
 - **"Renews"** is the day after `ends_on`, the start of the next term, as on Policy overview.
 - **A bundle's saving** is named under "A year" only while every policy in the bundle is held.
 - **Copy** uses curly apostrophes (you’re, don’t, didn’t), like the rest of the site.
-- **Shared pieces:** `MenuButton` (`src/components/navigation`) serves both "My account" and the avatar menu; `.kb-plate` is the Figma Plate; `londonDate` (`src/lib/london-date.ts`) is "today" in London on the server and in the browser.
+- **Shared pieces:** `MenuButton` (`src/components/navigation`) serves both "My account" and the avatar menu; `.kb-plate` is the Figma Plate. "Today" in London is `todayIso` (`src/features/quote/schemas/dates.ts`), the same helper the quote journey uses.
 - **Removed:** `AccountPage.tsx`, the 4.4 greeting (`greetingFor`), and the old account header and policy-list CSS.
 - **Migration 0025** only adds two indexes. Staging's current code is unaffected, so dev can be migrated any time before the preview checks.
 - **The E2E changes** (buy, home-buy, bundle-buy, a11y) run against the PR's preview, as in 5.7: `e2e.yml` runs main's copy of the specs.

@@ -4,8 +4,8 @@ import { useId, type ReactNode } from "react";
 import { Badge } from "#/components/display/Badge";
 import { Card } from "#/components/display/Card";
 import { Icon } from "#/components/display/Icon";
-import { londonDate } from "#/lib/london-date";
 import { tierName } from "#/features/quote/labels";
+import { todayIso } from "#/features/quote/schemas/dates";
 import { formatPounds } from "#/features/rating/money";
 import type { NextPayment, PolicyListItem } from "#/server/data/policies";
 
@@ -35,7 +35,7 @@ export function Overview({
   /** From the loader, so the server and the browser render the same day (and greeting) */
   now: Date;
 }) {
-  const today = londonDate(now);
+  const today = todayIso(now);
   const firstName = name.trim().split(/\s+/)[0] ?? "";
   const covered = policies.some((p) => isCovered(p, today));
   const stats = overviewStats(policies, today);

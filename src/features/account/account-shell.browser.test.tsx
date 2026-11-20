@@ -4,8 +4,9 @@ import { page, userEvent } from "vite-plus/test/browser";
 import type { AccountSummary } from "#/features/auth/session";
 import { renderWithRouter } from "#/test/router";
 
+import { LOG_OUT_FAILED } from "../auth/log-out";
 import { AccountSettings } from "./AccountSettings";
-import { AccountShell, initialsOf } from "./AccountShell";
+import { AccountShell } from "./AccountShell";
 
 // The account header (6.1, decision 1; Figma 258:3608 and 258:3683) and the settings that moved
 // off the Overview to /account/settings (decision 2).
@@ -28,14 +29,25 @@ beforeEach(() => {
   client.linkSocial.mockResolvedValue({ data: {}, error: null });
 });
 
-describe("initialsOf", () => {
-  it("takes the first and last words' first letters", () => {
-    expect(initialsOf("Maya Patel")).toBe("MP");
-    expect(initialsOf("maya van der berg")).toBe("MB");
+describe("avatar initials", () => {
+  async function avatar(name: string) {
+    await renderWithRouter(
+      <AccountShell name={name}>
+        <p>Body</p>
+      </AccountShell>,
+      "/account",
+    );
+    return page.getByRole("button", { name: /account menu$/ });
+  }
+
+  it("uses the first and last words' first letters", async () => {
+    await expect.element(await avatar("maya van der berg")).toHaveTextContent("MB");
   });
-  it("has one letter for one word, and ? for no name", () => {
-    expect(initialsOf("Cher")).toBe("C");
-    expect(initialsOf("   ")).toBe("?");
+  it("has one letter for one word", async () => {
+    await expect.element(await avatar("Cher")).toHaveTextContent("C");
+  });
+  it("shows ? when there is no name", async () => {
+    await expect.element(await avatar("   ")).toHaveTextContent("?");
   });
 });
 
@@ -83,10 +95,43 @@ describe("AccountShell", () => {
       </AccountShell>,
       "/account",
     );
-    await userEvent.click(page.getByRole("button", { name: "MP, account menu" }));
+    const avatar = page.getByRole("button", { name: "MP, account menu" });
+    await userEvent.click(avatar);
     await userEvent.click(page.getByRole("button", { name: "Log out" }));
     await expect.poll(() => leave.leaveTo.mock.calls).toEqual([["/"]]);
     expect(client.signOut).toHaveBeenCalled();
+    await expect.element(avatar).toHaveFocus();
+  });
+
+  it("stays signed in and says so when log out fails", async () => {
+    client.signOut.mockResolvedValue({ error: { status: 500 } });
+    await renderWithRouter(
+      <AccountShell name="Maya Patel" current="overview">
+        <p>Body</p>
+      </AccountShell>,
+      "/account",
+    );
+    const avatar = page.getByRole("button", { name: "MP, account menu" });
+    await userEvent.click(avatar);
+    await userEvent.click(page.getByRole("button", { name: "Log out" }));
+    await expect.element(page.getByText(LOG_OUT_FAILED)).toBeVisible();
+    expect(leave.leaveTo).not.toHaveBeenCalled();
+    await expect.element(avatar).toHaveFocus();
+  });
+
+  it("closes the avatar menu when Tab leaves it", async () => {
+    await renderWithRouter(
+      <AccountShell name="Maya Patel" current="overview">
+        <p>Body</p>
+      </AccountShell>,
+      "/account",
+    );
+    const avatar = page.getByRole("button", { name: "MP, account menu" });
+    await userEvent.click(avatar);
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    await expect.element(avatar).toHaveAttribute("aria-expanded", "false");
   });
 });
 

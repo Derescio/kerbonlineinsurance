@@ -7,6 +7,8 @@ describe("todayIso", () => {
     expect(todayIso(new Date("2026-03-29T00:30:00Z"))).toBe("2026-03-29");
     // 23:30 UTC is 00:30 the next day in BST
     expect(todayIso(new Date("2026-06-30T23:30:00Z"))).toBe("2026-07-01");
+    // In winter, 23:30 UTC is still the same day in London
+    expect(todayIso(new Date("2026-12-01T23:30:00Z"))).toBe("2026-12-01");
   });
 });
 

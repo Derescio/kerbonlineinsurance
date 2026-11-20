@@ -189,6 +189,34 @@ describe("getMyNextPayment (6.1)", () => {
     });
   });
 
+  it("keeps a scheduled payment due yesterday as the next one, so a late webhook isn't overdue", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await unpaid(customer.id, "2026-07-01");
+    expect(await getMyNextPayment(actor, { now })).toEqual({
+      kind: "due",
+      amountPence: 4_470,
+      dueOn: "2026-07-01",
+    });
+  });
+
+  it("calls a scheduled payment overdue once it is two days late", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await unpaid(customer.id, "2026-06-30");
+    expect(await getMyNextPayment(actor, { now })).toEqual({
+      kind: "overdue",
+      outstandingPence: 4_470,
+    });
+  });
+
+  it("calls a failed payment overdue the day after it was due", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await unpaid(customer.id, "2026-07-01", { status: "failed" });
+    expect(await getMyNextPayment(actor, { now })).toEqual({
+      kind: "overdue",
+      outstandingPence: 4_470,
+    });
+  });
+
   it("adds up every overdue payment, across subscriptions", async () => {
     const { customer, actor } = await signedInCustomer();
     await unpaid(customer.id, "2026-06-15", { status: "failed", stripeSubscriptionId: "sub_a" });
