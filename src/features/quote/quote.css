@@ -1142,35 +1142,187 @@ button.quote-tabs__tab:focus-visible {
   font-weight: 600;
 }
 
-/* Your saved quotes (5.6, decision 10) */
-.quote-saved__list {
+/* Your saved quotes (5.6, decision 10; Figma 270:3759) */
+.quote-saved {
+  gap: var(--space-8);
+}
+.quote-saved__list,
+.quote-saved__panels {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--space-5);
-  max-width: 720px;
+  gap: var(--space-6);
 }
 .quote-saved__card,
 .quote-saved__empty {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-6);
+}
+.quote-saved__empty {
   justify-items: start;
 }
-.quote-saved__card p,
-.quote-saved__card h2,
+.quote-saved__card :is(p, h2, h3),
 .quote-saved__empty p {
   margin: 0;
 }
-.quote-saved__head {
+.quote-saved__head,
+.quote-saved__main,
+.quote-saved__foot {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: flex-start;
   justify-content: space-between;
-  justify-self: stretch;
+  gap: var(--space-4) var(--space-8);
 }
-.quote-saved__head > div {
+.quote-saved__head {
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.quote-saved__product {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.quote-saved__tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-brand-subtle);
+}
+.quote-saved__overline {
+  color: var(--fg-brand);
+  font: 500 12px/16px var(--font-mono);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+.quote-saved__identity {
+  display: grid;
+  gap: var(--space-3);
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.quote-saved__head .quote-saved__identity {
+  gap: var(--space-2);
+}
+.quote-saved__title {
+  font: 700 26px/32px var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+}
+.quote-saved__subtitle {
+  font: 600 20px/28px var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--fg-1);
+}
+.quote-saved__meta {
+  color: var(--fg-2);
+  font: 400 16px/24px var(--font-body);
+}
+.quote-saved__ref,
+.quote-saved__policies {
+  font: 500 14px/20px var(--font-mono);
+  color: var(--fg-3);
+}
+.quote-saved__policies {
+  color: var(--fg-1);
+  overflow-wrap: anywhere;
+}
+.quote-saved__price {
+  display: grid;
+  gap: var(--space-2);
+  flex: none;
+  width: 272px;
+}
+.quote-saved__annual {
+  color: var(--fg-2);
+  font: 400 14px/20px var(--font-body);
+}
+.quote-saved__amount {
+  margin-right: var(--space-1);
+  color: var(--fg-1);
+  font: 700 30px/34px var(--font-display);
+  letter-spacing: -0.025em;
+}
+.quote-saved__small {
+  color: var(--fg-2);
+  font: 400 14px/20px var(--font-body);
+}
+.quote-saved__caption {
+  color: var(--fg-3);
+  font: 500 12px/16px var(--font-body);
+}
+.quote-saved__note {
+  color: var(--fg-3);
+  font: 400 14px/20px var(--font-body);
+}
+.quote-saved__foot {
+  align-items: center;
+}
+.quote-saved__foot-text {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.quote-saved__foot-text .quote-saved__price {
+  width: auto;
+}
+.quote-saved__foot-text .quote-saved__price + .quote-saved__note {
+  margin-top: var(--space-2);
+}
+.quote-saved__foot .kb-btn {
+  flex: none;
+}
+.quote-saved__panels {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.quote-saved__panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  height: 100%;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+}
+.quote-saved__panel-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.quote-saved__panel-text {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+.quote-saved__divider {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border-1);
+}
+@media (max-width: 640px) {
+  .quote-saved__card,
+  .quote-saved__empty {
+    padding: var(--space-5);
+    gap: var(--space-5);
+  }
+  .quote-saved__main,
+  .quote-saved__foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .quote-saved__price {
+    width: auto;
+  }
+  .quote-saved__title {
+    font-size: 22px;
+    line-height: 28px;
+  }
+  .quote-saved__panel {
+    padding: var(--space-4);
+  }
+  .quote-saved__foot .kb-btn {
+    width: 100%;
+  }
 }

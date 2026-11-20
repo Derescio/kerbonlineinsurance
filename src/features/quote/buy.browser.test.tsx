@@ -225,7 +225,7 @@ describe("the gate, for a guest (screens 14 and 15)", () => {
     await expect
       .element(
         page.getByText(
-          "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under Your saved quotes.",
+          "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under My quotes.",
         ),
       )
       .toBeVisible();

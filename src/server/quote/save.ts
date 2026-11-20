@@ -9,15 +9,43 @@ import { startDateBounds } from "#/features/quote/policy-terms";
 import type { DriverStep } from "#/features/quote/steps";
 import { carDetailsFromJourney } from "#/features/rating/car-details";
 import { homeDetailsFromJourney } from "#/features/rating/home-details";
-import { priceQuote } from "#/features/rating/price-quote";
+import { priceQuote, withSingleItemSaving } from "#/features/rating/price-quote";
+import { Tables } from "#/features/rating/tables";
 import { defineWrite, type DataWrite } from "#/server/data/define";
+import { earningPolicy, type Buyable } from "#/server/data/multi-policy";
 import { QUOTE_SAVE_RULE } from "#/server/data/rate-limit-rules";
 import { customerForQuote, saveQuote } from "#/server/data/save-quote";
+import type { RatingTables } from "#/server/data/reference";
 import type { Tx } from "#/server/db/tx";
 
 import { checkCarJourney } from "./car-check";
 import { checkHomeJourney } from "./home-check";
 import { carPrices, coverPrices } from "./price";
+
+/** The one-item saving, when this customer holds an active policy of the other product (6.1b). */
+async function pricedForCustomer(
+  tx: Tx,
+  customerId: string,
+  product: Buyable,
+  priced: ReturnType<typeof priceQuote>,
+  tables: RatingTables,
+  today: string,
+): Promise<{ priced: ReturnType<typeof priceQuote>; bundlePolicyId: string | null }> {
+  if (priced.items.filter((item) => item.outcome === "quoted").length !== 1) {
+    return { priced, bundlePolicyId: null };
+  }
+  const earning = await earningPolicy(tx, customerId, product, today);
+  if (!earning) return { priced, bundlePolicyId: null };
+  const version = new Tables(tables);
+  return {
+    priced: withSingleItemSaving(
+      priced,
+      version.param("bundle_discount_rate"),
+      version.param("ipt_rate"),
+    ),
+    bundlePolicyId: earning.id,
+  };
+}
 
 // Saving a car quote at the gate (5.6, decisions 4 and 5). The browser's prices are never trusted:
 // the journey is checked again as priceCar checks it, and priced again with the chosen cover from
@@ -75,10 +103,12 @@ export async function saveCarQuoteFor(
     town: main.town,
     postcode,
   });
+  const pricedFor = await pricedForCustomer(tx, customerId, "car", priced, tables, today);
   const saved = await saveQuote(tx, {
     customerId,
     postcode,
-    priced,
+    priced: pricedFor.priced,
+    bundlePolicyId: pricedFor.bundlePolicyId,
     items: [
       {
         // Tomorrow until Confirm and pay sets the chosen date (decision 8)
@@ -152,10 +182,12 @@ export async function saveHomeQuoteFor(
     town: address.town,
     postcode,
   });
+  const pricedFor = await pricedForCustomer(tx, customerId, "home", priced, tables, today);
   const saved = await saveQuote(tx, {
     customerId,
     postcode,
-    priced,
+    priced: pricedFor.priced,
+    bundlePolicyId: pricedFor.bundlePolicyId,
     items: [
       {
         startDate: startDateBounds(today).fallback,

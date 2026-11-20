@@ -72,6 +72,8 @@ export interface SaveQuoteInput {
   priced: PricedQuote;
   /** One per priced item, in the same order */
   items: readonly SaveItem[];
+  /** The policy that earned a one-item saving (6.1b). Null for a same-quote bundle. */
+  bundlePolicyId?: string | null;
   now?: Date;
 }
 
@@ -93,6 +95,7 @@ export async function saveQuote(
       validUntil: new Date(at.getTime() + VALID_DAYS * 86_400_000),
       newId,
       items: input.items,
+      bundlePolicyId: input.bundlePolicyId ?? null,
     });
     try {
       const write = async (tx: Tx) => {

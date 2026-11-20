@@ -14,15 +14,20 @@ import { completeHomeJourney, completeJourney } from "./journey-fixtures";
 import { DEFAULT_COVER, journeyKey, readJourney, type Journey } from "./journey-store";
 import { CarDeclined, HomeDeclinedBundle, HomeReferred, type HomeSummary } from "./Outcomes";
 import type { QuoteStep } from "./search";
-import { priceCar, priceHome } from "./server";
+import { multiPolicyOffer, priceCar, priceHome } from "./server";
 
 // Choose cover, the home offer and the bundle screens (5.5). The price is mocked at the
 // server-function boundary: the server's own tests price it, and check the browser composes the
 // same money as priceQuote().
 
-vi.mock("./server", () => ({ priceCar: vi.fn(), priceHome: vi.fn() }));
+vi.mock("./server", () => ({
+  priceCar: vi.fn(),
+  priceHome: vi.fn(),
+  multiPolicyOffer: vi.fn(async () => null),
+}));
 const price = vi.mocked(priceCar);
 const homePrice = vi.mocked(priceHome);
+const offer = vi.mocked(multiPolicyOffer);
 // The gate (5.6) has its own tests, with a router and a session
 vi.mock("./BuyGate", () => ({ BuyStep: () => <p>The gate</p> }));
 // Your quote asks whether someone is signed in (5.7): a guest here
@@ -49,6 +54,8 @@ beforeEach(() => {
   others.length = 0;
   homePrice.mockReset();
   homePrice.mockResolvedValue({ status: "quoted", ...GOLF_PRICES });
+  offer.mockReset();
+  offer.mockResolvedValue(null);
   sessionStorage.clear();
   price.mockReset();
   price.mockImplementation(async (options) =>
@@ -258,6 +265,19 @@ describe("Choose cover (5.5)", () => {
     await page.getByRole("button", { name: "Continue with Comprehensive" }).click();
     await expect.element(heading()).toHaveTextContent("Add home insurance to your car quote?");
     expect(moves.at(-1)).toEqual({ step: "add-home", replace: false });
+  });
+
+  it("shows the multi-policy saving and skips the home offer (6.1b)", async () => {
+    offer.mockResolvedValue({ otherProduct: "home" });
+    await show("cover");
+    await expect
+      .element(page.getByText("You save 8% because you already insure your home with us."))
+      .toBeVisible();
+    // Comprehensive £949.80, 8% off, then 12% IPT: £978.68
+    await expect.element(breakdown()).toMatchTextContent("Total if you pay annually£978.68");
+    await expect.element(page.getByText(/save 8% on both/)).not.toBeInTheDocument();
+    await page.getByRole("button", { name: "Continue with Comprehensive" }).click();
+    expect(moves.at(-1)).toEqual({ step: "buy", replace: false });
   });
 });
 

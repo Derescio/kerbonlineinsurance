@@ -32,12 +32,14 @@ export type PolicyLabel =
 
 /**
  * A listed policy, whether it's paid monthly by a Stripe subscription (5.6b, decision 9), the
- * car + home bundle it was bought in, with the saving that quote gave (5.7b), what it insures and
- * its yearly premium (6.1)
+ * car + home bundle it was bought in, with the saving that quote gave (5.7b), the saving an
+ * earlier policy earned it (6.1b), what it insures and its yearly premium (6.1)
  */
 export type PolicyListItem = PolicySummary & {
   monthly: boolean;
   bundle: { id: string; savingPence: number } | null;
+  /** Bought while `policyId`, the other product, was active: 8% off this one (6.1b) */
+  earnedBy: { policyId: string; savingPence: number } | null;
   label: PolicyLabel;
   annualPremiumPence: number;
 };
@@ -85,30 +87,40 @@ export const listMyPolicies = defineRead(
         and(eq(payments.customerId, actor.customerId), isNotNull(payments.stripeSubscriptionId)),
       );
     const monthlyQuotes = new Set(subscribed.map((row) => row.quoteId));
-    // A bundle's saving is its quote's discount on the combined premiums
-    const bundledQuotes = [...new Set(rows.filter((r) => r.bundleId).map((r) => r.quoteId))];
+    // A bundle's saving is its quote's discount on the combined premiums. A one-item quote with
+    // bundle_policy_id has the same column, earned by that earlier policy (6.1b, decision 6)
+    const quoteIds = [...new Set(rows.map((r) => r.quoteId))];
     const savings = new Map(
-      bundledQuotes.length
+      quoteIds.length
         ? (
             await db
-              .select({ id: quotes.id, savingPence: quotes.bundleDiscountPence })
+              .select({
+                id: quotes.id,
+                savingPence: quotes.bundleDiscountPence,
+                earnedBy: quotes.bundlePolicyId,
+              })
               .from(quotes)
-              .where(
-                and(eq(quotes.customerId, actor.customerId), inArray(quotes.id, bundledQuotes)),
-              )
-          ).map((q) => [q.id, q.savingPence ?? 0])
+              .where(and(eq(quotes.customerId, actor.customerId), inArray(quotes.id, quoteIds)))
+          ).map((q) => [q.id, { savingPence: q.savingPence ?? 0, earnedBy: q.earnedBy }])
         : [],
     );
     const labels = await labelsFor(
       db,
       rows.map((r) => r.quoteItemId),
     );
-    return rows.map(({ quoteId, quoteItemId, bundleId, ...policy }) => ({
-      ...policy,
-      monthly: monthlyQuotes.has(quoteId),
-      bundle: bundleId ? { id: bundleId, savingPence: savings.get(quoteId) ?? 0 } : null,
-      label: labels.get(quoteItemId) ?? null,
-    }));
+    return rows.map(({ quoteId, quoteItemId, bundleId, ...policy }) => {
+      const saving = savings.get(quoteId);
+      return {
+        ...policy,
+        monthly: monthlyQuotes.has(quoteId),
+        bundle: bundleId ? { id: bundleId, savingPence: saving?.savingPence ?? 0 } : null,
+        earnedBy:
+          !bundleId && saving?.earnedBy
+            ? { policyId: saving.earnedBy, savingPence: saving.savingPence }
+            : null,
+        label: labels.get(quoteItemId) ?? null,
+      };
+    });
   },
 );
 

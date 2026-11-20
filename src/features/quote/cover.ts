@@ -77,12 +77,14 @@ export function composeCover(
   prices: CoverPrices,
   coverLevel: CoverLevel,
   chosenAddons: readonly string[],
+  /** The multi-policy rate, when a signed-in customer holds the other product (6.1b) */
+  savingRate?: number,
 ): ComposedCover | null {
   const tier = prices.levels.find((t) => t.coverLevel === coverLevel);
   const priced = coverLine("car", prices, coverLevel, chosenAddons);
   if (!tier || !priced) return null;
   const addons = prices.addons.filter((a) => chosenAddons.includes(a.addon));
-  const line = quoteTotals([priced]).lines.get("car")!;
+  const line = quoteTotals([priced], savingRate).lines.get("car")!;
   return {
     coverLevel,
     premiumPence: priced.premiumPence,

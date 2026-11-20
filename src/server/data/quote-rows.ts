@@ -243,6 +243,7 @@ export function quoteRows(
     validUntil: Date;
     newId: () => string;
     items: readonly SaveItem[];
+    bundlePolicyId?: string | null;
   },
 ): QuoteRowSet {
   if (ctx.items.length !== priced.items.length) {
@@ -260,6 +261,7 @@ export function quoteRows(
       feesPence: priced.feesPence,
       iptPence: priced.iptPence,
       totalPence: priced.totalPence,
+      bundlePolicyId: ctx.bundlePolicyId ?? null,
       validUntil: ctx.validUntil,
       createdAt: ctx.at,
       updatedAt: ctx.at,

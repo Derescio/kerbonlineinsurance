@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { greetingLine, isCovered, isHeld, overviewStats, rowStatus } from "./overview-model";
+import {
+  carAndHome,
+  greetingLine,
+  isCovered,
+  isHeld,
+  overviewStats,
+  rowStatus,
+} from "./overview-model";
 import { policy } from "./overview.fixtures";
 
 // The Overview's sums and labels (6.1, decisions 3–5). "Held" is active (or starting later) or
@@ -42,7 +49,12 @@ describe("overviewStats", () => {
       ],
       today,
     );
-    expect(stats).toEqual({ held: 2, yearPence: 108_420, bundleSavingPence: 9_600 });
+    expect(stats).toEqual({
+      held: 2,
+      yearPence: 108_420,
+      bundleSavingPence: 9_600,
+      earnedSavingPence: 0,
+    });
   });
   it("leaves out a bundle's saving once half of it is cancelled", () => {
     const bundle = { id: "b1", savingPence: 9_600 };
@@ -53,7 +65,68 @@ describe("overviewStats", () => {
       ],
       today,
     );
-    expect(stats).toEqual({ held: 1, yearPence: 53_640, bundleSavingPence: 0 });
+    expect(stats).toEqual({
+      held: 1,
+      yearPence: 53_640,
+      bundleSavingPence: 0,
+      earnedSavingPence: 0,
+    });
+  });
+  it("names a saving an earlier policy earned only while that policy is active (6.1b)", () => {
+    const earned = policy({
+      id: "home",
+      product: "home",
+      earnedBy: { policyId: "car", savingPence: 3_814 },
+    });
+    expect(overviewStats([policy({ id: "car" }), earned], today).earnedSavingPence).toBe(3_814);
+    expect(
+      overviewStats([policy({ id: "car", status: "lapsed" }), earned], today).earnedSavingPence,
+    ).toBe(0);
+  });
+});
+
+describe("carAndHome (6.1b)", () => {
+  const home = policy({ id: "home", product: "home" });
+  it("celebrates an active car and an active home, with the saving the stats name", () => {
+    const policies = [policy({ id: "car" }), home];
+    const stats = { ...overviewStats(policies, today), bundleSavingPence: 9_600 };
+    expect(carAndHome(policies, stats, today)).toEqual({ savingPence: 9_600, savedOn: "both" });
+  });
+  it("names the product an earlier policy's saving came off", () => {
+    const earnedHome = policy({
+      id: "home",
+      product: "home",
+      earnedBy: { policyId: "car", savingPence: 3_814 },
+    });
+    const homeFirst = [policy({ id: "car" }), earnedHome];
+    expect(carAndHome(homeFirst, overviewStats(homeFirst, today), today)).toEqual({
+      savingPence: 3_814,
+      savedOn: "home",
+    });
+    const earnedCar = policy({ id: "car", earnedBy: { policyId: "home", savingPence: 4_291 } });
+    const carSecond = [earnedCar, home];
+    expect(carAndHome(carSecond, overviewStats(carSecond, today), today)).toEqual({
+      savingPence: 4_291,
+      savedOn: "car",
+    });
+  });
+  it("names no product when there is no saving", () => {
+    const policies = [policy({ id: "car" }), home];
+    expect(carAndHome(policies, overviewStats(policies, today), today)).toEqual({
+      savingPence: 0,
+      savedOn: null,
+    });
+  });
+  it("doesn't celebrate one product, two of one product, or a lapsed half", () => {
+    for (const policies of [
+      [policy()],
+      [home],
+      [policy({ id: "car" }), policy({ id: "car2" })],
+      [policy({ id: "car", status: "lapsed" }), home],
+      [policy({ id: "car" }), policy({ id: "home", product: "home", status: "cancelled" })],
+    ]) {
+      expect(carAndHome(policies, overviewStats(policies, today), today)).toBeNull();
+    }
   });
 });
 

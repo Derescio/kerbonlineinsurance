@@ -217,7 +217,7 @@ describe("startCheckout: a session", () => {
     const { actor, quoteId, email } = await pricedCarQuote();
     const result = await start(actor, quoteId);
     expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok || result.data.status !== "ready") return;
 
     const rows = await sessionRows();
     expect(rows).toHaveLength(1);
@@ -235,7 +235,11 @@ describe("startCheckout: a session", () => {
       status: "open",
       fulfilledAt: null,
     });
-    expect(result.data).toEqual({ clientSecret: "cs_test_1_secret", checkoutId: rows[0]!.id });
+    expect(result.data).toEqual({
+      status: "ready",
+      clientSecret: "cs_test_1_secret",
+      checkoutId: rows[0]!.id,
+    });
 
     // The session Stripe was asked for: the customer, the amount, the line and the environment
     expect(created()).toHaveLength(1);
@@ -353,7 +357,9 @@ describe("startCheckout: a session", () => {
       ["cs_test_1", "expired"],
       ["cs_test_2", "open"],
     ]);
-    expect(second.ok && second.data.clientSecret).toBe("cs_test_2_secret");
+    expect(second.ok && second.data.status === "ready" && second.data.clientSecret).toBe(
+      "cs_test_2_secret",
+    );
     // The Stripe customer is made once
     expect(stripe.calls["customers.create"]).toHaveLength(1);
   });

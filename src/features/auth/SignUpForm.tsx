@@ -24,7 +24,7 @@ type Errors = FieldErrors<SignUpInput> & { robot?: string };
 
 /** What screen 15 adds to the "Check your inbox" panel when the sign-up carried a quote (5.6) */
 export const QUOTE_SAVED_LINE =
-  "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under Your saved quotes.";
+  "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under My quotes.";
 
 export function SignUpForm({
   title,

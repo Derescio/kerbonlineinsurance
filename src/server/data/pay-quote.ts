@@ -93,6 +93,7 @@ export async function lockQuote(tx: Tx, quoteId: string, customerId: string) {
       status: quotes.status,
       validUntil: quotes.validUntil,
       totalPence: quotes.totalPence,
+      bundlePolicyId: quotes.bundlePolicyId,
     })
     .from(quotes)
     .where(and(eq(quotes.id, quoteId), eq(quotes.customerId, customerId)))
@@ -136,6 +137,13 @@ export async function purchaseItems(tx: Tx, quoteId: string): Promise<PurchaseIt
   const priced = rows.flatMap((row) =>
     row.selectedOption ? [{ ...row, option: row.selectedOption }] : [],
   );
+  const quote =
+    priced.length === 1
+      ? await tx.query.quotes.findFirst({
+          columns: { bundlePolicyId: true, bundleDiscountPence: true },
+          where: eq(quotes.id, quoteId),
+        })
+      : null;
   const shares =
     priced.length > 1
       ? splitBundleDiscount(
@@ -147,7 +155,9 @@ export async function purchaseItems(tx: Tx, quoteId: string): Promise<PurchaseIt
             "bundle_discount_rate",
           ),
         )
-      : new Map<string, number>();
+      : quote?.bundlePolicyId
+        ? new Map<string, number>([[priced[0]!.product, quote.bundleDiscountPence]])
+        : new Map<string, number>();
   return priced.map(({ selectedOption: _option, option, addons, vehicle, property, ...item }) => ({
     ...item,
     coverLevel: option.coverLevel,

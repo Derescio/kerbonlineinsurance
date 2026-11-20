@@ -109,6 +109,28 @@ describe("listMyPolicies: a bundle (5.7b, Damion's preview check)", () => {
   });
 });
 
+describe("listMyPolicies: a saving an earlier policy earned (6.1b)", () => {
+  it("names the earning policy and the saving on its quote, with no bundle", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const car = await makePolicy({ customerId: customer.id });
+    const home = await makePolicy({ customerId: customer.id, product: "home" });
+    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, home.quoteId));
+    await getDb()
+      .update(quotes)
+      .set({
+        bundleDiscountPence: 3_814,
+        bundlePolicyId: car.id,
+        totalPence: quote!.totalPence - 3_814,
+      })
+      .where(eq(quotes.id, home.quoteId));
+
+    const byId = Object.fromEntries((await listMyPolicies(actor, {})).map((p) => [p.id, p]));
+    expect(byId[home.id]!.earnedBy).toEqual({ policyId: car.id, savingPence: 3_814 });
+    expect(byId[home.id]!.bundle).toBeNull();
+    expect(byId[car.id]!.earnedBy).toBeNull();
+  });
+});
+
 describe("listMyPolicies: label (6.1)", () => {
   it("names a car by its plate, make and model, and a home by its address", async () => {
     const { customer, actor } = await signedInCustomer();

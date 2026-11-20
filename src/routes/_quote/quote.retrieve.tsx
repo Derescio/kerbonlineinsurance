@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_quote/quote/retrieve")({
     await requireSignedIn(location);
   },
   loader: () => listMyQuotesFn(),
-  head: () => ({ meta: [{ title: "Your saved quotes · Kerb" }] }),
+  head: () => ({ meta: [{ title: "My quotes · Kerb" }] }),
   component: Retrieve,
 });
 

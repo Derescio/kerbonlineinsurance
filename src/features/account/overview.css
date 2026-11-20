@@ -41,11 +41,28 @@
 .ovw__stat-link:hover {
   text-decoration: underline;
 }
+.ovw__adds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ovw__add {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.ovw__add p {
+  margin: 0;
+}
 .ovw__policies-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
+}
+.ovw__policies-head .kb-btn {
+  border-radius: var(--radius-md);
 }
 .ovw__title {
   margin: 0;
@@ -90,6 +107,80 @@
 .ovw__bundle-saving {
   color: var(--fg-brand);
   font: 400 14px/20px var(--font-body);
+}
+/* Car + home, celebrated (6.1b; Figma 258:3711) */
+.ovw__celebrate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--bg-inverse);
+  color: var(--fg-inverse);
+}
+.ovw__celebrate p,
+.ovw__celebrate h3 {
+  margin: 0;
+}
+.ovw__celebrate-main {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ovw__celebrate-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ovw__celebrate-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-accent);
+  color: var(--fg-on-accent);
+}
+.ovw__overline {
+  font: 500 12px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ovw__celebrate-title {
+  font: 700 44px/48px var(--font-display);
+  letter-spacing: -0.035em;
+}
+.ovw__celebrate-text {
+  color: var(--fg-inverse-2);
+  font: 400 16px/24px var(--font-body);
+}
+.ovw__celebrate-saving {
+  display: flex;
+  flex: 0 0 292px;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--bg-accent);
+  color: var(--fg-on-accent);
+}
+.ovw__celebrate-amount {
+  font: 800 56px/60px var(--font-display);
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+.ovw__celebrate-every {
+  font: 400 18px/28px var(--font-body);
+}
+.ovw__celebrate-note {
+  font: 400 14px/20px var(--font-body);
+}
+.ovw__celebrate + .ovw__list {
+  margin-top: var(--space-2);
 }
 .ovw__row {
   display: grid;
@@ -138,5 +229,17 @@
   }
   .ovw__policies-head {
     flex-wrap: wrap;
+  }
+  .ovw__celebrate {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-4);
+  }
+  .ovw__celebrate-title {
+    font-size: 32px;
+    line-height: 36px;
+  }
+  .ovw__celebrate-saving {
+    flex-basis: auto;
   }
 }

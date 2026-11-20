@@ -95,7 +95,7 @@ async function started(actor: Actor, quoteId: string, plan: "annual" | "monthly"
     ctx,
     { stripe, testClocks: false, now: NOW },
   );
-  if (!result.ok) throw new Error("checkout not started");
+  if (!result.ok || result.data.status !== "ready") throw new Error("checkout not started");
   const [row] = await getDb()
     .select()
     .from(checkoutSessions)

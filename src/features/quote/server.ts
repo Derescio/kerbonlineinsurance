@@ -130,6 +130,25 @@ export const startCheckoutFn = createServerFn({ method: "POST" })
     return startCheckout(context.actor, data, { headers: getRequestHeaders() });
   });
 
+/**
+ * Whether a signed-in customer holds an active policy of the other product (6.1b). A guest,
+ * or a customer who doesn't, gets null. The price itself stays in the cover prices.
+ */
+export const multiPolicyOffer = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .validator((input: { product: "car" | "home" }) => {
+    if (input?.product !== "car" && input?.product !== "home") {
+      throw new Error("multiPolicyOffer: product");
+    }
+    return { product: input.product };
+  })
+  .handler(async ({ context, data }): Promise<{ otherProduct: "car" | "home" } | null> => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    if (!context.actor?.customerId) return null;
+    const { getMultiPolicyOffer } = await import("#/server/data/multi-policy");
+    return getMultiPolicyOffer(context.actor, data);
+  });
+
 /** Someone else's quote, or a missing one, is the site's not-found page (5.6, decision 2) */
 async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
   setResponseHeader("Cache-Control", "private, no-store");

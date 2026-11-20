@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
+import { readJourney } from "#/features/quote/journey-store";
+import type { AccountCustomer } from "#/server/data/multi-policy";
 import type { NextPayment } from "#/server/data/policies";
 import { renderWithRouter } from "#/test/router";
 
@@ -62,11 +64,18 @@ describe("Overview, frame 01: a car + home bundle", () => {
     await expect.element(page.getByText("Open claims")).not.toBeInTheDocument();
   });
 
-  it("lists the bundle with its saving, the car by plate and the home by address", async () => {
+  it("celebrates car + home with the saving, then the car by plate and the home by address", async () => {
     await show({ policies: [car, home], nextPayment: due });
     const policies = page.getByRole("region", { name: "Your policies" });
-    await expect.element(policies.getByText("Car + home bundle")).toBeVisible();
-    await expect.element(policies.getByText("You save £96.00 a year")).toBeVisible();
+    const banner = policies.getByRole("group", { name: "Car + home. Better together." });
+    await expect.element(banner.getByText("Bundle activated")).toBeVisible();
+    await expect
+      .element(banner.getByText("Covered together, so you pay less for both."))
+      .toBeVisible();
+    await expect.element(banner.getByText("£96", { exact: true })).toBeVisible();
+    await expect.element(banner.getByText("saved every year")).toBeVisible();
+    await expect.element(banner.getByText("Already included in your price")).toBeVisible();
+    await expect.element(policies.getByText("Car + home bundle")).not.toBeInTheDocument();
     await expect.element(policies.getByText("KR24 BXL")).toBeVisible();
     await expect.element(policies.getByText("Volkswagen Golf")).toBeVisible();
     await expect.element(policies.getByText("Comprehensive")).toBeVisible();
@@ -74,7 +83,7 @@ describe("Overview, frame 01: a car + home bundle", () => {
     await expect.element(policies.getByText("Active").first()).toBeVisible();
     await expect.element(policies.getByText("Renews 14 Mar 2027").first()).toBeVisible();
     await expect
-      .element(policies.getByRole("link", { name: "Your saved quotes" }))
+      .element(policies.getByRole("link", { name: "My quotes" }))
       .toHaveAttribute("href", "/quote/retrieve");
   });
 
@@ -118,7 +127,7 @@ describe("Overview, frame 03: no policies yet", () => {
       .element(page.getByRole("link", { name: "Get a quote" }))
       .toHaveAttribute("href", "/quote");
     await expect
-      .element(page.getByRole("link", { name: "Your saved quotes" }))
+      .element(page.getByRole("link", { name: "My quotes" }))
       .toHaveAttribute("href", "/quote/retrieve");
   });
 });
@@ -155,5 +164,123 @@ describe("Overview, other cases", () => {
       .toHaveTextContent("Hi Cher, you’re covered.");
     await expect.element(stat("Policies").getByText("1")).toBeVisible();
     await expect.element(page.getByText("Cancelled")).toBeVisible();
+  });
+});
+
+const maya: AccountCustomer = {
+  firstName: "Maya",
+  lastName: "Patel",
+  dateOfBirth: "1990-04-12",
+  addressLine1: "11 Rosebery Gardens",
+  addressLine2: null,
+  town: "London",
+  postcode: "N8 9AB",
+};
+
+describe("Overview, add another product (6.1b)", () => {
+  it("offers home with the saving, and starts a fresh journey from the customer", async () => {
+    sessionStorage.clear();
+    await show({
+      policies: [policy()],
+      offers: [{ product: "home", savingRate: 0.08 }],
+      customer: maya,
+    });
+    await expect
+      .element(page.getByText("You save 8% because you already insure your car with us."))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Add home insurance" }).click();
+    const journey = readJourney("home");
+    expect(journey?.postcode).toBe("N8 9AB");
+    expect(journey?.fromCustomer).toMatchObject({
+      firstName: "Maya",
+      lastName: "Patel",
+      dateOfBirth: "1990-04-12",
+      addressLine1: "11 Rosebery Gardens",
+      town: "London",
+    });
+    expect(journey?.fromCustomer && "status" in journey.fromCustomer).toBe(false);
+    expect(journey?.mainDriver).toBeUndefined();
+  });
+
+  it("offers car without a saving sentence when the home policy has lapsed", async () => {
+    await show({
+      offers: [{ product: "car", savingRate: null }],
+      customer: maya,
+    });
+    await expect.element(page.getByRole("button", { name: "Add car insurance" })).toBeVisible();
+    await expect.element(page.getByText(/You save/)).not.toBeInTheDocument();
+  });
+
+  it("celebrates car + home bought apart, with the saving the earlier car earned", async () => {
+    const car = policy({ id: "car" });
+    const home = policy({
+      id: "home",
+      product: "home",
+      earnedBy: { policyId: "car", savingPence: 3_814 },
+      label: { kind: "home", line1: "1471 Harmony Road N", town: "Brooklyn" },
+    });
+    await show({ policies: [car, home], customer: maya });
+    const banner = page.getByRole("group", { name: "Car + home. Better together." });
+    await expect.element(banner.getByText("£38.14", { exact: true })).toBeVisible();
+    await expect
+      .element(
+        banner.getByText(
+          "Your home insurance costs less because you already insure your car with us.",
+        ),
+      )
+      .toBeVisible();
+    await expect.element(stat("A year").getByText("after your £38.14 saving")).toBeVisible();
+    await expect.element(page.getByText(/You save/)).not.toBeInTheDocument();
+  });
+
+  it("says the car is cheaper when the earlier home earned the saving", async () => {
+    await show({
+      policies: [
+        policy({ id: "car", earnedBy: { policyId: "home", savingPence: 4_291 } }),
+        policy({ id: "home", product: "home" }),
+      ],
+    });
+    const banner = page.getByRole("group", { name: "Car + home. Better together." });
+    await expect
+      .element(
+        banner.getByText(
+          "Your car insurance costs less because you already insure your home with us.",
+        ),
+      )
+      .toBeVisible();
+    await expect.element(banner.getByText("£42.91", { exact: true })).toBeVisible();
+  });
+
+  it("celebrates car + home with no saving without the £ panel", async () => {
+    await show({ policies: [policy({ id: "car" }), policy({ id: "home", product: "home" })] });
+    const banner = page.getByRole("group", { name: "Car + home. Better together." });
+    await expect
+      .element(banner.getByText("Your car and home are covered. One less thing to think about."))
+      .toBeVisible();
+    await expect.element(page.getByText("saved every year")).not.toBeInTheDocument();
+  });
+
+  it("doesn't celebrate a car on its own, even with an add-home card", async () => {
+    await show({
+      policies: [policy()],
+      offers: [{ product: "home", savingRate: 0.08 }],
+      customer: maya,
+    });
+    await expect.element(page.getByText("Car + home. Better together.")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Bundle activated")).not.toBeInTheDocument();
+  });
+
+  it("doesn't celebrate while the home has lapsed", async () => {
+    await show({
+      policies: [policy({ id: "car" }), policy({ id: "home", product: "home", status: "lapsed" })],
+    });
+    await expect.element(page.getByText("Car + home. Better together.")).not.toBeInTheDocument();
+  });
+
+  it("shows no card when there is nothing to add", async () => {
+    await show({ policies: [policy(), policy({ id: "home", product: "home" })], customer: maya });
+    await expect
+      .element(page.getByRole("button", { name: /Add .* insurance/ }))
+      .not.toBeInTheDocument();
   });
 });

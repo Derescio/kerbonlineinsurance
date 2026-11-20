@@ -191,6 +191,17 @@ export type SavedQuote = z.infer<typeof savedSchema>;
 /** On the home journey: bought with this car journey's quote (5.7b, decision 1) */
 const bundleSchema = z.object({ carJourneyId: z.string().min(1) });
 
+/** Filled from the customer record when the Overview starts this product (6.1b, decision 2) */
+const fromCustomerSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  dateOfBirth: z.string(),
+  addressLine1: z.string(),
+  addressLine2: z.string().optional(),
+  town: z.string(),
+});
+export type FromCustomer = z.infer<typeof fromCustomerSchema>;
+
 /** Read one at a time: a part that fails is dropped alone (call 15) */
 const partSchemas = {
   vehicle: vehicleSchema,
@@ -206,6 +217,7 @@ const partSchemas = {
   cover: coverSchema,
   saved: savedSchema,
   bundle: bundleSchema,
+  fromCustomer: fromCustomerSchema,
 };
 
 const baseSchema = z.object({
@@ -245,6 +257,8 @@ export type Journey = z.infer<typeof baseSchema> & {
   saved?: SavedQuote;
   /** Home only: the car journey this home is bundled with (5.7b) */
   bundle?: z.infer<typeof bundleSchema>;
+  /** The customer record this journey was started from (6.1b). Employment is not on it. */
+  fromCustomer?: FromCustomer;
 };
 
 function stable(value: unknown): unknown {
@@ -364,6 +378,29 @@ export function beginJourney(
         startedAt: now.toISOString(),
         startRecorded: false,
       };
+  writeJourney(product, journey, storage);
+  return journey;
+}
+
+/**
+ * A fresh journey for the product the Overview is adding (6.1b, decision 2). Replaces that
+ * product's journey in the tab. The other product's journey is left alone.
+ */
+export function startFromAccount(
+  product: BuyableProductId,
+  customer: FromCustomer & { postcode: string },
+  now: Date = new Date(),
+  storage: JourneyStorage | null = sessionStore(),
+): Journey {
+  const { postcode, ...fromCustomer } = customer;
+  const journey: Journey = {
+    version: 1,
+    journeyId: crypto.randomUUID(),
+    postcode,
+    startedAt: now.toISOString(),
+    startRecorded: false,
+    fromCustomer,
+  };
   writeJourney(product, journey, storage);
   return journey;
 }

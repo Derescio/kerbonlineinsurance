@@ -62,6 +62,8 @@ const SUMMARY: PaymentSummary = {
   policyholder: { firstName: "Alex", lastName: "Morgan" },
   items: [CAR_ITEM],
   bundleSavingPence: 0,
+  savingBecause: null,
+  savingRate: null,
   annualTotalPence: 45840,
   monthlyPaymentPence: 4202,
   startDate: "2026-11-12",
@@ -91,7 +93,11 @@ const PURCHASE: Purchase = {
 
 const paid: WriteResult<StartCheckoutResult> = {
   ok: true,
-  data: { clientSecret: "cs_test_1_secret", checkoutId: "0193a0b2-0000-7000-8000-000000000001" },
+  data: {
+    status: "ready",
+    clientSecret: "cs_test_1_secret",
+    checkoutId: "0193a0b2-0000-7000-8000-000000000001",
+  },
 };
 const refused = (
   message: string,
@@ -126,7 +132,7 @@ const keyOf = (call: number) =>
   (pay.mock.calls[call]![0] as { data: { idempotencyKey: string } }).data.idempotencyKey;
 const secret = (n: number): WriteResult<StartCheckoutResult> => ({
   ok: true,
-  data: { clientSecret: `cs_test_${n}_secret`, checkoutId: `c${n}` },
+  data: { status: "ready", clientSecret: `cs_test_${n}_secret`, checkoutId: `c${n}` },
 });
 
 async function tickBoth() {
@@ -255,6 +261,35 @@ describe("Confirm and pay (decision 6)", () => {
       coverAcknowledged: true,
     });
     expect(data.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("says why the price is lower when another policy earns the saving (6.1b)", async () => {
+    await showPay({
+      ...SUMMARY,
+      bundleSavingPence: 3_814,
+      savingBecause: "car",
+      savingRate: 0.08,
+    });
+    await expect
+      .element(page.getByText("You save 8% because you already insure your car with us."))
+      .toBeVisible();
+    await expect.element(page.getByText("Your saving")).toBeVisible();
+    expect(page.getByText("Bundle saving").elements()).toHaveLength(0);
+  });
+
+  it("shows the full price when the earning policy no longer qualifies, before any charge (6.1b)", async () => {
+    pay.mockResolvedValue({ ok: true, data: { status: "repriced", otherProduct: "car" } });
+    await showPay();
+    await tickBoth();
+    await payButton().click();
+    await expect
+      .element(
+        page.getByText(
+          "Your car policy is no longer active, so this price doesn’t include the saving.",
+        ),
+      )
+      .toBeVisible();
+    expect(stripeForm().elements()).toHaveLength(0);
   });
 
   it("unmounts the form when the plan, a box or the date changes, and starts a new session after", async () => {
@@ -537,7 +572,7 @@ describe("You're covered after Stripe's form (5.6b, decision 11)", () => {
       )
       .toBeVisible();
     await expect
-      .element(page.getByRole("link", { name: "Your saved quotes" }))
+      .element(page.getByRole("link", { name: "My quotes" }))
       .toHaveAttribute("href", "/quote/retrieve");
     expect(purchaseFn).not.toHaveBeenCalled();
     expect(page.getByText("Payment successful").elements()).toHaveLength(0);

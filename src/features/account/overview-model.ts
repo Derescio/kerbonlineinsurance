@@ -5,15 +5,15 @@ import type { PolicyListItem } from "#/server/data/policies";
 // time zone.
 
 /** Cover has run its term: the day after `endsOn` has come */
-const hasEnded = (p: PolicyListItem, today: string) => p.endsOn < today;
+const hasEnded = (p: { endsOn: string }, today: string) => p.endsOn < today;
 
 /** Counted on the Overview: in force or starting later, or lapsed (it restarts on a new card) */
-export function isHeld(p: PolicyListItem, today: string): boolean {
+export function isHeld(p: { status: string; endsOn: string }, today: string): boolean {
   return (p.status === "active" || p.status === "lapsed") && !hasEnded(p, today);
 }
 
 /** "You're covered": in force or starting later. A lapsed policy alone isn't cover */
-export function isCovered(p: PolicyListItem, today: string): boolean {
+export function isCovered(p: { status: string; endsOn: string }, today: string): boolean {
   return p.status === "active" && !hasEnded(p, today);
 }
 
@@ -22,11 +22,14 @@ export interface OverviewStats {
   yearPence: number;
   /** The bundles' savings, for a bundle whose policies are all held */
   bundleSavingPence: number;
+  /** Savings earned by an earlier policy, while this one is held and that one is active (6.1b) */
+  earnedSavingPence: number;
 }
 
 /**
- * The stat cards. Each premium is already after its share of a bundle's saving (5.7b), so the
- * year is a plain sum; the saving is named only while the whole bundle is still held.
+ * The stat cards. Each premium is already after its saving (5.7b, 6.1b), so the year is a plain
+ * sum; a bundle's saving is named only while the whole bundle is still held, and an earned one
+ * only while the policy that earned it is still active.
  */
 export function overviewStats(policies: PolicyListItem[], today: string): OverviewStats {
   const held = policies.filter((p) => isHeld(p, today));
@@ -40,7 +43,50 @@ export function overviewStats(policies: PolicyListItem[], today: string): Overvi
     held: held.length,
     yearPence: held.reduce((total, p) => total + p.annualPremiumPence, 0),
     bundleSavingPence: [...savings.values()].reduce((total, saving) => total + saving, 0),
+    earnedSavingPence: earnedSavings(policies, today).reduce(
+      (total, p) => total + p.earnedBy.savingPence,
+      0,
+    ),
   };
+}
+
+/** Held policies whose earned saving still counts: the policy that earned it is active */
+function earnedSavings(policies: PolicyListItem[], today: string) {
+  const covering = new Set(policies.filter((p) => isCovered(p, today)).map((p) => p.id));
+  return policies.filter(
+    (p): p is PolicyListItem & { earnedBy: NonNullable<PolicyListItem["earnedBy"]> } =>
+      isHeld(p, today) && p.earnedBy != null && covering.has(p.earnedBy.policyId),
+  );
+}
+
+export interface CarAndHome {
+  savingPence: number;
+  /** Which price the saving came off: one product's earned saving, or both (a bundle); null with none */
+  savedOn: "car" | "home" | "both" | null;
+}
+
+/**
+ * The car + home banner (Figma 258:3711): an active car and an active home, however they were
+ * bought. The saving is what the stats name, so a pair bought apart with no saving shows no £.
+ */
+export function carAndHome(
+  policies: PolicyListItem[],
+  stats: OverviewStats,
+  today: string,
+): CarAndHome | null {
+  const covers = (product: string) =>
+    policies.some((p) => p.product === product && isCovered(p, today));
+  if (!covers("car") || !covers("home")) return null;
+  const savingPence = stats.bundleSavingPence + stats.earnedSavingPence;
+  const earnedOn = new Set(earnedSavings(policies, today).map((p) => p.product));
+  const [only] = earnedOn;
+  const savedOn =
+    savingPence === 0
+      ? null
+      : stats.bundleSavingPence === 0 && earnedOn.size === 1 && (only === "car" || only === "home")
+        ? only
+        : "both";
+  return { savingPence, savedOn };
 }
 
 const utc = (iso: string) => new Date(`${iso}T00:00:00Z`);

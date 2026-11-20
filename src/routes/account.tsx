@@ -1,9 +1,15 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { addProductOffers } from "#/features/account/add-product";
 import { AccountShell } from "#/features/account/AccountShell";
 import { Overview } from "#/features/account/Overview";
-import { getMyNextPaymentFn, listMyPoliciesFn } from "#/features/account/policies";
+import {
+  getMyAddProductsFn,
+  getMyNextPaymentFn,
+  listMyPoliciesFn,
+} from "#/features/account/policies";
+import { todayIso } from "#/features/quote/schemas/dates";
 import { requireSignedIn } from "#/features/auth/guard";
 import { getAccountSummary } from "#/features/auth/session";
 import { useOneTimeToast } from "#/features/auth/use-one-time-toast";
@@ -27,16 +33,28 @@ export const Route = createFileRoute("/account")({
     return { summary };
   },
   loader: async ({ context }) => {
-    const [policies, nextPayment] = await Promise.all([listMyPoliciesFn(), getMyNextPaymentFn()]);
+    const [policies, nextPayment, addProducts] = await Promise.all([
+      listMyPoliciesFn(),
+      getMyNextPaymentFn(),
+      getMyAddProductsFn(),
+    ]);
     // One instant for the server render and the browser's hydration (6.1, final review)
-    return { summary: context.summary, policies, nextPayment, now: Date.now() };
+    const now = Date.now();
+    return {
+      summary: context.summary,
+      policies,
+      nextPayment,
+      now,
+      offers: addProductOffers(policies, todayIso(new Date(now)), addProducts.rates),
+      customer: addProducts.customer,
+    };
   },
   head: () => ({ meta: [{ title: "Your account · Kerb" }] }),
   component: Account,
 });
 
 function Account() {
-  const { summary, policies, nextPayment, now } = Route.useLoaderData();
+  const { summary, policies, nextPayment, now, offers, customer } = Route.useLoaderData();
   const notice = Route.useSearch();
   const navigate = useNavigate();
   useOneTimeToast(
@@ -61,6 +79,8 @@ function Account() {
         policies={policies}
         nextPayment={nextPayment}
         now={new Date(now)}
+        offers={offers}
+        customer={customer}
       />
     </AccountShell>
   );
