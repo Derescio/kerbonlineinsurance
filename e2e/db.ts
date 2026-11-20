@@ -9,7 +9,7 @@ export const databaseUrl = process.env.E2E_DATABASE_URL ?? "";
 
 // Only ever touches an address a spec just made, so a mis-set E2E_DATABASE_URL can't confirm
 // anyone else
-const OWN_EMAIL = /^delivered\+e2e-(close|buy|home|bundle)-\d+@resend\.dev$/;
+const OWN_EMAIL = /^delivered\+e2e-(close|buy|home|bundle|add)-\d+@resend\.dev$/;
 
 export async function confirmEmailInDatabase(email: string): Promise<void> {
   if (!OWN_EMAIL.test(email)) {
