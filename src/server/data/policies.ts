@@ -1,8 +1,8 @@
-import { and, asc, desc, eq, exists, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 
+import { todayIso } from "#/features/quote/schemas/dates";
 import { AuthzError } from "#/server/auth/errors";
-import { londonDate } from "#/lib/london-date";
 import { payments, policies, properties, quotes, vehicles } from "#/server/db/schema";
 
 import type { ClaimSummary } from "./claims";
@@ -172,34 +172,54 @@ function owedBy(db: Db, customerId: string) {
   );
 }
 
+/** The calendar day before an ISO date */
+function dayBefore(iso: string): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 /**
- * Overdue payments first (their total), else the earliest unpaid payment due today or later in
- * London, else none. `now` is for the tests
+ * Overdue once the due date has passed. A `scheduled` payment gets the day after it was due before
+ * that: Stripe may already have taken it, and the webhook can be a day late. A `failed` row is
+ * already the webhook's answer, so it is overdue as soon as the due date has passed.
+ */
+function paymentOverdue(status: string, dueOn: string, today: string): boolean {
+  if (dueOn >= today) return false;
+  if (status === "failed") return true;
+  return dueOn < dayBefore(today);
+}
+
+/**
+ * Overdue payments first (their total), else the earliest unpaid payment that isn't overdue yet,
+ * else none. `now` is for the tests.
  */
 export const getMyNextPayment = defineRead(
   "signed_in",
   z.object({ now: z.date().optional() }),
   async (actor, { now }, db): Promise<NextPayment> => {
     if (!actor.customerId) return { kind: "none" };
-    const today = londonDate(now ?? new Date());
-    const mine = owedBy(db, actor.customerId);
-    const overdue = await db
-      .select({ amountPence: payments.amountPence })
+    const today = todayIso(now ?? new Date());
+    const rows = await db
+      .select({
+        amountPence: payments.amountPence,
+        dueOn: payments.dueOn,
+        status: payments.status,
+      })
       .from(payments)
-      .where(and(mine, lt(payments.dueOn, today)));
+      .where(owedBy(db, actor.customerId))
+      .orderBy(asc(payments.dueOn), asc(payments.id));
+    const overdue = rows.filter((row) => paymentOverdue(row.status, row.dueOn, today));
     if (overdue.length > 0) {
       return {
         kind: "overdue",
         outstandingPence: overdue.reduce((total, row) => total + row.amountPence, 0),
       };
     }
-    const [next] = await db
-      .select({ amountPence: payments.amountPence, dueOn: payments.dueOn })
-      .from(payments)
-      .where(and(mine, gte(payments.dueOn, today)))
-      .orderBy(asc(payments.dueOn), asc(payments.id))
-      .limit(1);
-    return next ? { kind: "due", ...next } : { kind: "none" };
+    const next = rows[0];
+    return next
+      ? { kind: "due", amountPence: next.amountPence, dueOn: next.dueOn }
+      : { kind: "none" };
   },
 );
 

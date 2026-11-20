@@ -1,6 +1,10 @@
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
+
+import { Toaster } from "#/components/feedback/Toaster";
+import { LOG_OUT_FAILED } from "#/features/auth/log-out";
 
 import { demoNotice, mainNav } from "./links";
 import { NotFound } from "./NotFound";
@@ -13,6 +17,11 @@ vi.mock("#/features/account/closure", () => ({
   getClosureBanner: vi.fn().mockResolvedValue(null),
   keepMyAccount: vi.fn(),
 }));
+
+/** The header toasts a failed log-out, so these renders sit under the toaster */
+function renderChrome(ui: ReactNode) {
+  return render(<Toaster>{ui}</Toaster>);
+}
 
 const client = vi.hoisted(() => ({ signOut: vi.fn() }));
 vi.mock("#/features/auth/auth-client", () => ({ authClient: client }));
@@ -38,7 +47,7 @@ afterEach(() => {
 describe("SiteHeader", () => {
   it("links the wordmark home and names its links", async () => {
     hint(false);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await expect
       .element(page.getByRole("link", { name: "Kerb home" }))
       .toHaveAttribute("href", "/");
@@ -52,7 +61,7 @@ describe("SiteHeader", () => {
 
   it("has a named main nav with the four links at their paths", async () => {
     await page.viewport(1280, 800);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     const nav = page.getByRole("navigation", { name: "Main" });
     await expect.element(nav).toBeVisible();
     for (const { label, href } of mainNav) {
@@ -62,7 +71,7 @@ describe("SiteHeader", () => {
 
   it("marks the current section with aria-current", async () => {
     await page.viewport(1280, 800);
-    await render(<SiteHeader pathname="/claims/track" />);
+    await renderChrome(<SiteHeader pathname="/claims/track" />);
     const nav = page.getByRole("navigation", { name: "Main" });
     await expect
       .element(nav.getByRole("link", { name: "Claims" }))
@@ -74,7 +83,7 @@ describe("SiteHeader", () => {
 
   it("swaps the nav for a Menu button on mobile", async () => {
     await page.viewport(390, 800);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await expect.element(page.getByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
     await expect.element(page.getByRole("button", { name: "Menu" })).toBeVisible();
   });
@@ -83,7 +92,7 @@ describe("SiteHeader", () => {
 describe("Mobile menu", () => {
   it("opens with the nav links, closes on Escape and returns focus to Menu", async () => {
     await page.viewport(390, 800);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     const menu = page.getByRole("button", { name: "Menu" });
     await expect.element(menu).toHaveAttribute("aria-expanded", "false");
 
@@ -103,7 +112,7 @@ describe("Mobile menu", () => {
 
   it("closes when a link is chosen", async () => {
     await page.viewport(390, 800);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await page.getByRole("button", { name: "Menu" }).click();
     const dialog = page.getByRole("dialog", { name: "Menu" });
     const link = dialog.getByRole("link", { name: "Help" });
@@ -115,7 +124,7 @@ describe("Mobile menu", () => {
 
   it("closes with the Close button", async () => {
     await page.viewport(390, 800);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await page.getByRole("button", { name: "Menu" }).click();
     const dialog = page.getByRole("dialog", { name: "Menu" });
     await dialog.getByRole("button", { name: "Close" }).click();
@@ -149,7 +158,7 @@ describe("SiteFooter", () => {
 
 describe("SiteLayout", () => {
   it("renders the demo banner, skip link, header, main and footer", async () => {
-    await render(
+    await renderChrome(
       <SiteLayout>
         <h1>Page</h1>
       </SiteLayout>,
@@ -166,7 +175,7 @@ describe("SiteLayout", () => {
   });
 
   it("puts the skip link first in the Tab order", async () => {
-    await render(
+    await renderChrome(
       <SiteLayout>
         <h1>Page</h1>
       </SiteLayout>,
@@ -181,7 +190,7 @@ describe("SiteLayout", () => {
 
 describe("NotFound", () => {
   it("says the page isn't built yet, inside the site chrome, with a link home", async () => {
-    await render(<NotFound />);
+    await renderChrome(<NotFound />);
     await expect
       .element(page.getByRole("heading", { level: 1 }))
       .toHaveTextContent("This page isn't built yet");
@@ -196,27 +205,27 @@ describe("NotFound", () => {
 describe("SiteHeader: My account when signed in (6.1, decision 8)", () => {
   it("shows Log in while the hint hasn't answered", async () => {
     hint(null);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await expect.element(page.getByRole("link", { name: "Log in" })).toBeVisible();
     expect(fetch).toHaveBeenCalledWith("/api/session-hint", expect.anything());
   });
 
   it("keeps Log in when nobody is signed in, or the hint fails", async () => {
     hint(false);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await expect.element(page.getByRole("link", { name: "Log in" })).toBeVisible();
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.reject(new Error("offline"))),
     );
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await expect.element(page.getByRole("link", { name: "Log in" }).first()).toBeVisible();
   });
 
   it("offers My account, with Overview and Log out, when signed in", async () => {
     await page.viewport(1280, 800);
     hint(true);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     const button = page.getByRole("button", { name: "My account" });
     await expect.element(button).toBeVisible();
     await expect.element(page.getByRole("link", { name: "Log in" })).not.toBeInTheDocument();
@@ -235,11 +244,25 @@ describe("SiteHeader: My account when signed in (6.1, decision 8)", () => {
     await page.viewport(1280, 800);
     hint(true);
     client.signOut.mockResolvedValue({});
-    await render(<SiteHeader />);
-    await userEvent.click(page.getByRole("button", { name: "My account" }));
+    await renderChrome(<SiteHeader />);
+    const button = page.getByRole("button", { name: "My account" });
+    await userEvent.click(button);
     await userEvent.click(page.getByRole("button", { name: "Log out" }));
     await expect.poll(() => leave.leaveTo.mock.calls).toEqual([["/"]]);
     expect(client.signOut).toHaveBeenCalled();
+    await expect.element(button).toHaveFocus();
+  });
+
+  it("stays on the page when log out fails", async () => {
+    await page.viewport(1280, 800);
+    hint(true);
+    leave.leaveTo.mockClear();
+    client.signOut.mockRejectedValue(new Error("offline"));
+    await renderChrome(<SiteHeader />);
+    await userEvent.click(page.getByRole("button", { name: "My account" }));
+    await userEvent.click(page.getByRole("button", { name: "Log out" }));
+    await expect.element(page.getByText(LOG_OUT_FAILED)).toBeVisible();
+    expect(leave.leaveTo).not.toHaveBeenCalled();
   });
 
   it("doesn't change the account slot's width when the answer arrives", async () => {
@@ -249,7 +272,7 @@ describe("SiteHeader: My account when signed in (6.1, decision 8)", () => {
       "fetch",
       vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))),
     );
-    const { container } = await render(<SiteHeader />);
+    const { container } = await renderChrome(<SiteHeader />);
     const slot = container.querySelector<HTMLElement>(".site-header__account")!;
     const before = slot.offsetWidth;
     answer(Response.json({ signedIn: true }));
@@ -260,7 +283,7 @@ describe("SiteHeader: My account when signed in (6.1, decision 8)", () => {
   it("lists Overview and Log out in the mobile menu when signed in", async () => {
     await page.viewport(390, 800);
     hint(true);
-    await render(<SiteHeader />);
+    await renderChrome(<SiteHeader />);
     await userEvent.click(page.getByRole("button", { name: "Menu" }));
     const sheet = page.getByRole("dialog", { name: "Menu" });
     await expect

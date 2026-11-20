@@ -5,9 +5,9 @@ import { IconButton } from "#/components/actions/IconButton";
 import { Icon } from "#/components/display/Icon";
 import { Wordmark } from "#/components/display/Wordmark";
 import { Dialog } from "#/components/feedback/Dialog";
+import { useToast } from "#/components/feedback/Toaster";
 import { MenuButton, type MenuItem } from "#/components/navigation/MenuButton";
-import { authClient } from "#/features/auth/auth-client";
-import { leaveTo } from "#/lib/leave";
+import { logOutHome } from "#/features/auth/log-out";
 
 import {
   accountMenuLinks,
@@ -30,15 +30,17 @@ const menuId = "site-menu";
  * Evergreen site header (Figma 54:1924 web, 103:5576 tablet, 103:5634 mobile). Under 768px the nav
  * moves into a bottom-sheet menu; Log in and the bell stay in the bar. Signed in, Log in becomes
  * "My account" once the session hint answers (6.1, decision 8): the cached HTML always says Log in.
+ * Clicking that link still goes to /login, which sends a signed-in visitor straight on.
  */
 export function SiteHeader({ pathname }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const close = () => setMenuOpen(false);
   const signedIn = useSessionHint() === "signed-in";
+  const toast = useToast();
 
   async function logOut() {
-    await authClient.signOut();
-    leaveTo("/");
+    const failed = await logOutHome();
+    if (failed) toast({ tone: "danger", title: "Still signed in", message: failed });
   }
   const accountItems: MenuItem[] = [...accountMenuLinks, { label: "Log out", onSelect: logOut }];
 

@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Wordmark } from "#/components/display/Wordmark";
+import { useToast } from "#/components/feedback/Toaster";
 import { MenuButton, type MenuItem } from "#/components/navigation/MenuButton";
-import { leaveTo } from "#/lib/leave";
 
-import { authClient } from "../auth/auth-client";
+import { logOutHome } from "../auth/log-out";
 import { DemoStrip } from "../auth/parts";
 import { ClosureBanner } from "./ClosureBanner";
 
@@ -14,7 +14,7 @@ import { ClosureBanner } from "./ClosureBanner";
 // 6.4) and the bell with notifications (6.6), so nothing here leads to a page that isn't built.
 
 /** "MP" for "Maya Patel": the first and last words' first letters; "?" with no name */
-export function initialsOf(name: string): string {
+function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "?";
   const first = words[0]!.charAt(0);
@@ -32,13 +32,14 @@ export function AccountShell({
   current?: "overview";
   children: ReactNode;
 }) {
+  const toast = useToast();
   const menu: MenuItem[] = [
     { label: "Account settings", href: "/account/settings" },
     {
       label: "Log out",
       onSelect: async () => {
-        await authClient.signOut();
-        leaveTo("/");
+        const failed = await logOutHome();
+        if (failed) toast({ tone: "danger", title: "Still signed in", message: failed });
       },
     },
   ];

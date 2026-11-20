@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 // CDN-cached, so the server can't say; /api/session-hint is never cached. Any failure is "signed
 // out", which only leaves the header saying "Log in".
 
-export type SessionHint = "unknown" | "signed-in" | "signed-out";
+type SessionHint = "unknown" | "signed-in" | "signed-out";
 
 export function useSessionHint(): SessionHint {
   const [hint, setHint] = useState<SessionHint>("unknown");

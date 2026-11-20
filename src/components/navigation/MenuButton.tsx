@@ -4,7 +4,8 @@ import { cx } from "#/lib/cx";
 
 // A button that opens a short list of links and actions (6.1): the public header's "My account"
 // and the account header's avatar. A disclosure, not an ARIA menu: Tab moves through the items,
-// Escape or a click elsewhere closes it, and focus goes back to the button on Escape.
+// and the list closes when focus leaves it. Escape, a click elsewhere, or choosing an action
+// closes it and puts focus back on the button.
 
 export type MenuItem =
   | { label: string; href: string }
@@ -31,6 +32,14 @@ export function MenuButton({
   const panelId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const alive = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -41,15 +50,30 @@ export function MenuButton({
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
 
+  function closeOnButton() {
+    button.current?.focus();
+    setOpen(false);
+  }
+
   function onKeyDown(event: React.KeyboardEvent) {
     if (event.key !== "Escape" || !open) return;
     event.stopPropagation();
-    setOpen(false);
-    button.current?.focus();
+    closeOnButton();
+  }
+
+  // Tabbing out blurs with the next control as relatedTarget. A click inside can blur first, with
+  // nowhere focused yet, so the check waits a frame and then sees where focus actually landed.
+  function onBlur(event: React.FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    requestAnimationFrame(() => {
+      if (!alive.current) return;
+      if (!root.current?.contains(document.activeElement)) setOpen(false);
+    });
   }
 
   return (
-    <div ref={root} className={cx("kb-menu", className)} onKeyDown={onKeyDown}>
+    <div ref={root} className={cx("kb-menu", className)} onKeyDown={onKeyDown} onBlur={onBlur}>
       <button
         ref={button}
         type="button"
@@ -73,7 +97,7 @@ export function MenuButton({
                 type="button"
                 className="kb-menu__item"
                 onClick={() => {
-                  setOpen(false);
+                  closeOnButton();
                   void item.onSelect();
                 }}
               >

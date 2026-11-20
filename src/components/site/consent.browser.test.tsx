@@ -4,6 +4,8 @@ import { render } from "vitest-browser-react";
 
 import { attachPosthog, type ConsentStatus } from "#/lib/analytics";
 
+import { Toaster } from "#/components/feedback/Toaster";
+
 import { ConsentBanner } from "./ConsentBanner";
 import { SiteLayout } from "./SiteLayout";
 
@@ -45,12 +47,12 @@ afterEach(() => attachPosthog(undefined));
 function renderSite(client: FakePosthog, { load = true } = {}) {
   if (load) attachPosthog(client);
   return render(
-    <>
+    <Toaster>
       <SiteLayout>
         <p>Page</p>
       </SiteLayout>
       <ConsentBanner />
-    </>,
+    </Toaster>,
   );
 }
 
