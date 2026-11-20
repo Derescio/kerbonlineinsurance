@@ -15,7 +15,7 @@ import {
   setStripeCustomerId,
 } from "#/server/data/checkout-rows";
 import { defineWrite, rejected, type DataWrite, type WriteEnvelope } from "#/server/data/define";
-import { dropMultiPolicySaving, policyStillEarns } from "#/server/data/multi-policy";
+import { dropMultiPolicySaving, policyStillEarns } from "#/server/data/multi-policy-rows";
 import { monthlyPaymentFor, type LockedCustomer, type PurchaseItem } from "#/server/data/pay-quote";
 import { QUOTE_PAY_RULE } from "#/server/data/rate-limit-rules";
 import type { Tx } from "#/server/db/tx";

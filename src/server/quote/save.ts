@@ -12,7 +12,7 @@ import { homeDetailsFromJourney } from "#/features/rating/home-details";
 import { priceQuote, withSingleItemSaving } from "#/features/rating/price-quote";
 import { Tables } from "#/features/rating/tables";
 import { defineWrite, type DataWrite } from "#/server/data/define";
-import { earningPolicy, type Buyable } from "#/server/data/multi-policy";
+import { earningPolicy, type Buyable } from "#/server/data/multi-policy-rows";
 import { QUOTE_SAVE_RULE } from "#/server/data/rate-limit-rules";
 import { customerForQuote, saveQuote } from "#/server/data/save-quote";
 import type { RatingTables } from "#/server/data/reference";
