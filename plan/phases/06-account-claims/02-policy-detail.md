@@ -1,6 +1,6 @@
 # 6.2 Policy detail
 
-**Status:** built, awaiting preview check (spec approved by Damion, 20 Nov 2026)
+**Status:** done (#110, #111; spec approved by Damion, 20 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -105,6 +105,11 @@ A customer can open any of their policies and see what it covers. They can also 
 - **The detail route** is `account_.policies_.$reference.tsx`, so it isn't nested inside the Policies page.
 - **`unpdf`** is a dev dependency: the route's integration tests read the PDFs' text with it.
 - **E2E:** `buy.spec.ts` now opens the policy from the Overview, downloads the certificate, and visits Policies and Documents, with axe at 390, 768 and 1440px; `a11y.spec.ts` checks the three new pages redirect a signed-out visitor.
+
+## Staging check (Damion, 21 Nov 2026)
+
+- Preview: the policy pages and both downloads work.
+- Staging: downloads failed until #111 shipped pdfkit unbundled; after it, the certificate and the schedule download.
 
 ## Commit message
 
