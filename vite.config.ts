@@ -201,6 +201,10 @@ function appPlugins() {
       routeRules: Object.fromEntries(
         posthogProxy.map(({ from, to }) => [`${from}/**`, { proxy: `${to}/**` }]),
       ),
+      // pdfkit (under @react-pdf/renderer, 6.2) loads its standard fonts with a lazy
+      // require("#standard-fonts/…"), which resolves only from its own package.json: bundled, the
+      // PDF routes throw. Shipped whole, as a package, it resolves as it does in dev.
+      traceDeps: ["pdfkit*"],
       vercel: {
         // London, next to Neon aws-eu-west-2 (plan/engineering.md section 2)
         functions: { regions: ["lhr1"] },
