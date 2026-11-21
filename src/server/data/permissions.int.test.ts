@@ -52,7 +52,11 @@ let purchaseA: { quoteId: string };
 const cases: Case[] = [
   { read: data.listMyPolicies, input: () => ({}), owner: null },
   { read: data.getMyNextPayment, input: () => ({}), owner: null },
-  { read: data.getMyPolicy, input: (w) => ({ policyId: w.records.policyA.id }), owner: "A" },
+  {
+    read: data.getMyPolicy,
+    input: (w) => ({ reference: w.records.policyA.reference }),
+    owner: "A",
+  },
   { read: data.listMyQuotes, input: () => ({}), owner: null },
   { read: data.getMyCustomerName, input: () => ({}), owner: null },
   { read: data.getMultiPolicyOffer, input: () => ({ product: "home" }), owner: null },
@@ -168,9 +172,9 @@ describe("access from the map", () => {
 describe("customer reads", () => {
   it("hides someone else's policy and claim as not found", async () => {
     const { customerB, records } = world;
-    expect(await codeOf(() => data.getMyPolicy(customerB, { policyId: records.policyA.id }))).toBe(
-      "NOT_FOUND",
-    );
+    expect(
+      await codeOf(() => data.getMyPolicy(customerB, { reference: records.policyA.reference })),
+    ).toBe("NOT_FOUND");
     expect(await codeOf(() => data.getMyClaim(customerB, { claimId: records.claimA.id }))).toBe(
       "NOT_FOUND",
     );
@@ -186,7 +190,7 @@ describe("customer reads", () => {
 
   it("gives a customer their own policy with its claims", async () => {
     const { customerA, records } = world;
-    const policy = await data.getMyPolicy(customerA, { policyId: records.policyA.id });
+    const policy = await data.getMyPolicy(customerA, { reference: records.policyA.reference });
     expect(policy.id).toBe(records.policyA.id);
     expect(policy.claims.map((c) => c.id).sort()).toEqual(
       [records.claimA.id, records.draftClaimA.id].sort(),
@@ -222,8 +226,16 @@ describe("customer reads", () => {
     "treats the id %j as not found",
     async (id) => {
       const { customerA } = world;
-      expect(await codeOf(() => data.getMyPolicy(customerA, { policyId: id }))).toBe("NOT_FOUND");
       expect(await codeOf(() => data.getMyClaim(customerA, { claimId: id }))).toBe("NOT_FOUND");
+    },
+  );
+
+  it.each(["", "KRB-12345", "krb-123456", "'; drop table policies;--", "KRB-000000"])(
+    "treats the policy reference %j as not found",
+    async (reference) => {
+      expect(await codeOf(() => data.getMyPolicy(world.customerA, { reference }))).toBe(
+        "NOT_FOUND",
+      );
     },
   );
 });

@@ -3,11 +3,19 @@ import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { resolveActor } from "#/server/auth/actor";
 import { closeDb, getDb } from "#/server/db/client";
-import { bundles, properties, quotes, vehicles } from "#/server/db/schema";
+import {
+  bundles,
+  drivers,
+  policies,
+  properties,
+  quoteItemAddons,
+  quotes,
+  vehicles,
+} from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
 import { makeCustomer, makePayment, makePolicy, makeQuote, makeUser } from "#/test/factories";
 
-import { getMyNextPayment, listMyPolicies } from "./policies";
+import { getMyNextPayment, getMyPolicy, listMyPolicies } from "./policies";
 
 // The account page's "Your policies" (5.6, decision 12; 5.6b, decision 9): a policy is monthly
 // when its quote's payments are a Stripe subscription, which is what /account/billing's portal
@@ -178,6 +186,156 @@ describe("listMyPolicies: label (6.1)", () => {
     const loner = await makeUser();
     const lonerActor = (await resolveActor(getDb(), loner.id))!;
     expect(await listMyPolicies(lonerActor, {})).toEqual([]);
+  });
+});
+
+describe("getMyPolicy (6.2)", () => {
+  it("gives a car policy with its car, drivers (main first), add-ons, excesses and annual plan", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const policy = await makePolicy({ customerId: customer.id, voluntaryExcessPence: 15_000 });
+    await getDb()
+      .update(policies)
+      .set({ annualPremiumPence: 54_500 })
+      .where(eq(policies.id, policy.id));
+    await getDb().insert(drivers).values({
+      quoteItemId: policy.quoteItemId,
+      firstName: "Sam",
+      lastName: "Taylor",
+      dateOfBirth: "1992-02-02",
+      occupation: "nurse",
+      licenceYears: 3,
+      noClaimsYears: 0,
+      relationship: "spouse",
+    });
+    await getDb()
+      .update(quoteItemAddons)
+      .set({ selected: true })
+      .where(eq(quoteItemAddons.quoteItemId, policy.quoteItemId));
+    await makePayment({ customerId: customer.id, quoteId: policy.quoteId });
+
+    const detail = await getMyPolicy(actor, { reference: policy.reference });
+    expect(detail).toMatchObject({
+      reference: policy.reference,
+      product: "car",
+      compulsoryExcessPence: 25_000,
+      voluntaryExcessPence: 15_000,
+      car: {
+        make: "Volkswagen",
+        model: "Golf",
+        variant: "1.5 TSI Life",
+        year: 2019,
+        registration: "AB19 CDE",
+        usage: "commuting",
+      },
+      home: null,
+      policyholder: { firstName: "Alex", lastName: "Taylor", postcode: "SW1A 1AA" },
+      coverPremiumPence: 50_000,
+      addons: [{ addon: "breakdown_uk", annualPricePence: 4_500 }],
+      saving: null,
+      bundled: false,
+      plan: { kind: "annual" },
+    });
+    expect(detail.drivers.map((d) => [d.firstName, d.isMain, d.relationship])).toEqual([
+      ["Alex", true, null],
+      ["Sam", false, "spouse"],
+    ]);
+    expect(detail.boughtOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(detail).not.toHaveProperty("customerId");
+    expect(detail).not.toHaveProperty("quoteId");
+  });
+
+  it("gives a home policy with its property and no drivers", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const policy = await makePolicy({ customerId: customer.id, product: "home" });
+    const detail = await getMyPolicy(actor, { reference: policy.reference });
+    expect(detail.car).toBeNull();
+    expect(detail.drivers).toEqual([]);
+    expect(detail.home).toMatchObject({
+      addressLine1: "1 Test Street",
+      propertyType: "terraced",
+      rebuildCostPence: 30_000_000,
+      contentsValuePence: 4_000_000,
+      valuablesPence: null,
+    });
+  });
+
+  it("names a bundle's share of the saving and the monthly instalment for both", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const { quote, items } = await makeQuote({
+      customerId: customer.id,
+      products: ["car", "home"],
+    });
+    await getDb()
+      .update(quotes)
+      .set({
+        bundleDiscountPence: 8_000,
+        paymentPlan: "monthly",
+        totalPence: quote.totalPence - 8_000,
+      })
+      .where(eq(quotes.id, quote.id));
+    const [bundle] = await getDb()
+      .insert(bundles)
+      .values({ customerId: customer.id, quoteId: quote.id })
+      .returning();
+    const home = await makePolicy({
+      customerId: customer.id,
+      quoteId: quote.id,
+      quoteItemId: items.find((i) => i.item.product === "home")!.item.id,
+      product: "home",
+      bundleId: bundle!.id,
+      annualPremiumPence: 46_000,
+    });
+    for (const [instalmentNumber, amountPence] of [
+      [1, 9_000],
+      [2, 8_500],
+    ] as const) {
+      await makePayment({
+        customerId: customer.id,
+        quoteId: quote.id,
+        plan: "monthly",
+        instalmentNumber,
+        amountPence,
+      });
+    }
+
+    const detail = await getMyPolicy(actor, { reference: home.reference });
+    expect(detail.saving).toEqual({ kind: "bundle", pence: 4_000 });
+    expect(detail.bundled).toBe(true);
+    expect(detail.plan).toEqual({ kind: "monthly", instalmentPence: 8_500 });
+  });
+
+  it("calls a saving from an earlier policy earned", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const car = await makePolicy({ customerId: customer.id });
+    const home = await makePolicy({
+      customerId: customer.id,
+      product: "home",
+      annualPremiumPence: 46_000,
+    });
+    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, home.quoteId));
+    await getDb()
+      .update(quotes)
+      .set({
+        bundleDiscountPence: 4_000,
+        bundlePolicyId: car.id,
+        totalPence: quote!.totalPence - 4_000,
+      })
+      .where(eq(quotes.id, home.quoteId));
+    const detail = await getMyPolicy(actor, { reference: home.reference });
+    expect(detail.saving).toEqual({ kind: "earned", pence: 4_000 });
+  });
+
+  it("hides another customer's policy, and gives none to a user with no customer row", async () => {
+    const { actor } = await signedInCustomer();
+    const other = await makePolicy();
+    await expect(getMyPolicy(actor, { reference: other.reference })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    const loner = await makeUser();
+    const lonerActor = (await resolveActor(getDb(), loner.id))!;
+    await expect(getMyPolicy(lonerActor, { reference: other.reference })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 });
 

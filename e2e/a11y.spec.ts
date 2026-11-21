@@ -30,6 +30,9 @@ const redirected: [path: string, lands: RegExp][] = [
   ["/login/two-factor", /\/login$/],
   ["/account/two-factor", /\/login\?redirect=%2Faccount%2Ftwo-factor$/],
   ["/account/settings", /\/login\?redirect=%2Faccount%2Fsettings$/],
+  ["/account/policies", /\/login\?redirect=%2Faccount%2Fpolicies$/],
+  ["/account/policies/KRB-123456", /\/login\?redirect=%2Faccount%2Fpolicies%2FKRB-123456$/],
+  ["/account/documents", /\/login\?redirect=%2Faccount%2Fdocuments$/],
 ];
 
 async function expectNoBlockingViolations(page: Page) {

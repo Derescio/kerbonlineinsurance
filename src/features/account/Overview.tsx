@@ -240,54 +240,74 @@ function YourPolicies({
       ) : celebrate ? (
         <>
           <CarAndHomeBanner {...celebrate} />
-          <ul className="ovw__list">
-            {groupByBundle(policies)
-              .flatMap((group) => group.policies)
-              .map((policy) => (
-                <PolicyRow key={policy.id} policy={policy} today={today} />
-              ))}
-          </ul>
+          <PolicyList policies={policies} today={today} grouped={false} />
         </>
       ) : (
-        <ul className="ovw__list">
-          {groupByBundle(policies).map((group) =>
-            group.bundle ? (
-              <li key={group.bundle.id}>
-                <div
-                  role="group"
-                  aria-labelledby={`bundle-${group.bundle.id}`}
-                  className="ovw__bundle"
-                >
-                  <div className="ovw__bundle-head">
-                    <span className="ovw__bundle-icons" aria-hidden="true">
-                      <Icon name="car" size={20} />
-                      <Icon name="house" size={20} />
-                    </span>
-                    <div>
-                      <p id={`bundle-${group.bundle.id}`} className="ovw__bundle-title">
-                        Car + home bundle
-                      </p>
-                      {group.bundle.savingPence ? (
-                        <p className="ovw__bundle-saving">
-                          You save {formatPounds(group.bundle.savingPence)} a year
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <ul className="ovw__list">
-                    {group.policies.map((policy) => (
-                      <PolicyRow key={policy.id} policy={policy} today={today} />
-                    ))}
-                  </ul>
-                </div>
-              </li>
-            ) : (
-              <PolicyRow key={group.policies[0]!.id} policy={group.policies[0]!} today={today} />
-            ),
-          )}
-        </ul>
+        <PolicyList policies={policies} today={today} />
       )}
     </Card>
+  );
+}
+
+/**
+ * The policies, each row a link to its page (6.2, decision 2), with a bundle's policies under its
+ * heading. Ungrouped, the bundles still sit together, car first.
+ */
+export function PolicyList({
+  policies,
+  today,
+  grouped = true,
+}: {
+  policies: PolicyListItem[];
+  today: string;
+  grouped?: boolean;
+}) {
+  const groups = groupByBundle(policies);
+  if (!grouped) {
+    return (
+      <ul className="ovw__list">
+        {groups
+          .flatMap((group) => group.policies)
+          .map((policy) => (
+            <PolicyRow key={policy.id} policy={policy} today={today} />
+          ))}
+      </ul>
+    );
+  }
+  return (
+    <ul className="ovw__list">
+      {groups.map((group) =>
+        group.bundle ? (
+          <li key={group.bundle.id}>
+            <div role="group" aria-labelledby={`bundle-${group.bundle.id}`} className="ovw__bundle">
+              <div className="ovw__bundle-head">
+                <span className="ovw__bundle-icons" aria-hidden="true">
+                  <Icon name="car" size={20} />
+                  <Icon name="house" size={20} />
+                </span>
+                <div>
+                  <p id={`bundle-${group.bundle.id}`} className="ovw__bundle-title">
+                    Car + home bundle
+                  </p>
+                  {group.bundle.savingPence ? (
+                    <p className="ovw__bundle-saving">
+                      You save {formatPounds(group.bundle.savingPence)} a year
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <ul className="ovw__list">
+                {group.policies.map((policy) => (
+                  <PolicyRow key={policy.id} policy={policy} today={today} />
+                ))}
+              </ul>
+            </div>
+          </li>
+        ) : (
+          <PolicyRow key={group.policies[0]!.id} policy={group.policies[0]!} today={today} />
+        ),
+      )}
+    </ul>
   );
 }
 
@@ -343,7 +363,7 @@ function CarAndHomeBanner({ savingPence, savedOn }: CarAndHome) {
 }
 
 /** What the policy insures: the plate (or an icon) to lead the row, and the car or the address */
-function insured(policy: PolicyListItem): { lead: ReactNode; name: string } {
+export function insured(policy: PolicyListItem): { lead: ReactNode; name: string } {
   const { label } = policy;
   const icon = (name: "car" | "house") => <Icon name={name} size={24} className="ovw__row-icon" />;
   if (label?.kind === "car") {
@@ -360,23 +380,30 @@ function PolicyRow({ policy, today }: { policy: PolicyListItem; today: string })
   const status = rowStatus(policy, today);
   const { lead, name } = insured(policy);
   return (
-    <li className="ovw__row">
-      <div className="ovw__row-lead">{lead}</div>
-      <div className="ovw__row-main">
-        <p className="ovw__row-name">{name}</p>
-        <p className="ovw__row-meta">{tierName(policy.coverLevel)}</p>
-        {policy.status === "lapsed" && status.label === "Lapsed" ? (
-          <p className="ovw__row-meta">
-            Your payment didn’t go through. Update your card to restart your cover.
-          </p>
-        ) : null}
-      </div>
-      <div className="ovw__row-status">
-        <Badge tone={status.tone} dot>
-          {status.label}
-        </Badge>
-        {status.date ? <p className="ovw__row-meta">{status.date}</p> : null}
-      </div>
+    <li>
+      <Link
+        to="/account/policies/$reference"
+        params={{ reference: policy.reference }}
+        className="ovw__row"
+      >
+        <div className="ovw__row-lead">{lead}</div>
+        <div className="ovw__row-main">
+          <p className="ovw__row-name">{name}</p>
+          <p className="ovw__row-meta">{tierName(policy.coverLevel)}</p>
+          {policy.status === "lapsed" && status.label === "Lapsed" ? (
+            <p className="ovw__row-meta">
+              Your payment didn’t go through. Update your card to restart your cover.
+            </p>
+          ) : null}
+        </div>
+        <div className="ovw__row-status">
+          <Badge tone={status.tone} dot>
+            {status.label}
+          </Badge>
+          {status.date ? <p className="ovw__row-meta">{status.date}</p> : null}
+        </div>
+        <Icon name="chevron-right" size={20} className="ovw__row-chevron" />
+      </Link>
     </li>
   );
 }

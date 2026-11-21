@@ -16,6 +16,7 @@ export function policy(over: Partial<PolicyListItem> = {}): PolicyListItem {
     earnedBy: null,
     label: { kind: "car", plate: "KR24 BXL", make: "Volkswagen", model: "Golf" },
     annualPremiumPence: 53_640,
+    boughtOn: "2026-03-14",
     ...over,
   };
 }
