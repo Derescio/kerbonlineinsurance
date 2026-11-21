@@ -47,6 +47,7 @@ import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/res
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as QuoteQuoteCoveredQuoteIdRouteImport } from './routes/_quote/quote.covered.$quoteId'
 import { Route as QuoteQuotePayQuoteIdRouteImport } from './routes/_quote/quote.pay.$quoteId'
+import { Route as ApiPoliciesReferenceDocumentsKindRouteImport } from './routes/api/policies.$reference.documents.$kind'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -235,6 +236,12 @@ const QuoteQuotePayQuoteIdRoute = QuoteQuotePayQuoteIdRouteImport.update({
   path: '/quote/pay/$quoteId',
   getParentRoute: () => QuoteRoute,
 } as any)
+const ApiPoliciesReferenceDocumentsKindRoute =
+  ApiPoliciesReferenceDocumentsKindRouteImport.update({
+    id: '/api/policies/$reference/documents/$kind',
+    path: '/api/policies/$reference/documents/$kind',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
@@ -271,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/quote/': typeof QuoteQuoteIndexRoute
   '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
+  '/api/policies/$reference/documents/$kind': typeof ApiPoliciesReferenceDocumentsKindRoute
 }
 export interface FileRoutesByTo {
   '/': typeof SiteIndexRoute
@@ -307,6 +315,7 @@ export interface FileRoutesByTo {
   '/quote': typeof QuoteQuoteIndexRoute
   '/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
+  '/api/policies/$reference/documents/$kind': typeof ApiPoliciesReferenceDocumentsKindRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -348,6 +357,7 @@ export interface FileRoutesById {
   '/_quote/quote/': typeof QuoteQuoteIndexRoute
   '/_quote/quote/covered/$quoteId': typeof QuoteQuoteCoveredQuoteIdRoute
   '/_quote/quote/pay/$quoteId': typeof QuoteQuotePayQuoteIdRoute
+  '/api/policies/$reference/documents/$kind': typeof ApiPoliciesReferenceDocumentsKindRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -386,6 +396,7 @@ export interface FileRouteTypes {
     | '/quote/'
     | '/quote/covered/$quoteId'
     | '/quote/pay/$quoteId'
+    | '/api/policies/$reference/documents/$kind'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -422,6 +433,7 @@ export interface FileRouteTypes {
     | '/quote'
     | '/quote/covered/$quoteId'
     | '/quote/pay/$quoteId'
+    | '/api/policies/$reference/documents/$kind'
   id:
     | '__root__'
     | '/_auth'
@@ -462,6 +474,7 @@ export interface FileRouteTypes {
     | '/_quote/quote/'
     | '/_quote/quote/covered/$quoteId'
     | '/_quote/quote/pay/$quoteId'
+    | '/api/policies/$reference/documents/$kind'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -485,6 +498,7 @@ export interface RootRouteChildren {
   ApiCronJobsRoute: typeof ApiCronJobsRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  ApiPoliciesReferenceDocumentsKindRoute: typeof ApiPoliciesReferenceDocumentsKindRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -755,6 +769,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QuoteQuotePayQuoteIdRouteImport
       parentRoute: typeof QuoteRoute
     }
+    '/api/policies/$reference/documents/$kind': {
+      id: '/api/policies/$reference/documents/$kind'
+      path: '/api/policies/$reference/documents/$kind'
+      fullPath: '/api/policies/$reference/documents/$kind'
+      preLoaderRoute: typeof ApiPoliciesReferenceDocumentsKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -847,6 +868,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronJobsRoute: ApiCronJobsRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  ApiPoliciesReferenceDocumentsKindRoute:
+    ApiPoliciesReferenceDocumentsKindRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

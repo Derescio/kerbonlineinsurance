@@ -101,10 +101,10 @@ const LONG = new Intl.DateTimeFormat("en-GB", {
 /** "1 Dec" */
 export const shortDay = (iso: string) => SHORT.format(utc(iso));
 /** "14 Mar 2027" */
-const longDay = (iso: string) => LONG.format(utc(iso));
+export const longDay = (iso: string) => LONG.format(utc(iso));
 
 /** The day after `iso`: a policy renews the day after its cover ends */
-function dayAfter(iso: string): string {
+export function dayAfter(iso: string): string {
   const next = utc(iso);
   next.setUTCDate(next.getUTCDate() + 1);
   return next.toISOString().slice(0, 10);

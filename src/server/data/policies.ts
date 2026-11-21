@@ -44,11 +44,73 @@ export type PolicyListItem = PolicySummary & {
   annualPremiumPence: number;
 };
 
+/** The insured car, as policy detail and the documents show it (6.2) */
+export interface PolicyCar {
+  make: string;
+  model: string;
+  variant: string;
+  year: number;
+  registration: string | null;
+  valuePence: number;
+  usage: string;
+}
+
+/** A driver on a car policy; `relationship` is null for the main driver and pre-5.7c rows */
+export interface PolicyDriver {
+  firstName: string;
+  lastName: string;
+  isMain: boolean;
+  licenceYears: number;
+  relationship: string | null;
+}
+
+/** The insured home (6.2) */
+export interface PolicyHome {
+  addressLine1: string;
+  addressLine2: string | null;
+  town: string;
+  postcode: string;
+  propertyType: string;
+  yearBuilt: number;
+  bedrooms: number;
+  rebuildCostPence: number;
+  contentsValuePence: number;
+  valuablesPence: number | null;
+}
+
+/**
+ * One policy, for its detail page and its certificate and schedule (6.2, decisions 3–8). What it
+ * insures is the quote item's snapshot, which no later quote changes.
+ */
 export type PolicyDetail = PolicySummary & {
   annualPremiumPence: number;
   compulsoryExcessPence: number;
   voluntaryExcessPence: number;
   autoRenew: boolean;
+  /** The London day it was bought: the documents' date until policy_versions (6.3) */
+  boughtOn: string;
+  policyholder: {
+    firstName: string;
+    lastName: string;
+    addressLine1: string;
+    addressLine2: string | null;
+    town: string;
+    postcode: string;
+  };
+  car: PolicyCar | null;
+  /** Main driver first */
+  drivers: PolicyDriver[];
+  home: PolicyHome | null;
+  /** The chosen tier's yearly premium, before any saving and add-ons */
+  coverPremiumPence: number;
+  addons: { addon: string; annualPricePence: number }[];
+  /** This policy's part of its quote's saving: a same-quote bundle's share, or one an earlier policy earned (6.1b) */
+  saving: { kind: "bundle" | "earned"; pence: number } | null;
+  bundled: boolean;
+  /** Monthly: the instalment, which covers every policy on the quote (a bundle's car and home) */
+  plan: { kind: "monthly"; instalmentPence: number } | { kind: "annual" };
+  /** The quote it was bought from, with what was paid for it in a year, IPT included */
+  quote: { reference: string; totalPence: number };
   claims: ClaimSummary[];
 };
 
@@ -235,28 +297,130 @@ export const getMyNextPayment = defineRead(
   },
 );
 
+/** A policy reference as customers see it (policies_reference_check) */
+export const policyReference = z.string().regex(/^KRB-\d{6}$/);
+
+/** By the reference in its URL (6.2, decision 1); another customer's is as missing as an unknown one */
 export const getMyPolicy = defineRead(
   "signed_in",
-  z.object({ policyId: z.uuid() }),
-  async (actor, { policyId }, db): Promise<PolicyDetail> => {
+  z.object({ reference: policyReference }),
+  async (actor, { reference }, db): Promise<PolicyDetail> => {
     if (!actor.customerId) throw new AuthzError("NOT_FOUND");
-    const policy = await db.query.policies.findFirst({
+    const row = await db.query.policies.findFirst({
       columns: {
         ...summaryColumns,
         annualPremiumPence: true,
         compulsoryExcessPence: true,
         voluntaryExcessPence: true,
         autoRenew: true,
+        bundleId: true,
+        createdAt: true,
       },
-      where: and(eq(policies.id, policyId), eq(policies.customerId, actor.customerId)),
+      where: and(eq(policies.reference, reference), eq(policies.customerId, actor.customerId)),
       with: {
+        customer: {
+          columns: {
+            firstName: true,
+            lastName: true,
+            addressLine1: true,
+            addressLine2: true,
+            town: true,
+            postcode: true,
+          },
+        },
+        quote: {
+          columns: {
+            reference: true,
+            totalPence: true,
+            paymentPlan: true,
+            bundleDiscountPence: true,
+          },
+          with: {
+            payments: {
+              columns: { amountPence: true },
+              orderBy: (payment, { asc }) => [asc(payment.instalmentNumber)],
+              limit: 2,
+            },
+          },
+        },
+        quoteItem: {
+          columns: {},
+          with: {
+            vehicle: {
+              columns: {
+                make: true,
+                model: true,
+                variant: true,
+                year: true,
+                registration: true,
+                valuePence: true,
+                usage: true,
+              },
+            },
+            drivers: {
+              columns: {
+                firstName: true,
+                lastName: true,
+                isMain: true,
+                licenceYears: true,
+                relationship: true,
+              },
+              orderBy: (driver, { desc, asc }) => [desc(driver.isMain), asc(driver.createdAt)],
+            },
+            property: {
+              columns: {
+                addressLine1: true,
+                addressLine2: true,
+                town: true,
+                postcode: true,
+                propertyType: true,
+                yearBuilt: true,
+                bedrooms: true,
+                rebuildCostPence: true,
+                contentsValuePence: true,
+                valuablesPence: true,
+              },
+            },
+            selectedOption: { columns: { annualPremiumPence: true } },
+            addons: {
+              columns: { addon: true, annualPricePence: true },
+              where: (addon, { eq }) => eq(addon.selected, true),
+              orderBy: (addon, { asc }) => [asc(addon.addon)],
+            },
+          },
+        },
         claims: {
           columns: claimSummaryColumns,
           orderBy: (claim, { desc }) => [desc(claim.createdAt)],
         },
       },
     });
-    if (!policy) throw new AuthzError("NOT_FOUND");
-    return policy;
+    if (!row) throw new AuthzError("NOT_FOUND");
+    const { bundleId, createdAt, customer, quote, quoteItem, ...policy } = row;
+    const coverPremiumPence = quoteItem.selectedOption?.annualPremiumPence ?? 0;
+    const addonsPence = quoteItem.addons.reduce((total, a) => total + a.annualPricePence, 0);
+    // The premium stored at purchase is the tier and add-ons less this policy's share of the saving
+    const savingPence = Math.max(0, coverPremiumPence + addonsPence - policy.annualPremiumPence);
+    const [first, second] = quote.payments;
+    return {
+      ...policy,
+      boughtOn: todayIso(createdAt),
+      policyholder: customer,
+      car: quoteItem.vehicle ?? null,
+      drivers: quoteItem.drivers,
+      home: quoteItem.property ?? null,
+      coverPremiumPence,
+      addons: quoteItem.addons,
+      saving:
+        savingPence > 0 && (quote.bundleDiscountPence ?? 0) > 0
+          ? { kind: bundleId ? "bundle" : "earned", pence: savingPence }
+          : null,
+      bundled: bundleId !== null,
+      plan:
+        quote.paymentPlan === "monthly" && first
+          ? { kind: "monthly", instalmentPence: (second ?? first).amountPence }
+          : { kind: "annual" },
+      quote: { reference: quote.reference, totalPence: quote.totalPence },
+    };
   },
 );
