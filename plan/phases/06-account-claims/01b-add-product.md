@@ -1,6 +1,6 @@
 # 6.1b Add another product later
 
-**Status:** approved (Damion, 19 Nov 2026)
+**Status:** done (#108; spec approved by Damion, 19 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -88,6 +88,17 @@ A customer who already holds one product can start the other from the Overview, 
 - A customer with an active car and an active home sees the car + home banner, with the yearly saving when there is one.
 - The migration has run on dev, and the tests above pass in `ci`.
 - Preview manual check by Damion.
+
+## Shipped with it (#108)
+
+- **My quotes** (`/quote/retrieve`) redrawn to Figma `270:3759` for every state (ready, under review, bought, expired) and for one product or a bundle. "Your saved quotes" is "My quotes" everywhere a customer reads it: the Overview's button (12px corners, inside the 16px card), the page heading and title, the sign-up message, and the refunded page's link.
+- **CI fixes after the first push:** `quotes.bundle_policy_id` in the data contract; the saving's row helpers moved to `multi-policy-rows.ts` (like `quote-rows.ts`), and `getMultiPolicyOffer` and `getMyAddProducts` exported from `data/index.ts` with a signed-in permission case each.
+
+## Checks (Damion, 20 Nov 2026)
+
+- **Local manual check:** car policy KRB-818784 bought, then home KRB-428342 from the Overview's card. The home quote KRB-Q-71234 has 3814p off (8% of the 47670p premium) and `bundle_policy_id` set to the car policy, with no `bundles` row. The Overview showed the car + home banner with £38.14 and "Your home insurance costs less because you already insure your car with us."
+- **E2E against staging** (`e2e.yml` by hand): 99 passed, and 16 stopped at the Turnstile captcha on sign-up and forgot password. Staging has the real Turnstile key, which blocks headless Chrome, and the workflow runs main's copy of the specs, which doesn't have `add-product.spec.ts` yet.
+- **`add-product.spec.ts` against #108's preview** (Cloudflare's test key; run locally): passed in 1.2 minutes. Its first run timed out on the "Add home insurance" click, because the cookie bar covered the card at 390px; the spec now answers the bar first, as a visitor would.
 
 ## Commit message
 
