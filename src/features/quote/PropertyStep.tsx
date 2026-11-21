@@ -69,9 +69,14 @@ export function PropertyStep({
   const [addresses, setAddresses] = useState<DemoAddress[]>([]);
   const [listedFor, setListedFor] = useState(journey.postcode);
   // With no address of its own, it starts from the car's, typed in (5.7b, decision 3)
-  const [shared] = useState(() =>
-    stored?.address ? undefined : prefillAddress(readJourney("car")),
-  );
+  const [shared] = useState(() => {
+    if (stored?.address) return undefined;
+    const account = journey.fromCustomer;
+    if (account) {
+      return { line1: account.addressLine1, line2: account.addressLine2, town: account.town };
+    }
+    return prefillAddress(readJourney("car"));
+  });
   const [address, setAddress] = useState<Address | null>(() =>
     stored?.address
       ? { ...blankAddress, ...stored.address }

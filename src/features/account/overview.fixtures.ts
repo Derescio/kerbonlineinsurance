@@ -13,6 +13,7 @@ export function policy(over: Partial<PolicyListItem> = {}): PolicyListItem {
     endsOn: "2027-03-13",
     monthly: true,
     bundle: null,
+    earnedBy: null,
     label: { kind: "car", plate: "KR24 BXL", make: "Volkswagen", model: "Golf" },
     annualPremiumPence: 53_640,
     ...over,

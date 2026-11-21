@@ -5,6 +5,8 @@
 export * from "./claims";
 // Uploads (4.10): the four reads; the writes (createUpload and the rest) are `kind: "write"`
 export * from "./files";
+// Adding the other product (6.1b): the saving's offer and the Overview's cards, signed in
+export * from "./multi-policy";
 export * from "./policies";
 // Saved quotes, the pay page and the purchase (5.6): owner-only
 export * from "./quotes";

@@ -1,11 +1,13 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
+import { Tables } from "#/features/rating/tables";
 import { AuthzError } from "#/server/auth/errors";
-import { customers, quotes } from "#/server/db/schema";
+import { customers, policies, quotes } from "#/server/db/schema";
 
 import { defineRead } from "./define";
 import { hasExpired, monthlyPaymentFor } from "./pay-quote";
+import { getRatingTables } from "./reference";
 
 // The signed-in customer's own saved quotes, the pay page and the purchase (5.6, decisions 6, 9
 // and 10). Every query filters by actor.customerId, so someone else's quote is indistinguishable
@@ -63,8 +65,12 @@ export interface PaymentSummary {
   policyholder: { firstName: string; lastName: string };
   /** Car first; a bundle has a car and a home (5.7b) */
   items: QuoteItemSummary[];
-  /** The bundle discount on the combined premiums; 0 for one item */
+  /** The bundle discount on the combined premiums; 0 for one item with no saving */
   bundleSavingPence: number;
+  /** The product already held, when this one-item quote's saving comes from it (6.1b) */
+  savingBecause: "car" | "home" | null;
+  /** That version's bundle_discount_rate, with savingBecause */
+  savingRate: number | null;
   annualTotalPence: number;
   monthlyPaymentPence: number;
   startDate: string;
@@ -220,6 +226,7 @@ export const getQuoteForPayment = defineRead(
         status: true,
         totalPence: true,
         bundleDiscountPence: true,
+        bundlePolicyId: true,
         validUntil: true,
       },
       where: and(eq(quotes.id, quoteId), eq(quotes.customerId, actor.customerId)),
@@ -238,6 +245,24 @@ export const getQuoteForPayment = defineRead(
     });
     const items = quote ? itemSummaries(quote.items) : [];
     if (!quote || !items.length) throw new AuthzError("NOT_FOUND");
+    const earning = quote.bundlePolicyId
+      ? await db.query.policies.findFirst({
+          columns: { product: true },
+          where: and(
+            eq(policies.id, quote.bundlePolicyId),
+            eq(policies.customerId, actor.customerId),
+          ),
+        })
+      : null;
+    const savingBecause =
+      items.length === 1 && (earning?.product === "car" || earning?.product === "home")
+        ? earning.product
+        : null;
+    const savingRate = savingBecause
+      ? new Tables(await getRatingTables(db, quote.items[0]!.ratingVersionId)).param(
+          "bundle_discount_rate",
+        )
+      : null;
     return {
       quoteId: quote.id,
       reference: quote.reference,
@@ -246,6 +271,8 @@ export const getQuoteForPayment = defineRead(
       policyholder: quote.customer,
       items,
       bundleSavingPence: quote.bundleDiscountPence ?? 0,
+      savingBecause,
+      savingRate,
       annualTotalPence: quote.totalPence,
       monthlyPaymentPence: await monthlyPaymentFor(
         db,

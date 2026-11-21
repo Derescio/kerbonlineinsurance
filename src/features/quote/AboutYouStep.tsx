@@ -53,6 +53,18 @@ export function AboutYouStep({
   const [form, setForm] = useState(() => {
     const own = storedAnswers(journey, "about") as AboutYou | undefined;
     if (own) return initial(own);
+    // The Overview's customer record wins over a home quote left in the tab (6.1b)
+    const account = journey.fromCustomer;
+    if (account) {
+      return initial({
+        firstName: account.firstName,
+        lastName: account.lastName,
+        dateOfBirth: account.dateOfBirth,
+        addressLine1: account.addressLine1,
+        addressLine2: account.addressLine2,
+        town: account.town,
+      } as AboutYou);
+    }
     const home = readJourney("home");
     const address = prefillAddress(home);
     return initial({

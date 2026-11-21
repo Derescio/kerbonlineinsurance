@@ -4,7 +4,12 @@ import { businessV1 } from "#/server/reference/rating/business-v1";
 import { carV1 } from "#/server/reference/rating/car-v1";
 import { homeV1 } from "#/server/reference/rating/home-v1";
 
-import { priceQuote, splitBundleDiscount, type QuoteItemRequest } from "./price-quote";
+import {
+  priceQuote,
+  splitBundleDiscount,
+  withSingleItemSaving,
+  type QuoteItemRequest,
+} from "./price-quote";
 import {
   businessInputs,
   carInputs,
@@ -271,6 +276,22 @@ describe("priceQuote", () => {
 
   it("refuses two items of one product", () => {
     expect(() => priceQuote([carItem(), carItem()])).toThrow("two car items");
+  });
+
+  it("takes the multi-policy rate off one item and leaves a two-item quote alone (6.1b)", () => {
+    const one = priceQuote([carItem(carAt(60_000))]);
+    const saved = withSingleItemSaving(one, 0.08, 0.12);
+    expect(saved.bundleDiscountPence).toBe(4_800);
+    expect(saved.items[0]!.selected!.discountPence).toBe(4_800);
+    expect(saved.items[0]!.selected!.iptPence).toBe(Math.round((60_000 - 4_800) * 0.12));
+    expect(saved.totalPence).toBe(
+      saved.subtotalPence - saved.bundleDiscountPence + saved.feesPence + saved.iptPence,
+    );
+    // Add-ons stay outside the discount: the subtotal is still the premium plus them
+    expect(saved.subtotalPence).toBe(one.subtotalPence);
+
+    const both = priceQuote([carItem(carAt(60_000)), homeItem(homeAt(10, 12_000))]);
+    expect(withSingleItemSaving(both, 0.5, 0.12)).toBe(both);
   });
 
   it("records the version it priced with", () => {

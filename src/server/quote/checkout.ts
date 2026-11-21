@@ -15,6 +15,7 @@ import {
   setStripeCustomerId,
 } from "#/server/data/checkout-rows";
 import { defineWrite, rejected, type DataWrite, type WriteEnvelope } from "#/server/data/define";
+import { dropMultiPolicySaving, policyStillEarns } from "#/server/data/multi-policy-rows";
 import { monthlyPaymentFor, type LockedCustomer, type PurchaseItem } from "#/server/data/pay-quote";
 import { QUOTE_PAY_RULE } from "#/server/data/rate-limit-rules";
 import type { Tx } from "#/server/db/tx";
@@ -33,7 +34,9 @@ import { checkQuote } from "./purchase";
 // answers it was made for. The Stripe calls happen inside the write's transaction: if anything
 // fails after the session is created, the row isn't written and the session expires unused.
 
-export type StartCheckoutResult = { clientSecret: string; checkoutId: string };
+export type StartCheckoutResult =
+  | { status: "ready"; clientSecret: string; checkoutId: string }
+  | { status: "repriced"; otherProduct: "car" | "home" };
 
 /**
  * What a test swaps: the Stripe client (the fake in src/test/stripe-fake.ts), whether customers go
@@ -150,13 +153,13 @@ async function start(
   deps: CheckoutDeps = {},
 ): Promise<WriteResult<StartCheckoutResult>> {
   const now = deps.now ?? new Date();
-  const write = defineWrite(
+  const write = defineWrite<CheckoutInput, StartCheckoutResult>(
     checkoutInput(todayIso(now)),
     {
       limit: { action: "quote.pay", rule: QUOTE_PAY_RULE },
       idempotent: { action: "quote.pay" },
     },
-    async (actor, input: CheckoutInput, tx) => {
+    async (actor, input, tx) => {
       // 1. Everything purchase() will check, without writing
       if (!actor.customerId) throw new AuthzError("NOT_FOUND");
       const checked = await checkQuote(tx, {
@@ -167,6 +170,15 @@ async function start(
       });
       if (!checked.ok) return rejected(checked.message);
       const { customer, quote, items } = checked;
+      // The earning policy is read again here, before any charge (6.1b, decision 5). If it no
+      // longer qualifies, the quote is stored at the full price and nothing is sent to Stripe.
+      if (
+        quote.bundlePolicyId &&
+        !(await policyStillEarns(tx, quote.bundlePolicyId, customer.id, now))
+      ) {
+        const otherProduct = await dropMultiPolicySaving(tx, quote.id);
+        return { status: "repriced", otherProduct };
+      }
       const amountPence =
         input.plan === "monthly"
           ? await monthlyPaymentFor(
@@ -205,7 +217,7 @@ async function start(
         coverAcknowledgedAt: now,
         amountPence,
       });
-      return { clientSecret: session.client_secret, checkoutId: row.id };
+      return { status: "ready", clientSecret: session.client_secret, checkoutId: row.id };
     },
   );
   return write(actor, raw, ctx);

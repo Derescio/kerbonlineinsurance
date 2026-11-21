@@ -55,6 +55,8 @@ const cases: Case[] = [
   { read: data.getMyPolicy, input: (w) => ({ policyId: w.records.policyA.id }), owner: "A" },
   { read: data.listMyQuotes, input: () => ({}), owner: null },
   { read: data.getMyCustomerName, input: () => ({}), owner: null },
+  { read: data.getMultiPolicyOffer, input: () => ({ product: "home" }), owner: null },
+  { read: data.getMyAddProducts, input: () => ({}), owner: null },
   { read: data.getQuoteForPayment, input: () => ({ quoteId: purchaseA.quoteId }), owner: "A" },
   { read: data.getPurchase, input: () => ({ quoteId: purchaseA.quoteId }), owner: "A" },
   { read: data.listMyClaims, input: () => ({}), owner: null },
@@ -425,7 +427,8 @@ describe("audit of staff views (4.5b)", () => {
 // jobs table's helpers behind the runner (4.11); event-rows.ts is the guest funnel writes (5.1);
 // postcode-rows.ts is the guest postcode cache (5.2); quote-rows.ts and save-quote.ts are a priced
 // quote's row builder and its transaction (5.4), which 5.6 wraps in a protected write; checkout-rows.ts is the Stripe
-// checkout, webhook and lapse-job row helpers (5.6b).
+// checkout, webhook and lapse-job row helpers (5.6b); multi-policy-rows.ts is the one-item saving's
+// helpers behind the quote save and the checkout (6.1b).
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -443,6 +446,7 @@ const modules = import.meta.glob(
     "!./save-quote.ts",
     "!./pay-quote.ts",
     "!./checkout-rows.ts",
+    "!./multi-policy-rows.ts",
   ],
   {
     eager: true,

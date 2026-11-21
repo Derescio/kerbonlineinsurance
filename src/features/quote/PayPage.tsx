@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -27,6 +27,7 @@ import { PayChoice } from "./PayChoice";
 import { startDateBounds } from "./policy-terms";
 import type { BuyableProductId } from "./products";
 import { todayIso } from "./schemas/dates";
+import { savingRemovedSentence, savingSentence } from "./multi-policy";
 import { startCheckoutFn } from "./server";
 import { StepHeading } from "./step-kit";
 
@@ -132,6 +133,7 @@ function PayForm({
   onBack: () => void;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const location = useLocation();
   const [today] = useState(todayIso);
   const bounds = startDateBounds(today);
@@ -141,6 +143,7 @@ function PayForm({
   const [coverAcknowledged, setCoverAcknowledged] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [failure, setFailure] = useState<string | null>(null);
+  const [savingRemoved, setSavingRemoved] = useState<"car" | "home" | null>(null);
   const [paying, setPaying] = useState(false);
   // The started checkout's client secret, for Stripe's embedded form (5.6b, decision 10)
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -219,6 +222,11 @@ function PayForm({
       }
       // The key's write is done: pressing again starts a new session, expiring this one
       rotate();
+      if (result.data.status === "repriced") {
+        setSavingRemoved(result.data.otherProduct);
+        await router.invalidate();
+        return;
+      }
       // An answer changed while it started: the session is for the old answers, so no form. The
       // next press starts one for the new answers (decision 10)
       if (answersVersion.current !== startedFor) return;
@@ -303,6 +311,11 @@ function PayForm({
         </section>
 
         <div className="quote-pay-submit">
+          {savingRemoved ? (
+            <Alert tone="warning">
+              <p>{savingRemovedSentence(savingRemoved)}</p>
+            </Alert>
+          ) : null}
           {failure ? (
             <Alert tone="warning" announce>
               <p>{failure}</p>
@@ -380,7 +393,20 @@ function CoverSummary({
     ["Policyholder", `${policyholder.firstName} ${policyholder.lastName}`],
     ...summary.items.flatMap(itemRows),
     ...(summary.bundleSavingPence
-      ? [["Bundle saving", `−${formatPounds(summary.bundleSavingPence)}`] as [string, string]]
+      ? [
+          [
+            summary.savingBecause ? "Your saving" : "Bundle saving",
+            `−${formatPounds(summary.bundleSavingPence)}`,
+          ] as [string, string],
+        ]
+      : []),
+    ...(summary.savingBecause && summary.savingRate
+      ? [
+          ["Why this price", savingSentence(summary.savingBecause, summary.savingRate)] as [
+            string,
+            string,
+          ],
+        ]
       : []),
     ...(startsOn ? [["Cover starts", formatDay(startsOn)] as [string, string]] : []),
     plan === "monthly"

@@ -90,7 +90,7 @@ export function CoveredPage({
           <Alert tone="warning">
             <p>{REFUNDED}</p>
             <Link to="/quote/retrieve" className="quote-link">
-              Your saved quotes
+              My quotes
             </Link>
           </Alert>
         </div>

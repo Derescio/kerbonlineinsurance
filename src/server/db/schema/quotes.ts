@@ -40,6 +40,11 @@ export const quotes = pgTable(
     iptPence: pence().default(0),
     totalPence: pence().default(0),
     paymentPlan: text(),
+    // The policy of the other product that earned a one-item saving (6.1b, decision 6).
+    // Null for a same-quote bundle and for a quote with no saving. The composite foreign key
+    // to policies (id, customer_id) is in the migration: quotes and policies already reference
+    // each other, so the constraint can't live in this table's definition.
+    bundlePolicyId: uuid(),
     // "I confirm these details are correct", "I understand my cover"
     detailsConfirmedAt: timestamp({ withTimezone: true }),
     coverAcknowledgedAt: timestamp({ withTimezone: true }),
@@ -68,6 +73,7 @@ export const quotes = pgTable(
     // Target of payments' composite key
     unique("quotes_id_customer_id_unique").on(t.id, t.customerId),
     index().on(t.customerId),
+    index().on(t.bundlePolicyId),
     index().on(t.status),
     index().on(t.createdAt),
     index().on(t.updatedAt),

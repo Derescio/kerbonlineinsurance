@@ -11,6 +11,9 @@ import { formatPounds } from "#/features/rating/money";
 import { coverLevels, type CoverLevel } from "#/server/db/schema/values";
 import type { QuotePriceResult } from "#/server/quote/price";
 
+import { savingSentence } from "./multi-policy";
+import * as quoteServer from "./server";
+
 import {
   addonCopy,
   addonWithIpt,
@@ -105,6 +108,7 @@ export function ChooseCover({
   onCover,
   onBack,
   onContinue,
+  onContinueWithSaving,
   onSaveAndExit,
   onNotQuoted,
   onInvalid,
@@ -118,6 +122,8 @@ export function ChooseCover({
   onAddCar?: () => void;
   onBack: () => void;
   onContinue: () => void;
+  /** Car, when the multi-policy saving already applies: skip screen 21 (6.1b, decision 4) */
+  onContinueWithSaving?: () => void;
   /** "Save and exit" (5.6, decision 13): the gate, then Your saved quotes */
   onSaveAndExit: () => void;
 } & CoverMoves) {
@@ -126,6 +132,20 @@ export function ChooseCover({
     onNotQuoted,
     onInvalid,
   });
+  // A signed-in customer who holds the other product (6.1b). A guest, or a failed read, has none.
+  const offer = useQuery({
+    queryKey: ["multi-policy", product, journey.journeyId],
+    queryFn: async (): Promise<{ otherProduct: "car" | "home" } | null> => {
+      const ask = quoteServer.multiPolicyOffer;
+      if (!ask) return null;
+      try {
+        return await ask({ data: { product } });
+      } catch {
+        return null;
+      }
+    },
+  });
+  const multiPolicy = !bundle && offer.data ? offer.data : null;
   // A bundle has one way of paying, the car's to start with (5.7b, decision 4)
   const [payment, setPaymentState] = useState<Payment>(
     (bundle ? bundle.car.payment : undefined) ?? journey.payment ?? "annual",
@@ -189,7 +209,8 @@ export function ChooseCover({
   }
 
   const chosen = usableCover(result, cover);
-  const composed = composeCover(result, chosen.coverLevel, chosen.addons)!;
+  const savingRate = multiPolicy ? result.bundleDiscountRate : undefined;
+  const composed = composeCover(result, chosen.coverLevel, chosen.addons, savingRate)!;
   const name = TIERS[chosen.coverLevel].name;
 
   const choose = (next: Partial<CoverChoice>) => onCover({ ...chosen, ...next });
@@ -224,6 +245,7 @@ export function ChooseCover({
           addons={chosen.addons}
           payment={payment}
           value={chosen.coverLevel}
+          savingRate={savingRate}
           onChange={(coverLevel) => choose({ coverLevel })}
         />
 
@@ -231,6 +253,7 @@ export function ChooseCover({
           copy={copy}
           prices={result}
           addons={chosen.addons}
+          savingRate={savingRate}
           value={chosen.coverLevel}
           onChange={(coverLevel) => choose({ coverLevel })}
         />
@@ -273,7 +296,13 @@ export function ChooseCover({
           </Card>
         ) : null}
 
-        {onAddCar && !bundle ? (
+        {multiPolicy ? (
+          <p className="quote-cover__saving" role="status">
+            {savingSentence(multiPolicy.otherProduct, result.bundleDiscountRate)}
+          </p>
+        ) : null}
+
+        {onAddCar && !bundle && !multiPolicy ? (
           <Card padding="lg" as="section" className="quote-addcar" aria-labelledby="addcar-heading">
             <p id="addcar-heading">
               Insure your car with us too and save {Math.round(result.bundleDiscountRate * 100)}% on
@@ -319,7 +348,11 @@ export function ChooseCover({
             <Button variant="secondary" onClick={onSaveAndExit}>
               Save and exit
             </Button>
-            <Button variant="accent" iconRight="arrow-right" onClick={onContinue}>
+            <Button
+              variant="accent"
+              iconRight="arrow-right"
+              onClick={multiPolicy && onContinueWithSaving ? onContinueWithSaving : onContinue}
+            >
               {bundle ? "Continue to sign in" : `Continue with ${name}`}
             </Button>
           </span>
@@ -341,6 +374,7 @@ function CoverLevels({
   addons,
   payment,
   value,
+  savingRate,
   onChange,
 }: {
   copy: CoverCopy;
@@ -348,10 +382,11 @@ function CoverLevels({
   addons: readonly string[];
   payment: Payment;
   value: CoverLevel;
+  savingRate?: number;
   onChange: (level: CoverLevel) => void;
 }) {
   const options = coverLevels.map((level) => {
-    const composed = composeCover(prices, level, addons);
+    const composed = composeCover(prices, level, addons, savingRate);
     const tier = copy.tiers[level];
     return {
       id: level,
@@ -374,7 +409,7 @@ function CoverLevels({
       value={value}
       onChange={(id) => {
         const level = id as CoverLevel;
-        if (composeCover(prices, level, addons)) onChange(level);
+        if (composeCover(prices, level, addons, savingRate)) onChange(level);
       }}
     />
   );
@@ -386,16 +421,18 @@ function CompareTable({
   prices,
   addons,
   value,
+  savingRate,
   onChange,
 }: {
   copy: CoverCopy;
   prices: CoverPrices;
   addons: readonly string[];
   value: CoverLevel;
+  savingRate?: number;
   onChange: (level: CoverLevel) => void;
 }) {
   const composed = Object.fromEntries(
-    coverLevels.map((level) => [level, composeCover(prices, level, addons)]),
+    coverLevels.map((level) => [level, composeCover(prices, level, addons, savingRate)]),
   ) as Record<CoverLevel, ComposedCover | null>;
   const cell = (level: CoverLevel, text: string) => (
     <td key={level} className={level === value ? "is-chosen" : undefined}>

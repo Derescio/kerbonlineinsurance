@@ -34,13 +34,16 @@ export function HomeAboutStep({
   // Empty, it starts from car's main driver when a car quote is in the tab (5.7b, decision 3)
   const stored =
     (storedHomeAnswers(journey, "about") as Partial<HomeAbout> | undefined) ??
+    journey.fromCustomer ??
     prefillAbout(readJourney("car"));
+  // The customer record has no employment; a stored answer or the car journey does
+  const employment = stored && "status" in stored ? stored : undefined;
   const [form, setForm] = useState<Form>(() => ({
     firstName: stored?.firstName ?? "",
     lastName: stored?.lastName ?? "",
     dateOfBirth: partsOf(stored?.dateOfBirth),
-    status: stored?.status ?? "",
-    occupation: stored?.occupation ?? "",
+    status: employment?.status ?? "",
+    occupation: employment?.occupation ?? "",
   }));
   const [errors, setErrors] = useState<Errors>(() =>
     revalidate ? storedHomeErrors(journey, "about", today) : {},

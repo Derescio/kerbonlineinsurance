@@ -260,6 +260,7 @@ export function DriverSteps({
           aside={coverAside}
           onBack={() => onStep("quote")}
           onContinue={() => onStep("add-home")}
+          onContinueWithSaving={() => onStep("buy")}
           onSaveAndExit={saveAndExit}
           onCover={saveCover}
           onNotQuoted={() => onStep("quote", { replace: true })}

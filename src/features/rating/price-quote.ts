@@ -112,16 +112,28 @@ export interface QuoteTotals {
 /**
  * A quote's money from its quoted items: the car + home bundle, then IPT on each item after its
  * share, each line rounded once. The seed re-totals with it after a referral is decided.
+ *
+ * `singleItemRate` is the multi-policy saving (6.1b): 8% of one item's selected-tier premium
+ * while the customer holds the other product. A quote that already has both products keeps
+ * today's split and ignores it.
  */
-export function quoteTotals(lines: readonly TotalsLine[]): QuoteTotals {
+export function quoteTotals(lines: readonly TotalsLine[], singleItemRate?: number): QuoteTotals {
   const car = lines.find((l) => l.product === "car");
   const home = lines.find((l) => l.product === "home");
   // One rate for a bundle: versions that disagree are a config error, not a choice
   if (car && home && car.bundleRate !== home.bundleRate) {
     throw new Error("priceQuote: bundle_discount_rate differs between car and home");
   }
+  const only = lines.length === 1 ? lines[0] : undefined;
   const shares =
-    car && home ? splitBundleDiscount([car, home], car.bundleRate) : new Map<Product, number>();
+    car && home
+      ? splitBundleDiscount([car, home], car.bundleRate)
+      : only && singleItemRate
+        ? splitBundleDiscount(
+            [{ product: only.product, premiumPence: only.premiumPence }],
+            singleItemRate,
+          )
+        : new Map<Product, number>();
 
   const totals: QuoteTotals = {
     lines: new Map(),
@@ -150,6 +162,56 @@ export function quoteTotals(lines: readonly TotalsLine[]): QuoteTotals {
     totals.totalPence += totalPence;
   }
   return totals;
+}
+
+/**
+ * The multi-policy saving on a one-item quote (6.1b). A quote with two quoted items is
+ * unchanged: that saving is the same-quote split, not this one as well.
+ */
+export function withSingleItemSaving(
+  priced: PricedQuote,
+  rate: number,
+  iptRate: number,
+): PricedQuote {
+  const quoted = priced.items.filter((item) => item.outcome === "quoted" && item.selected);
+  if (quoted.length !== 1) return priced;
+  const item = quoted[0]!;
+  const selected = item.selected!;
+  const totals = quoteTotals(
+    [
+      {
+        product: item.product,
+        premiumPence: selected.premiumPence,
+        addonsPence: selected.addonsPence,
+        iptRate,
+        feePence: selected.feePence,
+        bundleRate: rate,
+      },
+    ],
+    rate,
+  );
+  const line = totals.lines.get(item.product)!;
+  return {
+    ...priced,
+    subtotalPence: totals.subtotalPence,
+    bundleDiscountPence: totals.bundleDiscountPence,
+    feesPence: totals.feesPence,
+    iptPence: totals.iptPence,
+    totalPence: totals.totalPence,
+    items: priced.items.map((current) =>
+      current.product === item.product && current.selected
+        ? {
+            ...current,
+            selected: {
+              ...current.selected,
+              discountPence: line.discountPence,
+              iptPence: line.iptPence,
+              totalPence: line.totalPence,
+            },
+          }
+        : current,
+    ),
+  };
 }
 
 interface Draft {

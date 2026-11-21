@@ -88,7 +88,7 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await expect(page.getByText("Check your inbox")).toBeVisible();
   await expect(
     page.getByText(
-      "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under Your saved quotes.",
+      "Your quote is saved to your new account. Confirm your email, sign in, and you’ll find it under My quotes.",
     ),
   ).toBeVisible();
 
@@ -104,7 +104,7 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
 
   // 5. The quote the sign-up saved is ready to buy. The sign-up saves it after its response, so
   // it can land a moment after the login: reload until it's there
-  await expect(page.getByRole("heading", { level: 1, name: "Your saved quotes" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "My quotes" })).toBeVisible();
   const saved = page.getByRole("article", { name: /^Quote KRB-Q-\d{5}$/ });
   await expect(async () => {
     await page.reload();
@@ -174,7 +174,8 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   // 9. The saved quote now shows "Bought", with the policy
   await page.goto("/quote/retrieve");
   await expect(saved).toContainText("Bought");
-  await expect(saved).toContainText(`Policy ${reference}`);
+  await expect(saved).toContainText("Your policy");
+  await expect(saved).toContainText(reference);
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);
 });

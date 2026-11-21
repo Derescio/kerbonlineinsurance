@@ -334,6 +334,7 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
         "postcode_district",
         "subtotal_pence",
         "bundle_discount_pence",
+        "bundle_policy_id",
         "fees_pence",
         "ipt_pence",
         "total_pence",

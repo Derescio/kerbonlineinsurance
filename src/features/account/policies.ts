@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { actorMiddleware } from "#/server/auth/middleware";
+import type { AccountCustomer } from "#/server/data/multi-policy";
 import type { NextPayment, PolicyListItem } from "#/server/data/policies";
 
 // The Overview's reads (6.1): the customer's policies, and their next payment. Server modules are
@@ -11,6 +12,17 @@ export const listMyPoliciesFn = createServerFn({ method: "GET" })
     const { listMyPolicies } = await import("#/server/data/policies");
     return listMyPolicies(context.actor, {});
   });
+
+export const getMyAddProductsFn = createServerFn({ method: "GET" })
+  .middleware([actorMiddleware])
+  .handler(
+    async ({
+      context,
+    }): Promise<{ customer: AccountCustomer | null; rates: { car: number; home: number } }> => {
+      const { getMyAddProducts } = await import("#/server/data/multi-policy");
+      return getMyAddProducts(context.actor, {});
+    },
+  );
 
 export const getMyNextPaymentFn = createServerFn({ method: "GET" })
   .middleware([actorMiddleware])

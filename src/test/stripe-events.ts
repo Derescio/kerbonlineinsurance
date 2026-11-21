@@ -155,7 +155,7 @@ export async function startedCheckout(
     { headers: new Headers() },
     { stripe, testClocks: false, now },
   );
-  if (!result.ok) throw new Error("checkout not started");
+  if (!result.ok || result.data.status !== "ready") throw new Error("checkout not started");
   const [row] = await getDb()
     .select()
     .from(checkoutSessions)

@@ -118,7 +118,7 @@ test("a guest adds home to a car quote, pays once for both, and finds both polic
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/^[^?]*\/quote\/retrieve$/);
-  await expect(heading(page, "Your saved quotes")).toBeVisible();
+  await expect(heading(page, "My quotes")).toBeVisible();
   const saved = page.getByRole("article", { name: /^Quote KRB-Q-\d{5}$/ });
   await expect(async () => {
     await page.reload();
