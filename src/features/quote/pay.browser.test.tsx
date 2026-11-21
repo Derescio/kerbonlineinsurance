@@ -444,8 +444,10 @@ describe("You're covered (decision 9)", () => {
     await expect
       .element(page.getByRole("link", { name: "Go to my account" }))
       .toHaveAttribute("href", "/account");
+    await expect
+      .element(page.getByRole("link", { name: "View your policy" }))
+      .toHaveAttribute("href", "/account/policies/KRB-482913");
     expect(page.getByText(/policy documents/i).elements()).toHaveLength(0);
-    expect(page.getByRole("link", { name: "View policy" }).elements()).toHaveLength(0);
   });
 
   it("shows the monthly payment line", async () => {
@@ -466,6 +468,26 @@ describe("You're covered (decision 9)", () => {
         page.getByText("£42.02 paid today, then 11 monthly payments of £42.02 · Visa ending 4242"),
       )
       .toBeVisible();
+  });
+
+  it("links to each policy of a car + home bundle (6.2, decision 9)", async () => {
+    const car = PURCHASE.policies[0]!;
+    await renderWithRouter(
+      <CoveredPage
+        quoteId={QUOTE_ID}
+        purchase={{
+          ...PURCHASE,
+          policies: [car, { ...car, reference: "KRB-552019", product: "home", car: null }],
+        }}
+      />,
+      `/quote/covered/${QUOTE_ID}`,
+    );
+    await expect
+      .element(page.getByRole("link", { name: "View your car policy" }))
+      .toHaveAttribute("href", "/account/policies/KRB-482913");
+    await expect
+      .element(page.getByRole("link", { name: "View your home policy" }))
+      .toHaveAttribute("href", "/account/policies/KRB-552019");
   });
 });
 

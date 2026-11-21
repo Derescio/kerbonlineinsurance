@@ -9,8 +9,8 @@ import { withCompleteJourney } from "./quote-journey";
 // Buying a car quote (5.6): a complete journey → Choose cover → the gate, where a guest creates an
 // account (the sign-up saves the quote against it, decision 1) → confirm the email → log in to Your
 // saved quotes → Confirm and pay, monthly → Continue to payment → Stripe's embedded form, with the card that pays → You're covered → the
-// policy on /account → the saved quote shows "Bought". At phone width, with axe on the gate, pay,
-// You're covered and Your saved quotes at 390, 768 and 1440 px. Like 4.7's delete test, it needs
+// policy on /account → its page, its certificate, Policies and Documents (6.2) → the saved quote
+// shows "Bought". At phone width, with axe on each page at 390, 768 and 1440 px. Like 4.7's delete test, it needs
 // E2E_DATABASE_URL (e2e/db.ts) to confirm its own sign-up and a Stripe test publishable key, and
 // skips without either.
 
@@ -147,6 +147,10 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
     ),
   ).toBeVisible();
   await expect(page.getByText(`A confirmation has been sent to ${email}.`)).toBeVisible();
+  await expect(page.getByRole("link", { name: "View your policy" })).toHaveAttribute(
+    "href",
+    `/account/policies/${reference}`,
+  );
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);
 
@@ -159,6 +163,43 @@ test("a guest creates an account mid-quote, pays monthly, and finds the policy o
   await expect(page.getByRole("group", { name: "Next payment" })).toBeVisible();
   await page.waitForLoadState("networkidle");
   await expectNoSeriousAxeViolationsAtEachWidth(page);
+
+  // 8a. The policy's page (6.2): opened from its row, with the car, cover and drivers, and the
+  // certificate as a PDF; then the Policies and Documents tabs
+  await policies.getByRole("link", { name: /Volkswagen Golf/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/account/policies/${reference}$`));
+  await expect(page.getByRole("heading", { level: 1, name: "Volkswagen Golf" })).toBeVisible();
+  await expect(page.getByText(new RegExp(`^${reference} · `))).toBeVisible();
+  await expect(page.getByRole("group", { name: "Cover" })).toContainText(
+    /Essential|Comprehensive|Plus/,
+  );
+  await expect(page.getByRole("region", { name: "Drivers" })).toContainText("Main driver");
+  await page.waitForLoadState("networkidle");
+  await expectNoSeriousAxeViolationsAtEachWidth(page);
+  const [certificate] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Certificate", exact: true }).click(),
+  ]);
+  expect(certificate.suggestedFilename()).toBe(`Kerb-${reference}-certificate.pdf`);
+
+  const accountNav = page.getByRole("navigation", { name: "Account" });
+  await accountNav.getByRole("link", { name: "Policies" }).click();
+  await expect(page).toHaveURL(/\/account\/policies$/);
+  await expect(page.getByRole("link", { name: /Volkswagen Golf/ })).toHaveAttribute(
+    "href",
+    `/account/policies/${reference}`,
+  );
+  await page.waitForLoadState("networkidle");
+  await expectNoSeriousAxeViolationsAtEachWidth(page);
+
+  await accountNav.getByRole("link", { name: "Documents" }).click();
+  await expect(page).toHaveURL(/\/account\/documents$/);
+  const documents = page.getByRole("region", { name: "Volkswagen Golf" });
+  await expect(documents).toContainText("Certificate of motor insurance");
+  await expect(documents).toContainText("Policy schedule");
+  await page.waitForLoadState("networkidle");
+  await expectNoSeriousAxeViolationsAtEachWidth(page);
+
   await page.getByRole("button", { name: /account menu$/ }).click();
   await page.getByRole("link", { name: "Account settings" }).click();
   await expect(page).toHaveURL(/\/account\/settings$/);

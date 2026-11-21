@@ -116,7 +116,10 @@ export interface RowStatus {
   date: string | null;
 }
 
-export function rowStatus(p: PolicyListItem, today: string): RowStatus {
+export function rowStatus(
+  p: Pick<PolicyListItem, "status" | "startsOn" | "endsOn">,
+  today: string,
+): RowStatus {
   if (p.status === "cancelled") return { tone: "neutral", label: "Cancelled", date: null };
   if (hasEnded(p, today)) {
     return { tone: "neutral", label: "Ended", date: `Ended ${longDay(p.endsOn)}` };

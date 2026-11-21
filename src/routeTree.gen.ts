@@ -27,6 +27,8 @@ import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
 import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
 import { Route as AccountBillingRouteImport } from './routes/account_.billing'
 import { Route as AccountCloseRouteImport } from './routes/account_.close'
+import { Route as AccountDocumentsRouteImport } from './routes/account_.documents'
+import { Route as AccountPoliciesRouteImport } from './routes/account_.policies'
 import { Route as AccountSettingsRouteImport } from './routes/account_.settings'
 import { Route as AccountTwoFactorRouteImport } from './routes/account_.two-factor'
 import { Route as ApiCatalogueRouteImport } from './routes/api/catalogue'
@@ -40,6 +42,7 @@ import { Route as QuoteQuoteCarRouteImport } from './routes/_quote/quote.car'
 import { Route as QuoteQuoteComingSoonRouteImport } from './routes/_quote/quote.coming-soon'
 import { Route as QuoteQuoteHomeRouteImport } from './routes/_quote/quote.home'
 import { Route as QuoteQuoteRetrieveRouteImport } from './routes/_quote/quote.retrieve'
+import { Route as AccountPoliciesReferenceRouteImport } from './routes/account_.policies_.$reference'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
@@ -135,6 +138,16 @@ const AccountCloseRoute = AccountCloseRouteImport.update({
   path: '/account/close',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountDocumentsRoute = AccountDocumentsRouteImport.update({
+  id: '/account_/documents',
+  path: '/account/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountPoliciesRoute = AccountPoliciesRouteImport.update({
+  id: '/account_/policies',
+  path: '/account/policies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountSettingsRoute = AccountSettingsRouteImport.update({
   id: '/account_/settings',
   path: '/account/settings',
@@ -200,6 +213,12 @@ const QuoteQuoteRetrieveRoute = QuoteQuoteRetrieveRouteImport.update({
   path: '/quote/retrieve',
   getParentRoute: () => QuoteRoute,
 } as any)
+const AccountPoliciesReferenceRoute =
+  AccountPoliciesReferenceRouteImport.update({
+    id: '/account_/policies_/$reference',
+    path: '/account/policies/$reference',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -258,6 +277,8 @@ export interface FileRoutesByFullPath {
   '/staff': typeof StaffStaffRoute
   '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
+  '/account/documents': typeof AccountDocumentsRoute
+  '/account/policies': typeof AccountPoliciesRoute
   '/account/settings': typeof AccountSettingsRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -270,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
   '/quote/home': typeof QuoteQuoteHomeRoute
   '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
+  '/account/policies/$reference': typeof AccountPoliciesReferenceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -295,6 +317,8 @@ export interface FileRoutesByTo {
   '/staff': typeof StaffStaffRoute
   '/account/billing': typeof AccountBillingRoute
   '/account/close': typeof AccountCloseRoute
+  '/account/documents': typeof AccountDocumentsRoute
+  '/account/policies': typeof AccountPoliciesRoute
   '/account/settings': typeof AccountSettingsRoute
   '/account/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -307,6 +331,7 @@ export interface FileRoutesByTo {
   '/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
   '/quote/home': typeof QuoteQuoteHomeRoute
   '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
+  '/account/policies/$reference': typeof AccountPoliciesReferenceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -336,6 +361,8 @@ export interface FileRoutesById {
   '/_staff/staff': typeof StaffStaffRoute
   '/account_/billing': typeof AccountBillingRoute
   '/account_/close': typeof AccountCloseRoute
+  '/account_/documents': typeof AccountDocumentsRoute
+  '/account_/policies': typeof AccountPoliciesRoute
   '/account_/settings': typeof AccountSettingsRoute
   '/account_/two-factor': typeof AccountTwoFactorRoute
   '/api/catalogue': typeof ApiCatalogueRoute
@@ -349,6 +376,7 @@ export interface FileRoutesById {
   '/_quote/quote/coming-soon': typeof QuoteQuoteComingSoonRoute
   '/_quote/quote/home': typeof QuoteQuoteHomeRoute
   '/_quote/quote/retrieve': typeof QuoteQuoteRetrieveRoute
+  '/account_/policies_/$reference': typeof AccountPoliciesReferenceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -376,6 +404,8 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/billing'
     | '/account/close'
+    | '/account/documents'
+    | '/account/policies'
     | '/account/settings'
     | '/account/two-factor'
     | '/api/catalogue'
@@ -388,6 +418,7 @@ export interface FileRouteTypes {
     | '/quote/coming-soon'
     | '/quote/home'
     | '/quote/retrieve'
+    | '/account/policies/$reference'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -413,6 +444,8 @@ export interface FileRouteTypes {
     | '/staff'
     | '/account/billing'
     | '/account/close'
+    | '/account/documents'
+    | '/account/policies'
     | '/account/settings'
     | '/account/two-factor'
     | '/api/catalogue'
@@ -425,6 +458,7 @@ export interface FileRouteTypes {
     | '/quote/coming-soon'
     | '/quote/home'
     | '/quote/retrieve'
+    | '/account/policies/$reference'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -453,6 +487,8 @@ export interface FileRouteTypes {
     | '/_staff/staff'
     | '/account_/billing'
     | '/account_/close'
+    | '/account_/documents'
+    | '/account_/policies'
     | '/account_/settings'
     | '/account_/two-factor'
     | '/api/catalogue'
@@ -466,6 +502,7 @@ export interface FileRouteTypes {
     | '/_quote/quote/coming-soon'
     | '/_quote/quote/home'
     | '/_quote/quote/retrieve'
+    | '/account_/policies_/$reference'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -486,6 +523,8 @@ export interface RootRouteChildren {
   SystemRoute: typeof SystemRoute
   AccountBillingRoute: typeof AccountBillingRoute
   AccountCloseRoute: typeof AccountCloseRoute
+  AccountDocumentsRoute: typeof AccountDocumentsRoute
+  AccountPoliciesRoute: typeof AccountPoliciesRoute
   AccountSettingsRoute: typeof AccountSettingsRoute
   AccountTwoFactorRoute: typeof AccountTwoFactorRoute
   ApiCatalogueRoute: typeof ApiCatalogueRoute
@@ -493,6 +532,7 @@ export interface RootRouteChildren {
   ApiSessionHintRoute: typeof ApiSessionHintRoute
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
+  AccountPoliciesReferenceRoute: typeof AccountPoliciesReferenceRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCronDailyRoute: typeof ApiCronDailyRoute
   ApiCronJobsRoute: typeof ApiCronJobsRoute
@@ -629,6 +669,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountCloseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account_/documents': {
+      id: '/account_/documents'
+      path: '/account/documents'
+      fullPath: '/account/documents'
+      preLoaderRoute: typeof AccountDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account_/policies': {
+      id: '/account_/policies'
+      path: '/account/policies'
+      fullPath: '/account/policies'
+      preLoaderRoute: typeof AccountPoliciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account_/settings': {
       id: '/account_/settings'
       path: '/account/settings'
@@ -719,6 +773,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/quote/retrieve'
       preLoaderRoute: typeof QuoteQuoteRetrieveRouteImport
       parentRoute: typeof QuoteRoute
+    }
+    '/account_/policies_/$reference': {
+      id: '/account_/policies_/$reference'
+      path: '/account/policies/$reference'
+      fullPath: '/account/policies/$reference'
+      preLoaderRoute: typeof AccountPoliciesReferenceRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -856,6 +917,8 @@ const rootRouteChildren: RootRouteChildren = {
   SystemRoute: SystemRoute,
   AccountBillingRoute: AccountBillingRoute,
   AccountCloseRoute: AccountCloseRoute,
+  AccountDocumentsRoute: AccountDocumentsRoute,
+  AccountPoliciesRoute: AccountPoliciesRoute,
   AccountSettingsRoute: AccountSettingsRoute,
   AccountTwoFactorRoute: AccountTwoFactorRoute,
   ApiCatalogueRoute: ApiCatalogueRoute,
@@ -863,6 +926,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSessionHintRoute: ApiSessionHintRoute,
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
+  AccountPoliciesReferenceRoute: AccountPoliciesReferenceRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCronDailyRoute: ApiCronDailyRoute,
   ApiCronJobsRoute: ApiCronJobsRoute,

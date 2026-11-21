@@ -299,10 +299,22 @@ function Bought({ purchase }: { purchase: Purchase }) {
           A confirmation has been sent to {purchase.email}. You can also see your policy in your
           account.
         </p>
-        <div>
+        <div className="quote-outcome__actions">
           <Link to="/account" className="kb-btn kb-btn--primary kb-btn--lg">
             Go to my account
           </Link>
+          {purchase.policies.map((policy) => (
+            <Link
+              key={policy.reference}
+              to="/account/policies/$reference"
+              params={{ reference: policy.reference }}
+              className="kb-btn kb-btn--secondary kb-btn--lg"
+            >
+              {bundle
+                ? `View your ${productLabel(policy.product).toLowerCase()} policy`
+                : "View your policy"}
+            </Link>
+          ))}
         </div>
       </div>
     </div>

@@ -37,7 +37,7 @@ export const cookiesLink: SiteLink = { label: "Cookies", href: "/cookies" };
 
 /** Header nav, and the mobile menu. */
 export const mainNav: SiteLink[] = [
-  { label: "Policy", href: "/account/policy" },
+  { label: "Policy", href: "/account/policies" },
   { label: "Claims", href: "/claims" },
   { label: "Documents", href: "/account/documents" },
   { label: "Help", href: "/help" },

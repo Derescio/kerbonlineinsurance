@@ -1,6 +1,6 @@
 # 6.2 Policy detail
 
-**Status:** draft (awaiting Damion's approval)
+**Status:** built, awaiting preview check (spec approved by Damion, 20 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -93,6 +93,17 @@ A customer can open any of their policies and see what it covers. They can also 
 - The Documents tab lists every policy's documents.
 - The tests above pass in `ci`.
 - Preview manual check by Damion.
+
+## Notes from the build
+
+- **PDF fonts:** Bricolage Grotesque (700, 800) and Instrument Sans (400, 600) from the static `@fontsource` packages, inlined as data URLs (`src/server/documents/fonts.ts`). There is no mono face in the PDFs: fontkit can't read IBM Plex Mono's WOFF, so the header reference uses Instrument Sans 600.
+- **react-pdf quirks:** a line height is worked out against the font size in the same style (18pt when none is set), so every text style sets both (`BODY_TEXT`). The fixed footer is an absolute rule plus two absolute texts, since one footer `View` didn't render. Words never hyphenate. The curly quotes and the minus sign are written as `\u` escapes so no editor or shell can garble them.
+- **Dates:** `getMyPolicy` also returns `cancelledOn` for the "Cancelled" card, and `listMyPolicies` returns `boughtOn` for the Documents rows.
+- **Shared pieces:** `PolicyList` (the Overview's grouped rows, now links with a chevron) serves Overview and Policies; `DocumentList` serves the detail page and Documents; `policyDocuments` decides which documents a policy has for both the pages and the route.
+- **The account tabs** keep 6.1's style. Below 768px they take their own row and scroll sideways if they ever outgrow it.
+- **The detail route** is `account_.policies_.$reference.tsx`, so it isn't nested inside the Policies page.
+- **`unpdf`** is a dev dependency: the route's integration tests read the PDFs' text with it.
+- **E2E:** `buy.spec.ts` now opens the policy from the Overview, downloads the certificate, and visits Policies and Documents, with axe at 390, 768 and 1440px; `a11y.spec.ts` checks the three new pages redirect a signed-out visitor.
 
 ## Commit message
 

@@ -52,7 +52,7 @@ describe("avatar initials", () => {
 });
 
 describe("AccountShell", () => {
-  it("shows Overview as the current tab, and no tab or bell that leads nowhere yet", async () => {
+  it("has the Overview, Policies and Documents tabs, and no tab or bell that leads nowhere yet", async () => {
     await renderWithRouter(
       <AccountShell name="Maya Patel" current="overview">
         <p>Body</p>
@@ -63,10 +63,35 @@ describe("AccountShell", () => {
     await expect
       .element(nav.getByRole("link", { name: "Overview" }))
       .toHaveAttribute("aria-current", "page");
-    for (const name of ["Policies", "Claims", "Documents", "Notifications"]) {
+    await expect
+      .element(nav.getByRole("link", { name: "Policies" }))
+      .toHaveAttribute("href", "/account/policies");
+    await expect
+      .element(nav.getByRole("link", { name: "Documents" }))
+      .toHaveAttribute("href", "/account/documents");
+    for (const name of ["Claims", "Notifications"]) {
       await expect.element(page.getByRole("link", { name })).not.toBeInTheDocument();
     }
     await expect.element(page.getByRole("main")).toHaveTextContent("Body");
+  });
+
+  it.each([
+    ["policies", "Policies"],
+    ["documents", "Documents"],
+  ] as const)("marks %s as the current tab, and only it", async (current, label) => {
+    await renderWithRouter(
+      <AccountShell name="Maya Patel" current={current}>
+        <p>Body</p>
+      </AccountShell>,
+      `/account/${current}`,
+    );
+    const nav = page.getByRole("navigation", { name: "Account" });
+    await expect
+      .element(nav.getByRole("link", { name: label }))
+      .toHaveAttribute("aria-current", "page");
+    await expect
+      .element(nav.getByRole("link", { name: "Overview" }))
+      .not.toHaveAttribute("aria-current");
   });
 
   it("opens the avatar menu with Account settings and Log out, and closes on Escape", async () => {

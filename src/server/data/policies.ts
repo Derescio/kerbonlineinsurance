@@ -42,6 +42,8 @@ export type PolicyListItem = PolicySummary & {
   earnedBy: { policyId: string; savingPence: number } | null;
   label: PolicyLabel;
   annualPremiumPence: number;
+  /** The London day it was bought: its documents' date (6.2, decision 5) */
+  boughtOn: string;
 };
 
 /** The insured car, as policy detail and the documents show it (6.2) */
@@ -89,6 +91,8 @@ export type PolicyDetail = PolicySummary & {
   autoRenew: boolean;
   /** The London day it was bought: the documents' date until policy_versions (6.3) */
   boughtOn: string;
+  /** The London day it was cancelled; null unless cancelled */
+  cancelledOn: string | null;
   policyholder: {
     firstName: string;
     lastName: string;
@@ -136,6 +140,7 @@ export const listMyPolicies = defineRead(
         quoteItemId: true,
         bundleId: true,
         annualPremiumPence: true,
+        createdAt: true,
       },
       where: eq(policies.customerId, actor.customerId),
       orderBy: desc(policies.createdAt),
@@ -170,10 +175,11 @@ export const listMyPolicies = defineRead(
       db,
       rows.map((r) => r.quoteItemId),
     );
-    return rows.map(({ quoteId, quoteItemId, bundleId, ...policy }) => {
+    return rows.map(({ quoteId, quoteItemId, bundleId, createdAt, ...policy }) => {
       const saving = savings.get(quoteId);
       return {
         ...policy,
+        boughtOn: todayIso(createdAt),
         monthly: monthlyQuotes.has(quoteId),
         bundle: bundleId ? { id: bundleId, savingPence: saving?.savingPence ?? 0 } : null,
         earnedBy:
@@ -315,6 +321,7 @@ export const getMyPolicy = defineRead(
         autoRenew: true,
         bundleId: true,
         createdAt: true,
+        cancelledAt: true,
       },
       where: and(eq(policies.reference, reference), eq(policies.customerId, actor.customerId)),
       with: {
@@ -396,7 +403,7 @@ export const getMyPolicy = defineRead(
       },
     });
     if (!row) throw new AuthzError("NOT_FOUND");
-    const { bundleId, createdAt, customer, quote, quoteItem, ...policy } = row;
+    const { bundleId, createdAt, cancelledAt, customer, quote, quoteItem, ...policy } = row;
     const coverPremiumPence = quoteItem.selectedOption?.annualPremiumPence ?? 0;
     const addonsPence = quoteItem.addons.reduce((total, a) => total + a.annualPricePence, 0);
     // The premium stored at purchase is the tier and add-ons less this policy's share of the saving
@@ -405,6 +412,7 @@ export const getMyPolicy = defineRead(
     return {
       ...policy,
       boughtOn: todayIso(createdAt),
+      cancelledOn: cancelledAt ? todayIso(cancelledAt) : null,
       policyholder: customer,
       car: quoteItem.vehicle ?? null,
       drivers: quoteItem.drivers,

@@ -59,3 +59,21 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+/* Three tabs, the wordmark and the avatar don't fit a phone's row: the tabs take a row of their own */
+@media (max-width: 767px) {
+  .acct-header__bar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0 var(--space-4);
+  }
+  .acct-header__nav {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+    /* Room for the focus ring, which the scroll box would otherwise clip */
+    padding: 4px 4px var(--space-3);
+  }
+  .acct-header__nav li {
+    flex-shrink: 0;
+  }
+}

@@ -10,8 +10,20 @@ import { DemoStrip } from "../auth/parts";
 import { ClosureBanner } from "./ClosureBanner";
 
 // The account header (6.1, decision 1; Figma Acct / Header 181:3310, Overview 258:3608): every
-// account page sits in it. Tabs appear with their pages (Policies and Documents in 6.2, Claims in
-// 6.4) and the bell with notifications (6.6), so nothing here leads to a page that isn't built.
+// account page sits in it. Tabs appear with their pages (Claims in 6.4) and the bell with
+// notifications (6.6), so nothing here leads to a page that isn't built.
+
+export type AccountTab = "overview" | "policies" | "documents";
+
+const tabs: {
+  tab: AccountTab;
+  to: "/account" | "/account/policies" | "/account/documents";
+  label: string;
+}[] = [
+  { tab: "overview", to: "/account", label: "Overview" },
+  { tab: "policies", to: "/account/policies", label: "Policies" },
+  { tab: "documents", to: "/account/documents", label: "Documents" },
+];
 
 /** "MP" for "Maya Patel": the first and last words' first letters; "?" with no name */
 function initialsOf(name: string): string {
@@ -29,7 +41,7 @@ export function AccountShell({
 }: {
   name: string;
   /** The tab to mark as the current page; none on pages without a tab (settings) */
-  current?: "overview";
+  current?: AccountTab;
   children: ReactNode;
 }) {
   const toast = useToast();
@@ -57,15 +69,17 @@ export function AccountShell({
           </a>
           <nav className="acct-header__nav" aria-label="Account">
             <ul>
-              <li>
-                <Link
-                  to="/account"
-                  activeOptions={{ exact: true }}
-                  aria-current={current === "overview" ? "page" : undefined}
-                >
-                  Overview
-                </Link>
-              </li>
+              {tabs.map(({ tab, to, label }) => (
+                <li key={tab}>
+                  <Link
+                    to={to}
+                    activeOptions={{ exact: true }}
+                    aria-current={current === tab ? "page" : undefined}
+                  >
+                    {label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </nav>
           <MenuButton
