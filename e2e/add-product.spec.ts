@@ -86,9 +86,14 @@ test("a car customer adds home from their account, with 8% off, and sees car + h
   await saved.getByRole("link", { name: "Continue quote" }).click();
   await payInFull(page, email);
 
-  // 3. The Overview offers home, with the saving
+  // 3. The Overview offers home, with the saving. The card is the last thing on the page, so the
+  // cookie bar (3.6) would cover it at phone width: answer it first, as a visitor would
   await page.getByRole("link", { name: "Go to my account" }).click();
   await expect(page).toHaveURL(/\/account$/);
+  await page
+    .getByRole("region", { name: "Cookie choices" })
+    .getByRole("button", { name: "Reject cookies" })
+    .click();
   await expect(page.getByText(SAVING)).toBeVisible();
   await expect(page.getByText("Car + home. Better together.")).toHaveCount(0);
   await page.waitForLoadState("networkidle");
