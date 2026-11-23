@@ -1,9 +1,12 @@
+import { createHmac } from "node:crypto";
+
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { mobileSchema } from "#/features/account/settings-model";
 import { audit } from "#/server/audit/audit";
 import { customers, securityEvents, users } from "#/server/db/schema";
+import { getAuthEnv } from "#/server/env";
 import type { SecurityEventType } from "#/server/db/schema/values";
 
 import { defineRead, defineWrite, rejected } from "./define";
@@ -90,7 +93,20 @@ export const getMyRecentActivity = defineRead(
  */
 export const updateMyPhone = defineWrite(
   z.object({ phone: mobileSchema }),
-  { idempotent: { action: "account.update_phone" } },
+  {
+    idempotent: {
+      action: "account.update_phone",
+      // The request hash is kept too: key the number first, so the hash can't be reversed
+      hashPayload: ({ phone }: { phone: string | null }) => ({
+        phone:
+          phone === null
+            ? null
+            : createHmac("sha256", getAuthEnv().BETTER_AUTH_SECRET)
+                .update(`phone:${phone}`)
+                .digest("hex"),
+      }),
+    },
+  },
   async (actor, { phone }, tx) => {
     if (!actor.customerId) return rejected("Save a quote first to add a mobile number.");
     await tx

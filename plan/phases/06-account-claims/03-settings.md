@@ -91,7 +91,7 @@ A signed-in customer manages their account from one Settings page built to the A
 
 ## Notes from the build
 
-- **The mobile is kept out of the audit log and replies.** The audit row says only `{ phone: { set } }`, and `updateMyPhone` replies `{ set }` rather than the number, because the idempotency row stores the reply for 24 hours (checkpoint review). The page shows the number it sent, normalised by the same `mobileSchema`.
+- **The mobile is kept out of every log.** The audit row says only `{ phone: { set } }`; `updateMyPhone` replies `{ set }` rather than the number, because the idempotency row stores the reply for 24 hours (checkpoint review); and the idempotency request hash is taken over an HMAC of the number keyed with `BETTER_AUTH_SECRET` (`defineWrite`'s new `hashPayload` option), since a plain hash of a UK mobile can be reversed by trying all of them (final review). The page shows the number it sent, normalised by the same `mobileSchema`.
 - **The mobile rule also takes dashes, dots and brackets**, and `+44 (0)7…` (checkpoint review). Under a minute, Recent activity says "Just now".
 - **`SECURITY_EVENT_TYPES` moved to `schema/values.ts`** (re-exported from `security.ts`), so the labels in `settings-model.ts` can be typed against every event without features importing a schema file.
 - **`Dialog` fix:** the browser's `close` event comes a task after `close()`. When the owner closed and reopened the dialog in between (Turn off two-factor reopening with "That password isn't right."), the late event shut it again. `Dialog` now ignores the close it asked for.

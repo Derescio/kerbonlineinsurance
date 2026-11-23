@@ -49,7 +49,15 @@ export function defineRead<I, P, O>(
 
 export interface WriteOptions {
   limit?: { action: string; rule: RateRule };
-  idempotent?: { action: string };
+  idempotent?: {
+    action: string;
+    /**
+     * What the request hash is taken over, when the input holds personal data: the hash stays in
+     * idempotency_keys for 24 hours, and a plain hash of a small space (a mobile number) can be
+     * reversed by trying every value (6.3). Defaults to the parsed input.
+     */
+    hashPayload?: (data: never) => unknown;
+  };
   /**
    * A check that runs after the limit and before the transaction, given the raw envelope: a
    * failure ends the write without running it. A replay never reaches it. Used for the proof of
@@ -114,7 +122,9 @@ export function defineWrite<P, O extends JsonValue>(
             userId: known.userId,
             key: keyed.data.idempotencyKey,
             action: options.idempotent.action,
-            payload: parsed.data,
+            payload: options.idempotent.hashPayload
+              ? options.idempotent.hashPayload(parsed.data as never)
+              : parsed.data,
           }
         : null;
 

@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import { asc, eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { resolveActor } from "#/server/auth/actor";
 import { AuthzError, IdempotencyConflictError } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
 import { auditLog, customers, idempotencyKeys, securityEvents } from "#/server/db/schema";
+import { requestHash } from "#/server/db/idempotency";
 import { truncateAll } from "#/test/db";
 import { makeCustomer, makeUser } from "#/test/factories";
 
@@ -14,8 +15,22 @@ import { getMyPersonalDetails, getMyRecentActivity, updateMyPhone } from "./sett
 
 // Account settings (6.3): the details and activity reads, and the audited, idempotent mobile save.
 
+// The mobile's request hash is keyed with BETTER_AUTH_SECRET, read from the whole auth env, which
+// this project doesn't set (as define.int.test.ts)
+beforeAll(() => {
+  vi.stubEnv("BETTER_AUTH_SECRET", "integration-secret-integration-secret-0123");
+  vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000");
+  vi.stubEnv("GOOGLE_CLIENT_ID", "test-client");
+  vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-secret");
+  vi.stubEnv("RESEND_API_KEY", "re_test");
+  vi.stubEnv("EMAIL_FROM", "Kerb <hello@example.com>");
+  vi.stubEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA");
+});
 beforeEach(truncateAll);
-afterAll(closeDb);
+afterAll(async () => {
+  vi.unstubAllEnvs();
+  await closeDb();
+});
 
 const ctx = { headers: new Headers() };
 
@@ -137,6 +152,21 @@ describe("updateMyPhone", () => {
     const keys = await getDb().select().from(idempotencyKeys);
     expect(keys).toHaveLength(1);
     expect(JSON.stringify(keys[0]!.response)).not.toContain("7700");
+    // Nor its request hash: a plain hash of a UK mobile (about 10^9 of them) can be reversed by
+    // trying them all, so the number is keyed with a server secret first
+    expect(keys[0]!.requestHash).not.toBe(
+      requestHash("account.update_phone", { phone: "07700 900418" }),
+    );
+  });
+
+  it("still replays a retry under the keyed hash", async () => {
+    const { actor } = await signedInCustomer();
+    const envelope = { input: { phone: "+44 7700 900418" }, idempotencyKey: randomUUID() };
+    await updateMyPhone(actor, envelope, ctx);
+    // The same number written another way is the same request
+    const again = { input: { phone: "07700900418" }, idempotencyKey: envelope.idempotencyKey };
+    expect(await updateMyPhone(actor, again, ctx)).toEqual({ ok: true, data: { set: true } });
+    expect(await phoneAudits()).toHaveLength(1);
   });
 
   it("changes and audits once for a retried key", async () => {
