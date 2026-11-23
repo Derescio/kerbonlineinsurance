@@ -146,3 +146,30 @@ export type FileStatus = (typeof fileStatuses)[number];
 // What is stored: photos re-encoded in the browser (JPEG where the browser can't encode WebP), PDFs as uploaded
 export const fileMimes = ["image/webp", "image/jpeg", "application/pdf"] as const;
 export type FileMime = (typeof fileMimes)[number];
+
+// security_events.type (4.4, 4.6)
+export const SECURITY_EVENT_TYPES = [
+  "sign_up",
+  "sign_in",
+  "sign_in_failed",
+  // A correct password on an email that isn't confirmed yet (4.4b)
+  "sign_in_unverified",
+  "rate_limited",
+  "sign_out",
+  "password_reset_requested",
+  "password_reset",
+  "email_verified",
+  "google_linked",
+  "google_link_refused",
+  "password_removed_on_link",
+  // Two-factor and sessions (4.6)
+  "two_factor_enabled",
+  "two_factor_disabled",
+  "backup_codes_regenerated",
+  "two_factor_passed",
+  "two_factor_failed",
+  "signed_out_everywhere",
+  "sessions_revoked_on_password_change",
+] as const;
+
+export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
