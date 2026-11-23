@@ -27,7 +27,7 @@ export function RecentActivity({ activity, now }: { activity: Activity[]; now: D
       {activity.length === 0 ? (
         <p className="settings__security-detail">No activity yet.</p>
       ) : (
-        <ul aria-labelledby={id}>
+        <ul>
           {activity.map((event, index) => (
             <li
               // Events carry no id to the page; time and place in the list are unique enough

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
@@ -48,6 +48,16 @@ export function PersonalDetails({ details }: { details: Details }) {
   const [phone, setPhone] = useState(customer?.phone ?? null);
   const [editing, setEditing] = useState(false);
   const field = useRef<HTMLInputElement>(null);
+  const edit = useRef<HTMLButtonElement>(null);
+  // A save in flight: Edit waits, so a second save can't be overwritten by the first's rollback
+  const [pending, setPending] = useState(false);
+  // Where focus goes once the form opens or closes: the field after a refusal, Edit after a save
+  const [focus, setFocus] = useState<"field" | "edit" | null>(null);
+  useEffect(() => {
+    if (focus === "field") field.current?.focus();
+    if (focus === "edit") edit.current?.focus();
+    if (focus) setFocus(null);
+  }, [focus, editing, pending]);
   // The form's state lives here: the form closes on Save, and a rollback reopens it as it was
   const [draft, setDraft] = useState("");
   const [fieldError, setFieldError] = useState<string | undefined>();
@@ -70,19 +80,24 @@ export function PersonalDetails({ details }: { details: Details }) {
     // Optimistic: show it and close; put it back if the server says no
     setPhone(parsed.data);
     setEditing(false);
+    setPending(true);
     const rollback = (error?: string) => {
       setPhone(previous);
       setFieldError(error);
       setFailed(!error);
       setEditing(true);
+      setFocus("field");
     };
     try {
       const result = await updateMyPhoneFn({
         data: { input: { phone: draft }, idempotencyKey: crypto.randomUUID() },
       });
-      if (!result.ok) rollback(result.error.fields?.phone);
+      if (result.ok) setFocus("edit");
+      else rollback(result.error.fields?.phone);
     } catch {
       rollback();
+    } finally {
+      setPending(false);
     }
     return true;
   }
@@ -152,7 +167,13 @@ export function PersonalDetails({ details }: { details: Details }) {
               </Row>
               <Row label="Home address">{addressOf(customer)}</Row>
               <div className="settings__actions">
-                <Button variant="secondary" iconLeft="pencil" onClick={open}>
+                <Button
+                  ref={edit}
+                  variant="secondary"
+                  iconLeft="pencil"
+                  onClick={open}
+                  disabled={pending}
+                >
                   Edit details
                 </Button>
               </div>

@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Badge } from "#/components/display/Badge";
@@ -11,6 +11,7 @@ import type { RecentActivity as Activity } from "#/server/data/settings";
 
 import { authClient } from "../auth/auth-client";
 import { SOMETHING_WENT_WRONG } from "../auth/form";
+import { TOO_MANY_TRIES } from "../auth/LoginForm";
 import { GoogleButton, GoogleMark } from "../auth/parts";
 import { signOutEverywhereFn, type AccountSummary } from "../auth/session";
 import { RecentActivity } from "./RecentActivity";
@@ -164,9 +165,12 @@ function TwoFactor({
     if (failure.code === "INVALID_PASSWORD") {
       setError("That password isn't right.");
       setOpen(true);
-    } else if (failure.code === "SESSION_NOT_FRESH") {
+    } else if (failure.code === "SESSION_NOT_FRESH" && !hasPassword) {
+      // Only a passwordless account proves itself with a fresh sign-in (4.6, call 7)
       setNeedsGoogle(true);
       setOpen(true);
+    } else if (failure.status === 429) {
+      toast(TOO_MANY_TRIES);
     } else {
       toast({ tone: "danger", title: "Two-factor is still on", message: SOMETHING_WENT_WRONG });
     }
@@ -186,6 +190,11 @@ function TwoFactor({
   }
 
   const formId = useId();
+  const passwordField = useRef<HTMLInputElement>(null);
+  // Reopened with "That password isn't right.": straight to the field
+  useEffect(() => {
+    if (open && error) passwordField.current?.focus();
+  }, [open, error]);
   return (
     <>
       <SecurityRow
@@ -255,6 +264,7 @@ function TwoFactor({
             </Alert>
             {hasPassword ? (
               <Input
+                ref={passwordField}
                 label="Password"
                 type="password"
                 autoComplete="current-password"
@@ -282,14 +292,16 @@ function SignOutEverywhere() {
   async function signOut() {
     setBusy(true);
     try {
+      // One transaction with its audit row (4.6): if it throws, nothing was signed out
       await signOutEverywhereFn();
-      // Every session is gone, this one included
-      await navigate({ href: "/login?signedOut=everywhere", replace: true });
     } catch {
       setBusy(false);
       setOpen(false);
       toast({ tone: "danger", title: "Still signed in", message: SOMETHING_WENT_WRONG });
+      return;
     }
+    // Every session is gone, this one included
+    await navigate({ href: "/login?signedOut=everywhere", replace: true });
   }
 
   return (
@@ -305,11 +317,12 @@ function SignOutEverywhere() {
       />
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={busy ? undefined : () => setOpen(false)}
         title="Sign out everywhere?"
+        description="You'll be signed out on every device, including this one. You'll need to log in again."
         actions={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
               Cancel
             </Button>
             <Button onClick={signOut} loading={busy}>
@@ -317,11 +330,7 @@ function SignOutEverywhere() {
             </Button>
           </>
         }
-      >
-        <p className="settings__dialog-text">
-          You'll be signed out on every device, including this one. You'll need to log in again.
-        </p>
-      </Dialog>
+      />
     </>
   );
 }

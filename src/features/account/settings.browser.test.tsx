@@ -378,7 +378,7 @@ describe("Security (frame 06)", () => {
 
   it("lists recent activity, failures in the warning style", async () => {
     await showSecurity();
-    const items = page.getByRole("list", { name: "Recent activity" }).getByRole("listitem");
+    const items = page.getByRole("region", { name: "Recent activity" }).getByRole("listitem");
     await expect
       .element(items.nth(0))
       .toHaveTextContent("Signed inChrome on Windows · 2 hours ago");
@@ -413,5 +413,119 @@ describe("Security (frame 06)", () => {
     await expect
       .element(page.getByRole("link", { name: "Close your account" }))
       .toHaveAttribute("href", "/account/close");
+  });
+});
+
+// Checkpoint review after Task 5: races, focus and the less common refusals
+describe("Settings edge cases", () => {
+  const securitySummary: AccountSummary = {
+    user: { id: "u1", name: "Maya Patel", email: "maya@example.com", emailVerified: true },
+    providers: ["credential"],
+    twoFactorEnabled: true,
+  };
+  const showSecurity = (summary: AccountSummary = securitySummary) =>
+    renderWithRouter(
+      <SettingsLayout section="security">
+        <SecuritySection summary={summary} staff={false} activity={[]} />
+      </SettingsLayout>,
+      "/account/settings/security",
+    );
+  const turnOffDialog = () => page.getByRole("dialog", { name: "Turn off two-factor?" });
+  async function submitTurnOff(password = "my long password") {
+    await page.getByRole("button", { name: "Turn off" }).click();
+    await userEvent.fill(turnOffDialog().getByLabelText("Password"), password);
+    await turnOffDialog().getByRole("button", { name: "Turn off two-factor" }).click();
+  }
+
+  it("keeps Edit details disabled while a save is in flight", async () => {
+    let answer!: (value: unknown) => void;
+    fns.updateMyPhoneFn.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await showPersonal();
+    await page.getByRole("button", { name: "Edit details" }).click();
+    await userEvent.fill(page.getByLabelText("Mobile number"), "07700900418");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect.element(page.getByRole("button", { name: "Edit details" })).toBeDisabled();
+    answer({ ok: true, data: { set: true } });
+    await expect.element(page.getByRole("button", { name: "Edit details" })).toBeEnabled();
+  });
+
+  it("puts focus on the mobile field when a save is refused", async () => {
+    fns.updateMyPhoneFn.mockResolvedValue({
+      ok: false,
+      error: { code: "VALIDATION", message: "x", fields: {} },
+    });
+    await showPersonal();
+    await page.getByRole("button", { name: "Edit details" }).click();
+    await userEvent.fill(page.getByLabelText("Mobile number"), "07700900418");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect.element(page.getByRole("textbox", { name: "Mobile number" })).toHaveFocus();
+  });
+
+  it("puts focus back on Edit details after a save", async () => {
+    fns.updateMyPhoneFn.mockResolvedValue({ ok: true, data: { set: true } });
+    await showPersonal();
+    await page.getByRole("button", { name: "Edit details" }).click();
+    await userEvent.fill(page.getByLabelText("Mobile number"), "07700900418");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect.element(page.getByRole("button", { name: "Edit details" })).toHaveFocus();
+  });
+
+  it("says to wait when turning two-factor off is rate limited", async () => {
+    client.twoFactor.disable.mockResolvedValue({ data: null, error: { status: 429 } });
+    await showSecurity();
+    await submitTurnOff();
+    await expect.element(page.getByText("Too many tries")).toBeVisible();
+    await expect.element(page.getByText("Two-factor is still on")).not.toBeInTheDocument();
+  });
+
+  it("never sends a password account to Google for a stale session", async () => {
+    client.twoFactor.disable.mockResolvedValue({
+      data: null,
+      error: { status: 403, code: "SESSION_NOT_FRESH" },
+    });
+    await showSecurity();
+    await submitTurnOff();
+    await expect.element(page.getByText("Two-factor is still on")).toBeVisible();
+    await expect
+      .element(page.getByText("For your security, confirm with Google first."))
+      .not.toBeInTheDocument();
+  });
+
+  it("puts focus on the password after a wrong one", async () => {
+    client.twoFactor.disable.mockResolvedValue({
+      data: null,
+      error: { status: 400, code: "INVALID_PASSWORD" },
+    });
+    await showSecurity();
+    await submitTurnOff("wrong");
+    await expect.element(turnOffDialog().getByLabelText("Password")).toHaveFocus();
+  });
+
+  it("describes the sign out everywhere dialog", async () => {
+    await showSecurity();
+    await page.getByRole("button", { name: "Sign out everywhere" }).click();
+    await expect
+      .element(page.getByRole("dialog", { name: "Sign out everywhere?" }))
+      .toHaveAccessibleDescription(
+        "You'll be signed out on every device, including this one. You'll need to log in again.",
+      );
+  });
+
+  it("names Recent activity once", async () => {
+    await renderWithRouter(
+      <SecuritySection summary={securitySummary} staff={false} activity={[]} />,
+    );
+    await expect.element(page.getByRole("region", { name: "Recent activity" })).toBeVisible();
+  });
+
+  it("says still signed in only when the sign-out itself fails", async () => {
+    session.signOutEverywhereFn.mockRejectedValue(new Error("down"));
+    await showSecurity();
+    await page.getByRole("button", { name: "Sign out everywhere" }).click();
+    await page
+      .getByRole("dialog", { name: "Sign out everywhere?" })
+      .getByRole("button", { name: "Sign out everywhere" })
+      .click();
+    await expect.element(page.getByText("Still signed in")).toBeVisible();
   });
 });
