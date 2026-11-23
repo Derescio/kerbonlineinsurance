@@ -13,6 +13,8 @@ const search = z.object({
   // Better Auth's error code when Google sign-in fails or is refused (frames 08, 08b)
   error: z.string().optional().catch(undefined),
   reset: z.literal("done").optional().catch(undefined),
+  // After "Sign out everywhere" in Settings (6.3)
+  signedOut: z.literal("everywhere").optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_auth/login")({
@@ -26,12 +28,18 @@ export const Route = createFileRoute("/_auth/login")({
 });
 
 function LoginPage() {
-  const { redirect: to, error, reset } = Route.useSearch();
+  const { redirect: to, error, reset, signedOut } = Route.useSearch();
   const navigate = useNavigate();
   useOneTimeToast(
     reset === "done"
       ? { tone: "success", title: "Password changed", message: "Log in with your new password." }
-      : null,
+      : signedOut === "everywhere"
+        ? {
+            tone: "success",
+            title: "Signed out",
+            message: "You've been signed out on every device.",
+          }
+        : null,
     () => void navigate({ to: "/login", search: { redirect: to }, replace: true }),
   );
   // Better Auth sends ?error=…&error_description=… back from Google. LoginForm keeps the notice in

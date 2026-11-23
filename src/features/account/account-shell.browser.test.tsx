@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
-import type { AccountSummary } from "#/features/auth/session";
 import { renderWithRouter } from "#/test/router";
 
 import { LOG_OUT_FAILED } from "../auth/log-out";
-import { AccountSettings } from "./AccountSettings";
 import { AccountShell } from "./AccountShell";
 
 // The account header (6.1, decision 1; Figma 258:3608 and 258:3683) and the settings that moved
@@ -157,33 +155,5 @@ describe("AccountShell", () => {
     await userEvent.tab();
     await userEvent.tab();
     await expect.element(avatar).toHaveAttribute("aria-expanded", "false");
-  });
-});
-
-describe("AccountSettings (moved from /account)", () => {
-  const summary: AccountSummary = {
-    user: { id: "u1", name: "Maya Patel", email: "maya@example.com", emailVerified: true },
-    providers: ["credential"],
-    twoFactorEnabled: false,
-  };
-
-  it("has ways to log in, two-factor and closing the account", async () => {
-    await renderWithRouter(<AccountSettings summary={summary} />, "/account/settings");
-    await expect
-      .element(page.getByRole("heading", { level: 1, name: "Account settings" }))
-      .toBeVisible();
-    for (const name of ["Ways to log in", "Two-factor", "Close your account"]) {
-      await expect.element(page.getByRole("heading", { level: 2, name })).toBeVisible();
-    }
-  });
-
-  it("comes back to settings after connecting Google", async () => {
-    await renderWithRouter(<AccountSettings summary={summary} />, "/account/settings");
-    await userEvent.click(page.getByRole("button", { name: "Connect Google" }));
-    expect(client.linkSocial).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL: "/account/settings?linked=google",
-      errorCallbackURL: "/account/settings?error=link",
-    });
   });
 });

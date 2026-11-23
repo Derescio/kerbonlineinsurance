@@ -394,6 +394,17 @@ describe("Security (frame 06)", () => {
     await expect.element(page.getByText("No activity yet.")).toBeVisible();
   });
 
+  it("comes back to Security after connecting Google", async () => {
+    client.linkSocial.mockReturnValue(new Promise(() => {}));
+    await showSecurity();
+    await page.getByRole("button", { name: "Connect Google" }).click();
+    expect(client.linkSocial).toHaveBeenCalledWith({
+      provider: "google",
+      callbackURL: "/account/settings/security?linked=google",
+      errorCallbackURL: "/account/settings/security?error=link",
+    });
+  });
+
   it("keeps ways to log in and closing the account", async () => {
     await showSecurity();
     await expect
