@@ -1,6 +1,6 @@
 # 6.3 Account settings
 
-**Status:** done (spec approved by Damion, 22 Nov 2026)
+**Status:** done (#113; spec approved by Damion, 22 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
