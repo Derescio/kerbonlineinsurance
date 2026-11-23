@@ -64,8 +64,9 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 
 - [x] 6.1 **Dashboard**: the account shell and Overview, and the public header shows "My account" when signed in
 - [x] 6.1b **Add another product later**: "Add home / Add car insurance" for products the customer doesn't hold, with 8% off the new policy while they hold another
-- [ ] 6.2 **Policy detail**, with downloadable documents (certificate of insurance, policy schedule)
-- [ ] 6.3 **Settings**: address, drivers, 2FA on/off, sign out everywhere, recent activity; `policy_versions` history
+- [x] 6.2 **Policy detail**, with downloadable documents (certificate of insurance, policy schedule)
+- [ ] 6.3 **Account settings**: personal details and mobile, 2FA on/off, sign out everywhere, recent activity
+- [ ] 6.3b **Policy changes**: address, drivers, cover; re-priced with the difference settled in Stripe; `policy_versions` history
 - [ ] 6.4 **Claims overview + incident step**
 - [ ] 6.5 **Damage + review + submit**: damage photos and claim documents (PDF)
 - [ ] 6.6 **Claim tracker** (shows `claim_events` written by staff in 6.10), settlement card, messages, notification bell
