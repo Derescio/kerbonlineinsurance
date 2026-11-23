@@ -1,6 +1,6 @@
 # 6.3 Account settings
 
-**Status:** todo (spec approved by Damion, 22 Nov 2026)
+**Status:** done (spec approved by Damion, 22 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -88,6 +88,19 @@ A signed-in customer manages their account from one Settings page built to the A
 - A customer can add, change or clear their mobile, turn 2FA on and off, sign out everywhere and see their recent activity.
 - The tests above pass in `ci`.
 - Preview manual check by Damion.
+
+## Notes from the build
+
+- **The mobile is kept out of the audit log and replies.** The audit row says only `{ phone: { set } }`, and `updateMyPhone` replies `{ set }` rather than the number, because the idempotency row stores the reply for 24 hours (checkpoint review). The page shows the number it sent, normalised by the same `mobileSchema`.
+- **The mobile rule also takes dashes, dots and brackets**, and `+44 (0)7…` (checkpoint review). Under a minute, Recent activity says "Just now".
+- **`SECURITY_EVENT_TYPES` moved to `schema/values.ts`** (re-exported from `security.ts`), so the labels in `settings-model.ts` can be typed against every event without features importing a schema file.
+- **`Dialog` fix:** the browser's `close` event comes a task after `close()`. When the owner closed and reopened the dialog in between (Turn off two-factor reopening with "That password isn't right."), the late event shut it again. `Dialog` now ignores the close it asked for.
+- **`ButtonProps` takes a `ref`** (React 19), so focus can return to "Edit details" after a save.
+- **Turning two-factor off rotates the session** (Better Auth makes a new one and deletes the old). A reload before its answer arrives keeps the deleted token and lands signed out; the E2E waits for the answer. While the request runs the row shows no action, so nothing else is sent with the old session, and the row is keyed on the page's data so the badge follows it after setup (the E2E found it still said Off).
+- **Sign out everywhere clears this browser's cookies too.** 4.6's server function deletes the sessions in our own transaction, so Better Auth's cached session cookie still said signed in, and the log-in page sent the browser on to `/account`. After the function, the page calls Better Auth's sign-out (which clears the cookies with no session left) and leaves with a full page load, as logging out does.
+- **Recent activity's times use the loader's clock**, so the server render and hydration agree.
+- **Ways to log in's Google return** now comes back to `/account/settings/security`. `/account/settings?linked=…` and `?error=…` redirect there, so older links still show their toast.
+- **E2E locally** needs Turnstile's test keys (`VITE_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA`, `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`) and `vp dev` on port 3000 (the `BETTER_AUTH_URL` origin). Local runs share one `127.0.0.1` sign-in bucket (10 per 15 minutes).
 
 ## Commit message
 

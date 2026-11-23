@@ -65,7 +65,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 6.1 **Dashboard**: the account shell and Overview, and the public header shows "My account" when signed in
 - [x] 6.1b **Add another product later**: "Add home / Add car insurance" for products the customer doesn't hold, with 8% off the new policy while they hold another
 - [x] 6.2 **Policy detail**, with downloadable documents (certificate of insurance, policy schedule)
-- [ ] 6.3 **Account settings**: personal details and mobile, 2FA on/off, sign out everywhere, recent activity
+- [x] 6.3 **Account settings**: personal details and mobile, 2FA on/off, sign out everywhere, recent activity
 - [ ] 6.3b **Policy changes**: address, drivers, cover; re-priced with the difference settled in Stripe; `policy_versions` history
 - [ ] 6.4 **Claims overview + incident step**
 - [ ] 6.5 **Damage + review + submit**: damage photos and claim documents (PDF)
@@ -75,8 +75,9 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [ ] 6.9 **Reviews: public**: `/reviews` page (average, filters) + latest reviews in the landing trust section; `/media/r/:fileId` photo route
 - [ ] 6.10 **Staff claims console**: designed in Figma first; `/staff/claims` queue + claim detail (photos, documents, notes); status changes write `claim_events`; staff views of claims and files audited; claim → approval Playwright journey
 - [ ] 6.11 **Staff referral queue**: designed in Figma first; `/staff/referrals` for quote items the eligibility rules referred; approve (with optional loading) or decline, audited; referral → approval → purchase Playwright journey
-- [ ] 6.12 **Staff spreadsheet imports**: `data_uploader` role, `/staff/imports`, `.xlsx` templates checked on upload, withdraw and supersede
+- [ ] 6.12 **Staff spreadsheet imports**: `data_uploader` role, `/staff/imports`, CSV or `.xlsx` (one sheet per dataset: marketing spend, comparison-site fees, email campaigns) checked on upload, withdraw and supersede
 - [ ] 6.13 **Import endpoint for ADF**: read-only paged JSON API with a pipeline key; ADF hooks up in 9.3
+- [ ] 6.14 **Acquisition channel and matching marketing files**: every quote records its channel and campaign (seeded for synthetic quotes); a script writes spend files that agree with `dev`'s quotes
 
 ## 7. Kerbie · `s7-kerbie` · [phase](phases/07-kerbie/phase.md)
 
