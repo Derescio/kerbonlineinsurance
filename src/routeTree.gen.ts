@@ -43,6 +43,7 @@ import { Route as QuoteQuoteComingSoonRouteImport } from './routes/_quote/quote.
 import { Route as QuoteQuoteHomeRouteImport } from './routes/_quote/quote.home'
 import { Route as QuoteQuoteRetrieveRouteImport } from './routes/_quote/quote.retrieve'
 import { Route as AccountPoliciesReferenceRouteImport } from './routes/account_.policies_.$reference'
+import { Route as AccountSettingsSecurityRouteImport } from './routes/account_.settings_.security'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDailyRouteImport } from './routes/api/cron/daily'
 import { Route as ApiCronJobsRouteImport } from './routes/api/cron/jobs'
@@ -219,6 +220,11 @@ const AccountPoliciesReferenceRoute =
     path: '/account/policies/$reference',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AccountSettingsSecurityRoute = AccountSettingsSecurityRouteImport.update({
+  id: '/account_/settings_/security',
+  path: '/account/settings/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/quote/home': typeof QuoteQuoteHomeRoute
   '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/account/policies/$reference': typeof AccountPoliciesReferenceRoute
+  '/account/settings/security': typeof AccountSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -332,6 +339,7 @@ export interface FileRoutesByTo {
   '/quote/home': typeof QuoteQuoteHomeRoute
   '/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/account/policies/$reference': typeof AccountPoliciesReferenceRoute
+  '/account/settings/security': typeof AccountSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -377,6 +385,7 @@ export interface FileRoutesById {
   '/_quote/quote/home': typeof QuoteQuoteHomeRoute
   '/_quote/quote/retrieve': typeof QuoteQuoteRetrieveRoute
   '/account_/policies_/$reference': typeof AccountPoliciesReferenceRoute
+  '/account_/settings_/security': typeof AccountSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/daily': typeof ApiCronDailyRoute
   '/api/cron/jobs': typeof ApiCronJobsRoute
@@ -419,6 +428,7 @@ export interface FileRouteTypes {
     | '/quote/home'
     | '/quote/retrieve'
     | '/account/policies/$reference'
+    | '/account/settings/security'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -459,6 +469,7 @@ export interface FileRouteTypes {
     | '/quote/home'
     | '/quote/retrieve'
     | '/account/policies/$reference'
+    | '/account/settings/security'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -503,6 +514,7 @@ export interface FileRouteTypes {
     | '/_quote/quote/home'
     | '/_quote/quote/retrieve'
     | '/account_/policies_/$reference'
+    | '/account_/settings_/security'
     | '/api/auth/$'
     | '/api/cron/daily'
     | '/api/cron/jobs'
@@ -533,6 +545,7 @@ export interface RootRouteChildren {
   ApiStreamTestRoute: typeof ApiStreamTestRoute
   DevUploadsRoute: typeof DevUploadsRoute
   AccountPoliciesReferenceRoute: typeof AccountPoliciesReferenceRoute
+  AccountSettingsSecurityRoute: typeof AccountSettingsSecurityRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCronDailyRoute: typeof ApiCronDailyRoute
   ApiCronJobsRoute: typeof ApiCronJobsRoute
@@ -781,6 +794,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountPoliciesReferenceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account_/settings_/security': {
+      id: '/account_/settings_/security'
+      path: '/account/settings/security'
+      fullPath: '/account/settings/security'
+      preLoaderRoute: typeof AccountSettingsSecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -927,6 +947,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStreamTestRoute: ApiStreamTestRoute,
   DevUploadsRoute: DevUploadsRoute,
   AccountPoliciesReferenceRoute: AccountPoliciesReferenceRoute,
+  AccountSettingsSecurityRoute: AccountSettingsSecurityRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCronDailyRoute: ApiCronDailyRoute,
   ApiCronJobsRoute: ApiCronJobsRoute,
@@ -938,6 +959,7 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
 
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'
