@@ -31,13 +31,15 @@ export const Route = createFileRoute("/account_/settings_/security")({
     summary: context.summary,
     staff: context.staff,
     activity: await getMyRecentActivityFn(),
+    // One clock for the server render and hydration, so "2 hours ago" matches on both
+    now: new Date().toISOString(),
   }),
   head: () => ({ meta: [{ title: "Security · Kerb" }] }),
   component: Security,
 });
 
 function Security() {
-  const { summary, staff, activity } = Route.useLoaderData();
+  const { summary, staff, activity, now } = Route.useLoaderData();
   const notice = Route.useSearch();
   const navigate = useNavigate();
   useOneTimeToast(
@@ -56,7 +58,7 @@ function Security() {
   return (
     <AccountShell name={summary.user.name}>
       <SettingsLayout section="security">
-        <SecuritySection summary={summary} staff={staff} activity={activity} />
+        <SecuritySection summary={summary} staff={staff} activity={activity} now={new Date(now)} />
       </SettingsLayout>
     </AccountShell>
   );

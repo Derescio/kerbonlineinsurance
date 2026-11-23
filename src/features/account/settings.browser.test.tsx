@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -528,4 +529,60 @@ describe("Settings edge cases", () => {
       .click();
     await expect.element(page.getByText("Still signed in")).toBeVisible();
   });
+});
+
+// Found by the E2E: back from 4.6's setup, the route's data says on while the badge said off
+it("follows the page's data when two-factor changes elsewhere", async () => {
+  const base: AccountSummary = {
+    user: { id: "u1", name: "Maya Patel", email: "maya@example.com", emailVerified: true },
+    providers: ["credential"],
+    twoFactorEnabled: false,
+  };
+  function Harness() {
+    const [enabled, setEnabled] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setEnabled(true)}>
+          Data says on
+        </button>
+        <SecuritySection
+          summary={{ ...base, twoFactorEnabled: enabled }}
+          staff={false}
+          activity={[]}
+        />
+      </>
+    );
+  }
+  await renderWithRouter(<Harness />);
+  const badge = page.getByRole("group", { name: "Two-factor", exact: true });
+  await expect.element(badge.getByText("Off", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Data says on" }).click();
+  await expect.element(badge.getByText("On", { exact: true })).toBeVisible();
+});
+
+// Found by the E2E: the optimistic "Turn on" link took the dialog's returning focus and preloaded
+// /account/two-factor with the session the disable was replacing, whose refusal cleared the new one
+it("offers no Turn on while turning two-factor off is in flight", async () => {
+  let answer!: (value: unknown) => void;
+  client.twoFactor.disable.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+  await renderWithRouter(
+    <SecuritySection
+      summary={{
+        user: { id: "u1", name: "Maya Patel", email: "maya@example.com", emailVerified: true },
+        providers: ["credential"],
+        twoFactorEnabled: true,
+      }}
+      staff={false}
+      activity={[]}
+    />,
+  );
+  await page.getByRole("button", { name: "Turn off" }).click();
+  const dialog = page.getByRole("dialog", { name: "Turn off two-factor?" });
+  await userEvent.fill(dialog.getByLabelText("Password"), "my long password");
+  await dialog.getByRole("button", { name: "Turn off two-factor" }).click();
+  const row = page.getByRole("group", { name: "Two-factor", exact: true });
+  await expect.element(row.getByText("Off", { exact: true })).toBeVisible();
+  await expect.element(page.getByRole("link", { name: "Turn on" })).not.toBeInTheDocument();
+  answer({ data: { status: true }, error: null });
+  await expect.element(page.getByRole("link", { name: "Turn on" })).toBeVisible();
 });

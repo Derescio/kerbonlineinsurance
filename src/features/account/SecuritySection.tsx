@@ -40,6 +40,9 @@ export function SecuritySection({
       <div className="settings__rows">
         <WaysToLogIn providers={summary.providers} />
         <TwoFactor
+          // The badge is optimistic local state: new data from the route (back from setup, or
+          // after invalidate) starts it again from the truth
+          key={String(summary.twoFactorEnabled)}
           enabled={summary.twoFactorEnabled}
           staff={staff}
           hasPassword={summary.providers.includes("credential")}
@@ -134,6 +137,9 @@ function TwoFactor({
   const [error, setError] = useState<string>();
   const [needsGoogle, setNeedsGoogle] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  // While disable runs, no action: Better Auth replaces the session, and anything else sent with
+  // the old one (a focused "Turn on" preloads its page) is refused and clears the new cookie
+  const [pending, setPending] = useState(false);
 
   function openDialog() {
     setPassword("");
@@ -150,6 +156,7 @@ function TwoFactor({
     }
     setEnabled(false);
     setOpen(false);
+    setPending(true);
     let failure: { status?: number; code?: string } | null;
     try {
       const result = await authClient.twoFactor.disable(hasPassword ? { password } : {});
@@ -157,6 +164,7 @@ function TwoFactor({
     } catch {
       failure = { status: 0 };
     }
+    setPending(false);
     if (!failure) {
       void router.invalidate();
       return;
@@ -212,7 +220,7 @@ function TwoFactor({
               : "Add a code from an authenticator app when you log in."
         }
         action={
-          !enabled ? (
+          pending ? undefined : !enabled ? (
             <Link
               to="/account/two-factor"
               search={{ redirect: HERE }}
