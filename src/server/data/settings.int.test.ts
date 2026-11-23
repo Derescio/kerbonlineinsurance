@@ -1,0 +1,207 @@
+import { randomUUID } from "node:crypto";
+
+import { asc, eq } from "drizzle-orm";
+import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+
+import { resolveActor } from "#/server/auth/actor";
+import { AuthzError, IdempotencyConflictError } from "#/server/auth/errors";
+import { closeDb, getDb } from "#/server/db/client";
+import { auditLog, customers, securityEvents } from "#/server/db/schema";
+import { truncateAll } from "#/test/db";
+import { makeCustomer, makeUser } from "#/test/factories";
+
+import { getMyPersonalDetails, getMyRecentActivity, updateMyPhone } from "./settings";
+
+// Account settings (6.3): the details and activity reads, and the audited, idempotent mobile save.
+
+beforeEach(truncateAll);
+afterAll(closeDb);
+
+const ctx = { headers: new Headers() };
+
+async function signedInCustomer() {
+  const user = await makeUser({ name: "Maya Patel", email: "maya@example.test" });
+  const customer = await makeCustomer({
+    userId: user.id,
+    firstName: "Maya",
+    lastName: "Patel",
+    dateOfBirth: "1991-06-14",
+    addressLine1: "Flat 3, 28 Mare Street",
+    town: "London",
+    postcode: "E8 3RL",
+  });
+  const actor = (await resolveActor(getDb(), user.id))!;
+  return { user, customer, actor };
+}
+
+async function signedInUserOnly() {
+  const user = await makeUser({ name: "Sam Lee", email: "sam@example.test" });
+  const actor = (await resolveActor(getDb(), user.id))!;
+  return { user, actor };
+}
+
+const phoneAudits = () =>
+  getDb()
+    .select()
+    .from(auditLog)
+    .where(eq(auditLog.action, "customer.phone_changed"))
+    .orderBy(asc(auditLog.id));
+
+describe("getMyPersonalDetails", () => {
+  it("returns the customer's details and the user's email", async () => {
+    const { actor } = await signedInCustomer();
+    expect(await getMyPersonalDetails(actor, {})).toEqual({
+      name: "Maya Patel",
+      email: "maya@example.test",
+      customer: {
+        firstName: "Maya",
+        lastName: "Patel",
+        dateOfBirth: "1991-06-14",
+        phone: null,
+        addressLine1: "Flat 3, 28 Mare Street",
+        addressLine2: null,
+        town: "London",
+        postcode: "E8 3RL",
+      },
+    });
+  });
+
+  it("has no customer for a user who never saved a quote", async () => {
+    const { actor } = await signedInUserOnly();
+    expect(await getMyPersonalDetails(actor, {})).toEqual({
+      name: "Sam Lee",
+      email: "sam@example.test",
+      customer: null,
+    });
+  });
+
+  it("refuses a guest", async () => {
+    await expect(getMyPersonalDetails(null, {})).rejects.toThrow(AuthzError);
+  });
+});
+
+describe("getMyRecentActivity", () => {
+  it("returns the user's 10 newest events, newest first, without the IP hash", async () => {
+    const { user, actor } = await signedInCustomer();
+    const other = await makeUser();
+    const base = Date.parse("2026-11-01T10:00:00Z");
+    await getDb()
+      .insert(securityEvents)
+      .values([
+        ...Array.from({ length: 12 }, (_, i) => ({
+          userId: user.id,
+          type: "sign_in" as const,
+          method: "password" as const,
+          ipHash: "a".repeat(64),
+          userAgentSummary: "Chrome on Windows",
+          createdAt: new Date(base + i * 60_000),
+        })),
+        { userId: other.id, type: "sign_in_failed" as const, createdAt: new Date(base + 99e6) },
+      ]);
+
+    const activity = await getMyRecentActivity(actor, {});
+    expect(activity).toHaveLength(10);
+    expect(activity[0]).toEqual({
+      type: "sign_in",
+      method: "password",
+      device: "Chrome on Windows",
+      at: new Date(base + 11 * 60_000).toISOString(),
+    });
+    expect(activity[9]!.at).toBe(new Date(base + 2 * 60_000).toISOString());
+    for (const row of activity) expect(row).not.toHaveProperty("ipHash");
+  });
+
+  it("refuses a guest", async () => {
+    await expect(getMyRecentActivity(null, {})).rejects.toThrow(AuthzError);
+  });
+});
+
+describe("updateMyPhone", () => {
+  it("saves the normalised number and audits that it was set, never the number", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const result = await updateMyPhone(
+      actor,
+      { input: { phone: "+44 7700 900418" }, idempotencyKey: randomUUID() },
+      ctx,
+    );
+    expect(result).toEqual({ ok: true, data: { phone: "07700 900418" } });
+
+    const row = await getDb().query.customers.findFirst({ where: eq(customers.id, customer.id) });
+    expect(row!.phone).toBe("07700 900418");
+    const audits = await phoneAudits();
+    expect(audits).toHaveLength(1);
+    expect(audits[0]!.entityId).toBe(customer.id);
+    expect(audits[0]!.changes).toEqual({ phone: { set: true } });
+    expect(JSON.stringify(audits[0])).not.toContain("7700");
+  });
+
+  it("changes and audits once for a retried key", async () => {
+    const { actor } = await signedInCustomer();
+    const envelope = { input: { phone: "07700 900418" }, idempotencyKey: randomUUID() };
+    const first = await updateMyPhone(actor, envelope, ctx);
+    const second = await updateMyPhone(actor, envelope, ctx);
+    expect(second).toEqual(first);
+    expect(await phoneAudits()).toHaveLength(1);
+  });
+
+  it("refuses a key reused for a different number, changing nothing", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const key = randomUUID();
+    await updateMyPhone(actor, { input: { phone: "07700 900418" }, idempotencyKey: key }, ctx);
+    await expect(
+      updateMyPhone(actor, { input: { phone: "07700 900999" }, idempotencyKey: key }, ctx),
+    ).rejects.toThrow(IdempotencyConflictError);
+    const row = await getDb().query.customers.findFirst({ where: eq(customers.id, customer.id) });
+    expect(row!.phone).toBe("07700 900418");
+  });
+
+  it("clears the number with a blank, audited as unset", async () => {
+    const { customer, actor } = await signedInCustomer();
+    await getDb()
+      .update(customers)
+      .set({ phone: "07700 900418" })
+      .where(eq(customers.id, customer.id));
+    const result = await updateMyPhone(
+      actor,
+      { input: { phone: "" }, idempotencyKey: randomUUID() },
+      ctx,
+    );
+    expect(result).toEqual({ ok: true, data: { phone: null } });
+    expect((await phoneAudits())[0]!.changes).toEqual({ phone: { set: false } });
+  });
+
+  it("refuses a landline with the field's message and writes nothing", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const result = await updateMyPhone(
+      actor,
+      { input: { phone: "020 7946 0018" }, idempotencyKey: randomUUID() },
+      ctx,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.fields).toEqual({ phone: "Enter a UK mobile number, like 07700 900418" });
+    const row = await getDb().query.customers.findFirst({ where: eq(customers.id, customer.id) });
+    expect(row!.phone).toBeNull();
+    expect(await phoneAudits()).toHaveLength(0);
+  });
+
+  it("refuses a user without a customer record", async () => {
+    const { actor } = await signedInUserOnly();
+    const result = await updateMyPhone(
+      actor,
+      { input: { phone: "07700 900418" }, idempotencyKey: randomUUID() },
+      ctx,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ message: "Save a quote first to add a mobile number." }),
+    });
+    expect(await phoneAudits()).toHaveLength(0);
+  });
+
+  it("refuses a guest", async () => {
+    await expect(
+      updateMyPhone(null, { input: { phone: "07700 900418" }, idempotencyKey: randomUUID() }, ctx),
+    ).rejects.toThrow(AuthzError);
+  });
+});
