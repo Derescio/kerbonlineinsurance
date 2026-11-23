@@ -1,4 +1,4 @@
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
@@ -7,6 +7,7 @@ import { Alert } from "#/components/feedback/Alert";
 import { Dialog } from "#/components/feedback/Dialog";
 import { useToast } from "#/components/feedback/Toaster";
 import { Input } from "#/components/forms/Input";
+import { leaveTo } from "#/lib/leave";
 import type { RecentActivity as Activity } from "#/server/data/settings";
 
 import { authClient } from "../auth/auth-client";
@@ -292,7 +293,6 @@ function TwoFactor({
 }
 
 function SignOutEverywhere() {
-  const navigate = useNavigate();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -308,8 +308,16 @@ function SignOutEverywhere() {
       toast({ tone: "danger", title: "Still signed in", message: SOMETHING_WENT_WRONG });
       return;
     }
-    // Every session is gone, this one included
-    await navigate({ href: "/login?signedOut=everywhere", replace: true });
+    // Every session is gone, this one included, but in our own transaction: Better Auth's sign-out
+    // clears this browser's cookies, or its cached copy would still say signed in (the log-in
+    // page would send them on to /account). It fails harmlessly with no session left to end
+    try {
+      await authClient.signOut();
+    } catch {
+      // The full page load below still leaves the account pages
+    }
+    // A full page load, as logging out does, so the router keeps nothing from the ended session
+    leaveTo("/login?signedOut=everywhere");
   }
 
   return (

@@ -21,6 +21,7 @@ const fns = vi.hoisted(() => ({
 vi.mock("./settings", () => fns);
 
 const client = vi.hoisted(() => ({
+  signOut: vi.fn(),
   twoFactor: { disable: vi.fn() },
   signIn: { social: vi.fn() },
   linkSocial: vi.fn(),
@@ -32,6 +33,9 @@ vi.mock("../auth/auth-client", async (importOriginal) => ({
 
 const session = vi.hoisted(() => ({ signOutEverywhereFn: vi.fn() }));
 vi.mock("../auth/session", () => session);
+
+const leave = vi.hoisted(() => ({ leaveTo: vi.fn() }));
+vi.mock("#/lib/leave", () => leave);
 
 const maya = (phone: string | null = null): Details => ({
   name: "Maya Patel",
@@ -362,7 +366,8 @@ describe("Security (frame 06)", () => {
 
   it("signs out everywhere after confirming, then goes to log in", async () => {
     session.signOutEverywhereFn.mockResolvedValue({ revoked: 2 });
-    const { router } = await showSecurity();
+    client.signOut.mockResolvedValue({ data: null, error: { status: 400 } });
+    await showSecurity();
     await page.getByRole("button", { name: "Sign out everywhere" }).click();
     const dialog = page.getByRole("dialog", { name: "Sign out everywhere?" });
     await expect
@@ -374,7 +379,14 @@ describe("Security (frame 06)", () => {
       .toBeVisible();
     await dialog.getByRole("button", { name: "Sign out everywhere" }).click();
     expect(session.signOutEverywhereFn).toHaveBeenCalled();
-    await expect.poll(() => router.state.location.href).toBe("/login?signedOut=everywhere");
+    // A full page load, as logging out does: the router holds nothing from the ended session
+    await expect.poll(() => leave.leaveTo.mock.calls).toEqual([["/login?signedOut=everywhere"]]);
+    // The sessions went in our own transaction, so Better Auth clears this browser's cookies
+    // (its cached copy would otherwise still say signed in)
+    expect(client.signOut).toHaveBeenCalled();
+    expect(client.signOut.mock.invocationCallOrder[0]!).toBeLessThan(
+      leave.leaveTo.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("lists recent activity, failures in the warning style", async () => {
