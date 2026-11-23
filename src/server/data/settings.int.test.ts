@@ -6,7 +6,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { resolveActor } from "#/server/auth/actor";
 import { AuthzError, IdempotencyConflictError } from "#/server/auth/errors";
 import { closeDb, getDb } from "#/server/db/client";
-import { auditLog, customers, securityEvents } from "#/server/db/schema";
+import { auditLog, customers, idempotencyKeys, securityEvents } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
 import { makeCustomer, makeUser } from "#/test/factories";
 
@@ -124,7 +124,7 @@ describe("updateMyPhone", () => {
       { input: { phone: "+44 7700 900418" }, idempotencyKey: randomUUID() },
       ctx,
     );
-    expect(result).toEqual({ ok: true, data: { phone: "07700 900418" } });
+    expect(result).toEqual({ ok: true, data: { set: true } });
 
     const row = await getDb().query.customers.findFirst({ where: eq(customers.id, customer.id) });
     expect(row!.phone).toBe("07700 900418");
@@ -133,6 +133,10 @@ describe("updateMyPhone", () => {
     expect(audits[0]!.entityId).toBe(customer.id);
     expect(audits[0]!.changes).toEqual({ phone: { set: true } });
     expect(JSON.stringify(audits[0])).not.toContain("7700");
+    // The replay copy holds no personal data either (idempotency.ts)
+    const keys = await getDb().select().from(idempotencyKeys);
+    expect(keys).toHaveLength(1);
+    expect(JSON.stringify(keys[0]!.response)).not.toContain("7700");
   });
 
   it("changes and audits once for a retried key", async () => {
@@ -166,7 +170,7 @@ describe("updateMyPhone", () => {
       { input: { phone: "" }, idempotencyKey: randomUUID() },
       ctx,
     );
-    expect(result).toEqual({ ok: true, data: { phone: null } });
+    expect(result).toEqual({ ok: true, data: { set: false } });
     expect((await phoneAudits())[0]!.changes).toEqual({ phone: { set: false } });
   });
 

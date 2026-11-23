@@ -27,11 +27,11 @@ export interface UpdatePhoneEnvelope {
   idempotencyKey: string;
 }
 
-/** Adds, changes or clears the mobile (decision 4); one key per Save */
+/** Adds, changes or clears the mobile (decision 4); one key per Save. The page shows what it sent */
 export const updateMyPhoneFn = createServerFn({ method: "POST" })
   .middleware([actorMiddleware])
   .validator((data: UpdatePhoneEnvelope) => data)
-  .handler(async ({ context, data }): Promise<WriteResult<{ phone: string | null }>> => {
+  .handler(async ({ context, data }): Promise<WriteResult<{ set: boolean }>> => {
     const { updateMyPhone } = await import("#/server/data/settings");
     return updateMyPhone(context.actor, data, { headers: getRequestHeaders() });
   });

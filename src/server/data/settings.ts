@@ -76,15 +76,17 @@ export const getMyRecentActivity = defineRead(
       })
       .from(securityEvents)
       .where(eq(securityEvents.userId, actor.userId))
-      .orderBy(desc(securityEvents.createdAt))
+      // ids are uuidv7, so they break a same-millisecond tie in the order the rows were written
+      .orderBy(desc(securityEvents.createdAt), desc(securityEvents.id))
       .limit(10);
     return rows.map((row) => ({ ...row, at: row.at.toISOString() }));
   },
 );
 
 /**
- * Adds, changes or clears the customer's mobile (decision 4). The audit row says only whether a
- * number is set, so the hash-chained log never holds it. One key per Save: a retry is one change.
+ * Adds, changes or clears the customer's mobile (decision 4). The audit row and the reply say only
+ * whether a number is set, so neither the hash-chained log nor the idempotency row (which keeps the
+ * reply for replays) holds it. One key per Save: a retry is one change.
  */
 export const updateMyPhone = defineWrite(
   z.object({ phone: mobileSchema }),
@@ -101,6 +103,6 @@ export const updateMyPhone = defineWrite(
       entityId: actor.customerId,
       changes: { phone: { set: phone !== null } },
     });
-    return { phone };
+    return { set: phone !== null };
   },
 );

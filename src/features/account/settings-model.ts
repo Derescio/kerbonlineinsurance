@@ -7,12 +7,14 @@ import type { SecurityEventType } from "#/server/db/schema/values";
 export const MOBILE_ERROR = "Enter a UK mobile number, like 07700 900418";
 
 /**
- * A UK mobile, `07` or `+44 7` and 9 more digits, spaces allowed (decision 4). Stored as
+ * A UK mobile, `07` or `+44 7` and 9 more digits, spaces allowed (decision 4), and dashes, dots
+ * and brackets too. Stored as
  * "07700 900418"; blank clears it.
  */
 export const mobileSchema = z
   .string()
-  .transform((raw) => raw.replace(/\s+/g, ""))
+  // Spaces, dashes, dots and brackets are how people write numbers; "+44 (0)7…" drops its "(0)"
+  .transform((raw) => raw.replace(/^\s*\+44\s*\(0\)/, "+44").replace(/[\s\-.()]+/g, ""))
   .refine((digits) => digits === "" || /^(?:07|\+447)\d{9}$/.test(digits), MOBILE_ERROR)
   .transform((digits) => {
     if (digits === "") return null;
