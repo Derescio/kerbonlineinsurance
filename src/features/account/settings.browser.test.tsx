@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
-import type { PersonalDetails as Details } from "#/server/data/settings";
+import type { PersonalDetails as Details, RecentActivity } from "#/server/data/settings";
 import { renderWithRouter } from "#/test/router";
 
+import type { AccountSummary } from "../auth/session";
 import { PersonalDetails } from "./PersonalDetails";
+import { SecuritySection } from "./SecuritySection";
 import { SettingsLayout } from "./SettingsLayout";
 
-// Account settings (6.3; Figma Account · Settings 182:3249), against mocked server functions.
+// Account settings (6.3; Figma Account · Settings 182:3249), against mocked server functions and a
+// mocked Better Auth client.
 
 const fns = vi.hoisted(() => ({
   getMyPersonalDetailsFn: vi.fn(),
@@ -15,6 +18,19 @@ const fns = vi.hoisted(() => ({
   updateMyPhoneFn: vi.fn(),
 }));
 vi.mock("./settings", () => fns);
+
+const client = vi.hoisted(() => ({
+  twoFactor: { disable: vi.fn() },
+  signIn: { social: vi.fn() },
+  linkSocial: vi.fn(),
+}));
+vi.mock("../auth/auth-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../auth/auth-client")>()),
+  authClient: client,
+}));
+
+const session = vi.hoisted(() => ({ signOutEverywhereFn: vi.fn() }));
+vi.mock("../auth/session", () => session);
 
 const maya = (phone: string | null = null): Details => ({
   name: "Maya Patel",
@@ -208,5 +224,183 @@ describe("Editing (frame 02)", () => {
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect.element(page.getByRole("button", { name: "Edit details" })).toBeVisible();
     expect(fns.updateMyPhoneFn).not.toHaveBeenCalled();
+  });
+});
+
+describe("Security (frame 06)", () => {
+  const now = new Date("2026-11-22T15:00:00Z");
+  const summary = (over: Partial<AccountSummary> = {}): AccountSummary => ({
+    user: { id: "u1", name: "Maya Patel", email: "maya@example.com", emailVerified: true },
+    providers: ["credential"],
+    twoFactorEnabled: true,
+    ...over,
+  });
+  const activity: RecentActivity[] = [
+    {
+      type: "sign_in",
+      method: "password",
+      device: "Chrome on Windows",
+      at: "2026-11-22T13:00:00Z",
+    },
+    {
+      type: "sign_in_failed",
+      method: null,
+      device: "Safari on iPhone",
+      at: "2026-11-21T21:14:00Z",
+    },
+    { type: "sign_out", method: null, device: null, at: "2026-11-12T09:00:00Z" },
+  ];
+  const twoFactorRow = () => page.getByRole("group", { name: "Two-factor", exact: true });
+  const turnOffDialog = () => page.getByRole("dialog", { name: "Turn off two-factor?" });
+
+  const showSecurity = (over: Partial<AccountSummary> = {}, staff = false, rows = activity) =>
+    renderWithRouter(
+      <SettingsLayout section="security">
+        <SecuritySection summary={summary(over)} staff={staff} activity={rows} now={now} />
+      </SettingsLayout>,
+      "/account/settings/security",
+    );
+
+  it("offers to turn two-factor on when it's off", async () => {
+    await showSecurity({ twoFactorEnabled: false });
+    await expect.element(twoFactorRow().getByText("Off", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText("Add a code from an authenticator app when you log in."))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Turn on" }))
+      .toHaveAttribute("href", "/account/two-factor?redirect=%2Faccount%2Fsettings%2Fsecurity");
+  });
+
+  it("offers to turn it off when it's on", async () => {
+    await showSecurity();
+    await expect.element(twoFactorRow().getByText("On", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText("You'll enter a code from your authenticator app when you log in."))
+      .toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Turn off" })).toBeVisible();
+  });
+
+  it("tells staff they keep it on", async () => {
+    await showSecurity({}, true);
+    await expect.element(page.getByText("Staff accounts keep two-factor on.")).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Turn off" })).not.toBeInTheDocument();
+  });
+
+  it("turns it off with the password, showing Off at once", async () => {
+    let answer!: (value: unknown) => void;
+    client.twoFactor.disable.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await showSecurity();
+    await page.getByRole("button", { name: "Turn off" }).click();
+    await expect
+      .element(
+        turnOffDialog().getByText(
+          "Anyone with your password will be able to log in without a code.",
+        ),
+      )
+      .toBeVisible();
+    await userEvent.fill(turnOffDialog().getByLabelText("Password"), "my long password");
+    await turnOffDialog().getByRole("button", { name: "Turn off two-factor" }).click();
+
+    await expect.element(twoFactorRow().getByText("Off", { exact: true })).toBeVisible();
+    await expect.element(turnOffDialog()).not.toBeInTheDocument();
+    expect(client.twoFactor.disable).toHaveBeenCalledWith({ password: "my long password" });
+    answer({ data: { status: true }, error: null });
+    await expect.element(twoFactorRow().getByText("Off", { exact: true })).toBeVisible();
+  });
+
+  it("goes back to On and says so when the password is wrong", async () => {
+    client.twoFactor.disable.mockResolvedValue({
+      data: null,
+      error: { status: 400, code: "INVALID_PASSWORD" },
+    });
+    await showSecurity();
+    await page.getByRole("button", { name: "Turn off" }).click();
+    await userEvent.fill(turnOffDialog().getByLabelText("Password"), "wrong");
+    await turnOffDialog().getByRole("button", { name: "Turn off two-factor" }).click();
+
+    await expect.element(turnOffDialog().getByText("That password isn't right.")).toBeVisible();
+    await expect.element(twoFactorRow().getByText("On", { exact: true })).toBeVisible();
+  });
+
+  it("goes back to On with a toast when the server refuses for another reason", async () => {
+    client.twoFactor.disable.mockResolvedValue({ data: null, error: { status: 500 } });
+    await showSecurity();
+    await page.getByRole("button", { name: "Turn off" }).click();
+    await userEvent.fill(turnOffDialog().getByLabelText("Password"), "my long password");
+    await turnOffDialog().getByRole("button", { name: "Turn off two-factor" }).click();
+
+    await expect.element(page.getByText("Two-factor is still on")).toBeVisible();
+    await expect.element(twoFactorRow().getByText("On", { exact: true })).toBeVisible();
+  });
+
+  it("asks a Google-only account to confirm with Google when its sign-in is old", async () => {
+    client.twoFactor.disable.mockResolvedValue({
+      data: null,
+      error: { status: 403, code: "SESSION_NOT_FRESH" },
+    });
+    client.signIn.social.mockReturnValue(new Promise(() => {}));
+    await showSecurity({ providers: ["google"] });
+    await page.getByRole("button", { name: "Turn off" }).click();
+    await expect.element(turnOffDialog().getByLabelText("Password")).not.toBeInTheDocument();
+    await turnOffDialog().getByRole("button", { name: "Turn off two-factor" }).click();
+
+    expect(client.twoFactor.disable).toHaveBeenCalledWith({});
+    await expect
+      .element(turnOffDialog().getByText("For your security, confirm with Google first."))
+      .toBeVisible();
+    await expect.element(twoFactorRow().getByText("On", { exact: true })).toBeVisible();
+    await turnOffDialog()
+      .getByRole("button", { name: /Google/ })
+      .click();
+    expect(client.signIn.social).toHaveBeenCalledWith({
+      provider: "google",
+      callbackURL: "/account/settings/security",
+    });
+  });
+
+  it("signs out everywhere after confirming, then goes to log in", async () => {
+    session.signOutEverywhereFn.mockResolvedValue({ revoked: 2 });
+    const { router } = await showSecurity();
+    await page.getByRole("button", { name: "Sign out everywhere" }).click();
+    const dialog = page.getByRole("dialog", { name: "Sign out everywhere?" });
+    await expect
+      .element(
+        dialog.getByText(
+          "You'll be signed out on every device, including this one. You'll need to log in again.",
+        ),
+      )
+      .toBeVisible();
+    await dialog.getByRole("button", { name: "Sign out everywhere" }).click();
+    expect(session.signOutEverywhereFn).toHaveBeenCalled();
+    await expect.poll(() => router.state.location.href).toBe("/login?signedOut=everywhere");
+  });
+
+  it("lists recent activity, failures in the warning style", async () => {
+    await showSecurity();
+    const items = page.getByRole("list", { name: "Recent activity" }).getByRole("listitem");
+    await expect
+      .element(items.nth(0))
+      .toHaveTextContent("Signed inChrome on Windows · 2 hours ago");
+    await expect
+      .element(items.nth(1))
+      .toHaveTextContent("Failed sign-in attemptSafari on iPhone · Yesterday, 21:14");
+    await expect.element(items.nth(1)).toHaveClass(/settings__activity--warning/);
+    await expect.element(items.nth(2)).toHaveTextContent("Signed outUnknown device · 12 Nov 2026");
+  });
+
+  it("says when there's no activity", async () => {
+    await showSecurity({}, false, []);
+    await expect.element(page.getByText("No activity yet.")).toBeVisible();
+  });
+
+  it("keeps ways to log in and closing the account", async () => {
+    await showSecurity();
+    await expect
+      .element(page.getByText("Email and password. Connect Google to log in with one tap."))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Close your account" }))
+      .toHaveAttribute("href", "/account/close");
   });
 });
