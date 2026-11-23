@@ -183,6 +183,37 @@ describe("Dialog", () => {
     await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
   });
 
+  // 6.3's optimistic "Turn off two-factor": the dialog closes on submit and reopens at once with
+  // the server's error. The close that `open={false}` asked for mustn't then close it again.
+  it("stays open when reopened straight after the owner closed it", async () => {
+    function Reopen() {
+      const [open, setOpen] = useState(true);
+      return (
+        <Dialog
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Still here?"
+          actions={
+            <Button
+              onClick={async () => {
+                setOpen(false);
+                await Promise.resolve();
+                setOpen(true);
+              }}
+            >
+              Close and reopen
+            </Button>
+          }
+        />
+      );
+    }
+    await render(<Reopen />);
+    await page.getByRole("button", { name: "Close and reopen" }).click();
+    // The browser's close event comes a task later; give it time to (wrongly) close the dialog
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await expect.element(page.getByRole("dialog", { name: "Still here?" })).toBeVisible();
+  });
+
   it("stays open on Escape when it has no onClose", async () => {
     await render(<DialogHarness dismissable={false} />);
     await page.getByRole("button", { name: "Cancel policy" }).click();

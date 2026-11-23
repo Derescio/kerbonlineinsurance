@@ -39,6 +39,10 @@ export const AUDIT_ACTIONS = {
     entityType: "policy",
     description: "A lapsed policy's cover resumed once the payment owed went through",
   },
+  "customer.phone_changed": {
+    entityType: "customer",
+    description: "A customer added, changed or removed their mobile number",
+  },
   "policy.cancelled_unpaid": {
     entityType: "policy",
     description: "A policy was cancelled because its payments couldn't be taken",

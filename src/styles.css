@@ -11,6 +11,7 @@
 @import "./features/account/account-shell.css";
 @import "./features/account/overview.css";
 @import "./features/account/policy-detail.css";
+@import "./features/account/settings.css";
 @import "./features/quote/quote.css";
 
 * {

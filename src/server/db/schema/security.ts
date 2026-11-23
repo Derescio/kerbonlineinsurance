@@ -3,36 +3,14 @@ import { check, index, pgTable, text } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
 import { createdAt, id, oneOf } from "./columns";
+import { SECURITY_EVENT_TYPES, type SecurityEventType } from "./values";
 
 // Sign-ins, failures and resets (4.4), shown later as "Recent activity" in Settings (6.3). Not
 // hash-chained like audit_log, so bot traffic can't flood the chain; append-only (the 0004
 // trigger). Deleted on an immediate account delete (4.7); kept with a closed account. Never an
 // email, an IP or a raw user agent.
-export const SECURITY_EVENT_TYPES = [
-  "sign_up",
-  "sign_in",
-  "sign_in_failed",
-  // A correct password on an email that isn't confirmed yet (4.4b)
-  "sign_in_unverified",
-  "rate_limited",
-  "sign_out",
-  "password_reset_requested",
-  "password_reset",
-  "email_verified",
-  "google_linked",
-  "google_link_refused",
-  "password_removed_on_link",
-  // Two-factor and sessions (4.6)
-  "two_factor_enabled",
-  "two_factor_disabled",
-  "backup_codes_regenerated",
-  "two_factor_passed",
-  "two_factor_failed",
-  "signed_out_everywhere",
-  "sessions_revoked_on_password_change",
-] as const;
-
-export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
+// The types live in values.ts so Recent activity (6.3) can label every one
+export { SECURITY_EVENT_TYPES, type SecurityEventType } from "./values";
 
 export const SECURITY_EVENT_METHODS = ["password", "google", "totp", "backup_code"] as const;
 

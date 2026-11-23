@@ -788,6 +788,24 @@ describe("kerbTwoFactor part 3 (4.6)", () => {
     expect(result.ok).toBe(true);
   });
 
+  // Settings' "Turn off two-factor" dialog (6.3) shows the code as "That password isn't right."
+  it("disable with the wrong password changes nothing and records nothing", async () => {
+    const auth = makeAuth();
+    const { user, cookie } = await twoFactorUser(auth);
+    const disable = await post(
+      auth,
+      "/two-factor/disable",
+      { password: "not the password at all" },
+      { cookie },
+    );
+    expect(disable.status).toBe(400);
+    expect(((await disable.json()) as { code: string }).code).toBe("INVALID_PASSWORD");
+    const [row] = await getDb().select().from(users).where(eq(users.id, user.id));
+    expect(row!.twoFactorEnabled).toBe(true);
+    expect(await eventsOf(user.id, "two_factor_disabled")).toHaveLength(0);
+    expect(await getDb().select().from(auditLog)).toHaveLength(0);
+  });
+
   it("with bad audit keys, disable is refused and 2FA stays on", async () => {
     vi.stubEnv("AUDIT_HMAC_KEYS", "garbage");
     vi.spyOn(console, "error").mockImplementation(() => {});

@@ -41,6 +41,7 @@ export function Dialog({
   children,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const closedByOwner = useRef(false);
   const id = useId();
   const sheet = presentation === "sheet";
 
@@ -48,7 +49,10 @@ export function Dialog({
     const dialog = ref.current;
     if (!dialog || contained) return;
     if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      closedByOwner.current = true;
+      dialog.close();
+    }
   }, [open, contained]);
 
   const panel = (
@@ -108,6 +112,13 @@ export function Dialog({
       }}
       // The browser can still close it (e.g. a second Escape). Keep it in step with `open`.
       onClose={() => {
+        // The close event comes a task after close(). When `open` asked for it, it's already
+        // handled, even if `open` has since turned true again (6.3: closed on submit, reopened
+        // with the server's error)
+        if (closedByOwner.current) {
+          closedByOwner.current = false;
+          return;
+        }
         if (!open) return;
         if (onClose) onClose();
         else ref.current?.showModal();

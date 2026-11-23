@@ -11,6 +11,8 @@ export * from "./policies";
 // Saved quotes, the pay page and the purchase (5.6): owner-only
 export * from "./quotes";
 export * from "./referrals";
+// Account settings (6.3): personal details and recent activity, signed in; the mobile save is a write
+export * from "./settings";
 // Not protected reads: the account state and what's on file (4.7), for callers that already know
 // who is asking. The suite's completeness scan skips this module. Named, so the raw writes behind
 // closure and delete (deleteUserRow, insertClosure, lockUser and the rest) stay in

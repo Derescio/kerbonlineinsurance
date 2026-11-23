@@ -1,10 +1,10 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 
 import { Icon } from "#/components/display/Icon";
 import type { IconName } from "#/components/display/icons";
 import { cx } from "#/lib/cx";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ComponentPropsWithRef<"button"> {
   /** Primary = evergreen; accent = Marker yellow, at most one per view. */
   variant?: "primary" | "accent" | "secondary" | "ghost" | "danger";
   /** sm 36px, md 44px (default), lg 52px. */
