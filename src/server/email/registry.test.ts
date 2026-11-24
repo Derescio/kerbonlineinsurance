@@ -15,6 +15,8 @@ const params = {
   endsOn: "19 November 2027",
   amount: "£458.40 paid annually",
   reason: "You’d already bought this quote.",
+  summary: "Your cover is now Plus.",
+  priceLine: "Your price goes up by £4.60 a month",
 };
 
 describe("renderEmail", () => {
@@ -31,6 +33,7 @@ describe("renderEmail", () => {
       "payment_failed",
       "payment_refunded",
       "policy_cancelled_unpaid",
+      "policy_changed",
       "policy_confirmed",
       "reset_password",
       "verify_email",
@@ -76,6 +79,23 @@ describe("renderEmail", () => {
     expect(car.text).not.toContain("Home:");
     // A job queued before 5.7b has no home at all
     expect(renderEmail("policy_confirmed", params).text).not.toContain("Home:");
+  });
+
+  it("tells the customer their policy changed: what, the new price and the policy link (6.3b)", () => {
+    const email = renderEmail("policy_changed", {
+      name: "Maya",
+      policyReference: "KRB-123456",
+      summary: "Arjun Patel is now a named driver.",
+      priceLine: "Your price goes up by £4.60 a month",
+      url: "https://x/account/policies/KRB-123456",
+    });
+    expect(email.subject).toBe("Your Kerb policy KRB-123456 has changed");
+    for (const part of [email.html, email.text]) {
+      expect(part).toContain("Maya");
+      expect(part).toContain("Arjun Patel is now a named driver.");
+      expect(part).toContain("Your price goes up by £4.60 a month");
+      expect(part).toContain("https://x/account/policies/KRB-123456");
+    }
   });
 
   it("tells the customer a payment was refunded, why, with the account link (5.6b)", () => {

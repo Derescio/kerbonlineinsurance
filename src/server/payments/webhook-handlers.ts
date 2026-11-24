@@ -159,7 +159,11 @@ async function checkoutCompleted(
   deps: HandlerDeps,
 ): Promise<void> {
   if (policyChangeOf(event.data.object)) {
-    return completeTopUp(event.data.object.id, { stripe: deps.stripe, now: deps.now });
+    return completeTopUp(event.data.object.id, {
+      stripe: deps.stripe,
+      now: deps.now,
+      jobs: deps.jobs,
+    });
   }
   const result = await fulfilCheckout(event.data.object.id, {
     auditActor: null,

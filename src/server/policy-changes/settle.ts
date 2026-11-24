@@ -17,9 +17,10 @@ import { getRatingTables } from "#/server/data/reference";
 import { withTx, type Tx } from "#/server/db/tx";
 import { getAuthEnv } from "#/server/env";
 import { kerbEnv } from "#/server/payments/kerb-env";
+import type { JobDeps } from "#/server/jobs/types";
 import type { StripeClient } from "#/server/payments/stripe";
 
-import { changePolicy } from "./apply";
+import { changePolicy, sendChangeEmail } from "./apply";
 import { ineligible, refusedChange } from "./eligibility";
 import { priceChange, type PricedChange } from "./price";
 
@@ -37,6 +38,7 @@ type Quoted = Extract<PricedChange, { outcome: "quoted" }>;
 export interface SettleDeps {
   stripe: StripeClient;
   now: Date;
+  jobs?: JobDeps;
 }
 
 const SESSION_SECONDS = 30 * 60;
@@ -208,6 +210,7 @@ export async function completeTopUp(sessionId: string, deps: SettleDeps): Promis
   const session = await stripe.checkout.sessions.retrieve(sessionId);
   if (session.payment_status !== "paid") return;
   const paymentIntent = idOf(session.payment_intent);
+  let emailJobId: number | null = null;
   await withTx(checkoutDb(), async (tx) => {
     const row = await lockChangeBySession(tx, sessionId);
     if (!row) {
@@ -247,8 +250,16 @@ export async function completeTopUp(sessionId: string, deps: SettleDeps): Promis
       return fail("price_changed");
     }
     await updatePolicyChange(tx, row.id, { stripePaymentIntentId: paymentIntent });
-    await changePolicy(tx, { stored, change, priced, changeId: row.id, actor: null, now });
+    ({ emailJobId } = await changePolicy(tx, {
+      stored,
+      change,
+      priced,
+      changeId: row.id,
+      actor: null,
+      now,
+    }));
   });
+  sendChangeEmail(emailJobId, deps.jobs);
 }
 
 /** checkout.session.expired for a top-up: the change is abandoned */

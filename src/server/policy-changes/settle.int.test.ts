@@ -28,12 +28,14 @@ import { abandonMyPolicyChange, confirmMyPolicyChange, priceMyPolicyChange } fro
 const CHANGE_AT = new Date("2027-02-20T10:00:00Z");
 const ctx = { headers: new Headers() };
 const stripe = fakeStripe();
-const deps = { now: CHANGE_AT, stripe };
+const jobs = { sendEmail: vi.fn(), defer: () => undefined, holdEmails: true };
+const deps = { now: CHANGE_AT, stripe, jobs };
 const deliver = (event: Record<string, unknown>) =>
   handleStripeWebhook(signedRequest(event), {
     stripe,
     webhookSecret: TEST_WEBHOOK_SECRET,
     now: CHANGE_AT,
+    jobs,
   });
 
 const cover = (coverLevel: "essential" | "comprehensive" | "plus"): PolicyChangeRequest => ({

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { PolicyChangeRequest } from "#/features/policy-changes/request";
 import { closeDb, getDb } from "#/server/db/client";
@@ -9,6 +9,7 @@ import {
   auditLog,
   customers,
   drivers,
+  jobs,
   payments,
   policies,
   policyChanges,
@@ -38,7 +39,8 @@ import { confirmMyPolicyChange, priceMyPolicyChange, type PriceChangeResult } fr
 const CHANGE_AT = new Date("2027-02-20T10:00:00Z");
 const ctx = { headers: new Headers() };
 const stripe = fakeStripe();
-const deps = { now: CHANGE_AT, stripe };
+const heldEmails = { sendEmail: vi.fn(), defer: () => undefined, holdEmails: true };
+const deps = { now: CHANGE_AT, stripe, jobs: heldEmails };
 
 const carV2 = {
   ...carV1,
@@ -285,6 +287,26 @@ describe("applying a change", () => {
       addons: { added: ["breakdown_uk"], removed: [] },
       voluntary_excess_pence: { from: 0, to: 50_000 },
     });
+  });
+
+  it("queues one policy_changed email to the customer", async () => {
+    const { actor, policy } = await monthlyPolicy();
+    const result = priced(
+      await price(actor, policy.reference, { kind: "driver_added", driver: ARJUN }),
+    );
+    await confirm(actor, result.changeId);
+    const emails = (await getDb().select().from(jobs)).filter(
+      (j) => (j.payload as { template: string }).template === "policy_changed",
+    );
+    expect(emails).toHaveLength(1);
+    const { to, params } = emails[0]!.payload as { to: string; params: Record<string, string> };
+    expect(to).toMatch(/@/);
+    expect(params).toMatchObject({
+      policyReference: policy.reference,
+      summary: "Arjun Patel is now a named driver.",
+      priceLine: result.priceLine,
+    });
+    expect(params.url).toContain(`/account/policies/${policy.reference}`);
   });
 
   it("confirms once for one idempotency key", async () => {

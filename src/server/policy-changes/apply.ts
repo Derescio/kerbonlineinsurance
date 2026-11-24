@@ -9,6 +9,14 @@ import {
 } from "#/server/data/policy-change-rows";
 import { latestVersion, writeVersion, type SnapshotMoney } from "#/server/data/policy-version-rows";
 import type { Tx } from "#/server/db/tx";
+import { authUrls } from "#/server/auth/origins";
+import { getAuthEnv } from "#/server/env";
+import { logSafeError } from "#/server/auth/errors";
+import { jobsDb } from "#/server/data/job-rows";
+import { jobDeps } from "#/server/jobs/deps";
+import { queueEmail, runSoon } from "#/server/jobs/email";
+import type { JobDeps } from "#/server/jobs/types";
+import { tierName } from "#/features/quote/labels";
 
 import type { PricedChange } from "./price";
 
@@ -96,6 +104,20 @@ function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: st
   }
 }
 
+/** The email's one line on what changed */
+function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
+  switch (change.kind) {
+    case "address":
+      return `Your car is now kept at ${change.addressLine1}, ${change.postcode}.`;
+    case "driver_added":
+      return `${change.driver.firstName} ${change.driver.lastName} is now a named driver.`;
+    case "driver_removed":
+      return `${stored.driverNames.get(change.driverId) ?? "That driver"} is no longer a named driver.`;
+    case "cover":
+      return `Your cover is now ${tierName(change.coverLevel)}.`;
+  }
+}
+
 export async function changePolicy(
   tx: Tx,
   input: {
@@ -106,7 +128,7 @@ export async function changePolicy(
     actor: Actor | null;
     now: Date;
   },
-): Promise<{ version: number }> {
+): Promise<{ version: number; emailJobId: number }> {
   const { stored, change, priced, changeId, actor, now } = input;
   const today = todayIso(now);
   const version = stored.policy.version + 1;
@@ -143,5 +165,30 @@ export async function changePolicy(
     changes: changes as unknown as AuditEntry["changes"],
   });
   await updatePolicyChange(tx, changeId, { status: "applied", toVersion: version, appliedAt: now });
-  return { version };
+  const emailJobId = await queueEmail(
+    tx,
+    {
+      to: stored.customer.email,
+      template: "policy_changed",
+      params: {
+        name: stored.customer.firstName,
+        policyReference: stored.policy.reference,
+        summary: summaryOf(stored, change),
+        priceLine: priced.priceLine,
+        url: `${authUrls(getAuthEnv()).baseURL}/account/policies/${stored.policy.reference}`,
+      },
+    },
+    now,
+  );
+  return { version, emailJobId };
+}
+
+/** Sends a change's email once its transaction has committed; a failure is left for the cron */
+export function sendChangeEmail(jobId: number | null, jobs?: JobDeps): void {
+  if (jobId === null) return;
+  try {
+    runSoon(jobsDb(), jobId, jobs ?? jobDeps());
+  } catch (error) {
+    console.error("[policy-changes] queuing the email run failed:", logSafeError(error));
+  }
 }

@@ -30,9 +30,10 @@ import { getRatingTables } from "#/server/data/reference";
 import type { CoverLevel } from "#/server/db/schema/values";
 import type { Tx } from "#/server/db/tx";
 import { expireAtStripe } from "#/server/payments/expire-session";
+import type { JobDeps } from "#/server/jobs/types";
 import { getStripe, type StripeClient } from "#/server/payments/stripe";
 
-import { changePolicy } from "./apply";
+import { changePolicy, sendChangeEmail } from "./apply";
 import { ineligible, refusedChange } from "./eligibility";
 import { coverLevelLines, offeredAddons, priceChange, type PricedChange } from "./price";
 import { settleApplied, startTopUp } from "./settle";
@@ -44,6 +45,8 @@ import { settleApplied, startTopUp } from "./settle";
 export interface PolicyChangeDeps {
   now?: Date;
   stripe?: StripeClient;
+  /** The email runner's deps; tests hold the emails */
+  jobs?: JobDeps;
 }
 
 export type PriceChangeResult =
@@ -159,6 +162,7 @@ async function confirm(
 ): Promise<WriteResult<ConfirmChangeResult>> {
   const now = deps.now ?? new Date();
   const today = todayIso(now);
+  let emailJobId: number | null = null;
   const write = defineWrite<{ changeId: string }, ConfirmChangeResult>(
     z.object({ changeId: z.uuid() }),
     { idempotent: { action: "policy.change_confirm" } },
@@ -212,12 +216,15 @@ async function confirm(
         const { clientSecret } = await startTopUp(tx, changeId, stored, change, priced, settleDeps);
         return { status: "pay", clientSecret };
       }
-      await changePolicy(tx, { stored, change, priced, changeId, actor, now });
+      ({ emailJobId } = await changePolicy(tx, { stored, change, priced, changeId, actor, now }));
       await settleApplied(tx, changeId, stored, priced, settleDeps);
       return { status: "applied" };
     },
   );
-  return write(actor, raw, ctx);
+  const result = await write(actor, raw, ctx);
+  // After the commit, so the email never goes for a change that rolled back
+  if (result.ok) sendChangeEmail(emailJobId, deps.jobs);
+  return result;
 }
 
 async function abandon(
