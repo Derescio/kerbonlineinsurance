@@ -118,6 +118,7 @@ JOIN quotes q ON q.id = p.quote_id
 JOIN quote_items i ON i.id = p.quote_item_id
 LEFT JOIN quote_item_options o ON o.id = i.selected_option_id
 LEFT JOIN vehicles v ON v.quote_item_id = i.id
+CROSS JOIN LATERAL (SELECT (p.created_at AT TIME ZONE 'Europe/London')::date AS day) bought
 LEFT JOIN LATERAL (
 	SELECT
 		jsonb_agg(jsonb_build_object('addon', x.addon, 'annualPricePence', x.annual_price_pence) ORDER BY x.addon) AS addons,
@@ -131,7 +132,10 @@ LEFT JOIN LATERAL (
 			'isMain', dr.is_main,
 			'relationship', dr.relationship,
 			'licenceYears', dr.licence_years,
-			'age', date_part('year', age((p.created_at AT TIME ZONE 'Europe/London')::date, dr.date_of_birth))::integer
+			-- ageOn's whole years: a 29 February birthday falls on 28 February in a common year,
+			-- as date + interval clamps it (Postgres's age() would count a year short)
+			'age', (extract(year FROM bought.day)::integer - extract(year FROM dr.date_of_birth)::integer)
+				- (dr.date_of_birth + make_interval(years => extract(year FROM bought.day)::integer - extract(year FROM dr.date_of_birth)::integer) > bought.day)::integer
 		) ORDER BY dr.is_main DESC, dr.created_at, dr.id) AS drivers,
 		jsonb_agg(jsonb_build_object(
 			'firstName', dr.first_name,

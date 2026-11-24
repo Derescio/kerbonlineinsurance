@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { policyEndDate } from "#/features/quote/policy-terms";
+
 import { annualSettlement, daysBetween, instalmentChange, priceLine } from "./money";
 
-// A policy from 1 Dec 2026 to 1 Dec 2027 (365 days); 19 Sep 2027 leaves 73 of them
+// A policy from 1 Dec 2026, its last day of cover 30 Nov 2027 as purchase stores it (365 days of
+// cover); 19 Sep 2027 leaves 73 of them, today included
 const STARTS = "2026-12-01";
-const ENDS = "2027-12-01";
+const ENDS = policyEndDate(STARTS);
 const TODAY = "2027-09-19";
 
 describe("daysBetween", () => {
   it("counts the days from one date to another", () => {
-    expect(daysBetween(STARTS, ENDS)).toBe(365);
-    expect(daysBetween(TODAY, ENDS)).toBe(73);
+    expect(daysBetween(STARTS, "2027-12-01")).toBe(365);
+    expect(daysBetween(TODAY, "2027-12-01")).toBe(73);
   });
 
   it("counts 366 days across a leap year's February", () => {
@@ -30,13 +33,27 @@ describe("annualSettlement", () => {
     });
   });
 
+  it("still charges for the last day of cover", () => {
+    // £365 more on 30 Nov 2027: one day of 365
+    expect(annualSettlement(36_500, ENDS, STARTS, ENDS)).toEqual({ kind: "charge", pence: 100 });
+  });
+
+  it("charges no more than the year's difference before cover starts", () => {
+    expect(annualSettlement(12_000, "2026-11-20", STARTS, ENDS)).toEqual({
+      kind: "charge",
+      pence: 12_000,
+    });
+  });
+
   it("is none when nothing changes", () => {
     expect(annualSettlement(0, TODAY, STARTS, ENDS)).toEqual({ kind: "none", pence: 0 });
   });
 
   it("uses 366 term days in a leap-year term", () => {
-    // 1 Dec 2027 to 1 Dec 2028; 1 Jun 2028 leaves 183 days
-    expect(annualSettlement(36_600, "2028-06-01", "2027-12-01", "2028-12-01")).toEqual({
+    // 1 Dec 2027 to 30 Nov 2028; 1 Jun 2028 leaves 183 days
+    expect(
+      annualSettlement(36_600, "2028-06-01", "2027-12-01", policyEndDate("2027-12-01")),
+    ).toEqual({
       kind: "charge",
       pence: 18_300,
     });

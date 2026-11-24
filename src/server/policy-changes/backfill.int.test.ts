@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { closeDb, getDb } from "#/server/db/client";
-import { policies, policyVersions, quoteItemAddons, quotes } from "#/server/db/schema";
+import { drivers, policies, policyVersions, quoteItemAddons, quotes } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
 import { makeCustomer, makeRatingVersion } from "#/test/factories";
 import { makePurchase } from "#/test/purchase";
@@ -58,6 +58,22 @@ describe("policy_versions backfill (0027)", () => {
       .set({ selected: true })
       .where(eq(quoteItemAddons.quoteItemId, annual.policy.quoteItemId));
 
+    // A named driver born on 29 February, on a policy bought on 28 February of a common year:
+    // ageOn counts that day as the birthday, and the SQL must too
+    const leapDay = new Date("2027-02-28T12:00:00Z");
+    await db.update(policies).set({ createdAt: leapDay }).where(eq(policies.id, annual.policy.id));
+    annual.policy.createdAt = leapDay;
+    await db.insert(drivers).values({
+      quoteItemId: annual.policy.quoteItemId,
+      firstName: "Leah",
+      lastName: "Day",
+      dateOfBirth: "2004-02-29",
+      occupation: "student",
+      licenceYears: 2,
+      noClaimsYears: 0,
+      relationship: "child",
+    });
+
     // As before this slice: no versions at all
     await db.delete(policyVersions);
     await db.execute(sql.raw(await backfillSql()));
@@ -84,5 +100,11 @@ describe("policy_versions backfill (0027)", () => {
       )[0]!.snapshot as { money: { savingPence: number } },
     ];
     expect(money.savingPence).toBeGreaterThan(0);
+    const [leap] = await db
+      .select()
+      .from(policyVersions)
+      .where(eq(policyVersions.policyId, annual.policy.id));
+    const ages = (leap!.snapshot as { drivers: { age: number }[] }).drivers.map((d) => d.age);
+    expect(ages).toContain(23);
   });
 });
