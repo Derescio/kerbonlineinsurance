@@ -150,15 +150,22 @@ export async function readSnapshot(
   };
 }
 
-/** Records the policy as it now stands as `version`, in effect from `effectiveFrom` */
+/**
+ * Records the policy as it now stands as `version`, in effect from `effectiveFrom`. A change passes
+ * its `money` (6.3b, decision 2): the quote's price rows stay as sold, so after a change only the
+ * change knows the policy's current tier price, add-on prices, saving, total and instalment.
+ */
 export async function writeVersion(
   tx: Db | Tx,
   policyId: string,
   version: number,
   policyChangeId: string | null,
   effectiveFrom: Date,
+  money?: SnapshotMoney,
 ): Promise<void> {
-  const { snapshot, personal } = await readSnapshot(tx, policyId, effectiveFrom);
+  const read = await readSnapshot(tx, policyId, effectiveFrom);
+  const snapshot = money ? { ...read.snapshot, money } : read.snapshot;
+  const { personal } = read;
   await tx
     .insert(policyVersions)
     .values({ policyId, version, policyChangeId, effectiveFrom, snapshot, personal });
