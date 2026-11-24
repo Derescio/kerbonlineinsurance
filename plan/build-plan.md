@@ -66,7 +66,7 @@ Tick a slice when its PR is merged into `staging`. When a phase's last slice lan
 - [x] 6.1b **Add another product later**: "Add home / Add car insurance" for products the customer doesn't hold, with 8% off the new policy while they hold another
 - [x] 6.2 **Policy detail**, with downloadable documents (certificate of insurance, policy schedule)
 - [x] 6.3 **Account settings**: personal details and mobile, 2FA on/off, sign out everywhere, recent activity
-- [ ] 6.3b **Policy changes**: car address, add or remove a driver, cover and excess; re-priced with the difference settled in Stripe; `policy_versions` history
+- [x] 6.3b **Policy changes**: car address, add or remove a driver, cover and excess; re-priced with the difference settled in Stripe; `policy_versions` history
 - [ ] 6.3c **Change car + home policy changes**
 - [ ] 6.3d **Cancel policy**: cooling-off and pro-rata refunds
 - [ ] 6.3e **Renewal**: next year priced 30 days out, Review renewal, auto-renew
