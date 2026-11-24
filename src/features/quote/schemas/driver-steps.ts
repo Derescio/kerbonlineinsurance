@@ -312,5 +312,28 @@ export const namedDriversSchema = (today: string) =>
       drivers: value.drivers.map((d) => ({ ...d, occupation: d.occupation! })),
     }));
 
+/**
+ * A driver added to a bought car policy (6.3b, decision 12): the named-driver step's questions and
+ * rules, with the frame's "no claims or convictions" box in place of the claim questions. Only a
+ * driver with none is added online.
+ */
+export const newDriverSchema = (today: string) =>
+  namedDriver(today)
+    .omit({ id: true, anyClaims: true, pastClaims: true })
+    .extend({
+      noClaimsConfirmed: z.literal(true, {
+        error: "We can't add a driver with recent claims or convictions online.",
+      }),
+    })
+    .superRefine((driver, ctx) => {
+      checkOccupation(driver, ctx, []);
+      checkLicenceAge(driver, driver.dateOfBirth, ctx, [], errors.namedLicenceBefore17);
+    })
+    .transform(({ status: employmentStatus, occupation, ...driver }) => ({
+      ...driver,
+      employmentStatus,
+      occupation: occupation!,
+    }));
+
 export type NamedDrivers = z.output<ReturnType<typeof namedDriversSchema>>;
 export type NamedDriver = NamedDrivers["drivers"][number];

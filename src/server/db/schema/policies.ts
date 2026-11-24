@@ -6,6 +6,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   smallint,
   text,
@@ -22,8 +23,13 @@ import {
   checkoutSessionStatuses,
   paymentPlans,
   paymentStatuses,
+  policyChangeKinds,
+  policyChangeSettlements,
+  policyChangeStatuses,
   policyStatuses,
   products,
+  reasonCodes,
+  underwritingOutcomes,
 } from "./values";
 
 // Policies are history: RESTRICT from the customer, the quote item and each other (4.2, decision
@@ -236,4 +242,89 @@ export const stripeEvents = pgTable(
     receivedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index().on(t.receivedAt)],
+);
+
+// One row per policy change that reached a price (6.3b, decision 8): what was asked, the price
+// before and after, how the difference is settled and its Stripe ids. `request` can hold a new
+// driver's name, so it never leaves Postgres. One change per policy may wait for payment.
+export const policyChanges = pgTable(
+  "policy_changes",
+  {
+    id: id(),
+    policyId: uuid().notNull(),
+    customerId: uuid().notNull(),
+    kind: text().notNull(),
+    request: jsonb().notNull(),
+    // The policies.version it was priced against, and the one it made once applied
+    fromVersion: integer().notNull(),
+    toVersion: integer(),
+    oldAnnualPence: pence(),
+    newAnnualPence: pence(),
+    // The car's money for the year (premium less saving, add-ons, IPT and fee), as it stands and
+    // with the change, both on the policy's own rating version
+    priceBeforePence: pence(),
+    priceAfterPence: pence(),
+    outcome: text().notNull(),
+    reasonCode: text(),
+    settlement: text().notNull(),
+    // The top-up, the refund, or the change to each remaining instalment (signed)
+    amountPence: integer().notNull(),
+    status: text().notNull().default("priced"),
+    failureReason: text(),
+    stripeSessionId: text().unique("policy_changes_stripe_session_id_unique"),
+    stripePaymentIntentId: text().unique("policy_changes_stripe_payment_intent_id_unique"),
+    stripeRefundId: text().unique("policy_changes_stripe_refund_id_unique"),
+    appliedAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("policy_changes_kind_check", oneOf(t.kind, policyChangeKinds)),
+    check("policy_changes_outcome_check", oneOf(t.outcome, underwritingOutcomes)),
+    check("policy_changes_reason_code_check", oneOf(t.reasonCode, reasonCodes)),
+    check("policy_changes_settlement_check", oneOf(t.settlement, policyChangeSettlements)),
+    check("policy_changes_status_check", oneOf(t.status, policyChangeStatuses)),
+    check(
+      "policy_changes_applied_check",
+      sql`(${t.status} = 'applied') = (${t.toVersion} is not null and ${t.appliedAt} is not null)`,
+    ),
+    foreignKey({
+      name: "policy_changes_policy_fk",
+      columns: [t.policyId, t.customerId],
+      foreignColumns: [policies.id, policies.customerId],
+    }).onDelete("restrict"),
+    uniqueIndex("policy_changes_one_open_per_policy")
+      .on(t.policyId)
+      .where(sql`${t.status} = 'awaiting_payment'`),
+    index().on(t.policyId),
+    index().on(t.customerId),
+    index().on(t.status),
+    index().on(t.updatedAt),
+  ],
+);
+
+// The policy as it stood from each version on (6.3b, decision 9): version 1 as sold, one more per
+// applied change. Append-only. `snapshot` is safe to copy; names, dates of birth and the address
+// are in `personal`, which never leaves Postgres.
+export const policyVersions = pgTable(
+  "policy_versions",
+  {
+    id: id(),
+    policyId: uuid()
+      .notNull()
+      .references(() => policies.id, { onDelete: "restrict" }),
+    version: integer().notNull(),
+    effectiveFrom: timestamp({ withTimezone: true }).notNull(),
+    policyChangeId: uuid().references(() => policyChanges.id, { onDelete: "restrict" }),
+    snapshot: jsonb().notNull(),
+    personal: jsonb().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("policy_versions_version_check", sql`${t.version} >= 1`),
+    check("policy_versions_change_check", sql`(${t.version} = 1) = (${t.policyChangeId} is null)`),
+    unique("policy_versions_policy_id_version_unique").on(t.policyId, t.version),
+    index().on(t.policyChangeId),
+    index().on(t.createdAt),
+  ],
 );

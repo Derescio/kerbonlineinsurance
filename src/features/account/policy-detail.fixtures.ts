@@ -36,8 +36,16 @@ export function policyDetail(over: Partial<PolicyDetail> = {}): PolicyDetail {
       usage: "commuting",
     },
     drivers: [
-      { firstName: "Maya", lastName: "Patel", isMain: true, licenceYears: 9, relationship: null },
       {
+        id: "d-maya",
+        firstName: "Maya",
+        lastName: "Patel",
+        isMain: true,
+        licenceYears: 9,
+        relationship: null,
+      },
+      {
+        id: "d-dev",
         firstName: "Dev",
         lastName: "Patel",
         isMain: false,
@@ -53,6 +61,7 @@ export function policyDetail(over: Partial<PolicyDetail> = {}): PolicyDetail {
     plan: { kind: "monthly", instalmentPence: 4_470 },
     quote: { reference: "KRB-Q-71234", totalPence: 98_760 },
     claims: [],
+    changes: { eligible: false, latest: null },
     ...over,
   };
 }

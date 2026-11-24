@@ -37,6 +37,7 @@ import {
   jobs,
   payments,
   policies,
+  policyVersions,
   quoteItemAddons,
   quoteItemOptions,
   quoteItems,
@@ -568,6 +569,27 @@ describe("purchase: a bundle", () => {
     expect(new Set(rows.map((p) => p.reference)).size).toBe(2);
     // One payment covers the quote; one audit row per policy; one email
     expect(await rowCounts()).toMatchObject({ payments: 1, audit: 2, jobs: 1 });
+  });
+
+  it("writes version 1 of each policy, as sold (6.3b)", async () => {
+    const { actor, quoteId } = await savedBundle();
+    expect((await buy(actor, quoteId, { plan: "monthly" })).status).toBe("bought");
+    const rows = await getDb().select().from(policies);
+    const versions = await getDb().select().from(policyVersions);
+    expect(versions).toHaveLength(2);
+    const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, quoteId));
+    for (const policy of rows) {
+      const version = versions.find((v) => v.policyId === policy.id)!;
+      expect(version).toMatchObject({ version: 1, policyChangeId: null });
+      const snapshot = version.snapshot as {
+        annualPremiumPence: number;
+        money: { quoteTotalPence: number; instalmentPence: number | null; savingPence: number };
+      };
+      expect(snapshot.annualPremiumPence).toBe(policy.annualPremiumPence);
+      expect(snapshot.money.quoteTotalPence).toBe(quote!.totalPence);
+      expect(snapshot.money.instalmentPence).toBe(monthlyPayment(quote!.totalPence, 0.1));
+      expect(snapshot.money.savingPence).toBeGreaterThan(0);
+    }
   });
 
   it("gives each policy its premium after its share of the saving, from one start date (5.7b)", async () => {

@@ -38,8 +38,24 @@ exports[`AUDIT_ACTIONS > pins the list 1`] = `
     "description": "A checkout's payment was refunded because it couldn't be honoured",
     "entityType": "checkout_session",
   },
+  "policy.address_changed": {
+    "description": "A customer changed where their car is kept",
+    "entityType": "policy",
+  },
   "policy.cancelled_unpaid": {
     "description": "A policy was cancelled because its payments couldn't be taken",
+    "entityType": "policy",
+  },
+  "policy.cover_changed": {
+    "description": "A customer changed their cover level, add-ons or voluntary excess",
+    "entityType": "policy",
+  },
+  "policy.driver_added": {
+    "description": "A customer added a named driver",
+    "entityType": "policy",
+  },
+  "policy.driver_removed": {
+    "description": "A customer removed a named driver",
     "entityType": "policy",
   },
   "policy.lapsed": {
