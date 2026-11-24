@@ -442,7 +442,8 @@ describe("audit of staff views (4.5b)", () => {
 // postcode-rows.ts is the guest postcode cache (5.2); quote-rows.ts and save-quote.ts are a priced
 // quote's row builder and its transaction (5.4), which 5.6 wraps in a protected write; checkout-rows.ts is the Stripe
 // checkout, webhook and lapse-job row helpers (5.6b); multi-policy-rows.ts is the one-item saving's
-// helpers behind the quote save and the checkout (6.1b).
+// helpers behind the quote save and the checkout (6.1b); policy-version-rows.ts and
+// policy-change-rows.ts are a policy's version and change rows behind 6.3b's protected writes.
 const modules = import.meta.glob(
   [
     "./*.ts",
@@ -461,6 +462,8 @@ const modules = import.meta.glob(
     "!./pay-quote.ts",
     "!./checkout-rows.ts",
     "!./multi-policy-rows.ts",
+    "!./policy-version-rows.ts",
+    "!./policy-change-rows.ts",
   ],
   {
     eager: true,

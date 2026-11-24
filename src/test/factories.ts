@@ -1,4 +1,4 @@
-import { writeVersion } from "#/server/data/policy-versions";
+import { writeVersion } from "#/server/data/policy-version-rows";
 import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";

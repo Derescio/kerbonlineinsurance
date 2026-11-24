@@ -9,7 +9,7 @@ import { truncateAll } from "#/test/db";
 import { makeCustomer, makeRatingVersion } from "#/test/factories";
 import { makePurchase } from "#/test/purchase";
 
-import { readSnapshot } from "#/server/data/policy-versions";
+import { readSnapshot } from "#/server/data/policy-version-rows";
 
 // 0027's version-1 backfill (6.3b, decision 9) builds in SQL what readSnapshot builds in code, for
 // the policies bought before this slice. The two must agree exactly.

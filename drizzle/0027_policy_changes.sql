@@ -74,7 +74,7 @@ CREATE TRIGGER policy_versions_record_delete AFTER DELETE ON policy_versions
 	FOR EACH ROW EXECUTE FUNCTION record_delete('id');--> statement-breakpoint
 CREATE TRIGGER policy_versions_append_only BEFORE UPDATE ON policy_versions
 	FOR EACH ROW EXECUTE FUNCTION refuse_change();--> statement-breakpoint
--- Version 1 as sold, built as readSnapshot() builds it (src/server/data/policy-versions.ts;
+-- Version 1 as sold, built as readSnapshot() builds it (src/server/data/policy-version-rows.ts;
 -- backfill.int.test.ts checks they agree). Ages are on the day the policy was bought, in London.
 -- backfill:start
 INSERT INTO policy_versions (policy_id, version, effective_from, policy_change_id, snapshot, personal)
