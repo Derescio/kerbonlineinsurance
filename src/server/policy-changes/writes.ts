@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CANT_CHANGE_ONLINE,
   CHANGE_GONE,
+  CHANGE_WAITING,
   homeWarning,
   PRICE_CHANGED,
 } from "#/features/policy-changes/copy";
@@ -20,6 +21,7 @@ import {
   loadPolicyForChange,
   lockMyPolicyChange,
   myPolicyId,
+  openChangeFor,
   updatePolicyChange,
   type StoredPolicy,
 } from "#/server/data/policy-change-rows";
@@ -28,6 +30,7 @@ import { POLICY_CHANGE_PRICE_RULE } from "#/server/data/rate-limit-rules";
 import { getRatingTables } from "#/server/data/reference";
 import type { CoverLevel } from "#/server/db/schema/values";
 import type { Tx } from "#/server/db/tx";
+import { expireAtStripe } from "#/server/payments/expire-session";
 import { getStripe, type StripeClient } from "#/server/payments/stripe";
 
 import { changePolicy } from "./apply";
@@ -230,9 +233,15 @@ async function confirm(
         return { status: "refused", message: PRICE_CHANGED, priceLine: priced.priceLine };
       }
 
+      // One change waits for its top-up at a time (decision 7): the dialog offers to finish it
+      const open = await openChangeFor(tx, stored.policy.id);
+      if (open && open.id !== changeId) {
+        await updatePolicyChange(tx, changeId, { status: "abandoned", failureReason: "waiting" });
+        return { status: "refused", message: CHANGE_WAITING };
+      }
       const settleDeps = { stripe: deps.stripe ?? getStripe(), now };
       if (priced.settlement === "charge") {
-        const { clientSecret } = await startTopUp(tx, changeId, stored, priced, settleDeps);
+        const { clientSecret } = await startTopUp(tx, changeId, stored, change, priced, settleDeps);
         return { status: "pay", clientSecret };
       }
       await changePolicy(tx, { stored, change, priced, changeId, actor, now });
@@ -247,6 +256,7 @@ async function abandon(
   actor: Actor | null,
   raw: WriteEnvelope,
   ctx: { headers: Headers },
+  deps: PolicyChangeDeps = {},
 ): Promise<WriteResult<{ status: "abandoned" }>> {
   const write = defineWrite<{ changeId: string }, { status: "abandoned" }>(
     z.object({ changeId: z.uuid() }),
@@ -257,6 +267,10 @@ async function abandon(
       if (!row) throw new AuthzError("NOT_FOUND");
       if (row.status === "priced" || row.status === "awaiting_payment") {
         await updatePolicyChange(tx, changeId, { status: "abandoned" });
+      }
+      // The top-up can't be paid any more; a payment already made is refunded when it lands
+      if (row.status === "awaiting_payment" && row.stripeSessionId) {
+        await expireAtStripe(deps.stripe ?? getStripe(), row.stripeSessionId);
       }
       return { status: "abandoned" };
     },

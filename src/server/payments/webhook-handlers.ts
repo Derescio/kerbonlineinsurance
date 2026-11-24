@@ -13,6 +13,7 @@ import {
 } from "#/server/data/checkout-rows";
 import type { Tx } from "#/server/db/tx";
 import type { JobDeps } from "#/server/jobs/types";
+import { completeTopUp, expireTopUp } from "#/server/policy-changes/settle";
 import { fulfilCheckout } from "#/server/quote/fulfil";
 
 import { chargeResumedMonth, isCardError, markChargeFailed } from "./charge";
@@ -149,10 +150,17 @@ function warnUnknownSubscription(event: Stripe.Event): void {
 
 // ---- The handlers ----------------------------------------------------------------------------
 
+/** A policy change's top-up session (6.3b) rather than a quote's checkout */
+const policyChangeOf = (session: Stripe.Checkout.Session): string | null =>
+  session.metadata?.policy_change_id || null;
+
 async function checkoutCompleted(
   event: EventOf<"checkout.session.completed">,
   deps: HandlerDeps,
 ): Promise<void> {
+  if (policyChangeOf(event.data.object)) {
+    return completeTopUp(event.data.object.id, { stripe: deps.stripe, now: deps.now });
+  }
   const result = await fulfilCheckout(event.data.object.id, {
     auditActor: null,
     now: deps.now,
@@ -172,6 +180,10 @@ async function checkoutExpired(
   event: EventOf<"checkout.session.expired">,
   deps: HandlerDeps,
 ): Promise<void> {
+  if (policyChangeOf(event.data.object)) {
+    await expireTopUp(tx, event.data.object.id);
+    return;
+  }
   const row = await lockCheckoutBySessionId(tx, event.data.object.id);
   if (!row) {
     console.warn(`[stripe] ${event.type} ${event.id}: no checkout row for the session`);

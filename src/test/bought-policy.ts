@@ -11,13 +11,17 @@ import { policies } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
 import { purchase } from "#/server/quote/purchase";
 import { saveCarQuoteFor } from "#/server/quote/save";
+import { priceQuote, type QuoteItemRequest } from "#/features/rating/price-quote";
+import { carInputs, homeInputs } from "#/features/rating/test-tables";
+import { getActiveRatingTables } from "#/server/data/reference";
+import { saveQuote } from "#/server/data/save-quote";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
 import type { RatingSource } from "#/server/reference/rating/types";
 
 import { SECRET } from "./auth";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "./db";
-import { makeUser } from "./factories";
+import { makeCustomer, makeUser } from "./factories";
 
 // A car policy bought the real way (6.3b): the frames' journey saved and priced on car v1, then
 // purchase(), so its rows, money and version 1 are what a customer's would be. Cover runs from
@@ -59,26 +63,15 @@ export async function golfJourney(): Promise<Journey> {
   return journey;
 }
 
-export async function boughtCarPolicy({
-  plan = "annual",
-  journey,
-}: { plan?: "annual" | "monthly"; journey?: Journey } = {}): Promise<{
-  actor: Actor;
-  policy: typeof policies.$inferSelect;
-}> {
-  const user = await makeUser();
-  const answers = journey ?? (await golfJourney());
-  const saved = await withTx(getDb(), (tx) =>
-    saveCarQuoteFor(tx, user.id, { journey: answers, now: BOUGHT_AT }),
-  );
-  if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
-  const actor = (await resolveActor(getDb(), user.id))!;
+type Bought = { actor: Actor; policy: typeof policies.$inferSelect };
+
+async function buy(actor: Actor, quoteId: string, plan: "annual" | "monthly"): Promise<void> {
   const monthly = plan === "monthly";
   const result = await withTx(getDb(), (tx) =>
     purchase(tx, {
       userId: actor.userId,
       customerId: actor.customerId!,
-      quoteId: saved.quoteId,
+      quoteId,
       plan,
       startsOn: STARTS_ON,
       detailsConfirmedAt: BOUGHT_AT,
@@ -86,17 +79,124 @@ export async function boughtCarPolicy({
       card: { brand: "Visa", last4: "4242" },
       stripe: monthly
         ? {
-            subscriptionId: `sub_${saved.quoteId}`,
-            invoiceId: `in_${saved.quoteId}`,
-            paymentIntentId: `pi_${saved.quoteId}`,
+            subscriptionId: `sub_${quoteId}`,
+            invoiceId: `in_${quoteId}`,
+            paymentIntentId: `pi_${quoteId}`,
             instalmentDates: instalmentDates("2026-11-11", 12),
           }
-        : { paymentIntentId: `pi_${saved.quoteId}` },
+        : { paymentIntentId: `pi_${quoteId}` },
       auditActor: actor,
       now: BOUGHT_AT,
     }),
   );
   if (result.status !== "bought") throw new Error(`not bought: ${result.status}`);
+}
+
+/** A car + home bundle bought together (5.7b): one quote, one payment or subscription */
+export async function boughtBundle(plan: "annual" | "monthly" = "monthly"): Promise<{
+  actor: Actor;
+  car: typeof policies.$inferSelect;
+  home: typeof policies.$inferSelect;
+}> {
+  const customer = await makeCustomer();
+  const requests: Omit<QuoteItemRequest, "tables">[] = [
+    { product: "car", inputs: carInputs(), coverLevel: "comprehensive", addons: [] },
+    { product: "home", inputs: homeInputs(), coverLevel: "comprehensive", addons: [] },
+  ];
+  const priced = priceQuote(
+    await Promise.all(
+      requests.map(
+        async (r) => ({ ...r, tables: await getActiveRatingTables(r.product) }) as QuoteItemRequest,
+      ),
+    ),
+  );
+  const saved = await saveQuote(getDb(), {
+    customerId: customer.id,
+    postcode: "LS6 2AB",
+    priced,
+    items: [
+      {
+        startDate: STARTS_ON,
+        voluntaryExcessPence: 0,
+        details: {
+          product: "car",
+          vehicle: {
+            make: "Volkswagen",
+            model: "Golf",
+            year: 2020,
+            variant: "1.0 TSI Life 5dr",
+            fuelType: "petrol",
+            doors: 5,
+            insuranceGroup: 14,
+            valuePence: 2_000_000,
+            catalogueVariantId: null,
+            registration: "VW21 GQL",
+            currentMileage: 18_200,
+            annualMileage: 8_000,
+            usage: "commuting",
+            overnightLocation: "driveway",
+          },
+          priorClaims: [],
+          drivers: [
+            {
+              firstName: "Alex",
+              lastName: "Morgan",
+              dateOfBirth: "1996-05-12",
+              occupation: "teacher",
+              licenceYears: 10,
+              noClaimsYears: 5,
+              pastClaims: 0,
+            },
+          ],
+        },
+      },
+      {
+        startDate: STARTS_ON,
+        voluntaryExcessPence: 0,
+        details: {
+          product: "home",
+          property: {
+            addressLine1: "18 Albion Road",
+            town: "Leeds",
+            postcode: "LS6 2AB",
+            propertyType: "semi",
+            yearBuilt: 1990,
+            bedrooms: 3,
+            rebuildCostPence: 24_000_000,
+            contentsValuePence: 4_500_000,
+            hasAlarm: false,
+            hasSmokeAlarm: true,
+            lockType: "multipoint",
+            pastClaims: 0,
+          },
+          priorClaims: [],
+        },
+      },
+    ],
+    now: BOUGHT_AT,
+  });
+  const actor = (await resolveActor(getDb(), customer.userId))!;
+  await buy(actor, saved.quoteId, plan);
+  const rows = await getDb().select().from(policies).where(eq(policies.quoteId, saved.quoteId));
+  return {
+    actor,
+    car: rows.find((p) => p.product === "car")!,
+    home: rows.find((p) => p.product === "home")!,
+  };
+}
+
+export async function boughtCarPolicy({
+  plan = "annual",
+  journey,
+}: { plan?: "annual" | "monthly"; journey?: Journey } = {}): Promise<Bought> {
+  const user = await makeUser();
+  const answers = journey ?? (await golfJourney());
+  const saved = await withTx(getDb(), (tx) =>
+    saveCarQuoteFor(tx, user.id, { journey: answers, now: BOUGHT_AT }),
+  );
+  if (saved.status !== "saved") throw new Error(`not saved: ${saved.status}`);
+  const actor = (await resolveActor(getDb(), user.id))!;
+  await buy(actor, saved.quoteId, plan);
   const [policy] = await getDb().select().from(policies).where(eq(policies.quoteId, saved.quoteId));
   return { actor, policy: policy! };
 }

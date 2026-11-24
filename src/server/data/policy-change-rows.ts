@@ -354,3 +354,99 @@ function newDriverRow(quoteItemId: string, driver: NewDriver, today: string) {
     relationship: driver.relationship,
   };
 }
+
+// ---- Settling in Stripe (decision 5) ---------------------------------------------------------
+
+/** The customer's Stripe customer id, and what a new one is made with */
+export async function stripeCustomerOf(
+  tx: Tx,
+  customerId: string,
+): Promise<{ stripeCustomerId: string | null; name: string; email: string }> {
+  const [row] = await tx
+    .select({
+      stripeCustomerId: customers.stripeCustomerId,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      email: users.email,
+    })
+    .from(customers)
+    .innerJoin(users, eq(users.id, customers.userId))
+    .where(eq(customers.id, customerId));
+  return {
+    stripeCustomerId: row!.stripeCustomerId,
+    name: `${row!.firstName} ${row!.lastName}`.trim(),
+    email: row!.email,
+  };
+}
+
+/** The policy's change waiting for its top-up, if any (one at most, decision 7) */
+export async function openChangeFor(tx: Tx, policyId: string): Promise<PolicyChangeRow | null> {
+  const [row] = await tx
+    .select()
+    .from(policyChanges)
+    .where(and(eq(policyChanges.policyId, policyId), eq(policyChanges.status, "awaiting_payment")));
+  return row ?? null;
+}
+
+/** The change a top-up session pays for, locked */
+export async function lockChangeBySession(
+  tx: Tx,
+  sessionId: string,
+): Promise<PolicyChangeRow | null> {
+  const [row] = await tx
+    .select()
+    .from(policyChanges)
+    .where(eq(policyChanges.stripeSessionId, sessionId))
+    .for("update");
+  return row ?? null;
+}
+
+/**
+ * The payment intents a refund can come from, in order: the purchase's, then each applied
+ * top-up's, newest first
+ */
+export async function refundablePaymentIntents(
+  tx: Tx,
+  quoteId: string,
+  policyId: string,
+): Promise<string[]> {
+  const [first] = await tx
+    .select({ id: payments.stripePaymentIntentId })
+    .from(payments)
+    .where(and(eq(payments.quoteId, quoteId), eq(payments.instalmentNumber, 1)));
+  const topUps = await tx
+    .select({ id: policyChanges.stripePaymentIntentId })
+    .from(policyChanges)
+    .where(
+      and(
+        eq(policyChanges.policyId, policyId),
+        eq(policyChanges.status, "applied"),
+        eq(policyChanges.settlement, "charge"),
+      ),
+    )
+    .orderBy(sql`${policyChanges.appliedAt} desc`);
+  return [first?.id, ...topUps.map((t) => t.id)].filter((id): id is string => Boolean(id));
+}
+
+/**
+ * Moves every scheduled instalment of the quote by `deltaPence` (never below 1p); the
+ * subscription they're paid by
+ */
+export async function shiftScheduledInstalments(
+  tx: Tx,
+  quoteId: string,
+  deltaPence: number,
+): Promise<string | null> {
+  const rows = await tx
+    .update(payments)
+    .set({ amountPence: sql`greatest(1, ${payments.amountPence} + ${deltaPence})` })
+    .where(and(eq(payments.quoteId, quoteId), eq(payments.status, "scheduled")))
+    .returning({ subscriptionId: payments.stripeSubscriptionId });
+  if (rows.length) return rows[0]!.subscriptionId;
+  const [any] = await tx
+    .select({ subscriptionId: payments.stripeSubscriptionId })
+    .from(payments)
+    .where(eq(payments.quoteId, quoteId))
+    .limit(1);
+  return any?.subscriptionId ?? null;
+}

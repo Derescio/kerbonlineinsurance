@@ -1,0 +1,346 @@
+import { randomUUID } from "node:crypto";
+
+import { and, eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+
+import type { PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { Actor } from "#/server/auth/actor";
+import { closeDb, getDb } from "#/server/db/client";
+import { payments, policies, policyChanges, policyVersions } from "#/server/db/schema";
+import { handleStripeWebhook } from "#/server/payments/webhook";
+import {
+  boughtBundle,
+  boughtCarPolicy,
+  resetPolicyWorld,
+  setUpPolicyWorld,
+} from "#/test/bought-policy";
+import { signedRequest, stripeEvent, TEST_WEBHOOK_SECRET } from "#/test/stripe-events";
+import { fakeStripe } from "#/test/stripe-fake";
+
+import { abandonMyPolicyChange, confirmMyPolicyChange, priceMyPolicyChange } from "./writes";
+
+// Settling a change's difference in Stripe (6.3b, decisions 5 and 7). Annual: a dearer change is
+// an embedded Checkout for the top-up, applied when checkout.session.completed arrives (and
+// refunded in full if the policy moved on meanwhile); a cheaper one is refunded at once. Monthly:
+// the remaining instalments and the subscription's price change, with no proration.
+
+const CHANGE_AT = new Date("2027-02-20T10:00:00Z");
+const ctx = { headers: new Headers() };
+const stripe = fakeStripe();
+const deps = { now: CHANGE_AT, stripe };
+const deliver = (event: Record<string, unknown>) =>
+  handleStripeWebhook(signedRequest(event), {
+    stripe,
+    webhookSecret: TEST_WEBHOOK_SECRET,
+    now: CHANGE_AT,
+  });
+
+const cover = (coverLevel: "essential" | "comprehensive" | "plus"): PolicyChangeRequest => ({
+  kind: "cover",
+  coverLevel,
+  addons: [],
+  voluntaryExcessPence: 0,
+});
+
+let warn: ReturnType<typeof vi.spyOn>;
+beforeAll(async () => {
+  await setUpPolicyWorld();
+  vi.stubEnv("VERCEL_TARGET_ENV", "");
+});
+beforeEach(async () => {
+  await resetPolicyWorld();
+  stripe.reset();
+  warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+afterAll(async () => {
+  warn.mockRestore();
+  vi.unstubAllEnvs();
+  await closeDb();
+});
+
+async function priceAndConfirm(actor: Actor, reference: string, change: PolicyChangeRequest) {
+  const priced = await priceMyPolicyChange(actor, { input: { reference, change } }, ctx, deps);
+  if (!priced.ok || priced.data.status !== "priced") throw new Error("not priced");
+  const confirmed = await confirmMyPolicyChange(
+    actor,
+    { input: { changeId: priced.data.changeId }, idempotencyKey: randomUUID() },
+    ctx,
+    deps,
+  );
+  if (!confirmed.ok) throw new Error(confirmed.error.message);
+  return { priced: priced.data, confirmed: confirmed.data };
+}
+
+async function changeRow(id: string) {
+  const [row] = await getDb().select().from(policyChanges).where(eq(policyChanges.id, id));
+  return row!;
+}
+
+async function versionCount(policyId: string) {
+  return (await getDb().select().from(policyVersions).where(eq(policyVersions.policyId, policyId)))
+    .length;
+}
+
+/** The Checkout Session as Stripe holds it once the customer has paid */
+function paySession(sessionId: string, changeId: string, paymentIntent = "pi_topup_1") {
+  stripe.set("checkout.sessions.retrieve", sessionId, {
+    object: "checkout.session",
+    status: "complete",
+    payment_status: "paid",
+    payment_intent: paymentIntent,
+    metadata: { kerb_env: "local", policy_change_id: changeId },
+  });
+}
+
+const sessionEvent = (type: string, sessionId: string, changeId: string) =>
+  stripeEvent(type, {
+    id: sessionId,
+    object: "checkout.session",
+    metadata: { kerb_env: "local", policy_change_id: changeId },
+  });
+
+describe("annual: a dearer change", () => {
+  it("asks for the top-up in an embedded Checkout and applies nothing yet", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced, confirmed } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    expect(priced.settlement).toBe("charge");
+    expect(confirmed).toEqual({ status: "pay", clientSecret: expect.stringMatching(/_secret$/) });
+
+    const [params, options] = stripe.calls["checkout.sessions.create"]![0]! as [
+      Record<string, unknown>,
+      { idempotencyKey: string },
+    ];
+    expect(params).toMatchObject({
+      mode: "payment",
+      ui_mode: "embedded_page",
+      allowed_payment_method_types: ["card"],
+      metadata: { kerb_env: "local", policy_change_id: priced.changeId },
+      payment_intent_data: { metadata: { kerb_env: "local", policy_change_id: priced.changeId } },
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "gbp",
+            unit_amount: priced.amountPence,
+            product_data: { name: `Change to ${policy.reference}: cover change` },
+          },
+        },
+      ],
+    });
+    expect(String(params.return_url)).toContain(
+      `/account/policies/${policy.reference}?change=${priced.changeId}`,
+    );
+    expect(options.idempotencyKey).toBe(`policy-change-topup:${priced.changeId}`);
+    expect(await changeRow(priced.changeId)).toMatchObject({ status: "awaiting_payment" });
+    expect(await versionCount(policy.id)).toBe(1);
+  });
+
+  it("applies the change once checkout.session.completed arrives, however many times", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    paySession(stripeSessionId!, priced.changeId);
+    const event = sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId);
+    expect((await deliver(event)).status).toBe(200);
+    expect((await deliver(event)).status).toBe(200);
+
+    expect(await changeRow(priced.changeId)).toMatchObject({
+      status: "applied",
+      toVersion: 2,
+      stripePaymentIntentId: "pi_topup_1",
+    });
+    expect(await versionCount(policy.id)).toBe(2);
+    const [after] = await getDb().select().from(policies).where(eq(policies.id, policy.id));
+    expect(after!.coverLevel).toBe("plus");
+  });
+
+  it("refunds the top-up in full when the policy changed while they paid", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    await getDb().update(policies).set({ version: 2 }).where(eq(policies.id, policy.id));
+    paySession(stripeSessionId!, priced.changeId);
+    await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
+
+    expect(await changeRow(priced.changeId)).toMatchObject({
+      status: "failed",
+      failureReason: "version_moved",
+      stripePaymentIntentId: "pi_topup_1",
+    });
+    expect(stripe.calls["refunds.create"]![0]![0]).toEqual({ payment_intent: "pi_topup_1" });
+    const [after] = await getDb().select().from(policies).where(eq(policies.id, policy.id));
+    expect(after!.coverLevel).toBe("comprehensive");
+  });
+
+  it("refunds a payment for a change they abandoned", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    await abandonMyPolicyChange(actor, { input: { changeId: priced.changeId } }, ctx, deps);
+    expect(stripe.calls["checkout.sessions.expire"]?.[0]?.[0]).toBe(stripeSessionId);
+    paySession(stripeSessionId!, priced.changeId);
+    await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
+    expect(await changeRow(priced.changeId)).toMatchObject({
+      status: "failed",
+      failureReason: "abandoned",
+    });
+    expect(stripe.calls["refunds.create"]).toHaveLength(1);
+  });
+
+  it("marks the change abandoned when its session expires", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    await deliver(sessionEvent("checkout.session.expired", stripeSessionId!, priced.changeId));
+    expect(await changeRow(priced.changeId)).toMatchObject({ status: "abandoned" });
+  });
+
+  it("refuses a second dearer change while one waits for payment", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { confirmed } = await priceAndConfirm(actor, policy.reference, cover("essential"));
+    expect(confirmed).toMatchObject({ status: "refused" });
+  });
+});
+
+describe("annual: a cheaper change", () => {
+  it("is applied at Confirm and refunded on the original payment", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const pi = `pi_${policy.quoteId}`;
+    stripe.set("paymentIntents.retrieve", pi, {
+      amount: 100_000,
+      latest_charge: { amount_refunded: 0 },
+    });
+    const { priced, confirmed } = await priceAndConfirm(
+      actor,
+      policy.reference,
+      cover("essential"),
+    );
+    expect(priced.settlement).toBe("refund");
+    expect(confirmed).toEqual({ status: "applied" });
+    expect(stripe.calls["refunds.create"]).toEqual([
+      [
+        { payment_intent: pi, amount: priced.amountPence },
+        { idempotencyKey: `policy-change-refund:${priced.changeId}:${pi}` },
+      ],
+    ]);
+    expect((await changeRow(priced.changeId)).stripeRefundId).toMatch(/^re_test_/);
+  });
+
+  it("spills a refund larger than the original has left onto the latest top-up", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const pi = `pi_${policy.quoteId}`;
+    // An earlier top-up, applied
+    await getDb()
+      .insert(policyChanges)
+      .values({
+        policyId: policy.id,
+        customerId: policy.customerId,
+        kind: "cover",
+        request: {},
+        fromVersion: 1,
+        toVersion: 1,
+        oldAnnualPence: 1,
+        newAnnualPence: 1,
+        priceBeforePence: 1,
+        priceAfterPence: 1,
+        outcome: "quoted",
+        settlement: "charge",
+        amountPence: 5_000,
+        status: "applied",
+        appliedAt: new Date("2027-01-10T10:00:00Z"),
+        stripePaymentIntentId: "pi_earlier_topup",
+      });
+    stripe.set("paymentIntents.retrieve", pi, {
+      amount: 100_000,
+      latest_charge: { amount_refunded: 99_900 },
+    });
+    stripe.set("paymentIntents.retrieve", "pi_earlier_topup", {
+      amount: 5_000,
+      latest_charge: { amount_refunded: 0 },
+    });
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("essential"));
+    const refunds = stripe.calls["refunds.create"]!.map(([params]) => params);
+    expect(refunds).toEqual([
+      { payment_intent: pi, amount: 100 },
+      { payment_intent: "pi_earlier_topup", amount: priced.amountPence - 100 },
+    ]);
+  });
+});
+
+describe("monthly", () => {
+  async function presetSubscription(quoteId: string) {
+    const [row] = await getDb()
+      .select()
+      .from(payments)
+      .where(and(eq(payments.quoteId, quoteId), eq(payments.instalmentNumber, 2)));
+    stripe.set("subscriptions.retrieve", `sub_${quoteId}`, {
+      metadata: { kerb_env: "local" },
+      items: {
+        data: [{ id: "si_1", price: { unit_amount: row!.amountPence, product: "prod_1" } }],
+      },
+    });
+    return row!.amountPence;
+  }
+
+  it("changes the remaining instalments and the subscription's price, with no proration", async () => {
+    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const instalment = await presetSubscription(policy.quoteId);
+    const { priced, confirmed } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    expect(confirmed).toEqual({ status: "applied" });
+    expect(priced.settlement).toBe("instalments");
+    const scheduled = await getDb()
+      .select()
+      .from(payments)
+      .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.status, "scheduled")));
+    expect(new Set(scheduled.map((p) => p.amountPence))).toEqual(
+      new Set([instalment + priced.amountPence]),
+    );
+    expect(stripe.calls["subscriptions.update"]).toEqual([
+      [
+        `sub_${policy.quoteId}`,
+        {
+          items: [
+            {
+              id: "si_1",
+              price_data: {
+                currency: "gbp",
+                product: "prod_1",
+                unit_amount: instalment + priced.amountPence,
+                recurring: { interval: "month" },
+              },
+            },
+          ],
+          proration_behavior: "none",
+        },
+        { idempotencyKey: `policy-change-instalments:${priced.changeId}` },
+      ],
+    ]);
+  });
+
+  it("applies the change with no Stripe call when no instalment is left", async () => {
+    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    await getDb()
+      .update(payments)
+      .set({ status: "succeeded", paidAt: CHANGE_AT })
+      .where(eq(payments.quoteId, policy.quoteId));
+    const { priced, confirmed } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    expect(confirmed).toEqual({ status: "applied" });
+    expect(priced.settlement).toBe("none");
+    expect(stripe.calls["subscriptions.update"]).toBeUndefined();
+  });
+
+  it("changes a bundle's one subscription, and leaves the home policy's premium", async () => {
+    const { actor, car, home } = await boughtBundle("monthly");
+    const instalment = await presetSubscription(car.quoteId);
+    const { priced } = await priceAndConfirm(actor, car.reference, cover("plus"));
+    expect(stripe.calls["subscriptions.update"]).toHaveLength(1);
+    const scheduled = await getDb()
+      .select()
+      .from(payments)
+      .where(and(eq(payments.quoteId, car.quoteId), eq(payments.status, "scheduled")));
+    expect(scheduled[0]!.amountPence).toBe(instalment + priced.amountPence);
+    const [after] = await getDb().select().from(policies).where(eq(policies.id, home.id));
+    expect(after!.annualPremiumPence).toBe(home.annualPremiumPence);
+  });
+});
