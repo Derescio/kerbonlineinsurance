@@ -1,6 +1,6 @@
 # 6.3b Policy changes
 
-**Status:** built, in review (spec approved by Damion, 23 Nov 2026). The E2E and the preview check wait for `dev` to have migration 0027.
+**Status:** done (#114; spec approved by Damion, 23 Nov 2026; preview checked by Damion, 24 Nov 2026)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -157,6 +157,8 @@ Each change re-prices the policy, shows the new price before Confirm, settles th
 - **A change that changes nothing** (the cover dialog opens on the current cover) prices as `unchanged`: the levels and add-ons, no row and no Confirm. An unpaid top-up shows "You started a change and haven't paid for it yet." with **Cancel this change**. Closing the dialog after paying leaves the change waiting, so its webhook applies it (final review). Resuming an open top-up isn't built: it's cancel and confirm again.
 - **The change dialogs load lazily.** Importing them eagerly pulled the quote journey's server functions into the policy page and broke its test page.
 - **Seed:** version 1 for every seeded policy comes from 0027's backfill. Every 12th car policy has an abandoned price check. Applied changes aren't seeded yet.
+- **Preview check (Damion, 24 Nov 2026)** found that a top-up paid on a preview never applied: a preview gets no webhook (staging's endpoint ignores preview-tagged events). The policy page now asks Stripe on load (`checkMyTopUp`) and applies a paid top-up through the webhook's own path, so a late webhook doesn't leave the customer waiting either. The same check rewrote the change email: past tense once an annual top-up or refund has happened, every part of a cover change named, and what changed in the subject.
+- **Migration 0027 on `dev`:** applied 24 Nov 2026; all 1,399 policies got version 1, and none were missing after the merge, so no second backfill was needed.
 - **Left for later** (final review minors):
   - A bundle's other policy keeps a stale instalment and total in its latest version after a car change.
   - The failed-top-up notice doesn't vary by reason.
