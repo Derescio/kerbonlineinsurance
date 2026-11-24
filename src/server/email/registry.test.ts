@@ -16,6 +16,7 @@ const params = {
   amount: "£458.40 paid annually",
   reason: "You’d already bought this quote.",
   summary: "Your cover is now Plus.",
+  headline: "cover changed to Plus",
   priceLine: "Your price goes up by £4.60 a month",
 };
 
@@ -86,10 +87,12 @@ describe("renderEmail", () => {
       name: "Maya",
       policyReference: "KRB-123456",
       summary: "Arjun Patel is now a named driver.",
+      headline: "driver added",
       priceLine: "Your price goes up by £4.60 a month",
       url: "https://x/account/policies/KRB-123456",
     });
-    expect(email.subject).toBe("Your Kerb policy KRB-123456 has changed");
+    // What changed is in the subject, so Gmail doesn't stack every change in one thread
+    expect(email.subject).toBe("Your Kerb policy KRB-123456: driver added");
     for (const part of [email.html, email.text]) {
       expect(part).toContain("Maya");
       expect(part).toContain("Arjun Patel is now a named driver.");

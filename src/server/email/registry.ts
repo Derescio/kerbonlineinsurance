@@ -60,6 +60,7 @@ export const EMAIL_TEMPLATES = {
       name: z.string(),
       policyReference: z.string(),
       summary: z.string(),
+      headline: z.string().optional(),
       priceLine: z.string(),
       url: z.string(),
     }),

@@ -67,3 +67,21 @@ export function priceLine(
     ? `You'll pay ${amount} now for the rest of the year`
     : `We'll refund ${amount} to your card`;
 }
+
+/**
+ * The email's price line, sent once the change is made: an annual top-up or refund has happened by
+ * then, so it's in the past; a monthly change is the payments still to come, as the dialog said
+ */
+export function emailPriceLine(
+  plan: "annual" | "monthly",
+  settlement: "charge" | "refund" | "instalments" | "none",
+  amountPence: number,
+): string {
+  if (settlement === "none" || amountPence === 0) return "Your price stays the same";
+  if (plan === "monthly") {
+    return priceLine("monthly", Math.abs(amountPence), amountPence > 0 ? "up" : "down");
+  }
+  return settlement === "charge"
+    ? `You paid ${formatPounds(amountPence)} for the rest of the year`
+    : `We've refunded ${formatPounds(amountPence)} to your card`;
+}

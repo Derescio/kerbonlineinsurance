@@ -228,6 +228,8 @@ export interface PolicyChangedParams {
   name: string;
   policyReference: string;
   summary: string;
+  /** What changed, for the subject ("cover changed to Plus"); missing on a job queued before it */
+  headline?: string;
   priceLine: string;
   url: string;
 }
@@ -237,7 +239,10 @@ export function policyChangedEmail(p: PolicyChangedParams): EmailContent {
   const lines = [`We've changed your policy ${p.policyReference}.`, p.summary, p.priceLine];
   const after = "Your updated certificate and schedule are on your policy page.";
   return {
-    subject: `Your Kerb policy ${p.policyReference} has changed`,
+    // What changed goes in the subject, so a mail app doesn't stack every change in one thread
+    subject: p.headline
+      ? `Your Kerb policy ${p.policyReference}: ${p.headline}`
+      : `Your Kerb policy ${p.policyReference} has changed`,
     html: layout({
       heading: "Your policy has changed",
       body: `${escapeHtml(hello)} ${lines.map(escapeHtml).join("<br><br>")}`,

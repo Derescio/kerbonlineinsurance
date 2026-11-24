@@ -2,7 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { policyEndDate } from "#/features/quote/policy-terms";
 
-import { annualSettlement, daysBetween, instalmentChange, priceLine } from "./money";
+import {
+  annualSettlement,
+  daysBetween,
+  emailPriceLine,
+  instalmentChange,
+  priceLine,
+} from "./money";
 
 // A policy from 1 Dec 2026, its last day of cover 30 Nov 2027 as purchase stores it (365 days of
 // cover); 19 Sep 2027 leaves 73 of them, today included
@@ -89,5 +95,25 @@ describe("priceLine", () => {
     expect(priceLine("annual", 3_840, "up")).toBe("You'll pay £38.40 now for the rest of the year");
     expect(priceLine("annual", 2_110, "down")).toBe("We'll refund £21.10 to your card");
     expect(priceLine("annual", 0, "same")).toBe("Your price stays the same");
+  });
+});
+
+describe("emailPriceLine", () => {
+  it("says what was paid or refunded, once it has been", () => {
+    expect(emailPriceLine("annual", "charge", 26_927)).toBe(
+      "You paid £269.27 for the rest of the year",
+    );
+    expect(emailPriceLine("annual", "refund", 7_643)).toBe("We've refunded £76.43 to your card");
+    expect(emailPriceLine("annual", "none", 0)).toBe("Your price stays the same");
+  });
+
+  it("words a monthly change as the dialog did: it's the payments to come", () => {
+    expect(emailPriceLine("monthly", "instalments", 460)).toBe(
+      "Your price goes up by £4.60 a month",
+    );
+    expect(emailPriceLine("monthly", "instalments", -230)).toBe(
+      "Your price goes down by £2.30 a month",
+    );
+    expect(emailPriceLine("monthly", "none", 0)).toBe("Your price stays the same");
   });
 });

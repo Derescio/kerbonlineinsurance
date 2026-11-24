@@ -305,9 +305,30 @@ describe("applying a change", () => {
     expect(params).toMatchObject({
       policyReference: policy.reference,
       summary: "Arjun Patel is now a named driver.",
+      headline: "driver added",
       priceLine: result.priceLine,
     });
     expect(params.url).toContain(`/account/policies/${policy.reference}`);
+  });
+
+  it("names every part of a cover change in the email", async () => {
+    const { actor, policy } = await monthlyPolicy();
+    const result = priced(
+      await price(actor, policy.reference, {
+        kind: "cover",
+        coverLevel: "plus",
+        addons: ["breakdown_uk"],
+        voluntaryExcessPence: 25_000,
+      }),
+    );
+    await confirm(actor, result.changeId);
+    const [job] = (await getDb().select().from(jobs)).filter(
+      (j) => (j.payload as { template: string }).template === "policy_changed",
+    );
+    expect((job!.payload as { params: Record<string, string> }).params).toMatchObject({
+      headline: "cover changed to Plus",
+      summary: "Your cover is now Plus. Breakdown cover added. Voluntary excess now £250.",
+    });
   });
 
   it("confirms once for one idempotency key", async () => {

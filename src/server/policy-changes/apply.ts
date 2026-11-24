@@ -16,7 +16,10 @@ import { jobsDb } from "#/server/data/job-rows";
 import { jobDeps } from "#/server/jobs/deps";
 import { queueEmail, runSoon } from "#/server/jobs/email";
 import type { JobDeps } from "#/server/jobs/types";
+import { emailPriceLine } from "#/features/policy-changes/money";
+import { addonCopy } from "#/features/quote/cover";
 import { tierName } from "#/features/quote/labels";
+import { formatPounds } from "#/features/rating/money";
 
 import type { PricedChange } from "./price";
 
@@ -104,7 +107,7 @@ function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: st
   }
 }
 
-/** The email's one line on what changed */
+/** The email's lines on what changed: every part of it */
 function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
   switch (change.kind) {
     case "address":
@@ -113,8 +116,40 @@ function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
       return `${change.driver.firstName} ${change.driver.lastName} is now a named driver.`;
     case "driver_removed":
       return `${stored.driverNames.get(change.driverId) ?? "That driver"} is no longer a named driver.`;
+    case "cover": {
+      const parts: string[] = [];
+      if (change.coverLevel !== stored.coverLevel) {
+        parts.push(`Your cover is now ${tierName(change.coverLevel)}.`);
+      }
+      for (const addon of change.addons.filter((a) => !stored.addons.includes(a))) {
+        parts.push(`${addonCopy(addon).label} added.`);
+      }
+      for (const addon of stored.addons.filter((a) => !change.addons.includes(a))) {
+        parts.push(`${addonCopy(addon).label} removed.`);
+      }
+      if (change.voluntaryExcessPence !== stored.voluntaryExcessPence) {
+        parts.push(
+          `Voluntary excess now ${formatPounds(change.voluntaryExcessPence).replace(".00", "")}.`,
+        );
+      }
+      return parts.join(" ");
+    }
+  }
+}
+
+/** The email's subject line on what changed */
+function headlineOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
+  switch (change.kind) {
+    case "address":
+      return "address changed";
+    case "driver_added":
+      return "driver added";
+    case "driver_removed":
+      return "driver removed";
     case "cover":
-      return `Your cover is now ${tierName(change.coverLevel)}.`;
+      return change.coverLevel !== stored.coverLevel
+        ? `cover changed to ${tierName(change.coverLevel)}`
+        : "cover changed";
   }
 }
 
@@ -174,7 +209,12 @@ export async function changePolicy(
         name: stored.customer.firstName,
         policyReference: stored.policy.reference,
         summary: summaryOf(stored, change),
-        priceLine: priced.priceLine,
+        headline: headlineOf(stored, change),
+        priceLine: emailPriceLine(
+          stored.quote.paymentPlan === "monthly" ? "monthly" : "annual",
+          priced.settlement,
+          priced.amountPence,
+        ),
         url: `${authUrls(getAuthEnv()).baseURL}/account/policies/${stored.policy.reference}`,
       },
     },
