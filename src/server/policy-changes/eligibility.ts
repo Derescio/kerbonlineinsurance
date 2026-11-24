@@ -44,3 +44,23 @@ export async function refusedChange(
     }
   }
 }
+
+/** A cover or address change that leaves the policy as it is: nothing to price or confirm */
+export function changesNothing(stored: StoredPolicy, change: PolicyChangeRequest): boolean {
+  switch (change.kind) {
+    case "cover":
+      return (
+        change.coverLevel === stored.coverLevel &&
+        change.voluntaryExcessPence === stored.voluntaryExcessPence &&
+        [...change.addons].sort().join() === [...stored.addons].sort().join()
+      );
+    case "address":
+      return (
+        change.postcode === stored.postcode &&
+        change.addressLine1 === stored.customer.addressLine1 &&
+        change.overnightLocation === stored.vehicle.overnightLocation
+      );
+    default:
+      return false;
+  }
+}

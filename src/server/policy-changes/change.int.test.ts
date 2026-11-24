@@ -98,7 +98,7 @@ async function confirm(actor: Actor, changeId: string, idempotencyKey: string = 
 }
 
 function priced(result: PriceChangeResult) {
-  if (result.status !== "priced") throw new Error(`not priced: ${result.message}`);
+  if (result.status !== "priced") throw new Error(`not priced: ${result.status}`);
   return result;
 }
 
@@ -118,22 +118,23 @@ async function policyRow(id: string) {
 describe("re-pricing", () => {
   it("re-prices an unchanged policy to what it was sold for, on its own rating version", async () => {
     const { actor, policy } = await boughtCarPolicy();
-    const result = priced(await price(actor, policy.reference, SAME_COVER));
+    // Only the excess changes, so the price before is the policy exactly as sold
+    const result = priced(
+      await price(actor, policy.reference, { ...SAME_COVER, voluntaryExcessPence: 10_000 }),
+    );
     const [change] = await getDb()
       .select()
       .from(policyChanges)
       .where(eq(policyChanges.id, result.changeId));
     const [quote] = await getDb().select().from(quotes).where(eq(quotes.id, policy.quoteId));
     expect(change!.priceBeforePence).toBe(quote!.totalPence);
-    expect(change!.priceAfterPence).toBe(quote!.totalPence);
-    expect(change!.newAnnualPence).toBe(policy.annualPremiumPence);
-    expect(result.priceLine).toBe("Your price stays the same");
     expect(change!.status).toBe("priced");
   });
 
   it("lists each cover level's price line for a cover change", async () => {
     const { actor, policy } = await monthlyPolicy();
-    const result = priced(await price(actor, policy.reference, SAME_COVER));
+    const result = await price(actor, policy.reference, SAME_COVER);
+    if (result.status !== "unchanged") throw new Error(`not unchanged: ${result.status}`);
     expect(result.levels.map((l) => l.coverLevel)).toEqual(["essential", "comprehensive", "plus"]);
     expect(result.levels.find((l) => l.coverLevel === "comprehensive")!.priceLine).toBe(
       "Your price stays the same",
@@ -322,7 +323,9 @@ describe("applying a change", () => {
 
   it("refuses a confirm priced against an older version, with the new price line", async () => {
     const { actor, policy } = await monthlyPolicy();
-    const first = priced(await price(actor, policy.reference, SAME_COVER));
+    const first = priced(
+      await price(actor, policy.reference, { ...SAME_COVER, voluntaryExcessPence: 10_000 }),
+    );
     const second = priced(
       await price(actor, policy.reference, { kind: "driver_added", driver: ARJUN }),
     );
@@ -354,7 +357,9 @@ describe("what isn't changed online", () => {
       .update(drivers)
       .set({ dateOfBirth: "1940-01-01" })
       .where(and(eq(drivers.quoteItemId, policy.quoteItemId), eq(drivers.isMain, true)));
-    expect(await price(actor, policy.reference, SAME_COVER)).toMatchObject(REFUSED);
+    expect(
+      await price(actor, policy.reference, { ...SAME_COVER, voluntaryExcessPence: 10_000 }),
+    ).toMatchObject(REFUSED);
   });
 
   it("treats another customer's policy as not found", async () => {
@@ -450,6 +455,15 @@ describe("what isn't changed online", () => {
     expect(result.homeWarning).toBe(
       `Your home insurance isn't changed. It still covers ${property!.addressLine1}.`,
     );
+  });
+
+  it("prices a cover change that changes nothing as unchanged, with the levels and no row", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const result = await price(actor, policy.reference, SAME_COVER);
+    expect(result).toMatchObject({ status: "unchanged" });
+    if (result.status !== "unchanged") return;
+    expect(result.levels.map((l) => l.coverLevel)).toEqual(["essential", "comprehensive", "plus"]);
+    expect(await getDb().select().from(policyChanges)).toHaveLength(0);
   });
 
   it("refuses an add-on the car isn't offered", async () => {

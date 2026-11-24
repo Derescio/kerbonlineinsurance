@@ -53,6 +53,23 @@ export function PolicyDetailPage({
     void router.invalidate();
   }
 
+  // A top-up left unpaid blocks other changes until it's cancelled or Stripe expires it (decision 7)
+  const waiting =
+    policy.changes.latest?.status === "awaiting_payment" ? policy.changes.latest : null;
+  const [cancelling, setCancelling] = useState(false);
+  async function cancelWaiting() {
+    if (!waiting) return;
+    setCancelling(true);
+    try {
+      // Loaded on click, so the page itself doesn't carry the change dialogs' server code
+      const { abandonMyPolicyChangeFn } = await import("#/features/policy-changes/server");
+      await abandonMyPolicyChangeFn({ data: { input: { changeId: waiting.id } } });
+      await router.invalidate();
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   // Back from paying a top-up: the toast once it's applied
   const toasted = useRef(false);
   useEffect(() => {
@@ -76,6 +93,24 @@ export function PolicyDetailPage({
       {returned?.status === "failed" ? (
         <Alert tone="warning" className="pd__notice">
           <p>{REFUNDED_AFTER_CHANGE}</p>
+        </Alert>
+      ) : null}
+      {waiting && !returned ? (
+        <Alert
+          tone="info"
+          className="pd__notice"
+          action={
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={cancelling}
+              onClick={() => void cancelWaiting()}
+            >
+              Cancel this change
+            </Button>
+          }
+        >
+          <p>You started a change and haven't paid for it yet.</p>
         </Alert>
       ) : null}
       {returned?.status === "awaiting_payment" ? (

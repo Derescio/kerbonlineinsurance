@@ -9,5 +9,5 @@ export const QUOTE_SAVE_RULE: RateRule = { max: 20, windowSeconds: 60 * 60 };
 /** Paying for a saved quote (5.6, decision 7) */
 export const QUOTE_PAY_RULE: RateRule = { max: 10, windowSeconds: 60 * 60 };
 
-/** Pricing a policy change (6.3b): each dialog prices as its form fills in */
-export const POLICY_CHANGE_PRICE_RULE: RateRule = { max: 30, windowSeconds: 60 * 60 };
+/** Pricing a policy change (6.3b): each dialog prices as its form fills in, every edit */
+export const POLICY_CHANGE_PRICE_RULE: RateRule = { max: 120, windowSeconds: 60 * 60 };

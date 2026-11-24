@@ -201,6 +201,69 @@ describe("Change cover", () => {
   });
 });
 
+describe("Change cover, while it re-prices", () => {
+  const options = {
+    levels: [
+      {
+        coverLevel: "essential",
+        available: true,
+        priceLine: "Your price goes down by £3.10 a month",
+      },
+      { coverLevel: "comprehensive", available: true, priceLine: "Your price stays the same" },
+      { coverLevel: "plus", available: true, priceLine: "Your price goes up by £6.00 a month" },
+    ],
+    addons: [
+      { addon: "breakdown_uk", annualPricePence: 4_500 },
+      { addon: "motor_legal", annualPricePence: 2_500 },
+    ],
+  };
+
+  it("has no Confirm while nothing has changed", async () => {
+    fns.priceMyPolicyChangeFn.mockResolvedValue({
+      ok: true,
+      data: { status: "unchanged", ...options },
+    });
+    await show();
+    await userEvent.click(page.getByRole("button", { name: /Change cover/ }));
+    await expect.element(dialog().getByText("Your price goes up by £6.00 a month")).toBeVisible();
+    await expect.element(confirmButton()).toBeDisabled();
+  });
+
+  it("keeps every add-on on screen while the next price is worked out", async () => {
+    fns.priceMyPolicyChangeFn
+      .mockResolvedValueOnce({ ok: true, data: { status: "unchanged", ...options } })
+      .mockReturnValue(new Promise(() => undefined));
+    await show();
+    await userEvent.click(page.getByRole("button", { name: /Change cover/ }));
+    const legal = dialog().getByRole("checkbox", { name: /Legal/i });
+    await expect.element(legal).toBeVisible();
+    await userEvent.click(dialog().getByText(/Legal/i).first());
+    await expect.element(dialog().getByText("Working out your price…")).toBeVisible();
+    await expect.element(legal).toBeChecked();
+  });
+});
+
+describe("A change waiting for payment", () => {
+  it("offers to cancel it", async () => {
+    fns.abandonMyPolicyChangeFn.mockResolvedValue({ ok: true, data: { status: "abandoned" } });
+    await show(
+      changeable({
+        changes: {
+          eligible: true,
+          latest: { id: "c7", status: "awaiting_payment", failureReason: null },
+        },
+      }),
+    );
+    await expect
+      .element(page.getByText("You started a change and haven't paid for it yet."))
+      .toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Cancel this change" }));
+    expect(fns.abandonMyPolicyChangeFn).toHaveBeenCalledWith({
+      data: { input: { changeId: "c7" } },
+    });
+  });
+});
+
 describe("Change address", () => {
   it("warns that home insurance keeps its own address", async () => {
     quote.findAddresses.mockResolvedValue({

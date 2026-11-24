@@ -34,7 +34,7 @@ import type { JobDeps } from "#/server/jobs/types";
 import { getStripe, type StripeClient } from "#/server/payments/stripe";
 
 import { changePolicy, sendChangeEmail } from "./apply";
-import { ineligible, refusedChange } from "./eligibility";
+import { changesNothing, ineligible, refusedChange } from "./eligibility";
 import { coverLevelLines, offeredAddons, priceChange, type PricedChange } from "./price";
 import { settleApplied, startTopUp } from "./settle";
 
@@ -62,7 +62,13 @@ export type PriceChangeResult =
       /** A cover change's add-ons on offer, priced for a year */
       addons: { addon: string; annualPricePence: number }[];
     }
-  | { status: "refused"; message: string };
+  | { status: "refused"; message: string }
+  /** Nothing would change (decision 13's dialog opens on the current cover): no row, no Confirm */
+  | {
+      status: "unchanged";
+      levels: { coverLevel: CoverLevel; available: boolean; priceLine: string | null }[];
+      addons: { addon: string; annualPricePence: number }[];
+    };
 
 export type ConfirmChangeResult =
   | { status: "applied" }
@@ -115,6 +121,13 @@ async function price(
       const refusal =
         ineligible(stored, today) ?? (await refusedChange(tx, stored, change, tables, today));
       if (refusal) return { status: "refused", message: refusal };
+      if (changesNothing(stored, change)) {
+        return {
+          status: "unchanged",
+          levels: change.kind === "cover" ? coverLevelLines(stored, change, tables, today) : [],
+          addons: change.kind === "cover" ? offeredAddons(stored, tables, today) : [],
+        };
+      }
 
       const priced = priceChange(stored, change, tables, today);
       if (priced.outcome !== "quoted") {
@@ -240,12 +253,13 @@ async function abandon(
       if (!actor.customerId) throw new AuthzError("NOT_FOUND");
       const row = await lockMyPolicyChange(tx, changeId, actor.customerId);
       if (!row) throw new AuthzError("NOT_FOUND");
+      // A top-up Stripe already has paid stays waiting: its webhook applies the change
+      if (row.status === "awaiting_payment" && row.stripeSessionId) {
+        const at = await expireAtStripe(deps.stripe ?? getStripe(), row.stripeSessionId);
+        if (at === "complete") return { status: "abandoned" };
+      }
       if (row.status === "priced" || row.status === "awaiting_payment") {
         await updatePolicyChange(tx, changeId, { status: "abandoned" });
-      }
-      // The top-up can't be paid any more; a payment already made is refunded when it lands
-      if (row.status === "awaiting_payment" && row.stripeSessionId) {
-        await expireAtStripe(deps.stripe ?? getStripe(), row.stripeSessionId);
       }
       return { status: "abandoned" };
     },

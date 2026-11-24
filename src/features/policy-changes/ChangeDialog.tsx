@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "#/components/actions/Button";
 import { Alert } from "#/components/feedback/Alert";
@@ -18,6 +18,9 @@ const StripeCheckout = lazy(() =>
 );
 
 export type Priced = Extract<PriceChangeResult, { status: "priced" }>;
+
+/** A cover change's levels and add-ons, from the last answer that had them */
+export type CoverOptions = Pick<Priced, "levels" | "addons">;
 
 export function ChangeDialog({
   open,
@@ -41,8 +44,11 @@ export function ChangeDialog({
   danger?: boolean;
   onApplied: () => void;
   children?: ReactNode;
-  /** Fields that need the latest price (Change cover's levels and add-ons) */
-  fields?: (priced: Priced | null) => ReactNode;
+  /**
+   * Fields that need the price's options (Change cover's levels and add-ons). They get the last
+   * answer's, kept while the next one is worked out, so nothing in the form unmounts mid-edit.
+   */
+  fields?: (options: CoverOptions | null) => ReactNode;
 }) {
   const [retry, setRetry] = useState(0);
   const price = useChangePrice(reference, open ? change : null, retry);
@@ -50,6 +56,16 @@ export function ChangeDialog({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const priced = price.state === "done" && price.result.status === "priced" ? price.result : null;
+  const [options, setOptions] = useState<CoverOptions | null>(null);
+  const answer = price.state === "done" ? price.result : null;
+  useEffect(() => {
+    if (answer && answer.status !== "refused") {
+      setOptions({ levels: answer.levels, addons: answer.addons });
+    }
+  }, [answer]);
+  // A refusal belongs to the change it was for
+  const changeKey = JSON.stringify(change ?? null);
+  useEffect(() => setRefusal(null), [changeKey]);
 
   function close() {
     // A top-up that's open can't be paid once the dialog's gone
@@ -122,7 +138,7 @@ export function ChangeDialog({
         ) : (
           <>
             {children}
-            {fields?.(priced)}
+            {fields?.(options)}
             <PriceArea price={price} />
             {refusal ? (
               <Alert tone="warning" announce>
@@ -147,6 +163,7 @@ function PriceArea({ price }: { price: ReturnType<typeof useChangePrice> }) {
   }
   if (price.state !== "done") return null;
   const { result } = price;
+  if (result.status === "unchanged") return null;
   if (result.status === "refused") {
     return (
       <Alert tone="warning" announce>

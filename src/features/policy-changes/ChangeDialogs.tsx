@@ -272,9 +272,9 @@ function ChangeCoverDialog({ policy, onClose, onApplied }: DialogProps) {
       title="Change cover"
       reference={policy.reference}
       change={change}
-      fields={(priced) => {
-        const levels = priced?.levels ?? [];
-        const offered = priced?.addons ?? policy.addons;
+      fields={(options) => {
+        const levels = options?.levels ?? [];
+        const offered = options?.addons ?? policy.addons;
         return (
           <>
             <CoverageGroup

@@ -209,6 +209,19 @@ describe("annual: a dearer change", () => {
     expect(stripe.calls["refunds.create"]![0]![0]).toEqual({ payment_intent: "pi_topup_1" });
   });
 
+  it("keeps a change waiting when they close the dialog after paying, so the payment applies it", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    stripe.fail("checkout.sessions.expire");
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence);
+    await abandonMyPolicyChange(actor, { input: { changeId: priced.changeId } }, ctx, deps);
+    expect(await changeRow(priced.changeId)).toMatchObject({ status: "awaiting_payment" });
+    await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
+    expect(await changeRow(priced.changeId)).toMatchObject({ status: "applied" });
+    expect(stripe.calls["refunds.create"]).toBeUndefined();
+  });
+
   it("marks the change abandoned when its session expires", async () => {
     const { actor, policy } = await boughtCarPolicy();
     const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));

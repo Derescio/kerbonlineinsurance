@@ -46,7 +46,7 @@ export interface StoredPolicy extends PolicyRatingRows {
   };
   ratingVersionId: string;
   quote: { paymentPlan: string | null; bundleDiscountPence: number };
-  customer: { firstName: string; email: string };
+  customer: { firstName: string; email: string; addressLine1: string };
   /** Named drivers as the dialogs and audit see them */
   driverRelationships: Map<string, string | null>;
   /** Every driver's name, for the email */
@@ -85,7 +85,12 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     .from(quotes)
     .where(eq(quotes.id, policy.quoteId));
   const [customer] = await tx
-    .select({ firstName: customers.firstName, postcode: customers.postcode, email: users.email })
+    .select({
+      firstName: customers.firstName,
+      postcode: customers.postcode,
+      addressLine1: customers.addressLine1,
+      email: users.email,
+    })
     .from(customers)
     .innerJoin(users, eq(users.id, customers.userId))
     .where(eq(customers.id, policy.customerId));
@@ -134,7 +139,11 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       paymentPlan: quote!.paymentPlan,
       bundleDiscountPence: quote!.bundleDiscountPence ?? 0,
     },
-    customer: { firstName: customer!.firstName, email: customer!.email },
+    customer: {
+      firstName: customer!.firstName,
+      email: customer!.email,
+      addressLine1: customer!.addressLine1,
+    },
     postcode: customer!.postcode,
     coverLevel: policy.coverLevel as CoverLevel,
     addons: addons.map((a) => a.addon),
