@@ -463,3 +463,16 @@ export async function shiftScheduledInstalments(
   const next = rows.reduce((a, b) => (b.instalmentNumber < a.instalmentNumber ? b : a));
   return { subscriptionId: next.subscriptionId, instalmentPence: next.amountPence };
 }
+
+/** The customer's change, unlocked (the top-up check locks it in its own transaction) */
+export async function myChange(
+  db: Db | Tx,
+  changeId: string,
+  customerId: string,
+): Promise<{ status: string; stripeSessionId: string | null } | null> {
+  const [row] = await db
+    .select({ status: policyChanges.status, stripeSessionId: policyChanges.stripeSessionId })
+    .from(policyChanges)
+    .where(and(eq(policyChanges.id, changeId), eq(policyChanges.customerId, customerId)));
+  return row ?? null;
+}

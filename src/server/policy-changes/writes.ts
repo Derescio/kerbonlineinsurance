@@ -13,12 +13,14 @@ import { todayIso } from "#/features/quote/schemas/dates";
 import type { WriteResult } from "#/lib/validation";
 import type { Actor } from "#/server/auth/actor";
 import { AuthzError } from "#/server/auth/errors";
+import { checkoutDb } from "#/server/data/checkout-rows";
 import { defineWrite, type DataWrite, type WriteEnvelope } from "#/server/data/define";
 import {
   activeHomeAddressLine,
   insertPolicyChange,
   loadPolicyForChange,
   lockMyPolicyChange,
+  myChange,
   myPolicyId,
   openChangeFor,
   updatePolicyChange,
@@ -36,7 +38,7 @@ import { getStripe, type StripeClient } from "#/server/payments/stripe";
 import { changePolicy, sendChangeEmail } from "./apply";
 import { changesNothing, ineligible, refusedChange } from "./eligibility";
 import { coverLevelLines, offeredAddons, priceChange, type PricedChange } from "./price";
-import { settleApplied, startTopUp } from "./settle";
+import { completeTopUp, settleApplied, startTopUp } from "./settle";
 
 // A customer's policy changes (6.3b, decisions 6, 7, 14 and 15): price one (writing the priced
 // policy_changes row the dialog confirms), confirm it, or abandon it. Each is built per call, so
@@ -275,3 +277,30 @@ export const confirmMyPolicyChange: DataWrite<ConfirmChangeResult> & typeof conf
   asWrite(confirm);
 export const abandonMyPolicyChange: DataWrite<{ status: "abandoned" }> & typeof abandon =
   asWrite(abandon);
+
+/**
+ * Back on the policy page with a top-up waiting (decision 7): asks Stripe whether its session is
+ * paid and, if so, applies the change as checkout.session.completed would. The page doesn't wait
+ * for the webhook, which may be late, or (on a PR preview) never come. Idempotent with the webhook.
+ */
+export async function checkMyTopUp(
+  actor: Actor | null,
+  raw: unknown,
+  deps: PolicyChangeDeps = {},
+): Promise<{ status: string }> {
+  if (!actor?.customerId) throw new AuthzError("NOT_FOUND");
+  const parsed = z.object({ changeId: z.uuid() }).safeParse(raw);
+  if (!parsed.success) throw new AuthzError("NOT_FOUND");
+  const { changeId } = parsed.data;
+  const db = checkoutDb();
+  const row = await myChange(db, changeId, actor.customerId);
+  if (!row) throw new AuthzError("NOT_FOUND");
+  if (row.status === "awaiting_payment" && row.stripeSessionId) {
+    await completeTopUp(row.stripeSessionId, {
+      stripe: deps.stripe ?? getStripe(),
+      now: deps.now ?? new Date(),
+      jobs: deps.jobs,
+    });
+  }
+  return { status: (await myChange(db, changeId, actor.customerId))!.status };
+}

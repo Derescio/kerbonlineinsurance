@@ -43,3 +43,12 @@ export const abandonMyPolicyChangeFn = createServerFn({ method: "POST" })
     const { abandonMyPolicyChange } = await import("#/server/policy-changes/writes");
     return abandonMyPolicyChange(context.actor, data, { headers: getRequestHeaders() });
   });
+
+/** Back on the policy page with a top-up waiting: applies it if Stripe has it paid */
+export const checkMyTopUpFn = createServerFn({ method: "POST" })
+  .middleware([actorMiddleware])
+  .validator((data: { changeId: string }) => data)
+  .handler(async ({ context, data }): Promise<{ status: string }> => {
+    const { checkMyTopUp } = await import("#/server/policy-changes/writes");
+    return checkMyTopUp(context.actor, data);
+  });

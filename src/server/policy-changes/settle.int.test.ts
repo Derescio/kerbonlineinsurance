@@ -18,7 +18,12 @@ import {
 import { signedRequest, stripeEvent, TEST_WEBHOOK_SECRET } from "#/test/stripe-events";
 import { fakeStripe } from "#/test/stripe-fake";
 
-import { abandonMyPolicyChange, confirmMyPolicyChange, priceMyPolicyChange } from "./writes";
+import {
+  abandonMyPolicyChange,
+  checkMyTopUp,
+  confirmMyPolicyChange,
+  priceMyPolicyChange,
+} from "./writes";
 
 // Settling a change's difference in Stripe (6.3b, decisions 5 and 7). Annual: a dearer change is
 // an embedded Checkout for the top-up, applied when checkout.session.completed arrives (and
@@ -220,6 +225,32 @@ describe("annual: a dearer change", () => {
     await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
     expect(await changeRow(priced.changeId)).toMatchObject({ status: "applied" });
     expect(stripe.calls["refunds.create"]).toBeUndefined();
+  });
+
+  it("applies a paid top-up when they come back, with no webhook", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence);
+    expect(await checkMyTopUp(actor, { changeId: priced.changeId }, deps)).toEqual({
+      status: "applied",
+    });
+    expect(await changeRow(priced.changeId)).toMatchObject({ status: "applied", toVersion: 2 });
+    // The webhook, arriving after, changes nothing
+    await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
+    expect(await versionCount(policy.id)).toBe(2);
+  });
+
+  it("leaves an unpaid top-up waiting, and treats someone else's as not found", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    expect(await checkMyTopUp(actor, { changeId: priced.changeId }, deps)).toEqual({
+      status: "awaiting_payment",
+    });
+    const other = await boughtCarPolicy();
+    await expect(
+      checkMyTopUp(other.actor, { changeId: priced.changeId }, deps),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("marks the change abandoned when its session expires", async () => {

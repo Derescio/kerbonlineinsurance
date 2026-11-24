@@ -14,6 +14,7 @@ const fns = vi.hoisted(() => ({
   priceMyPolicyChangeFn: vi.fn(),
   confirmMyPolicyChangeFn: vi.fn(),
   abandonMyPolicyChangeFn: vi.fn(),
+  checkMyTopUpFn: vi.fn(),
 }));
 vi.mock("./server", () => fns);
 
@@ -244,7 +245,26 @@ describe("Change cover, while it re-prices", () => {
 });
 
 describe("A change waiting for payment", () => {
+  const waiting = () =>
+    changeable({
+      changes: {
+        eligible: true,
+        latest: { id: "c7", status: "awaiting_payment", failureReason: null },
+      },
+    });
+
+  it("checks with Stripe on load, and says nothing about paying when it's paid", async () => {
+    fns.checkMyTopUpFn.mockResolvedValue({ status: "applied" });
+    await show(waiting());
+    await expect.poll(() => fns.checkMyTopUpFn.mock.calls.length).toBe(1);
+    expect(fns.checkMyTopUpFn).toHaveBeenCalledWith({ data: { changeId: "c7" } });
+    await expect
+      .element(page.getByText("You started a change and haven't paid for it yet."))
+      .not.toBeInTheDocument();
+  });
+
   it("offers to cancel it", async () => {
+    fns.checkMyTopUpFn.mockResolvedValue({ status: "awaiting_payment" });
     fns.abandonMyPolicyChangeFn.mockResolvedValue({ ok: true, data: { status: "abandoned" } });
     await show(
       changeable({

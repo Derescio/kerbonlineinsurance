@@ -57,6 +57,26 @@ export function PolicyDetailPage({
   const waiting =
     policy.changes.latest?.status === "awaiting_payment" ? policy.changes.latest : null;
   const [cancelling, setCancelling] = useState(false);
+  // Whether Stripe has it paid: the webhook may be late (or, on a preview, never come), so the
+  // page asks on load and applies it when it is (decision 7). Until then nothing is said.
+  const [unpaid, setUnpaid] = useState(false);
+  const waitingId = waiting?.id ?? null;
+  useEffect(() => {
+    if (!waitingId) return;
+    let current = true;
+    setUnpaid(false);
+    void import("#/features/policy-changes/server")
+      .then(({ checkMyTopUpFn }) => checkMyTopUpFn({ data: { changeId: waitingId } }))
+      .then(({ status }) => {
+        if (!current) return;
+        if (status === "awaiting_payment") setUnpaid(true);
+        else void router.invalidate();
+      })
+      .catch(() => current && setUnpaid(true));
+    return () => {
+      current = false;
+    };
+  }, [waitingId, router]);
   async function cancelWaiting() {
     if (!waiting) return;
     setCancelling(true);
@@ -95,7 +115,7 @@ export function PolicyDetailPage({
           <p>{REFUNDED_AFTER_CHANGE}</p>
         </Alert>
       ) : null}
-      {waiting && !returned ? (
+      {waiting && unpaid && !returned ? (
         <Alert
           tone="info"
           className="pd__notice"
