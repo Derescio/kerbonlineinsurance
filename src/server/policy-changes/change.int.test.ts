@@ -430,6 +430,18 @@ describe("what isn't changed online", () => {
     );
   });
 
+  it("refuses an add-on the car isn't offered", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    expect(
+      await price(actor, policy.reference, {
+        kind: "cover",
+        coverLevel: "comprehensive",
+        addons: ["jetpack"],
+        voluntaryExcessPence: 0,
+      }),
+    ).toMatchObject(REFUSED);
+  });
+
   it("refuses a fifth named driver", async () => {
     const { actor, policy } = await monthlyPolicy();
     for (const name of ["Ann", "Ben", "Cat"]) {

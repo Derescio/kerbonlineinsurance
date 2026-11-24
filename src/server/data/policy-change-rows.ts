@@ -429,24 +429,25 @@ export async function refundablePaymentIntents(
 }
 
 /**
- * Moves every scheduled instalment of the quote by `deltaPence` (never below 1p); the
- * subscription they're paid by
+ * Moves every scheduled instalment of the quote by `deltaPence` (never below 1p). Returns the
+ * subscription they're paid by and the regular instalment now, which Stripe is sent as an
+ * absolute amount (so a retried transaction sends the same one)
  */
 export async function shiftScheduledInstalments(
   tx: Tx,
   quoteId: string,
   deltaPence: number,
-): Promise<string | null> {
+): Promise<{ subscriptionId: string | null; instalmentPence: number } | null> {
   const rows = await tx
     .update(payments)
     .set({ amountPence: sql`greatest(1, ${payments.amountPence} + ${deltaPence})` })
     .where(and(eq(payments.quoteId, quoteId), eq(payments.status, "scheduled")))
-    .returning({ subscriptionId: payments.stripeSubscriptionId });
-  if (rows.length) return rows[0]!.subscriptionId;
-  const [any] = await tx
-    .select({ subscriptionId: payments.stripeSubscriptionId })
-    .from(payments)
-    .where(eq(payments.quoteId, quoteId))
-    .limit(1);
-  return any?.subscriptionId ?? null;
+    .returning({
+      subscriptionId: payments.stripeSubscriptionId,
+      amountPence: payments.amountPence,
+      instalmentNumber: payments.instalmentNumber,
+    });
+  if (!rows.length) return null;
+  const next = rows.reduce((a, b) => (b.instalmentNumber < a.instalmentNumber ? b : a));
+  return { subscriptionId: next.subscriptionId, instalmentPence: next.amountPence };
 }

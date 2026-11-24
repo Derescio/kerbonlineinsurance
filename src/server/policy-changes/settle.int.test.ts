@@ -83,11 +83,17 @@ async function versionCount(policyId: string) {
 }
 
 /** The Checkout Session as Stripe holds it once the customer has paid */
-function paySession(sessionId: string, changeId: string, paymentIntent = "pi_topup_1") {
+function paySession(
+  sessionId: string,
+  changeId: string,
+  amountTotal: number,
+  paymentIntent = "pi_topup_1",
+) {
   stripe.set("checkout.sessions.retrieve", sessionId, {
     object: "checkout.session",
     status: "complete",
     payment_status: "paid",
+    amount_total: amountTotal,
     payment_intent: paymentIntent,
     metadata: { kerb_env: "local", policy_change_id: changeId },
   });
@@ -131,7 +137,7 @@ describe("annual: a dearer change", () => {
     expect(String(params.return_url)).toContain(
       `/account/policies/${policy.reference}?change=${priced.changeId}`,
     );
-    expect(options.idempotencyKey).toBe(`policy-change-topup:${priced.changeId}`);
+    expect(options.idempotencyKey).toMatch(new RegExp(`^policy-change-topup:${priced.changeId}:`));
     expect(await changeRow(priced.changeId)).toMatchObject({ status: "awaiting_payment" });
     expect(await versionCount(policy.id)).toBe(1);
   });
@@ -140,7 +146,7 @@ describe("annual: a dearer change", () => {
     const { actor, policy } = await boughtCarPolicy();
     const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
     const { stripeSessionId } = await changeRow(priced.changeId);
-    paySession(stripeSessionId!, priced.changeId);
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence);
     const event = sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId);
     expect((await deliver(event)).status).toBe(200);
     expect((await deliver(event)).status).toBe(200);
@@ -160,7 +166,7 @@ describe("annual: a dearer change", () => {
     const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
     const { stripeSessionId } = await changeRow(priced.changeId);
     await getDb().update(policies).set({ version: 2 }).where(eq(policies.id, policy.id));
-    paySession(stripeSessionId!, priced.changeId);
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence);
     await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
 
     expect(await changeRow(priced.changeId)).toMatchObject({
@@ -179,13 +185,26 @@ describe("annual: a dearer change", () => {
     const { stripeSessionId } = await changeRow(priced.changeId);
     await abandonMyPolicyChange(actor, { input: { changeId: priced.changeId } }, ctx, deps);
     expect(stripe.calls["checkout.sessions.expire"]?.[0]?.[0]).toBe(stripeSessionId);
-    paySession(stripeSessionId!, priced.changeId);
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence);
     await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
     expect(await changeRow(priced.changeId)).toMatchObject({
       status: "failed",
       failureReason: "abandoned",
     });
     expect(stripe.calls["refunds.create"]).toHaveLength(1);
+  });
+
+  it("refunds in full a payment that doesn't match the change's price", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const { priced } = await priceAndConfirm(actor, policy.reference, cover("plus"));
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence - 1);
+    await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
+    expect(await changeRow(priced.changeId)).toMatchObject({
+      status: "failed",
+      failureReason: "price_changed",
+    });
+    expect(stripe.calls["refunds.create"]![0]![0]).toEqual({ payment_intent: "pi_topup_1" });
   });
 
   it("marks the change abandoned when its session expires", async () => {
@@ -221,11 +240,55 @@ describe("annual: a cheaper change", () => {
     expect(confirmed).toEqual({ status: "applied" });
     expect(stripe.calls["refunds.create"]).toEqual([
       [
-        { payment_intent: pi, amount: priced.amountPence },
+        {
+          payment_intent: pi,
+          amount: priced.amountPence,
+          metadata: { policy_change_id: priced.changeId },
+        },
         { idempotencyKey: `policy-change-refund:${priced.changeId}:${pi}` },
       ],
     ]);
     expect((await changeRow(priced.changeId)).stripeRefundId).toMatch(/^re_test_/);
+  });
+
+  it("repeats its own refund on a retried confirm, never refunding twice", async () => {
+    const { actor, policy } = await boughtCarPolicy();
+    const pi = `pi_${policy.quoteId}`;
+    const priced = await priceMyPolicyChange(
+      actor,
+      { input: { reference: policy.reference, change: cover("essential") } },
+      ctx,
+      deps,
+    );
+    if (!priced.ok || priced.data.status !== "priced") throw new Error("not priced");
+    const { changeId, amountPence } = priced.data;
+    // A first attempt refunded at Stripe, then its transaction rolled back: the charge shows it
+    stripe.set("paymentIntents.retrieve", pi, {
+      amount: amountPence,
+      latest_charge: {
+        amount_refunded: amountPence,
+        refunds: {
+          data: [{ id: "re_first", amount: amountPence, metadata: { policy_change_id: changeId } }],
+        },
+      },
+    });
+    stripe.set("paymentIntents.retrieve", "pi_other", {
+      amount: 50_000,
+      latest_charge: { amount_refunded: 0 },
+    });
+    const confirmed = await confirmMyPolicyChange(
+      actor,
+      { input: { changeId }, idempotencyKey: randomUUID() },
+      ctx,
+      deps,
+    );
+    expect(confirmed).toEqual({ ok: true, data: { status: "applied" } });
+    expect(stripe.calls["refunds.create"]).toEqual([
+      [
+        { payment_intent: pi, amount: amountPence, metadata: { policy_change_id: changeId } },
+        { idempotencyKey: `policy-change-refund:${changeId}:${pi}` },
+      ],
+    ]);
   });
 
   it("spills a refund larger than the original has left onto the latest top-up", async () => {
@@ -262,9 +325,10 @@ describe("annual: a cheaper change", () => {
     });
     const { priced } = await priceAndConfirm(actor, policy.reference, cover("essential"));
     const refunds = stripe.calls["refunds.create"]!.map(([params]) => params);
+    const metadata = { policy_change_id: priced.changeId };
     expect(refunds).toEqual([
-      { payment_intent: pi, amount: 100 },
-      { payment_intent: "pi_earlier_topup", amount: priced.amountPence - 100 },
+      { payment_intent: pi, amount: 100, metadata },
+      { payment_intent: "pi_earlier_topup", amount: priced.amountPence - 100, metadata },
     ]);
   });
 });
@@ -305,6 +369,41 @@ describe("monthly", () => {
         { idempotencyKey: `policy-change-instalments:${priced.changeId}` },
       ],
     ]);
+  });
+
+  it("sends the subscription the instalment from the database, so a retry repeats it", async () => {
+    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const instalment = await presetSubscription(policy.quoteId);
+    const priced = await priceMyPolicyChange(
+      actor,
+      { input: { reference: policy.reference, change: cover("plus") } },
+      ctx,
+      deps,
+    );
+    if (!priced.ok || priced.data.status !== "priced") throw new Error("not priced");
+    // A first attempt moved Stripe's price, then its transaction rolled back
+    stripe.set("subscriptions.retrieve", `sub_${policy.quoteId}`, {
+      metadata: { kerb_env: "local" },
+      items: {
+        data: [
+          {
+            id: "si_1",
+            price: { unit_amount: instalment + priced.data.amountPence, product: "prod_1" },
+          },
+        ],
+      },
+    });
+    await confirmMyPolicyChange(
+      actor,
+      { input: { changeId: priced.data.changeId }, idempotencyKey: randomUUID() },
+      ctx,
+      deps,
+    );
+    const [, params] = stripe.calls["subscriptions.update"]![0]! as [
+      string,
+      { items: { price_data: { unit_amount: number } }[] },
+    ];
+    expect(params.items[0]!.price_data.unit_amount).toBe(instalment + priced.data.amountPence);
   });
 
   it("applies the change with no Stripe call when no instalment is left", async () => {

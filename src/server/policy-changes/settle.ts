@@ -20,6 +20,7 @@ import { kerbEnv } from "#/server/payments/kerb-env";
 import type { StripeClient } from "#/server/payments/stripe";
 
 import { changePolicy } from "./apply";
+import { ineligible, refusedChange } from "./eligibility";
 import { priceChange, type PricedChange } from "./price";
 
 // Settling a confirmed change's difference in Stripe (6.3b, decision 5):
@@ -53,11 +54,14 @@ const idOf = (value: string | { id: string } | null | undefined): string | null 
 async function stripeCustomerFor(tx: Tx, customerId: string, stripe: StripeClient) {
   const found = await stripeCustomerOf(tx, customerId);
   if (found.stripeCustomerId) return found.stripeCustomerId;
-  const created = await stripe.customers.create({
-    name: found.name,
-    email: found.email,
-    metadata: { kerb_env: kerbEnv(), kerb_customer_id: customerId },
-  });
+  const created = await stripe.customers.create(
+    {
+      name: found.name,
+      email: found.email,
+      metadata: { kerb_env: kerbEnv(), kerb_customer_id: customerId },
+    },
+    { idempotencyKey: `policy-change-customer:${customerId}` },
+  );
   await setStripeCustomerId(tx, customerId, created.id);
   return created.id;
 }
@@ -74,13 +78,15 @@ export async function startTopUp(
   const { stripe, now } = deps;
   const { reference } = stored.policy;
   const tags = { kerb_env: kerbEnv(), policy_change_id: changeId };
+  // In the key, so a retried confirm (a new expiry) makes a new session rather than a mismatch
+  const expiresAt = Math.floor(now.getTime() / 1000) + SESSION_SECONDS;
   const session = await stripe.checkout.sessions.create(
     {
       mode: "payment",
       ui_mode: "embedded_page",
       allowed_payment_method_types: ["card"],
       customer: await stripeCustomerFor(tx, stored.policy.customerId, stripe),
-      expires_at: Math.floor(now.getTime() / 1000) + SESSION_SECONDS,
+      expires_at: expiresAt,
       line_items: [
         {
           quantity: 1,
@@ -95,7 +101,7 @@ export async function startTopUp(
       payment_intent_data: { metadata: tags },
       return_url: `${authUrls(getAuthEnv()).baseURL}/account/policies/${reference}?change=${changeId}`,
     } as Stripe.Checkout.SessionCreateParams,
-    { idempotencyKey: `policy-change-topup:${changeId}` },
+    { idempotencyKey: `policy-change-topup:${changeId}:${expiresAt}` },
   );
   if (!session.client_secret) throw new Error("Stripe returned a session without a secret");
   await updatePolicyChange(tx, changeId, {
@@ -105,7 +111,11 @@ export async function startTopUp(
   return { clientSecret: session.client_secret };
 }
 
-/** Refunds `pence` from the payment intents in order, each up to what it has left */
+/**
+ * Refunds `pence` from the payment intents in order, each up to what it has left. What this change
+ * refunded on a try whose transaction then rolled back still counts as available to it, so a
+ * retry asks Stripe for the same refunds under the same keys (and gets them back), never more.
+ */
 async function refund(
   tx: Tx,
   changeId: string,
@@ -115,16 +125,20 @@ async function refund(
 ): Promise<void> {
   let left = pence;
   let refundId: string | null = null;
+  const metadata = { policy_change_id: changeId };
   for (const id of await refundablePaymentIntents(tx, stored.policy.quoteId, stored.policy.id)) {
     if (left <= 0) break;
-    const intent = await stripe.paymentIntents.retrieve(id, { expand: ["latest_charge"] });
+    const intent = await stripe.paymentIntents.retrieve(id, { expand: ["latest_charge.refunds"] });
     const charge = intent.latest_charge as Stripe.Charge | string | null;
-    const refunded = charge && typeof charge !== "string" ? charge.amount_refunded : 0;
-    const available = intent.amount - refunded;
+    const known = charge && typeof charge !== "string" ? charge : null;
+    const own = (known?.refunds?.data ?? [])
+      .filter((r) => r.metadata?.policy_change_id === changeId)
+      .reduce((sum, r) => sum + r.amount, 0);
+    const available = intent.amount - ((known?.amount_refunded ?? 0) - own);
     if (available <= 0) continue;
     const amount = Math.min(left, available);
     const made = await stripe.refunds.create(
-      { payment_intent: id, amount },
+      { payment_intent: id, amount, metadata },
       { idempotencyKey: `policy-change-refund:${changeId}:${id}` },
     );
     refundId ??= made.id;
@@ -142,8 +156,9 @@ async function moveInstalments(
   deltaPence: number,
   stripe: StripeClient,
 ): Promise<void> {
-  const subscriptionId = await shiftScheduledInstalments(tx, stored.policy.quoteId, deltaPence);
-  if (!subscriptionId) throw new Error(`No subscription for change ${changeId}`);
+  const shifted = await shiftScheduledInstalments(tx, stored.policy.quoteId, deltaPence);
+  if (!shifted?.subscriptionId) throw new Error(`No subscription for change ${changeId}`);
+  const { subscriptionId, instalmentPence } = shifted;
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const item = subscription.items.data[0];
   if (!item) throw new Error("Stripe returned a subscription without an item");
@@ -157,7 +172,8 @@ async function moveInstalments(
             currency: "gbp",
             // A subscription item takes a product id, not product_data
             product: idOf(item.price.product as string | { id: string })!,
-            unit_amount: Math.max(1, (item.price.unit_amount ?? 0) + deltaPence),
+            // The instalment the rows now hold, not Stripe's price moved again
+            unit_amount: instalmentPence,
             recurring: { interval: "month" },
           },
         },
@@ -219,15 +235,17 @@ export async function completeTopUp(sessionId: string, deps: SettleDeps): Promis
     const stored = await loadPolicyForChange(tx, row.policyId);
     if (!stored || stored.policy.version !== row.fromVersion) return fail("version_moved");
     const today = todayIso(now);
-    if (stored.policy.status !== "active" || today >= stored.policy.endsOn) return fail("refused");
     const change = row.request as PolicyChangeRequest;
-    const priced = priceChange(
-      stored,
-      change,
-      await getRatingTables(tx, stored.ratingVersionId),
-      today,
-    );
+    const tables = await getRatingTables(tx, stored.ratingVersionId);
+    if (ineligible(stored, today) || (await refusedChange(tx, stored, change, tables, today))) {
+      return fail("refused");
+    }
+    const priced = priceChange(stored, change, tables, today);
     if (priced.outcome !== "quoted") return fail("refused");
+    // What was paid must be this change's top-up today, or it's all given back
+    if (priced.settlement !== "charge" || priced.amountPence !== session.amount_total) {
+      return fail("price_changed");
+    }
     await updatePolicyChange(tx, row.id, { stripePaymentIntentId: paymentIntent });
     await changePolicy(tx, { stored, change, priced, changeId: row.id, actor: null, now });
   });

@@ -16,7 +16,6 @@ import { AuthzError } from "#/server/auth/errors";
 import { defineWrite, type DataWrite, type WriteEnvelope } from "#/server/data/define";
 import {
   activeHomeAddressLine,
-  hasOtherActiveCarPolicy,
   insertPolicyChange,
   loadPolicyForChange,
   lockMyPolicyChange,
@@ -34,6 +33,7 @@ import { expireAtStripe } from "#/server/payments/expire-session";
 import { getStripe, type StripeClient } from "#/server/payments/stripe";
 
 import { changePolicy } from "./apply";
+import { ineligible, refusedChange } from "./eligibility";
 import { coverLevelLines, offeredAddons, priceChange, type PricedChange } from "./price";
 import { settleApplied, startTopUp } from "./settle";
 
@@ -65,39 +65,6 @@ export type ConfirmChangeResult =
   | { status: "applied" }
   | { status: "pay"; clientSecret: string }
   | { status: "refused"; message: string; priceLine?: string };
-
-const NAMED_DRIVER_LIMIT = 4;
-
-/** Why the policy can't be changed online right now, or null when it can (decision 6) */
-function ineligible(stored: StoredPolicy, today: string): string | null {
-  const { policy } = stored;
-  if (policy.status !== "active" || today >= policy.endsOn) return CANT_CHANGE_ONLINE;
-  if (stored.quote.paymentPlan === "monthly" && stored.failedInstalments > 0) {
-    return CANT_CHANGE_ONLINE;
-  }
-  return null;
-}
-
-/** Why this change can't be made online, or null */
-async function refusedChange(
-  tx: Tx,
-  stored: StoredPolicy,
-  change: PolicyChangeRequest,
-  today: string,
-): Promise<string | null> {
-  switch (change.kind) {
-    case "driver_added":
-      return stored.driverRelationships.size >= NAMED_DRIVER_LIMIT ? CANT_CHANGE_ONLINE : null;
-    case "driver_removed":
-      return stored.driverRelationships.has(change.driverId) ? null : CANT_CHANGE_ONLINE;
-    case "address":
-      return (await hasOtherActiveCarPolicy(tx, stored.policy.customerId, stored.policy.id, today))
-        ? CANT_CHANGE_ONLINE
-        : null;
-    case "cover":
-      return null;
-  }
-}
 
 /** A refused attempt's row: what was asked, the outcome, and no money */
 async function recordRefused(
@@ -140,12 +107,12 @@ async function price(
       const policyId = await myPolicyId(tx, reference, actor.customerId);
       if (!policyId) throw new AuthzError("NOT_FOUND");
       const stored = await loadPolicyForChange(tx, policyId);
-      const refusal = stored
-        ? (ineligible(stored, today) ?? (await refusedChange(tx, stored, change, today)))
-        : CANT_CHANGE_ONLINE;
-      if (!stored || refusal) return { status: "refused", message: refusal ?? CANT_CHANGE_ONLINE };
-
+      if (!stored) return { status: "refused", message: CANT_CHANGE_ONLINE };
       const tables = await getRatingTables(tx, stored.ratingVersionId);
+      const refusal =
+        ineligible(stored, today) ?? (await refusedChange(tx, stored, change, tables, today));
+      if (refusal) return { status: "refused", message: refusal };
+
       const priced = priceChange(stored, change, tables, today);
       if (priced.outcome !== "quoted") {
         await recordRefused(tx, stored, change, priced);
@@ -204,17 +171,18 @@ async function confirm(
 
       const stored = await loadPolicyForChange(tx, row.policyId);
       const change = row.request as PolicyChangeRequest;
-      const refusal = stored
-        ? (ineligible(stored, today) ?? (await refusedChange(tx, stored, change, today)))
-        : CANT_CHANGE_ONLINE;
-      if (!stored || refusal) {
+      const tables = stored ? await getRatingTables(tx, stored.ratingVersionId) : null;
+      const refusal =
+        stored && tables
+          ? (ineligible(stored, today) ?? (await refusedChange(tx, stored, change, tables, today)))
+          : CANT_CHANGE_ONLINE;
+      if (!stored || !tables || refusal) {
         await updatePolicyChange(tx, changeId, { status: "abandoned", failureReason: "refused" });
         return { status: "refused", message: refusal ?? CANT_CHANGE_ONLINE };
       }
 
       // Priced again under the policy's lock: anything that moved since the dialog's price is
       // refused with today's line (decision 14)
-      const tables = await getRatingTables(tx, stored.ratingVersionId);
       const priced = priceChange(stored, change, tables, today);
       if (priced.outcome !== "quoted") {
         await updatePolicyChange(tx, changeId, { status: "abandoned", failureReason: "refused" });

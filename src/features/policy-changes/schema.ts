@@ -34,7 +34,10 @@ export const policyChangeSchema = (today: string): z.ZodType<PolicyChangeRequest
     z.object({
       kind: z.literal("cover"),
       coverLevel: z.enum(coverLevels),
-      addons: z.array(z.string().min(1).max(40)).max(10),
+      addons: z
+        .array(z.string().min(1).max(40))
+        .max(10)
+        .transform((addons) => [...new Set(addons)].sort()),
       voluntaryExcessPence: z
         .number()
         .int()
