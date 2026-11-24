@@ -36,6 +36,9 @@ export async function buyCarPolicy(
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
+  // Signed in first: a reload while the log-in is in flight cancels it
+  await expect(page).toHaveURL(/\/quote\/retrieve$/, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { level: 1, name: "My quotes" })).toBeVisible();
   const saved = page.getByRole("article", { name: /^Quote KRB-Q-\d{5}$/ });
   await expect(async () => {
     await page.reload();
@@ -43,9 +46,21 @@ export async function buyCarPolicy(
   }).toPass({ timeout: 20_000 });
   await saved.getByRole("link", { name: "Continue quote" }).click();
 
-  if (plan === "monthly") await page.getByText("Pay monthly").click();
+  // Clicks before the page is ready are lost, as buy.spec.ts waits too
+  await expect(page.getByRole("heading", { level: 1, name: "Confirm and pay" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  if (plan === "monthly") {
+    await page.getByText("Pay monthly").click();
+    await expect(page.getByRole("radio", { name: /Pay monthly/ })).toBeChecked();
+  }
   await page.getByText("I confirm my details are correct").click();
+  await expect(
+    page.getByRole("checkbox", { name: "I confirm my details are correct" }),
+  ).toBeChecked();
   await page.getByText("I agree to the policy terms and understand my cover").click();
+  await expect(
+    page.getByRole("checkbox", { name: "I agree to the policy terms and understand my cover" }),
+  ).toBeChecked();
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await payWithTestCard(page, { name: "Alex Morgan", email });
   await expect(page).toHaveURL(/\/quote\/covered\//, { timeout: 60_000 });

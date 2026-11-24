@@ -31,6 +31,9 @@ test("monthly: add a driver, see the price, confirm, and the policy shows them",
   const email = `delivered+e2e-change-${Date.now()}@resend.dev`;
   const reference = await buyCarPolicy(page, { email, plan: "monthly" });
   await page.goto(`/account/policies/${reference}`);
+  await expect(page.getByRole("heading", { name: "Make a change" })).toBeVisible();
+  // A click before the page is ready is lost
+  await page.waitForLoadState("networkidle");
 
   await page
     .getByRole("region", { name: "Make a change" })
@@ -65,6 +68,9 @@ test("annual: move up to Plus and pay the top-up", async ({ page }) => {
   const email = `delivered+e2e-change-${Date.now()}@resend.dev`;
   const reference = await buyCarPolicy(page, { email, plan: "annual" });
   await page.goto(`/account/policies/${reference}`);
+  await expect(page.getByRole("heading", { name: "Make a change" })).toBeVisible();
+  // A click before the page is ready is lost
+  await page.waitForLoadState("networkidle");
 
   await page
     .getByRole("region", { name: "Make a change" })
@@ -73,15 +79,19 @@ test("annual: move up to Plus and pay the top-up", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Change cover" });
   await dialog.getByRole("radio", { name: /Plus/ }).click();
   await expect(
-    dialog.getByText(/^You'll pay £[\d,]+\.\d\d now for the rest of the year$/),
+    // The Plus card says it too; the price alert is the one that counts
+    dialog.getByRole("status").getByText(/^You'll pay £[\d,]+\.\d\d now for the rest of the year$/),
   ).toBeVisible();
   await axeAtEachWidth(page);
   await dialog.getByRole("button", { name: "Confirm change" }).click();
 
   await payWithTestCard(page, { name: "Alex Morgan", email });
-  await expect(page).toHaveURL(new RegExp(`/account/policies/${reference}?change=`), {
-    timeout: 60_000,
-  });
+  await expect(page).toHaveURL(
+    (url) => url.pathname === `/account/policies/${reference}` && url.searchParams.has("change"),
+    {
+      timeout: 60_000,
+    },
+  );
   // The webhook applies it: refresh until the cover says Plus
   await expect(async () => {
     await page.reload();
