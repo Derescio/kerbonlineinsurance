@@ -657,6 +657,35 @@ export class SeedBuilder {
         updatedAt: at,
       };
       this.plan.policies.push(row);
+      // Every 12th car policy priced a cover change it didn't confirm (6.3b). Picked by number,
+      // not the rng, so the rest of the seed is unchanged.
+      if (item.product === "car" && this.policyNumber % 12 === 0) {
+        const newAnnual = Math.round(row.annualPremiumPence * 1.15);
+        const changedAt = new Date(at.getTime() + 2 * 60 * 60 * 1000);
+        this.plan.policyChanges.push({
+          id: uuidv7At(changedAt, rng.fork(`policy-change:${id}`)),
+          policyId: id,
+          customerId: quote.customer.id,
+          kind: "cover",
+          request: {
+            kind: "cover",
+            coverLevel: row.coverLevel === "plus" ? "comprehensive" : "plus",
+            addons: [],
+            voluntaryExcessPence: item.voluntaryExcessPence,
+          },
+          fromVersion: 1,
+          oldAnnualPence: row.annualPremiumPence,
+          newAnnualPence: newAnnual,
+          priceBeforePence: row.annualPremiumPence,
+          priceAfterPence: newAnnual,
+          outcome: "quoted",
+          settlement: plan === "monthly" ? "instalments" : "charge",
+          amountPence: newAnnual - row.annualPremiumPence,
+          status: "abandoned",
+          createdAt: changedAt,
+          updatedAt: changedAt,
+        });
+      }
       this.event(
         "policy.bought",
         at,

@@ -41,6 +41,8 @@ const EXPECTED_GRANTS: Record<string, readonly Privilege[]> = {
   notifications: ALL,
   payments: ALL,
   policies: ALL,
+  policy_changes: ALL,
+  policy_versions: ALL,
   properties: ALL,
   quote_item_addons: ALL,
   quote_item_factors: ALL,

@@ -16,6 +16,7 @@ import type {
   notifications,
   payments,
   policies,
+  policyChanges,
   priorClaims,
   properties,
   quoteItemAddons,
@@ -88,6 +89,8 @@ export interface SeedPlan {
   businesses: Row<typeof businesses>[];
   bundles: Row<typeof bundles>[];
   policies: Row<typeof policies>[];
+  /** Price checks customers ran on a change and didn't confirm (6.3b) */
+  policyChanges: Row<typeof policyChanges>[];
   payments: Row<typeof payments>[];
   claims: Row<typeof claims>[];
   claimEvents: Row<typeof claimEvents>[];
@@ -119,6 +122,7 @@ export function emptyPlan(): SeedPlan {
     businesses: [],
     bundles: [],
     policies: [],
+    policyChanges: [],
     payments: [],
     claims: [],
     claimEvents: [],

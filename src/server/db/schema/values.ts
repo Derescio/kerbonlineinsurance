@@ -111,6 +111,20 @@ export const lookupKinds = ["postcode_area", "occupation", "trade"] as const;
 export type LookupKind = (typeof lookupKinds)[number];
 
 export const policyStatuses = ["active", "cancelled", "lapsed"] as const;
+// Policy changes (6.3b, decision 8)
+export const policyChangeKinds = ["address", "driver_added", "driver_removed", "cover"] as const;
+export type PolicyChangeKind = (typeof policyChangeKinds)[number];
+export const policyChangeStatuses = [
+  "priced",
+  "awaiting_payment",
+  "applied",
+  "failed",
+  "abandoned",
+  "refused",
+] as const;
+export type PolicyChangeStatus = (typeof policyChangeStatuses)[number];
+export const policyChangeSettlements = ["charge", "refund", "instalments", "none"] as const;
+export type PolicyChangeSettlement = (typeof policyChangeSettlements)[number];
 
 export const claimStatuses = [
   "draft",

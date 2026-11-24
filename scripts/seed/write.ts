@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 
 import { desc, getTableColumns, getTableName, sql } from "drizzle-orm";
@@ -78,6 +79,7 @@ const TABLES: readonly (readonly [Exclude<keyof SeedPlan, "users" | "audit">, Pg
   ["businesses", schema.businesses],
   ["bundles", schema.bundles],
   ["policies", schema.policies],
+  ["policyChanges", schema.policyChanges],
   ["payments", schema.payments],
   ["claims", schema.claims],
   ["claimEvents", schema.claimEvents],
@@ -91,6 +93,17 @@ const TABLES: readonly (readonly [Exclude<keyof SeedPlan, "users" | "audit">, Pg
 ];
 
 const CHUNK = 500;
+
+/** 0027's version-1 backfill, between its markers */
+async function versionOneBackfill(): Promise<string> {
+  const file = await readFile(
+    new URL("../../drizzle/0027_policy_changes.sql", import.meta.url),
+    "utf8",
+  );
+  const match = /-- backfill:start\n([\s\S]*?)-- backfill:end/.exec(file);
+  if (!match) throw new Error("0027 has no backfill markers");
+  return match[1]!;
+}
 
 export async function seedCounts(db: Db | Tx): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
@@ -242,6 +255,10 @@ export async function seedDatabase(db: Db, opts: SeedOptions): Promise<SeedResul
       }
       if (key === "quoteItemOptions") await selectOptions(tx, plan);
     }
+
+    // Version 1 for every policy, built by 0027's own backfill (6.3b), so seeded history matches
+    // what the migration made for real policies
+    await tx.execute(sql.raw(await versionOneBackfill()));
 
     await writeAudit(tx, plan, staff, opts.keys, now);
 

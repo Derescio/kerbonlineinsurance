@@ -1,3 +1,4 @@
+import { writeVersion } from "#/server/data/policy-versions";
 import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
@@ -278,6 +279,8 @@ export async function makePolicy(overrides: Insert<typeof policies> = {}) {
       product,
     })
     .returning();
+  // Every policy has its version 1 from purchase (6.3b), so a made one does too
+  await writeVersion(getDb(), policy!.id, 1, null, policy!.createdAt);
   return policy!;
 }
 
