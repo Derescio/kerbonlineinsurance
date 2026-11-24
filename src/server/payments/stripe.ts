@@ -5,7 +5,7 @@ import { getStripeEnv } from "#/server/env";
 // Pinned to the installed stripe package's latest API version. The code reads invoices and
 // subscriptions in this version's shape: an invoice's subscription is under
 // `parent.subscription_details`, and a subscription's period end is on its item.
-export const STRIPE_API_VERSION = "2026-10-28.endive";
+export const STRIPE_API_VERSION = "2026-11-18.endive";
 
 // The subset of the Stripe client Kerb uses, so tests can fake it (src/test/stripe-fake.ts).
 export interface StripeClient {
