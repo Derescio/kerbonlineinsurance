@@ -9,6 +9,7 @@ import type { ClaimSummary } from "./claims";
 import type { Db } from "#/server/db/client";
 
 import { defineRead } from "./define";
+import { latestVersion } from "./policy-version-rows";
 import { claimSummaryColumns } from "./summaries";
 
 // The signed-in customer's own policies (4.5). Every query filters by actor.customerId, so someone
@@ -335,21 +336,7 @@ export const getMyPolicy = defineRead(
             postcode: true,
           },
         },
-        quote: {
-          columns: {
-            reference: true,
-            totalPence: true,
-            paymentPlan: true,
-            bundleDiscountPence: true,
-          },
-          with: {
-            payments: {
-              columns: { amountPence: true },
-              orderBy: (payment, { asc }) => [asc(payment.instalmentNumber)],
-              limit: 2,
-            },
-          },
-        },
+        quote: { columns: { reference: true } },
         quoteItem: {
           columns: {},
           with: {
@@ -388,12 +375,6 @@ export const getMyPolicy = defineRead(
                 valuablesPence: true,
               },
             },
-            selectedOption: { columns: { annualPremiumPence: true } },
-            addons: {
-              columns: { addon: true, annualPricePence: true },
-              where: (addon, { eq }) => eq(addon.selected, true),
-              orderBy: (addon, { asc }) => [asc(addon.addon)],
-            },
           },
         },
         claims: {
@@ -404,11 +385,9 @@ export const getMyPolicy = defineRead(
     });
     if (!row) throw new AuthzError("NOT_FOUND");
     const { bundleId, createdAt, cancelledAt, customer, quote, quoteItem, ...policy } = row;
-    const coverPremiumPence = quoteItem.selectedOption?.annualPremiumPence ?? 0;
-    const addonsPence = quoteItem.addons.reduce((total, a) => total + a.annualPricePence, 0);
-    // The premium stored at purchase is the tier and add-ons less this policy's share of the saving
-    const savingPence = Math.max(0, coverPremiumPence + addonsPence - policy.annualPremiumPence);
-    const [first, second] = quote.payments;
+    // The money is the latest version's (6.3b, decision 2): the quote's prices stay as sold, so a
+    // changed policy's tier, add-on prices, saving, total and instalment live in its version
+    const { money } = (await latestVersion(db, policy.id)).snapshot;
     return {
       ...policy,
       boughtOn: todayIso(createdAt),
@@ -417,18 +396,18 @@ export const getMyPolicy = defineRead(
       car: quoteItem.vehicle ?? null,
       drivers: quoteItem.drivers,
       home: quoteItem.property ?? null,
-      coverPremiumPence,
-      addons: quoteItem.addons,
+      coverPremiumPence: money.tierPence,
+      addons: money.addons,
       saving:
-        savingPence > 0 && (quote.bundleDiscountPence ?? 0) > 0
-          ? { kind: bundleId ? "bundle" : "earned", pence: savingPence }
+        money.savingPence > 0
+          ? { kind: bundleId ? "bundle" : "earned", pence: money.savingPence }
           : null,
       bundled: bundleId !== null,
       plan:
-        quote.paymentPlan === "monthly" && first
-          ? { kind: "monthly", instalmentPence: (second ?? first).amountPence }
+        money.instalmentPence !== null
+          ? { kind: "monthly", instalmentPence: money.instalmentPence }
           : { kind: "annual" },
-      quote: { reference: quote.reference, totalPence: quote.totalPence },
+      quote: { reference: quote.reference, totalPence: money.quoteTotalPence },
     };
   },
 );

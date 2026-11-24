@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { ageOn, todayIso } from "#/features/quote/schemas/dates";
 import type { Db } from "#/server/db/client";
@@ -162,4 +162,19 @@ export async function writeVersion(
   await tx
     .insert(policyVersions)
     .values({ policyId, version, policyChangeId, effectiveFrom, snapshot, personal });
+}
+
+/** The policy's newest version: what the policy page's money is read from */
+export async function latestVersion(
+  db: Db | Tx,
+  policyId: string,
+): Promise<{ version: number; snapshot: PolicySnapshot }> {
+  const [row] = await db
+    .select({ version: policyVersions.version, snapshot: policyVersions.snapshot })
+    .from(policyVersions)
+    .where(eq(policyVersions.policyId, policyId))
+    .orderBy(desc(policyVersions.version))
+    .limit(1);
+  if (!row) throw new Error(`latestVersion: policy ${policyId} has no version`);
+  return { version: row.version, snapshot: row.snapshot as PolicySnapshot };
 }

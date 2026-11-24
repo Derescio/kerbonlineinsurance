@@ -12,6 +12,7 @@ import {
   files,
   payments,
   policies,
+  policyVersions,
   properties,
   quoteItemAddons,
   quoteItemOptions,
@@ -282,6 +283,17 @@ export async function makePolicy(overrides: Insert<typeof policies> = {}) {
   // Every policy has its version 1 from purchase (6.3b), so a made one does too
   await writeVersion(getDb(), policy!.id, 1, null, policy!.createdAt);
   return policy!;
+}
+
+/**
+ * Rewrites a made policy's version 1 from its rows as they are now, for a test that sets up the
+ * quote, drivers or payments after makePolicy (purchase writes version 1 last, 6.3b)
+ */
+export async function rewriteVersionOne(policyId: string): Promise<void> {
+  const db = getDb();
+  const [policy] = await db.select().from(policies).where(eq(policies.id, policyId));
+  await db.delete(policyVersions).where(eq(policyVersions.policyId, policyId));
+  await writeVersion(db, policyId, 1, null, policy!.createdAt);
 }
 
 /** An annual payment for a quote (a new priced quote unless `quoteId` is given). */

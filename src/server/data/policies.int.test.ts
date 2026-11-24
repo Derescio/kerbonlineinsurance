@@ -7,13 +7,22 @@ import {
   bundles,
   drivers,
   policies,
+  policyChanges,
+  policyVersions,
   properties,
   quoteItemAddons,
   quotes,
   vehicles,
 } from "#/server/db/schema";
 import { truncateAll } from "#/test/db";
-import { makeCustomer, makePayment, makePolicy, makeQuote, makeUser } from "#/test/factories";
+import {
+  makeCustomer,
+  makePayment,
+  makePolicy,
+  makeQuote,
+  makeUser,
+  rewriteVersionOne,
+} from "#/test/factories";
 
 import { getMyNextPayment, getMyPolicy, listMyPolicies } from "./policies";
 
@@ -212,6 +221,7 @@ describe("getMyPolicy (6.2)", () => {
       .set({ selected: true })
       .where(eq(quoteItemAddons.quoteItemId, policy.quoteItemId));
     await makePayment({ customerId: customer.id, quoteId: policy.quoteId });
+    await rewriteVersionOne(policy.id);
 
     const detail = await getMyPolicy(actor, { reference: policy.reference });
     expect(detail).toMatchObject({
@@ -242,6 +252,61 @@ describe("getMyPolicy (6.2)", () => {
     expect(detail.boughtOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(detail).not.toHaveProperty("customerId");
     expect(detail).not.toHaveProperty("quoteId");
+  });
+
+  it("shows the latest version's money, with details from the rows (6.3b)", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const policy = await makePolicy({ customerId: customer.id });
+    const [v1] = await getDb()
+      .select()
+      .from(policyVersions)
+      .where(eq(policyVersions.policyId, policy.id));
+    const snapshot = v1!.snapshot as { money: Record<string, unknown> };
+    const [change] = await getDb()
+      .insert(policyChanges)
+      .values({
+        policyId: policy.id,
+        customerId: customer.id,
+        kind: "cover",
+        request: {},
+        fromVersion: 1,
+        toVersion: 2,
+        oldAnnualPence: 50_000,
+        newAnnualPence: 61_000,
+        priceBeforePence: 56_000,
+        priceAfterPence: 68_320,
+        outcome: "quoted",
+        settlement: "none",
+        amountPence: 0,
+        status: "applied",
+        appliedAt: new Date(),
+      })
+      .returning();
+    await getDb()
+      .insert(policyVersions)
+      .values({
+        policyId: policy.id,
+        version: 2,
+        effectiveFrom: new Date(),
+        policyChangeId: change!.id,
+        snapshot: {
+          ...snapshot,
+          money: {
+            ...snapshot.money,
+            tierPence: 61_000,
+            addons: [{ addon: "courtesy_car", annualPricePence: 3_200 }],
+            quoteTotalPence: 68_320,
+          },
+        },
+        personal: v1!.personal,
+      });
+
+    const detail = await getMyPolicy(actor, { reference: policy.reference });
+    expect(detail.coverPremiumPence).toBe(61_000);
+    expect(detail.addons).toEqual([{ addon: "courtesy_car", annualPricePence: 3_200 }]);
+    expect(detail.quote.totalPence).toBe(68_320);
+    // Details still come from the rows
+    expect(detail.drivers.map((d) => d.firstName)).toEqual(["Alex"]);
   });
 
   it("gives a home policy with its property and no drivers", async () => {
@@ -297,6 +362,7 @@ describe("getMyPolicy (6.2)", () => {
         amountPence,
       });
     }
+    await rewriteVersionOne(home.id);
 
     const detail = await getMyPolicy(actor, { reference: home.reference });
     expect(detail.saving).toEqual({ kind: "bundle", pence: 4_000 });
@@ -321,6 +387,7 @@ describe("getMyPolicy (6.2)", () => {
         totalPence: quote!.totalPence - 4_000,
       })
       .where(eq(quotes.id, home.quoteId));
+    await rewriteVersionOne(home.id);
     const detail = await getMyPolicy(actor, { reference: home.reference });
     expect(detail.saving).toEqual({ kind: "earned", pence: 4_000 });
   });
