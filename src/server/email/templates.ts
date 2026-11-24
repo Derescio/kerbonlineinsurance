@@ -222,6 +222,37 @@ export function policyConfirmedEmail(p: PolicyConfirmedParams): EmailContent {
   };
 }
 
+// A policy change the customer made (6.3b, decision 16): what changed, the new price, and a link to
+// the policy page, where the certificate and schedule are rebuilt from the changed policy.
+export interface PolicyChangedParams {
+  name: string;
+  policyReference: string;
+  summary: string;
+  /** What changed, for the subject ("cover changed to Plus"); missing on a job queued before it */
+  headline?: string;
+  priceLine: string;
+  url: string;
+}
+
+export function policyChangedEmail(p: PolicyChangedParams): EmailContent {
+  const hello = `Hi ${firstName(p.name)},`;
+  const lines = [`We've changed your policy ${p.policyReference}.`, p.summary, p.priceLine];
+  const after = "Your updated certificate and schedule are on your policy page.";
+  return {
+    // What changed goes in the subject, so a mail app doesn't stack every change in one thread
+    subject: p.headline
+      ? `Your Kerb policy ${p.policyReference}: ${p.headline}`
+      : `Your Kerb policy ${p.policyReference} has changed`,
+    html: layout({
+      heading: "Your policy has changed",
+      body: `${escapeHtml(hello)} ${lines.map(escapeHtml).join("<br><br>")}`,
+      link: { cta: "See my policy", url: p.url },
+      after,
+    }),
+    text: `${hello}\n\n${lines.join("\n\n")}\n\nSee your policy:\n${p.url}\n\n${after}\n\n${DEMO_LINE}\n`,
+  };
+}
+
 // A payment Kerb couldn't honour (5.6b, decision 6): the purchase didn't go through, so the money
 // went back. `reason` says why in plain words; nothing to act on, so the link is the account.
 export interface PaymentRefundedParams {

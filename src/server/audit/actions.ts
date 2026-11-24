@@ -47,6 +47,19 @@ export const AUDIT_ACTIONS = {
     entityType: "policy",
     description: "A policy was cancelled because its payments couldn't be taken",
   },
+  "policy.address_changed": {
+    entityType: "policy",
+    description: "A customer changed where their car is kept",
+  },
+  "policy.driver_added": { entityType: "policy", description: "A customer added a named driver" },
+  "policy.driver_removed": {
+    entityType: "policy",
+    description: "A customer removed a named driver",
+  },
+  "policy.cover_changed": {
+    entityType: "policy",
+    description: "A customer changed their cover level, add-ons or voluntary excess",
+  },
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
