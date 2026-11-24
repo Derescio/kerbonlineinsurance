@@ -258,3 +258,90 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Make a change (6.3b; Figma Policy overview 183:3507's grid) */
+.pd__notice {
+  margin-bottom: var(--space-4);
+}
+.pd__changes {
+  margin-top: var(--space-8);
+}
+.pd__section-title {
+  margin: 0 0 var(--space-3);
+  color: var(--fg-1);
+  font: 600 20px/28px var(--font-display);
+}
+.pd__change-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.pd__change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--fg-1);
+  text-align: left;
+  cursor: pointer;
+}
+.pd__change:hover {
+  background: var(--bg-surface-hover);
+}
+.pd__change:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.pd__change-title {
+  margin-top: var(--space-2);
+  font: 600 16px/24px var(--font-body);
+}
+.pd__change-line {
+  color: var(--fg-3);
+  font: 400 14px/20px var(--font-body);
+}
+.pd__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.pd__driver-text {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .pd__change-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The change dialogs (6.3b) */
+.pc-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.pc-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.pc-row--end {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+.pc-note {
+  margin: 0;
+  color: var(--fg-3);
+  font: 400 14px/20px var(--font-body);
+}
+@media (max-width: 479px) {
+  .pc-row {
+    grid-template-columns: 1fr;
+  }
+}

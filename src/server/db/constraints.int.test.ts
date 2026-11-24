@@ -22,6 +22,8 @@ import {
   events,
   notifications,
   policies,
+  policyChanges,
+  policyVersions,
   priorClaims,
   properties,
   quoteItemFactors,
@@ -107,6 +109,69 @@ describe("Postgres integrity rules", () => {
         makePolicy({ customerId: policy.customerId, quoteItemId: policy.quoteItemId }),
         UNIQUE,
         "policies_quote_item_id_unique",
+      );
+    });
+
+    it("refuses a second awaiting_payment change for one policy (6.3b)", async () => {
+      const policy = await makePolicy();
+      const change = {
+        policyId: policy.id,
+        customerId: policy.customerId,
+        kind: "cover",
+        request: {},
+        fromVersion: 1,
+        oldAnnualPence: 50_000,
+        newAnnualPence: 51_000,
+        priceBeforePence: 50_000,
+        priceAfterPence: 51_000,
+        outcome: "quoted",
+        settlement: "charge",
+        amountPence: 100,
+        status: "awaiting_payment",
+      } as const;
+      await db().insert(policyChanges).values(change);
+      await expectRefused(
+        db().insert(policyChanges).values(change),
+        UNIQUE,
+        "policy_changes_one_open_per_policy",
+      );
+    });
+
+    it("refuses a duplicate policy version (6.3b)", async () => {
+      const policy = await makePolicy();
+      await expectRefused(
+        db().insert(policyVersions).values({
+          policyId: policy.id,
+          version: 1,
+          effectiveFrom: new Date(),
+          snapshot: {},
+          personal: {},
+        }),
+        UNIQUE,
+        "policy_versions_policy_id_version_unique",
+      );
+    });
+
+    it("refuses another customer's policy on a change (6.3b)", async () => {
+      const policy = await makePolicy();
+      const other = await makeCustomer();
+      await expectRefused(
+        db().insert(policyChanges).values({
+          policyId: policy.id,
+          customerId: other.id,
+          kind: "cover",
+          request: {},
+          fromVersion: 1,
+          oldAnnualPence: 1,
+          newAnnualPence: 1,
+          priceBeforePence: 1,
+          priceAfterPence: 1,
+          outcome: "quoted",
+          settlement: "none",
+          amountPence: 0,
+        }),
+        FOREIGN_KEY,
+        "policy_changes_policy_fk",
       );
     });
 

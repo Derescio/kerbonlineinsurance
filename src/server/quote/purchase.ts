@@ -24,6 +24,7 @@ import {
   type LockedCustomer,
   type PurchaseItem,
 } from "#/server/data/pay-quote";
+import { writeVersion } from "#/server/data/policy-version-rows";
 import type { Tx } from "#/server/db/tx";
 import { getAuthEnv } from "#/server/env";
 import { queueEmail } from "#/server/jobs/email";
@@ -212,6 +213,10 @@ export async function purchase(tx: Tx, input: PurchaseInput): Promise<PurchaseRe
     detailsConfirmedAt: input.detailsConfirmedAt,
     coverAcknowledgedAt: input.coverAcknowledgedAt,
   });
+
+  // 6b. Version 1 of each policy, as sold (6.3b, decision 9): its money needs the payments and the
+  // accepted plan, so it comes after both
+  for (const policy of bought) await writeVersion(tx, policy.id, 1, null, now);
 
   // 7. An audit row per policy: the quote, plan and amount taken today, never the card
   const amountPence = schedule[0]!.amountPence;

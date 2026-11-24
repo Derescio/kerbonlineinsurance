@@ -12,6 +12,7 @@ import {
   paymentFailedEmail,
   paymentRefundedEmail,
   policyCancelledUnpaidEmail,
+  policyChangedEmail,
   policyConfirmedEmail,
   resetPasswordEmail,
   verifyEmail,
@@ -53,6 +54,17 @@ export const EMAIL_TEMPLATES = {
       url: z.string(),
     }),
     policyConfirmedEmail,
+  ),
+  policy_changed: entry(
+    z.object({
+      name: z.string(),
+      policyReference: z.string(),
+      summary: z.string(),
+      headline: z.string().optional(),
+      priceLine: z.string(),
+      url: z.string(),
+    }),
+    policyChangedEmail,
   ),
   payment_refunded: entry(
     z.object({ name: z.string(), reason: z.string(), url: z.string() }),

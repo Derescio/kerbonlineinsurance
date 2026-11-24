@@ -599,6 +599,66 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
       "updated_at",
     ),
   },
+  // Policy changes (6.3b, decision 10). After purchase, the quote's detail rows (drivers, the
+  // vehicle's overnight location, the selected option and add-ons, the customer's address and the
+  // quote's postcode) hold the policy's current details; its prices stay as quoted. "As sold" is a
+  // policy's policy_versions version 1.
+  policy_changes: {
+    grain: "one change to a policy that reached a price, applied or not",
+    primaryKey: ["id"],
+    changeColumn: "updated_at",
+    kind: "mutable",
+    copied: true,
+    columns: {
+      ...keep(
+        "id",
+        "policy_id",
+        "customer_id",
+        "kind",
+        "from_version",
+        "to_version",
+        "old_annual_pence",
+        "new_annual_pence",
+        "price_before_pence",
+        "price_after_pence",
+        "outcome",
+        "reason_code",
+        "settlement",
+        "amount_pence",
+        "status",
+        "failure_reason",
+        "applied_at",
+        "created_at",
+        "updated_at",
+      ),
+      // What the customer typed, which can include a new driver's name and date of birth
+      request: "drop",
+      // Stripe's ids link to the person's payment records, as stripe_customer_id does
+      stripe_session_id: "drop",
+      stripe_payment_intent_id: "drop",
+      stripe_refund_id: "drop",
+    },
+  },
+  policy_versions: {
+    grain: "one version of a policy: as sold, then one per applied change",
+    primaryKey: ["id"],
+    changeColumn: "created_at",
+    kind: "append-only",
+    copied: true,
+    columns: {
+      ...keep(
+        "id",
+        "policy_id",
+        "version",
+        "effective_from",
+        "policy_change_id",
+        "snapshot",
+        "created_at",
+      ),
+      // Names, dates of birth and the address, kept apart so the snapshot can be copied
+      personal: "drop",
+    },
+  },
   // Stripe checkout (5.6b): ids and the customer's answers, no personal data
   checkout_sessions: {
     grain: "one Stripe Checkout Session for a quote",

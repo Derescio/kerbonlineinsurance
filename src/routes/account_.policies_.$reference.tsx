@@ -10,6 +10,9 @@ import { todayIso } from "#/features/quote/schemas/dates";
 // Policy detail (6.2, decision 1). Someone else's reference, or a missing one, is the site's
 // not-found page: getMyPolicyFn throws notFound().
 export const Route = createFileRoute("/account_/policies_/$reference")({
+  // A top-up's Stripe return names its change (6.3b)
+  validateSearch: (search: Record<string, unknown>): { change?: string } =>
+    typeof search.change === "string" ? { change: search.change } : {},
   headers: () => ({ "Cache-Control": "private, no-store" }),
   beforeLoad: async ({ location }) => {
     await requireSignedIn(location);
@@ -31,9 +34,10 @@ export const Route = createFileRoute("/account_/policies_/$reference")({
 
 function PolicyDetail() {
   const { summary, policy, today } = Route.useLoaderData();
+  const { change } = Route.useSearch();
   return (
     <AccountShell name={summary.user.name} current="policies">
-      <PolicyDetailPage policy={policy} today={today} />
+      <PolicyDetailPage policy={policy} today={today} returnedChange={change ?? null} />
     </AccountShell>
   );
 }
