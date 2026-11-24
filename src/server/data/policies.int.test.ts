@@ -309,6 +309,29 @@ describe("getMyPolicy (6.2)", () => {
     expect(detail.drivers.map((d) => d.firstName)).toEqual(["Alex"]);
   });
 
+  it("says whether a policy can be changed online (6.3b)", async () => {
+    const { customer, actor } = await signedInCustomer();
+    const car = await makePolicy({
+      customerId: customer.id,
+      startsOn: "2026-01-01",
+      endsOn: "2099-12-31",
+    });
+    const home = await makePolicy({
+      customerId: customer.id,
+      product: "home",
+      endsOn: "2099-12-31",
+    });
+    const carDetail = await getMyPolicy(actor, { reference: car.reference });
+    expect(carDetail.changes).toEqual({ eligible: true, latest: null });
+    expect(carDetail.drivers[0]!.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await getMyPolicy(actor, { reference: home.reference })).changes.eligible).toBe(false);
+    await getDb()
+      .update(policies)
+      .set({ status: "lapsed", lapsedAt: new Date() })
+      .where(eq(policies.id, car.id));
+    expect((await getMyPolicy(actor, { reference: car.reference })).changes.eligible).toBe(false);
+  });
+
   it("gives a home policy with its property and no drivers", async () => {
     const { customer, actor } = await signedInCustomer();
     const policy = await makePolicy({ customerId: customer.id, product: "home" });

@@ -1,5 +1,11 @@
-import { Link } from "@tanstack/react-router";
-import { useId, type ReactNode } from "react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from "react";
+
+import { Button } from "#/components/actions/Button";
+import { Alert } from "#/components/feedback/Alert";
+import { useToast } from "#/components/feedback/Toaster";
+import type { OpenDialog } from "#/features/policy-changes/ChangeDialogs";
+import { POLICY_UPDATED, REFUNDED_AFTER_CHANGE } from "#/features/policy-changes/copy";
 
 import { Badge } from "#/components/display/Badge";
 import { Card } from "#/components/display/Card";
@@ -15,10 +21,46 @@ import { documentFilename, documentHref, policyDocuments } from "./documents";
 import { dayAfter, longDay, rowStatus } from "./overview-model";
 import { driverLine, excessParts, fullName, insuredName, wholePounds } from "./policy-labels";
 
-// Policy detail at /account/policies/{reference} (6.2; Figma Policy overview 183:3507). "Start a
-// claim" (6.4), "Make a change" and the Drivers card's "+ Add" (6.3) wait for their slices.
+// Policy detail at /account/policies/{reference} (6.2; Figma Policy overview 183:3507). "Make a
+// change" and the Drivers card's "+ Add" and "Remove" (6.3b) show on a car policy that can be
+// changed online. "Start a claim" (6.4) waits for its slice.
 
-export function PolicyDetailPage({ policy, today }: { policy: PolicyDetail; today: string }) {
+// The dialogs load when one opens: they bring the address lookup, the occupation list and Stripe
+const ChangeDialogs = lazy(() =>
+  import("#/features/policy-changes/ChangeDialogs").then((m) => ({ default: m.ChangeDialogs })),
+);
+
+export function PolicyDetailPage({
+  policy,
+  today,
+  returnedChange = null,
+}: {
+  policy: PolicyDetail;
+  today: string;
+  /** The change a top-up's Stripe return names (?change=) */
+  returnedChange?: string | null;
+}) {
+  const [dialog, setDialog] = useState<OpenDialog | null>(null);
+  const toast = useToast();
+  const router = useRouter();
+  const canChange = policy.changes.eligible;
+  const returned =
+    returnedChange && policy.changes.latest?.id === returnedChange ? policy.changes.latest : null;
+
+  function applied() {
+    setDialog(null);
+    toast({ tone: "success", title: POLICY_UPDATED });
+    void router.invalidate();
+  }
+
+  // Back from paying a top-up: the toast once it's applied
+  const toasted = useRef(false);
+  useEffect(() => {
+    if (returned?.status === "applied" && !toasted.current) {
+      toasted.current = true;
+      toast({ tone: "success", title: POLICY_UPDATED });
+    }
+  }, [returned?.status, toast]);
   const status = rowStatus(policy, today);
   const documents = policyDocuments(policy, today);
   const excess = excessParts(policy);
@@ -31,6 +73,16 @@ export function PolicyDetailPage({ policy, today }: { policy: PolicyDetail; toda
 
   return (
     <>
+      {returned?.status === "failed" ? (
+        <Alert tone="warning" className="pd__notice">
+          <p>{REFUNDED_AFTER_CHANGE}</p>
+        </Alert>
+      ) : null}
+      {returned?.status === "awaiting_payment" ? (
+        <Alert tone="info" className="pd__notice">
+          <p>We’re confirming your payment. Refresh the page in a moment to see your change.</p>
+        </Alert>
+      ) : null}
       <div className="pd__head">
         <Link to="/account/policies" className="pd__back">
           <Icon name="arrow-left" size={16} />
@@ -83,8 +135,10 @@ export function PolicyDetailPage({ policy, today }: { policy: PolicyDetail; toda
         <DatesStat policy={policy} today={today} />
       </div>
 
+      {canChange ? <MakeAChange onOpen={setDialog} /> : null}
+
       <div className="pd__details">
-        {car ? <Drivers policy={policy} /> : null}
+        {car ? <Drivers policy={policy} canChange={canChange} onOpen={setDialog} /> : null}
         {home ? <YourHome home={home} /> : null}
         <Card padding="md" as="section" className="pd__card" aria-labelledby="documents-title">
           <h2 id="documents-title" className="pd__card-title">
@@ -93,7 +147,59 @@ export function PolicyDetailPage({ policy, today }: { policy: PolicyDetail; toda
           <DocumentList reference={policy.reference} kinds={documents} boughtOn={policy.boughtOn} />
         </Card>
       </div>
+
+      {canChange && dialog ? (
+        <Suspense fallback={null}>
+          <ChangeDialogs
+            dialog={dialog}
+            policy={policy}
+            onClose={() => setDialog(null)}
+            onApplied={applied}
+          />
+        </Suspense>
+      ) : null}
     </>
+  );
+}
+
+const CHANGE_CARDS = [
+  {
+    kind: "driver_added",
+    icon: "user-plus",
+    title: "Add a driver",
+    line: "Someone else who drives the car",
+  },
+  {
+    kind: "address",
+    icon: "map-pin",
+    title: "Change address",
+    line: "Where the car is kept overnight",
+  },
+  { kind: "cover", icon: "shield", title: "Change cover", line: "Your cover, extras and excess" },
+] as const;
+
+/** Figma's "Make a change" grid, with the three changes this slice makes (6.3b, decision 1) */
+function MakeAChange({ onOpen }: { onOpen: (dialog: OpenDialog) => void }) {
+  return (
+    <section className="pd__changes" aria-labelledby="changes-title">
+      <h2 id="changes-title" className="pd__section-title">
+        Make a change
+      </h2>
+      <div className="pd__change-grid">
+        {CHANGE_CARDS.map((card) => (
+          <button
+            key={card.kind}
+            type="button"
+            className="pd__change"
+            onClick={() => onOpen({ kind: card.kind })}
+          >
+            <Icon name={card.icon} size={20} />
+            <span className="pd__change-title">{card.title}</span>
+            <span className="pd__change-line">{card.line}</span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -165,22 +271,58 @@ function DatesStat({ policy, today }: { policy: PolicyDetail; today: string }) {
 const initials = (driver: { firstName: string; lastName: string }) =>
   `${driver.firstName.charAt(0)}${driver.lastName.charAt(0)}`.toUpperCase();
 
-function Drivers({ policy }: { policy: PolicyDetail }) {
+/** A car policy holds the main driver and up to 4 named drivers (6.3b, decision 12) */
+const NAMED_DRIVER_LIMIT = 4;
+
+function Drivers({
+  policy,
+  canChange,
+  onOpen,
+}: {
+  policy: PolicyDetail;
+  canChange: boolean;
+  onOpen: (dialog: OpenDialog) => void;
+}) {
+  const named = policy.drivers.filter((d) => !d.isMain).length;
   return (
     <Card padding="md" as="section" className="pd__card" aria-labelledby="drivers-title">
-      <h2 id="drivers-title" className="pd__card-title">
-        Drivers
-      </h2>
+      <div className="pd__card-head">
+        <h2 id="drivers-title" className="pd__card-title">
+          Drivers
+        </h2>
+        {canChange && named < NAMED_DRIVER_LIMIT ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            iconLeft="plus"
+            onClick={() => onOpen({ kind: "driver_added" })}
+          >
+            Add
+          </Button>
+        ) : null}
+      </div>
       <ul className="pd__list">
         {policy.drivers.map((driver) => (
-          <li key={`${driver.firstName} ${driver.lastName}`} className="pd__driver">
+          <li key={driver.id} className="pd__driver">
             <span className="pd__avatar" aria-hidden="true">
               {initials(driver)}
             </span>
-            <div>
+            <div className="pd__driver-text">
               <p className="pd__driver-name">{fullName(driver)}</p>
               <p className="pd__driver-meta">{driverLine(driver)}</p>
             </div>
+            {canChange && !driver.isMain ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Remove ${fullName(driver)}`}
+                onClick={() =>
+                  onOpen({ kind: "driver_removed", driverId: driver.id, name: fullName(driver) })
+                }
+              >
+                Remove
+              </Button>
+            ) : null}
           </li>
         ))}
       </ul>

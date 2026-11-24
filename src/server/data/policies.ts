@@ -3,7 +3,14 @@ import { z } from "zod";
 
 import { todayIso } from "#/features/quote/schemas/dates";
 import { AuthzError } from "#/server/auth/errors";
-import { payments, policies, properties, quotes, vehicles } from "#/server/db/schema";
+import {
+  payments,
+  policies,
+  policyChanges,
+  properties,
+  quotes,
+  vehicles,
+} from "#/server/db/schema";
 
 import type { ClaimSummary } from "./claims";
 import type { Db } from "#/server/db/client";
@@ -60,6 +67,7 @@ export interface PolicyCar {
 
 /** A driver on a car policy; `relationship` is null for the main driver and pre-5.7c rows */
 export interface PolicyDriver {
+  id: string;
   firstName: string;
   lastName: string;
   isMain: boolean;
@@ -117,7 +125,16 @@ export type PolicyDetail = PolicySummary & {
   /** The quote it was bought from, with what was paid for it in a year, IPT included */
   quote: { reference: string; totalPence: number };
   claims: ClaimSummary[];
+  /** What "Make a change" needs (6.3b) */
+  changes: PolicyChanges;
 };
+
+/** Whether the policy can be changed online, and its latest change that went past pricing */
+export interface PolicyChanges {
+  /** A car policy in force, with no failed instalment (decision 6) */
+  eligible: boolean;
+  latest: { id: string; status: string; failureReason: string | null } | null;
+}
 
 const summaryColumns = {
   id: true,
@@ -321,6 +338,7 @@ export const getMyPolicy = defineRead(
         voluntaryExcessPence: true,
         autoRenew: true,
         bundleId: true,
+        quoteId: true,
         createdAt: true,
         cancelledAt: true,
       },
@@ -336,7 +354,7 @@ export const getMyPolicy = defineRead(
             postcode: true,
           },
         },
-        quote: { columns: { reference: true } },
+        quote: { columns: { reference: true, paymentPlan: true } },
         quoteItem: {
           columns: {},
           with: {
@@ -353,6 +371,7 @@ export const getMyPolicy = defineRead(
             },
             drivers: {
               columns: {
+                id: true,
                 firstName: true,
                 lastName: true,
                 isMain: true,
@@ -384,10 +403,20 @@ export const getMyPolicy = defineRead(
       },
     });
     if (!row) throw new AuthzError("NOT_FOUND");
-    const { bundleId, createdAt, cancelledAt, customer, quote, quoteItem, ...policy } = row;
+    const {
+      bundleId,
+      quoteId: _quoteId,
+      createdAt,
+      cancelledAt,
+      customer,
+      quote,
+      quoteItem,
+      ...policy
+    } = row;
     // The money is the latest version's (6.3b, decision 2): the quote's prices stay as sold, so a
     // changed policy's tier, add-on prices, saving, total and instalment live in its version
     const { money } = (await latestVersion(db, policy.id)).snapshot;
+    const changes = await changesOf(db, row, quote.paymentPlan, todayIso(new Date()));
     return {
       ...policy,
       boughtOn: todayIso(createdAt),
@@ -408,6 +437,47 @@ export const getMyPolicy = defineRead(
           ? { kind: "monthly", instalmentPence: money.instalmentPence }
           : { kind: "annual" },
       quote: { reference: quote.reference, totalPence: money.quoteTotalPence },
+      changes,
     };
   },
 );
+
+/** "Make a change"'s inputs (6.3b, decision 6): the server checks them all again on each change */
+async function changesOf(
+  db: Db,
+  policy: { id: string; product: string; status: string; endsOn: string; quoteId: string },
+  paymentPlan: string | null,
+  today: string,
+): Promise<PolicyChanges> {
+  const failed =
+    paymentPlan === "monthly"
+      ? await db
+          .select({ id: payments.id })
+          .from(payments)
+          .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.status, "failed")))
+          .limit(1)
+      : [];
+  const [latest] = await db
+    .select({
+      id: policyChanges.id,
+      status: policyChanges.status,
+      failureReason: policyChanges.failureReason,
+    })
+    .from(policyChanges)
+    .where(
+      and(
+        eq(policyChanges.policyId, policy.id),
+        inArray(policyChanges.status, ["awaiting_payment", "applied", "failed"]),
+      ),
+    )
+    .orderBy(desc(policyChanges.updatedAt))
+    .limit(1);
+  return {
+    eligible:
+      policy.product === "car" &&
+      policy.status === "active" &&
+      today < policy.endsOn &&
+      failed.length === 0,
+    latest: latest ?? null,
+  };
+}
