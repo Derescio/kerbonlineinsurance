@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { vi } from "vite-plus/test";
 
 import { completeJourney } from "#/features/quote/journey-fixtures";
@@ -7,7 +7,7 @@ import { instalmentDates } from "#/features/quote/policy-terms";
 import { resolveActor, type Actor } from "#/server/auth/actor";
 import { clearReferenceCaches, getCatalogue, upsertReferenceData } from "#/server/data/reference";
 import { getDb } from "#/server/db/client";
-import { policies } from "#/server/db/schema";
+import { payments, policies } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
 import { purchase } from "#/server/quote/purchase";
 import { saveCarQuoteFor } from "#/server/quote/save";
@@ -22,6 +22,7 @@ import type { RatingSource } from "#/server/reference/rating/types";
 import { SECRET } from "./auth";
 import { getOwnerDb, REFERENCE_TABLES, truncateAll, truncateExcept } from "./db";
 import { makeCustomer, makeUser } from "./factories";
+import type { fakeStripe } from "./stripe-fake";
 
 // A car policy bought the real way (6.3b): the frames' journey saved and priced on car v1, then
 // purchase(), so its rows, money and version 1 are what a customer's would be. Cover runs from
@@ -199,4 +200,23 @@ export async function boughtCarPolicy({
   await buy(actor, saved.quoteId, plan);
   const [policy] = await getDb().select().from(policies).where(eq(policies.quoteId, saved.quoteId));
   return { actor, policy: policy! };
+}
+
+/**
+ * The bought quote's subscription as the Stripe fake holds it: one item priced at the regular
+ * instalment. Returns that instalment.
+ */
+export async function presetSubscription(
+  stripe: ReturnType<typeof fakeStripe>,
+  quoteId: string,
+): Promise<number> {
+  const [row] = await getDb()
+    .select()
+    .from(payments)
+    .where(and(eq(payments.quoteId, quoteId), eq(payments.instalmentNumber, 2)));
+  stripe.set("subscriptions.retrieve", `sub_${quoteId}`, {
+    metadata: { kerb_env: "local" },
+    items: { data: [{ id: "si_1", price: { unit_amount: row!.amountPence, product: "prod_1" } }] },
+  });
+  return row!.amountPence;
 }

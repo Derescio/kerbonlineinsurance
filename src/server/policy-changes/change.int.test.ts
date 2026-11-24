@@ -18,7 +18,12 @@ import {
   vehicles,
 } from "#/server/db/schema";
 import { carV1 } from "#/server/reference/rating/car-v1";
-import { boughtCarPolicy, resetPolicyWorld, setUpPolicyWorld } from "#/test/bought-policy";
+import {
+  boughtCarPolicy,
+  presetSubscription,
+  resetPolicyWorld,
+  setUpPolicyWorld,
+} from "#/test/bought-policy";
 import { makeCustomer, makePolicy, makeUser } from "#/test/factories";
 import { fakeStripe } from "#/test/stripe-fake";
 import { resolveActor, type Actor } from "#/server/auth/actor";
@@ -32,7 +37,8 @@ import { confirmMyPolicyChange, priceMyPolicyChange, type PriceChangeResult } fr
 
 const CHANGE_AT = new Date("2027-02-20T10:00:00Z");
 const ctx = { headers: new Headers() };
-const deps = { now: CHANGE_AT, stripe: fakeStripe() };
+const stripe = fakeStripe();
+const deps = { now: CHANGE_AT, stripe };
 
 const carV2 = {
   ...carV1,
@@ -64,6 +70,13 @@ const ARJUN = {
 beforeAll(() => setUpPolicyWorld([carV2]));
 beforeEach(resetPolicyWorld);
 afterAll(closeDb);
+
+/** A monthly car policy whose subscription the Stripe fake holds */
+async function monthlyPolicy() {
+  const bought = await boughtCarPolicy({ plan: "monthly" });
+  await presetSubscription(stripe, bought.policy.quoteId);
+  return bought;
+}
 
 async function price(actor: Actor, reference: string, change: unknown) {
   const result = await priceMyPolicyChange(actor, { input: { reference, change } }, ctx, deps);
@@ -117,7 +130,7 @@ describe("re-pricing", () => {
   });
 
   it("lists each cover level's price line for a cover change", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const result = priced(await price(actor, policy.reference, SAME_COVER));
     expect(result.levels.map((l) => l.coverLevel)).toEqual(["essential", "comprehensive", "plus"]);
     expect(result.levels.find((l) => l.coverLevel === "comprehensive")!.priceLine).toBe(
@@ -132,7 +145,7 @@ describe("re-pricing", () => {
 
 describe("applying a change", () => {
   it("adds a driver: the row, version 2, the version bumped and an audit row without the name", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const result = priced(
       await price(actor, policy.reference, { kind: "driver_added", driver: ARJUN }),
     );
@@ -173,7 +186,7 @@ describe("applying a change", () => {
   });
 
   it("removes a named driver; version 2's personal part still names them", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const [jamie] = await getDb()
       .select()
       .from(drivers)
@@ -197,7 +210,7 @@ describe("applying a change", () => {
   });
 
   it("changes the address: the customer, the quote's postcode and where the car is parked", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const result = priced(
       await price(actor, policy.reference, {
         kind: "address",
@@ -234,7 +247,7 @@ describe("applying a change", () => {
   });
 
   it("changes cover: the level, the excesses and the premium, and the version's money adds up", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const result = priced(
       await price(actor, policy.reference, {
         kind: "cover",
@@ -275,7 +288,7 @@ describe("applying a change", () => {
   });
 
   it("confirms once for one idempotency key", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const result = priced(
       await price(actor, policy.reference, { kind: "driver_added", driver: ARJUN }),
     );
@@ -286,7 +299,7 @@ describe("applying a change", () => {
   });
 
   it("refuses a confirm priced against an older version, with the new price line", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const first = priced(await price(actor, policy.reference, SAME_COVER));
     const second = priced(
       await price(actor, policy.reference, { kind: "driver_added", driver: ARJUN }),
@@ -302,7 +315,7 @@ describe("what isn't changed online", () => {
   const REFUSED = { status: "refused", message: "We can't make this change online." };
 
   it("records a refused change and changes nothing when the change would be referred", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const result = await price(actor, policy.reference, {
       kind: "driver_added",
       driver: { ...ARJUN, dateOfBirth: "1940-01-01", licenceDate: "1960-01-01" },
@@ -314,7 +327,7 @@ describe("what isn't changed online", () => {
   });
 
   it("refuses a policy that would now be referred as it stands", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     await getDb()
       .update(drivers)
       .set({ dateOfBirth: "1940-01-01" })
@@ -344,7 +357,7 @@ describe("what isn't changed online", () => {
   });
 
   it("refuses a lapsed, a cancelled and an ended policy", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     const db = getDb();
     await db
       .update(policies)
@@ -364,7 +377,7 @@ describe("what isn't changed online", () => {
   });
 
   it("refuses a monthly policy with a failed instalment", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     await getDb()
       .update(payments)
       .set({ status: "failed" })
@@ -418,7 +431,7 @@ describe("what isn't changed online", () => {
   });
 
   it("refuses a fifth named driver", async () => {
-    const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
+    const { actor, policy } = await monthlyPolicy();
     for (const name of ["Ann", "Ben", "Cat"]) {
       await getDb().insert(drivers).values({
         quoteItemId: policy.quoteItemId,

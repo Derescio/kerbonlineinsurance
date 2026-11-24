@@ -10,6 +10,7 @@ import { payments, policies, policyChanges, policyVersions } from "#/server/db/s
 import { handleStripeWebhook } from "#/server/payments/webhook";
 import {
   boughtBundle,
+  presetSubscription as presetOn,
   boughtCarPolicy,
   resetPolicyWorld,
   setUpPolicyWorld,
@@ -269,19 +270,7 @@ describe("annual: a cheaper change", () => {
 });
 
 describe("monthly", () => {
-  async function presetSubscription(quoteId: string) {
-    const [row] = await getDb()
-      .select()
-      .from(payments)
-      .where(and(eq(payments.quoteId, quoteId), eq(payments.instalmentNumber, 2)));
-    stripe.set("subscriptions.retrieve", `sub_${quoteId}`, {
-      metadata: { kerb_env: "local" },
-      items: {
-        data: [{ id: "si_1", price: { unit_amount: row!.amountPence, product: "prod_1" } }],
-      },
-    });
-    return row!.amountPence;
-  }
+  const presetSubscription = (quoteId: string) => presetOn(stripe, quoteId);
 
   it("changes the remaining instalments and the subscription's price, with no proration", async () => {
     const { actor, policy } = await boughtCarPolicy({ plan: "monthly" });
