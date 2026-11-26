@@ -134,7 +134,8 @@ test("monthly car: change car by demo plate, see the price, confirm; the page ti
     dialog.getByText(/^Your price (goes (up|down) by £\d+\.\d\d a month|stays the same)$/),
   ).toBeVisible();
   await dialog.getByRole("button", { name: "Confirm change" }).click();
-  await expect(page.getByText("Your policy's been updated")).toBeVisible();
+  // Confirm settles in real Stripe (a new price, or a refund) before the toast
+  await expect(page.getByText("Your policy's been updated")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Tesla");
 });
 
@@ -169,5 +170,5 @@ test("annual home: update security down, see the refund line, confirm; the toast
   await expect(dialog.getByText(/^We'll refund £[\d,]+\.\d\d to your card$/)).toBeVisible();
   await axeAtEachWidth(page);
   await dialog.getByRole("button", { name: "Confirm change" }).click();
-  await expect(page.getByText("Your policy's been updated")).toBeVisible();
+  await expect(page.getByText("Your policy's been updated")).toBeVisible({ timeout: 30_000 });
 });

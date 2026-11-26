@@ -14,6 +14,7 @@ export interface StripeClient {
   };
   customers: Pick<Stripe.CustomerResource, "create" | "retrieve">;
   subscriptions: Pick<Stripe.SubscriptionResource, "retrieve" | "update" | "cancel">;
+  prices: Pick<Stripe.PriceResource, "create">;
   invoices: Pick<
     Stripe.InvoiceResource,
     "retrieve" | "list" | "pay" | "finalizeInvoice" | "voidInvoice"

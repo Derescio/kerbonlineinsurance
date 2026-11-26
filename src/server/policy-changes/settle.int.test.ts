@@ -396,21 +396,25 @@ describe("monthly", () => {
     expect(new Set(scheduled.map((p) => p.amountPence))).toEqual(
       new Set([instalment + priced.amountPence]),
     );
+    // A new active price of its own: Checkout's inline product is inactive, and Stripe refuses a
+    // new price on it ("marked as inactive", found on the 6.3c E2E against real Stripe)
+    expect(stripe.calls["prices.create"]).toEqual([
+      [
+        {
+          currency: "gbp",
+          unit_amount: instalment + priced.amountPence,
+          recurring: { interval: "month" },
+          product_data: { name: `Kerb monthly instalment, ${policy.reference}` },
+        },
+        { idempotencyKey: `policy-change-price:${priced.changeId}` },
+      ],
+    ]);
+    const [price] = stripe.calls["prices.create"]!.map(() => "price_test_1");
     expect(stripe.calls["subscriptions.update"]).toEqual([
       [
         `sub_${policy.quoteId}`,
         {
-          items: [
-            {
-              id: "si_1",
-              price_data: {
-                currency: "gbp",
-                product: "prod_1",
-                unit_amount: instalment + priced.amountPence,
-                recurring: { interval: "month" },
-              },
-            },
-          ],
+          items: [{ id: "si_1", price }],
           proration_behavior: "none",
         },
         { idempotencyKey: `policy-change-instalments:${priced.changeId}` },
@@ -446,11 +450,9 @@ describe("monthly", () => {
       ctx,
       deps,
     );
-    const [, params] = stripe.calls["subscriptions.update"]![0]! as [
-      string,
-      { items: { price_data: { unit_amount: number } }[] },
-    ];
-    expect(params.items[0]!.price_data.unit_amount).toBe(instalment + priced.data.amountPence);
+    // The new price carries the database's instalment, not Stripe's price moved again
+    const [params] = stripe.calls["prices.create"]![0]! as [{ unit_amount: number }];
+    expect(params.unit_amount).toBe(instalment + priced.data.amountPence);
   });
 
   it("applies the change with no Stripe call when no instalment is left", async () => {

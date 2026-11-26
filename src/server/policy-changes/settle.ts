@@ -168,24 +168,22 @@ async function moveInstalments(
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const item = subscription.items.data[0];
   if (!item) throw new Error("Stripe returned a subscription without an item");
+  // A price of its own, on a new active product: the subscription's product came from
+  // Checkout's inline price_data, which Stripe makes inactive, and Stripe refuses any new price
+  // on an inactive product (6.3c's E2E against real Stripe)
+  const price = await stripe.prices.create(
+    {
+      currency: "gbp",
+      // The instalment the rows now hold, not Stripe's price moved again
+      unit_amount: instalmentPence,
+      recurring: { interval: "month" },
+      product_data: { name: `Kerb monthly instalment, ${stored.policy.reference}` },
+    },
+    { idempotencyKey: `policy-change-price:${changeId}` },
+  );
   await stripe.subscriptions.update(
     subscriptionId,
-    {
-      items: [
-        {
-          id: item.id,
-          price_data: {
-            currency: "gbp",
-            // A subscription item takes a product id, not product_data
-            product: idOf(item.price.product as string | { id: string })!,
-            // The instalment the rows now hold, not Stripe's price moved again
-            unit_amount: instalmentPence,
-            recurring: { interval: "month" },
-          },
-        },
-      ],
-      proration_behavior: "none",
-    },
+    { items: [{ id: item.id, price: price.id }], proration_behavior: "none" },
     { idempotencyKey: `policy-change-instalments:${changeId}` },
   );
 }
