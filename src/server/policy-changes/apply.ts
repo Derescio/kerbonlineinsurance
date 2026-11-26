@@ -104,6 +104,11 @@ function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: st
           },
         },
       } as const;
+    case "car_replaced":
+    case "home_contents":
+    case "home_security":
+      // Refused at pricing until 6.3c builds them (refusedChange), so never applied
+      throw new Error(`policy-changes: ${change.kind} isn't applied yet`);
   }
 }
 
@@ -134,6 +139,11 @@ function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
       }
       return parts.join(" ");
     }
+    case "car_replaced":
+    case "home_contents":
+    case "home_security":
+      // Refused at pricing until 6.3c builds them (refusedChange), so never applied
+      throw new Error(`policy-changes: ${change.kind} isn't applied yet`);
   }
 }
 
@@ -150,6 +160,11 @@ function headlineOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
       return change.coverLevel !== stored.coverLevel
         ? `cover changed to ${tierName(change.coverLevel)}`
         : "cover changed";
+    case "car_replaced":
+    case "home_contents":
+    case "home_security":
+      // Refused at pricing until 6.3c builds them (refusedChange), so never applied
+      throw new Error(`policy-changes: ${change.kind} isn't applied yet`);
   }
 }
 

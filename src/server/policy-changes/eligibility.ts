@@ -38,6 +38,11 @@ export async function refusedChange(
       return (await hasOtherActiveCarPolicy(tx, stored.policy.customerId, stored.policy.id, today))
         ? CANT_CHANGE_ONLINE
         : null;
+    case "car_replaced":
+    case "home_contents":
+    case "home_security":
+      // Not online until 6.3c builds them (Tasks 2 to 4)
+      return CANT_CHANGE_ONLINE;
     case "cover": {
       const offered = new Set(offeredAddons(stored, tables, today).map((a) => a.addon));
       return change.addons.every((addon) => offered.has(addon)) ? null : CANT_CHANGE_ONLINE;

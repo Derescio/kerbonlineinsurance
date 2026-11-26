@@ -48,6 +48,9 @@ const KIND_LABEL: Record<PolicyChangeRequest["kind"], string> = {
   driver_added: "added driver",
   driver_removed: "removed driver",
   cover: "cover change",
+  car_replaced: "new car",
+  home_contents: "contents update",
+  home_security: "security update",
 };
 
 const idOf = (value: string | { id: string } | null | undefined): string | null =>

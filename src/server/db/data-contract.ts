@@ -602,7 +602,8 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
   // Policy changes (6.3b, decision 10). After purchase, the quote's detail rows (drivers, the
   // vehicle's overnight location, the selected option and add-ons, the customer's address and the
   // quote's postcode) hold the policy's current details; its prices stay as quoted. "As sold" is a
-  // policy's policy_versions version 1.
+  // policy's policy_versions version 1. 6.3c adds the car (the whole vehicles row, on a change of
+  // car) and the home's contents and security (properties) to what a change rewrites in place.
   policy_changes: {
     grain: "one change to a policy that reached a price, applied or not",
     primaryKey: ["id"],
@@ -655,7 +656,9 @@ export const dataContract: Readonly<Record<string, TableContract>> = {
         "snapshot",
         "created_at",
       ),
-      // Names, dates of birth and the address, kept apart so the snapshot can be copied
+      // Names, dates of birth, the address and (from v2) the plate, kept apart so the snapshot
+      // can be copied. From snapshot version 2 (6.3c) a snapshot has `vehicle` and `property`; a
+      // home's v1 `postcodeDistrict` is the customer's, v2's the insured home's.
       personal: "drop",
     },
   },

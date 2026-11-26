@@ -5,7 +5,7 @@ import type { Db } from "#/server/db/client";
 import { policies, policyVersions } from "#/server/db/schema";
 import type { Tx } from "#/server/db/tx";
 
-// The policy as it stands, as a policy_versions row stores it (6.3b, decision 9). `snapshot` is
+// The policy as it stands, as a policy_versions row stores it (6.3b, decision 9; v2 from 6.3c). `snapshot` is
 // what Phase 9 may copy; names, dates of birth and the address go in `personal`, which it never
 // does. The money is the policy page's (6.2): the selected tier's price, the chosen add-ons, the
 // saving, the quote's total and the monthly instalment. 0027's backfill builds the same JSON in
@@ -22,7 +22,8 @@ export interface SnapshotMoney {
   instalmentPence: number | null;
 }
 
-export interface PolicySnapshot {
+/** A version as 6.3b wrote it, and as 0027's backfill wrote every policy's version 1 */
+export interface PolicySnapshotV1 {
   snapshotVersion: 1;
   coverLevel: string;
   compulsoryExcessPence: number;
@@ -32,12 +33,44 @@ export interface PolicySnapshot {
   /** Main driver first, then named drivers in the order added; age on the version's date */
   drivers: { isMain: boolean; relationship: string | null; licenceYears: number; age: number }[];
   overnightLocation: string | null;
+  /** The customer's district, even for a home insured elsewhere */
   postcodeDistrict: string | null;
 }
 
+/**
+ * From 6.3c (decision 10): the car and the home are recorded too, and a home's district is the
+ * insured home's. Written for every version from then on; older rows stay v1.
+ */
+export interface PolicySnapshotV2 extends Omit<PolicySnapshotV1, "snapshotVersion"> {
+  snapshotVersion: 2;
+  vehicle: {
+    make: string;
+    model: string;
+    year: number;
+    variant: string;
+    insuranceGroup: number;
+    valuePence: number;
+    catalogueVariantId: string | null;
+  } | null;
+  property: {
+    propertyType: string;
+    contentsValuePence: number;
+    valuablesPence: number | null;
+    lockType: string;
+    windowLocks: string | null;
+    alarmType: string | null;
+    hasSmokeAlarm: boolean;
+  } | null;
+}
+
+export type PolicySnapshot = PolicySnapshotV1 | PolicySnapshotV2;
+
 export interface PolicyPersonal {
   drivers: { firstName: string; lastName: string; dateOfBirth: string }[];
+  /** Where the customer lives, or a home policy's insured address */
   address: { line1: string; line2: string | null; town: string; postcode: string };
+  /** A car's plate; null for a home, or a car chosen without one */
+  registration: string | null;
 }
 
 /** The policy's current details and money, read from its rows, with ages on `on` */
@@ -45,7 +78,7 @@ export async function readSnapshot(
   db: Db | Tx,
   policyId: string,
   on: Date,
-): Promise<{ snapshot: PolicySnapshot; personal: PolicyPersonal }> {
+): Promise<{ snapshot: PolicySnapshotV2; personal: PolicyPersonal }> {
   const row = await db.query.policies.findFirst({
     columns: {
       coverLevel: true,
@@ -77,7 +110,35 @@ export async function readSnapshot(
       quoteItem: {
         columns: {},
         with: {
-          vehicle: { columns: { overnightLocation: true } },
+          vehicle: {
+            columns: {
+              make: true,
+              model: true,
+              year: true,
+              variant: true,
+              insuranceGroup: true,
+              valuePence: true,
+              catalogueVariantId: true,
+              registration: true,
+              overnightLocation: true,
+            },
+          },
+          property: {
+            columns: {
+              addressLine1: true,
+              addressLine2: true,
+              town: true,
+              postcode: true,
+              postcodeDistrict: true,
+              propertyType: true,
+              contentsValuePence: true,
+              valuablesPence: true,
+              lockType: true,
+              windowLocks: true,
+              alarmType: true,
+              hasSmokeAlarm: true,
+            },
+          },
           drivers: {
             columns: {
               firstName: true,
@@ -110,9 +171,30 @@ export async function readSnapshot(
   const saving = Math.max(0, tierPence + addonsPence - row.annualPremiumPence);
   const [first, second] = quote.payments;
   const today = todayIso(on);
+  const { vehicle, property } = quoteItem;
+  // A home is placed where it is, not where its policyholder lives (6.3c, decision 10)
+  const place = property
+    ? {
+        district: property.postcodeDistrict,
+        address: {
+          line1: property.addressLine1,
+          line2: property.addressLine2,
+          town: property.town,
+          postcode: property.postcode,
+        },
+      }
+    : {
+        district: customer.postcodeDistrict,
+        address: {
+          line1: customer.addressLine1,
+          line2: customer.addressLine2,
+          town: customer.town,
+          postcode: customer.postcode,
+        },
+      };
   return {
     snapshot: {
-      snapshotVersion: 1,
+      snapshotVersion: 2,
       coverLevel: row.coverLevel,
       compulsoryExcessPence: row.compulsoryExcessPence,
       voluntaryExcessPence: row.voluntaryExcessPence,
@@ -131,8 +213,30 @@ export async function readSnapshot(
         licenceYears: d.licenceYears,
         age: ageOn(d.dateOfBirth, today),
       })),
-      overnightLocation: quoteItem.vehicle?.overnightLocation ?? null,
-      postcodeDistrict: customer.postcodeDistrict,
+      overnightLocation: vehicle?.overnightLocation ?? null,
+      postcodeDistrict: place.district,
+      vehicle: vehicle
+        ? {
+            make: vehicle.make,
+            model: vehicle.model,
+            year: vehicle.year,
+            variant: vehicle.variant,
+            insuranceGroup: vehicle.insuranceGroup,
+            valuePence: vehicle.valuePence,
+            catalogueVariantId: vehicle.catalogueVariantId,
+          }
+        : null,
+      property: property
+        ? {
+            propertyType: property.propertyType,
+            contentsValuePence: property.contentsValuePence,
+            valuablesPence: property.valuablesPence,
+            lockType: property.lockType,
+            windowLocks: property.windowLocks,
+            alarmType: property.alarmType,
+            hasSmokeAlarm: property.hasSmokeAlarm,
+          }
+        : null,
     },
     personal: {
       drivers: quoteItem.drivers.map((d) => ({
@@ -140,12 +244,8 @@ export async function readSnapshot(
         lastName: d.lastName,
         dateOfBirth: d.dateOfBirth,
       })),
-      address: {
-        line1: customer.addressLine1,
-        line2: customer.addressLine2,
-        town: customer.town,
-        postcode: customer.postcode,
-      },
+      address: place.address,
+      registration: vehicle?.registration ?? null,
     },
   };
 }
