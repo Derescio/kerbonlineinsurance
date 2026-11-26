@@ -466,7 +466,14 @@ async function changesOf(
       ? await db
           .select({ id: payments.id })
           .from(payments)
-          .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.status, "failed")))
+          .where(
+            and(
+              eq(payments.quoteId, policy.quoteId),
+              eq(payments.status, "failed"),
+              // A month voided after a lapse is never owed (isOwed, 5.6b)
+              isNull(payments.voidedAt),
+            ),
+          )
           .limit(1)
       : [];
   const [latest] = await db

@@ -54,6 +54,7 @@ interface StoredBase {
   driverRelationships: Map<string, string | null>;
   /** Every driver's name, for the email */
   driverNames: Map<string, string>;
+  /** Instalments owed: failed and not voided, since a month voided after a lapse is never owed */
   failedInstalments: number;
   scheduledInstalments: number;
 }
@@ -128,7 +129,7 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     )
     .orderBy(asc(quoteItemAddons.addon));
   const instalments = await tx
-    .select({ status: payments.status })
+    .select({ status: payments.status, voidedAt: payments.voidedAt })
     .from(payments)
     .where(eq(payments.quoteId, policy.quoteId));
 
@@ -164,7 +165,7 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       driverRows.filter((d) => !d.isMain).map((d) => [d.id, d.relationship]),
     ),
     driverNames: new Map(driverRows.map((d) => [d.id, `${d.firstName} ${d.lastName}`])),
-    failedInstalments: instalments.filter((p) => p.status === "failed").length,
+    failedInstalments: instalments.filter((p) => p.status === "failed" && !p.voidedAt).length,
     scheduledInstalments: instalments.filter((p) => p.status === "scheduled").length,
   };
   const common = {

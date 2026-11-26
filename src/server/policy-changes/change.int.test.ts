@@ -28,6 +28,7 @@ import {
 import { makeCustomer, makePolicy, makeUser } from "#/test/factories";
 import { fakeStripe } from "#/test/stripe-fake";
 import { resolveActor, type Actor } from "#/server/auth/actor";
+import { getMyPolicy } from "#/server/data/policies";
 
 import { confirmMyPolicyChange, priceMyPolicyChange, type PriceChangeResult } from "./writes";
 
@@ -432,6 +433,20 @@ describe("what isn't changed online", () => {
       .set({ status: "failed" })
       .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.instalmentNumber, 3)));
     expect(await price(actor, policy.reference, SAME_COVER)).toMatchObject(REFUSED);
+  });
+
+  // A month voided after a lapse stays `failed` for good but is never owed (isOwed, 5.6b), so a
+  // policy restarted after a lapse can be changed again (found on dev, KRB-185908)
+  it("changes a monthly policy whose only failed instalment was voided", async () => {
+    const { actor, policy } = await monthlyPolicy();
+    await getDb()
+      .update(payments)
+      .set({ status: "failed", voidedAt: new Date("2027-01-20T10:00:00Z") })
+      .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.instalmentNumber, 3)));
+    expect(await price(actor, policy.reference, SAME_COVER)).toMatchObject({
+      status: "unchanged",
+    });
+    expect((await getMyPolicy(actor, { reference: policy.reference })).changes.eligible).toBe(true);
   });
 
   it("refuses an address change when the customer holds another active car policy", async () => {
