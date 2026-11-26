@@ -4,6 +4,7 @@ import { audit, type AuditEntry } from "#/server/audit/audit";
 import type { Actor } from "#/server/auth/actor";
 import {
   applyChangeRows,
+  carPolicy,
   updatePolicyChange,
   type StoredPolicy,
 } from "#/server/data/policy-change-rows";
@@ -65,17 +66,19 @@ function moneyAfter(prev: SnapshotMoney, priced: Quoted, chosen: string[]): Snap
 
 function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: string) {
   switch (change.kind) {
-    case "address":
+    case "address": {
+      const car = carPolicy(stored);
       return {
         action: "policy.address_changed",
         changes: {
-          postcode_area: { from: postcodeArea(stored.postcode), to: postcodeArea(change.postcode) },
+          postcode_area: { from: postcodeArea(car.postcode), to: postcodeArea(change.postcode) },
           overnight_location: {
-            from: stored.vehicle.overnightLocation,
+            from: car.vehicle.overnightLocation,
             to: change.overnightLocation,
           },
         },
       } as const;
+    }
     case "driver_added":
       return {
         action: "policy.driver_added",

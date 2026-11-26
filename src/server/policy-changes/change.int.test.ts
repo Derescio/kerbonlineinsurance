@@ -398,10 +398,11 @@ describe("what isn't changed online", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("refuses a home policy", async () => {
+  // A home can be changed from 6.3c (home-price.int.test.ts); a business policy still can't
+  it("refuses a business policy", async () => {
     const { actor } = await boughtCarPolicy();
-    const home = await makePolicy({ customerId: actor.customerId!, product: "home" });
-    expect(await price(actor, home.reference, SAME_COVER)).toMatchObject(REFUSED);
+    const business = await makePolicy({ customerId: actor.customerId!, product: "business" });
+    expect(await price(actor, business.reference, SAME_COVER)).toMatchObject(REFUSED);
   });
 
   it("refuses a lapsed, a cancelled and an ended policy", async () => {

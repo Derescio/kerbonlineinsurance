@@ -1,20 +1,24 @@
-import type { PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { HomeChange, PolicyChangeRequest } from "#/features/policy-changes/request";
 import { ageOn, wholeYearsBetween } from "#/features/quote/schemas/dates";
-import type { CarInputs } from "#/features/rating/types";
+import type { CarInputs, HomeInputs } from "#/features/rating/types";
 import type { CoverLevel } from "#/server/db/schema/values";
 
-// A car policy's rating inputs from its stored rows (6.3b, decision 4), as carInputsFromJourney
+// A car or home policy's rating inputs from its stored rows (6.3b, decision 4; home 6.3c), as carInputsFromJourney
 // builds them from the journey: ages on the day it's priced, licence years as stored (a new
 // driver's from their licence date), every driver's past claims, the postcode area of where the
 // car is kept. With a change, the inputs as they'd be after it.
 
-export interface PolicyRatingRows {
-  /** The customer's postcode: the car is kept at their address */
-  postcode: string;
+/** What every policy is priced with, whatever it insures */
+export interface CommonRatingRows {
   coverLevel: CoverLevel;
   /** The selected add-ons */
   addons: string[];
   voluntaryExcessPence: number;
+}
+
+export interface PolicyRatingRows extends CommonRatingRows {
+  /** The customer's postcode: the car is kept at their address */
+  postcode: string;
   vehicle: {
     year: number;
     insuranceGroup: number;
@@ -116,4 +120,61 @@ export function carInputsFromPolicy(
     coverLevel,
     addons,
   };
+}
+
+/** A home policy's properties row, as it's rated (6.3c, decision 4) */
+export interface HomeRatingRows extends CommonRatingRows {
+  property: {
+    /** The insured home's: a home is rated where it is, not where its policyholder lives */
+    postcode: string;
+    propertyType: string;
+    yearBuilt: number;
+    bedrooms: number;
+    rebuildCostPence: number;
+    contentsValuePence: number;
+    valuablesPence: number | null;
+    hasAlarm: boolean;
+    alarmType: string | null;
+    windowLocks: string | null;
+    hasSmokeAlarm: boolean;
+    lockType: string;
+    pastClaims: number;
+    /** Null on a home bought before 5.7c, on home v1, which doesn't rate it */
+    occupation: string | null;
+  };
+}
+
+/**
+ * A home policy's rating inputs from its stored row, as homeInputsFromJourney builds them from the
+ * journey; with a change, as they'd be after it. Valuables, window locks and the kind of alarm
+ * aren't rated, so only whether there is an alarm reaches the inputs.
+ */
+export function homeInputsFromPolicy(rows: HomeRatingRows, change?: HomeChange): HomeInputs {
+  const { property } = rows;
+  const inputs: HomeInputs = {
+    postcodeArea: postcodeArea(property.postcode),
+    propertyType: property.propertyType,
+    yearBuilt: property.yearBuilt,
+    bedrooms: property.bedrooms,
+    rebuildCostPence: property.rebuildCostPence,
+    contentsValuePence: property.contentsValuePence,
+    hasAlarm: property.hasAlarm,
+    hasSmokeAlarm: property.hasSmokeAlarm,
+    lockType: property.lockType,
+    pastClaims: property.pastClaims,
+    occupation: property.occupation ?? "",
+  };
+  switch (change?.kind) {
+    case "home_contents":
+      return { ...inputs, contentsValuePence: change.contentsValuePence };
+    case "home_security":
+      return {
+        ...inputs,
+        lockType: change.lockType,
+        hasAlarm: change.alarmType !== "none",
+        hasSmokeAlarm: change.hasSmokeAlarm,
+      };
+    default:
+      return inputs;
+  }
 }

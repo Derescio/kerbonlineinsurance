@@ -7,13 +7,13 @@ import { instalmentDates } from "#/features/quote/policy-terms";
 import { resolveActor, type Actor } from "#/server/auth/actor";
 import { clearReferenceCaches, getCatalogue, upsertReferenceData } from "#/server/data/reference";
 import { getDb } from "#/server/db/client";
-import { payments, policies } from "#/server/db/schema";
+import { payments, policies, ratingVersions } from "#/server/db/schema";
 import { withTx } from "#/server/db/tx";
 import { purchase } from "#/server/quote/purchase";
 import { saveCarQuoteFor } from "#/server/quote/save";
 import { priceQuote, type QuoteItemRequest } from "#/features/rating/price-quote";
 import { carInputs, homeInputs } from "#/features/rating/test-tables";
-import { getActiveRatingTables } from "#/server/data/reference";
+import { getActiveRatingTables, getRatingTables } from "#/server/data/reference";
 import { saveQuote } from "#/server/data/save-quote";
 import { CATALOGUE_SOURCES } from "#/server/reference/catalogue/index";
 import { RATING_SOURCES } from "#/server/reference/rating/index";
@@ -184,6 +184,71 @@ export async function boughtBundle(plan: "annual" | "monthly" = "monthly"): Prom
     car: rows.find((p) => p.product === "car")!,
     home: rows.find((p) => p.product === "home")!,
   };
+}
+
+/**
+ * A home policy bought on its own (6.3c): 18 Albion Road, Leeds, priced on home v2 (the active
+ * version), or on home v1 with no occupation stored, as a home bought before 5.7c was. The
+ * customer lives elsewhere, so a home's own address can be told apart from theirs.
+ */
+export async function boughtHomePolicy({
+  plan = "annual",
+  rating = "v2",
+}: { plan?: "annual" | "monthly"; rating?: "v1" | "v2" } = {}): Promise<Bought> {
+  const customer = await makeCustomer({ postcode: "M1 1AE", addressLine1: "9 Elsewhere Road" });
+  const [v1] = await getDb()
+    .select({ id: ratingVersions.id })
+    .from(ratingVersions)
+    .where(and(eq(ratingVersions.product, "home"), eq(ratingVersions.version, 1)));
+  const tables =
+    rating === "v1" ? await getRatingTables(getDb(), v1!.id) : await getActiveRatingTables("home");
+  const inputs = homeInputs(rating === "v1" ? { occupation: "" } : {});
+  const priced = priceQuote([
+    { product: "home", inputs, tables, coverLevel: "comprehensive", addons: [] },
+  ]);
+  const saved = await saveQuote(getDb(), {
+    customerId: customer.id,
+    postcode: "LS6 2AB",
+    priced,
+    items: [
+      {
+        startDate: STARTS_ON,
+        voluntaryExcessPence: 0,
+        details: {
+          product: "home",
+          property: {
+            addressLine1: "18 Albion Road",
+            town: "Leeds",
+            postcode: "LS6 2AB",
+            propertyType: "semi",
+            yearBuilt: 1990,
+            bedrooms: 3,
+            rebuildCostPence: 24_000_000,
+            contentsValuePence: 4_500_000,
+            hasAlarm: false,
+            hasSmokeAlarm: true,
+            lockType: "multipoint",
+            pastClaims: 0,
+            ...(rating === "v2"
+              ? {
+                  valuablesPence: 500_000,
+                  windowLocks: "all_accessible",
+                  alarmType: "none",
+                  employmentStatus: "employed",
+                  occupation: "doctor",
+                }
+              : {}),
+          },
+          priorClaims: [],
+        },
+      },
+    ],
+    now: BOUGHT_AT,
+  });
+  const actor = (await resolveActor(getDb(), customer.userId))!;
+  await buy(actor, saved.quoteId, plan);
+  const [policy] = await getDb().select().from(policies).where(eq(policies.quoteId, saved.quoteId));
+  return { actor, policy: policy! };
 }
 
 export async function boughtCarPolicy({

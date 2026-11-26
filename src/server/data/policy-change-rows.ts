@@ -19,14 +19,15 @@ import {
 } from "#/server/db/schema";
 import type { CoverLevel } from "#/server/db/schema/values";
 import type { Tx } from "#/server/db/tx";
-import type { PolicyRatingRows } from "#/server/policy-changes/inputs";
+import type { HomeRatingRows, PolicyRatingRows } from "#/server/policy-changes/inputs";
 
 // The rows behind a policy change (6.3b): the policy locked with everything it's rated from, the
 // customer's other policies that change what's allowed, the policy_changes row, and the in-place
 // updates a change makes (decision 2). The protected writes in src/server/policy-changes/ call
 // these; nothing here checks who is asking.
 
-export interface StoredPolicy extends PolicyRatingRows {
+/** What every stored policy carries, whatever it insures */
+interface StoredBase {
   policy: {
     id: string;
     reference: string;
@@ -55,6 +56,17 @@ export interface StoredPolicy extends PolicyRatingRows {
   scheduledInstalments: number;
 }
 
+export type StoredCarPolicy = StoredBase & { product: "car" } & PolicyRatingRows;
+/** A home policy (6.3c): no drivers, so its driver maps are empty */
+export type StoredHomePolicy = StoredBase & { product: "home" } & HomeRatingRows;
+export type StoredPolicy = StoredCarPolicy | StoredHomePolicy;
+
+/** The car policy a car-only change was checked against; a home here is a bug */
+export function carPolicy(stored: StoredPolicy): StoredCarPolicy {
+  if (stored.product !== "car") throw new Error(`policy-changes: ${stored.policy.id} isn't a car`);
+  return stored;
+}
+
 /** The customer's policy id by reference; null when it isn't theirs */
 export async function myPolicyId(
   tx: Tx,
@@ -74,7 +86,7 @@ export async function myPolicyId(
  */
 export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<StoredPolicy | null> {
   const [policy] = await tx.select().from(policies).where(eq(policies.id, policyId)).for("update");
-  if (!policy || policy.product !== "car") return null;
+  if (!policy || (policy.product !== "car" && policy.product !== "home")) return null;
 
   const [item] = await tx
     .select({ ratingVersionId: quoteItems.ratingVersionId })
@@ -94,11 +106,6 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     .from(customers)
     .innerJoin(users, eq(users.id, customers.userId))
     .where(eq(customers.id, policy.customerId));
-  const [vehicle] = await tx
-    .select()
-    .from(vehicles)
-    .where(eq(vehicles.quoteItemId, policy.quoteItemId));
-  if (!vehicle) return null;
   const driverRows = await tx
     .select()
     .from(drivers)
@@ -116,7 +123,7 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     .from(payments)
     .where(eq(payments.quoteId, policy.quoteId));
 
-  return {
+  const base = {
     policy: {
       id: policy.id,
       reference: policy.reference,
@@ -144,10 +151,58 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       email: customer!.email,
       addressLine1: customer!.addressLine1,
     },
-    postcode: customer!.postcode,
+    driverRelationships: new Map(
+      driverRows.filter((d) => !d.isMain).map((d) => [d.id, d.relationship]),
+    ),
+    driverNames: new Map(driverRows.map((d) => [d.id, `${d.firstName} ${d.lastName}`])),
+    failedInstalments: instalments.filter((p) => p.status === "failed").length,
+    scheduledInstalments: instalments.filter((p) => p.status === "scheduled").length,
+  };
+  const common = {
     coverLevel: policy.coverLevel as CoverLevel,
     addons: addons.map((a) => a.addon),
     voluntaryExcessPence: policy.voluntaryExcessPence,
+  };
+
+  if (policy.product === "home") {
+    const [home] = await tx
+      .select()
+      .from(properties)
+      .where(eq(properties.quoteItemId, policy.quoteItemId));
+    if (!home) return null;
+    return {
+      ...base,
+      ...common,
+      product: "home",
+      property: {
+        postcode: home.postcode,
+        propertyType: home.propertyType,
+        yearBuilt: home.yearBuilt,
+        bedrooms: home.bedrooms,
+        rebuildCostPence: home.rebuildCostPence,
+        contentsValuePence: home.contentsValuePence,
+        valuablesPence: home.valuablesPence,
+        hasAlarm: home.hasAlarm,
+        alarmType: home.alarmType,
+        windowLocks: home.windowLocks,
+        hasSmokeAlarm: home.hasSmokeAlarm,
+        lockType: home.lockType,
+        pastClaims: home.pastClaims,
+        occupation: home.occupation,
+      },
+    };
+  }
+
+  const [vehicle] = await tx
+    .select()
+    .from(vehicles)
+    .where(eq(vehicles.quoteItemId, policy.quoteItemId));
+  if (!vehicle) return null;
+  return {
+    ...base,
+    ...common,
+    product: "car",
+    postcode: customer!.postcode,
     vehicle: {
       year: vehicle.year,
       insuranceGroup: vehicle.insuranceGroup,
@@ -166,12 +221,6 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       noClaimsYears: d.noClaimsYears,
       pastClaims: d.pastClaims,
     })),
-    driverRelationships: new Map(
-      driverRows.filter((d) => !d.isMain).map((d) => [d.id, d.relationship]),
-    ),
-    driverNames: new Map(driverRows.map((d) => [d.id, `${d.firstName} ${d.lastName}`])),
-    failedInstalments: instalments.filter((p) => p.status === "failed").length,
-    scheduledInstalments: instalments.filter((p) => p.status === "scheduled").length,
   };
 }
 

@@ -1,5 +1,5 @@
 import { annualSettlement, instalmentChange, priceLine } from "#/features/policy-changes/money";
-import type { PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { HomeChange, PolicyChangeRequest } from "#/features/policy-changes/request";
 import {
   priceQuote,
   withSingleItemSaving,
@@ -11,14 +11,14 @@ import type { StoredPolicy } from "#/server/data/policy-change-rows";
 import type { RatingTables } from "#/server/data/reference";
 import { coverLevels, type CoverLevel, type ReasonCode } from "#/server/db/schema/values";
 
-import { carInputsFromPolicy } from "./inputs";
+import { carInputsFromPolicy, homeInputsFromPolicy } from "./inputs";
 
 // What a change costs (6.3b, decisions 4 and 5). The policy is priced twice today on the rating
 // version it was bought on, as it stands and with the change, each with the policy's saving at the
 // version's rate; only the difference is charged, for the part of the year that's left.
 
-/** One side of the comparison: the car's money for a year */
-export interface CarPrice {
+/** One side of the comparison: the policy's money for a year, car or home */
+export interface ItemPrice {
   coverLevel: CoverLevel;
   premiumPence: number;
   discountPence: number;
@@ -34,14 +34,14 @@ export interface CarPrice {
 }
 
 type Side =
-  | { outcome: "quoted"; price: CarPrice }
+  | { outcome: "quoted"; price: ItemPrice }
   | { outcome: "referred" | "declined"; reasonCode: ReasonCode | null };
 
 export type PricedChange =
   | {
       outcome: "quoted";
-      before: CarPrice;
-      after: CarPrice;
+      before: ItemPrice;
+      after: ItemPrice;
       oldAnnualPence: number;
       newAnnualPence: number;
       /** after.totalPence − before.totalPence: the year's difference with IPT */
@@ -53,17 +53,46 @@ export type PricedChange =
     }
   | { outcome: "referred" | "declined"; reasonCode: ReasonCode | null };
 
+/** The policy as a priceQuote item, with the change applied when there is one */
+function itemRequest(
+  stored: StoredPolicy,
+  tables: RatingTables,
+  today: string,
+  change?: PolicyChangeRequest,
+): { request: QuoteItemRequest; coverLevel: CoverLevel; addons: string[] } {
+  if (stored.product === "car") {
+    const { inputs, coverLevel, addons } = carInputsFromPolicy(stored, today, change);
+    return {
+      request: { product: "car", inputs, tables, coverLevel, addons } as QuoteItemRequest,
+      coverLevel,
+      addons,
+    };
+  }
+  // A home takes a cover change's level and add-ons, and its own changes into its inputs
+  const cover = change?.kind === "cover" ? change : null;
+  const coverLevel = cover?.coverLevel ?? stored.coverLevel;
+  const addons = cover?.addons ?? stored.addons;
+  const own =
+    change?.kind === "home_contents" || change?.kind === "home_security"
+      ? (change as HomeChange)
+      : undefined;
+  const inputs = homeInputsFromPolicy(stored, own);
+  return {
+    request: { product: "home", inputs, tables, coverLevel, addons } as QuoteItemRequest,
+    coverLevel,
+    addons,
+  };
+}
+
 function priceSide(
   stored: StoredPolicy,
   tables: RatingTables,
   today: string,
   change?: PolicyChangeRequest,
 ): Side {
-  const { inputs, coverLevel, addons } = carInputsFromPolicy(stored, today, change);
+  const { request, coverLevel, addons } = itemRequest(stored, tables, today, change);
   const t = new Tables(tables);
-  let priced = priceQuote([
-    { product: "car", inputs, tables, coverLevel, addons } as QuoteItemRequest,
-  ]);
+  let priced = priceQuote([request]);
   // The policy's saving, at the version's rate, whichever kind it had (bundle or multi-policy)
   if (stored.quote.bundleDiscountPence > 0) {
     priced = withSingleItemSaving(priced, t.param("bundle_discount_rate"), t.param("ipt_rate"));
@@ -166,16 +195,14 @@ export function coverLevelLines(
   });
 }
 
-/** The add-ons offered on this policy's car, priced for a year */
+/** The add-ons offered on this policy's car or home, priced for a year */
 export function offeredAddons(
   stored: StoredPolicy,
   tables: RatingTables,
   today: string,
 ): { addon: string; annualPricePence: number }[] {
-  const { inputs, coverLevel } = carInputsFromPolicy(stored, today);
-  const priced = priceQuote([
-    { product: "car", inputs, tables, coverLevel, addons: [] } as QuoteItemRequest,
-  ]);
+  const { request } = itemRequest(stored, tables, today);
+  const priced = priceQuote([{ ...request, addons: [] } as QuoteItemRequest]);
   return priced.items[0]!.addons.map((a) => ({
     addon: a.addon,
     annualPricePence: a.annualPricePence,
