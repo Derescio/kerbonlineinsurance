@@ -169,6 +169,9 @@ export async function boughtBundle(plan: "annual" | "monthly" = "monthly"): Prom
             hasSmokeAlarm: true,
             lockType: "multipoint",
             pastClaims: 0,
+            // Priced on home v2, which rates the policyholder's occupation (5.7c)
+            employmentStatus: "employed",
+            occupation: "doctor",
           },
           priorClaims: [],
         },

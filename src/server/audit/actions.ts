@@ -60,6 +60,18 @@ export const AUDIT_ACTIONS = {
     entityType: "policy",
     description: "A customer changed their cover level, add-ons or voluntary excess",
   },
+  "policy.car_changed": {
+    entityType: "policy",
+    description: "A customer changed the car their policy insures",
+  },
+  "policy.contents_changed": {
+    entityType: "policy",
+    description: "A customer changed their home's contents value or valuables",
+  },
+  "policy.security_changed": {
+    entityType: "policy",
+    description: "A customer changed their home's locks or alarms",
+  },
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

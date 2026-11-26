@@ -69,6 +69,13 @@ export function carPolicy(stored: StoredPolicy): StoredCarPolicy {
   return stored;
 }
 
+/** The home policy a home-only change was checked against; a car here is a bug */
+export function homePolicy(stored: StoredPolicy): StoredHomePolicy {
+  if (stored.product !== "home")
+    throw new Error(`policy-changes: ${stored.policy.id} isn't a home`);
+  return stored;
+}
+
 /** The customer's policy id by reference; null when it isn't theirs */
 export async function myPolicyId(
   tx: Tx,
@@ -441,6 +448,48 @@ export async function applyChangeRows(
       }
       break;
     }
+    case "car_replaced": {
+      // The new car from its catalogue row; how it's used, parked and driven a year carry over
+      const { car } = change;
+      await tx
+        .update(vehicles)
+        .set({
+          make: car.make,
+          model: car.model,
+          year: car.year,
+          variant: car.variant,
+          fuelType: car.fuelType,
+          doors: car.doors,
+          insuranceGroup: car.insuranceGroup,
+          valuePence: car.valuePence,
+          catalogueVariantId: car.id,
+          registration: change.registration,
+          currentMileage: change.currentMileage,
+        })
+        .where(eq(vehicles.quoteItemId, policy.quoteItemId));
+      break;
+    }
+    case "home_contents":
+      await tx
+        .update(properties)
+        .set({
+          contentsValuePence: change.contentsValuePence,
+          valuablesPence: change.valuablesPence,
+        })
+        .where(eq(properties.quoteItemId, policy.quoteItemId));
+      break;
+    case "home_security":
+      await tx
+        .update(properties)
+        .set({
+          lockType: change.lockType,
+          windowLocks: change.windowLocks,
+          alarmType: change.alarmType,
+          hasAlarm: change.alarmType !== "none",
+          hasSmokeAlarm: change.hasSmokeAlarm,
+        })
+        .where(eq(properties.quoteItemId, policy.quoteItemId));
+      break;
   }
   await tx
     .update(policies)

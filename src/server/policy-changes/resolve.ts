@@ -35,9 +35,9 @@ export async function resolveChange(
   if (change.kind !== "car_replaced") return change;
   const car = await catalogueCar(tx, { id: change.catalogueVariantId });
   if (!car) return { refused: CANT_CHANGE_ONLINE };
-  if (change.registration !== null) {
-    const plated = await carForPlate(tx, change.registration);
-    if (plated?.id !== car.id) return { refused: CANT_CHANGE_ONLINE };
-  }
-  return { ...change, car };
+  if (change.registration === null) return { ...change, car };
+  const plated = await carForPlate(tx, change.registration);
+  if (plated?.id !== car.id) return { refused: CANT_CHANGE_ONLINE };
+  // Stored as the plate is shown, with its space ("TS24 EIV"), as the quote journey stores it
+  return { ...change, registration: findDemoPlate(change.registration)!.plate, car };
 }

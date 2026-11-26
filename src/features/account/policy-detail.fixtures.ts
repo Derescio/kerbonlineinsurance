@@ -27,6 +27,7 @@ export function policyDetail(over: Partial<PolicyDetail> = {}): PolicyDetail {
       postcode: "N8 8SH",
     },
     car: {
+      catalogueVariantId: "0190f3a2-6c1e-7b1a-9d2e-4f5a6b7c8d9e",
       make: "Volkswagen",
       model: "Golf",
       variant: "1.5 TSI Life",
@@ -85,6 +86,10 @@ export const homeDetail = (over: Partial<PolicyDetail> = {}) =>
       rebuildCostPence: 42_000_000,
       contentsValuePence: 5_000_000,
       valuablesPence: 800_000,
+      lockType: "five_lever",
+      windowLocks: "all_accessible",
+      alarmType: "installed_unmonitored",
+      hasSmokeAlarm: true,
     },
     bundled: false,
     saving: null,
