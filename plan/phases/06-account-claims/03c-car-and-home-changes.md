@@ -1,6 +1,6 @@
 # 6.3c Change car and home policy changes
 
-**Status:** spec drafted (25 Nov 2026), awaiting Damion's approval
+**Status:** done (spec approved by Damion, 25 Nov 2026; E2E passed on `dev`, 26 Nov 2026; Damion's manual check pending)
 **Phase:** 06-account-claims
 
 ## Goal
@@ -110,6 +110,32 @@ Each change goes through 6.3b's `changePolicy`. It's re-priced, the new price is
 - Every applied change writes a snapshot version 2 row.
 - The tests above pass in `ci`.
 - Preview manual check by Damion, run locally with `stripe listen` for the Stripe parts (previews get no webhooks).
+
+## Notes from the build
+
+- **Where the code is:** `resolve.ts` (the new car from the catalogue, checked against its demo plate) joins `src/server/policy-changes/`. `StoredPolicy` is now a car-or-home union in [policy-change-rows.ts](../../../src/server/data/policy-change-rows.ts), with `carPolicy()` and `homePolicy()` to narrow it. The dialogs are `ChangeCarDialog.tsx` and `HomeDialogs.tsx`, loaded lazily with the rest of `ChangeDialogs`.
+- **Migration 0028** only widens `policy_changes_kind_check`. Damion applied it to `dev` on 26 Nov 2026.
+- **Snapshot v2** is written for every version from this slice on. 0027's backfill test now compares against a v1 view of `readSnapshot`.
+- **A 6.3b bug found on the E2E against real Stripe:** a monthly change that moved the instalment failed at Confirm. Stripe makes the product behind Checkout's inline `price_data` inactive, and it refuses a new price on an inactive product. Each such change now creates its own active price (`prices.create`, product "Kerb monthly instalment, {reference}") and points the subscription item at it. The Stripe fake gains `prices.create`. 6.3b's E2E hadn't hit it because its add-driver change didn't move the price.
+- **Calls made in the build:**
+  - A demo plate is stored as it's shown ("TS24 EIV").
+  - "That's the car you're already insured for." is decided in the dialog, with the server's `unchanged` as the backstop.
+  - Change car has no Find button. A demo plate matches as it's typed, "not found" waits for seven characters (and for the catalogue), and the demo plates are listed in the hint.
+  - Home's Change cover keeps 6.3b's level descriptions (each level's price line).
+  - The security email lists each changed answer: "Main door lock: …", "Window locks: …", "Burglar alarm: …", "Smoke alarms: …".
+  - A car the bought rating version has no band for is refused by matching Tables' "has no band" error, on the after side of a change of car only. A test pins the wording.
+- **Reviews:**
+  - The checkpoint review (Tasks 1–4) found nothing critical or important.
+  - The final review found two important problems, both fixed. Change car said a demo plate wasn't found while the catalogue was still loading. The home E2E's premise was wrong: going from an installed alarm to a monitored one doesn't move the price, so it now fits an alarm to a home that had none.
+- **Left for later** (review minors):
+  - A home rated on v2 with no stored occupation would show a pricing error, not "can't change online". None exist.
+  - Change car's mileage field stays shown, and required, beside "That's the car you're already insured for."
+  - A wrong plate shorter than seven characters is never flagged.
+  - The home dialogs assume the policy has its home details.
+  - The money and mileage boxes accept misplaced commas. The server re-checks.
+  - Update contents opens valuables blank when never answered, with no "Enter 0 if none" hint.
+  - A snapshot's `postcodeDistrict` is the customer's for a car and the insured home's for a home (v2 only). Phase 9 branches on `snapshotVersion`.
+- **E2E on `dev`** (26 Nov 2026, `vp dev` with `stripe listen`) passed all four policy-changes tests. Local runs clear the 127.0.0.1 sign-up limit with Claude's allowed helper script.
 
 ## Commit message
 
