@@ -50,7 +50,9 @@ export function ChangeCarDialog({
   onClose: () => void;
   onApplied: () => void;
 }) {
-  const cars = useQuery(catalogueQuery).data?.cars ?? [];
+  const catalogue = useQuery(catalogueQuery);
+  const cars = catalogue.data?.cars ?? [];
+  const loaded = catalogue.isSuccess;
   const [manual, setManual] = useState(false);
   const [plate, setPlate] = useState("");
   const [make, setMake] = useState("");
@@ -61,7 +63,9 @@ export function ChangeCarDialog({
 
   const demo = findDemoPlate(plate);
   const plateCar = demo ? findCar(cars, demo) : null;
-  const notFound = !plateCar && normalisePlate(plate).length >= PLATE_LENGTH;
+  // A demo plate isn't "not found" before the catalogue it's matched against has arrived
+  const notFound =
+    !plateCar && normalisePlate(plate).length >= PLATE_LENGTH && (demo === null || loaded);
   const manualCar = cars.find((c) => c.id === variantId) ?? null;
   const car: PickerCar | null = manual ? manualCar : plateCar;
   const same = car !== null && car.id === policy.car?.catalogueVariantId;
@@ -102,6 +106,15 @@ export function ChangeCarDialog({
       reference={policy.reference}
       change={change}
     >
+      {catalogue.isPending ? <p className="pc-note">Loading cars…</p> : null}
+      {catalogue.isError ? (
+        <Alert tone="danger" title="We couldn't load the list of cars">
+          <p>Check your connection, then try again.</p>
+          <Button variant="secondary" onClick={() => void catalogue.refetch()}>
+            Try again
+          </Button>
+        </Alert>
+      ) : null}
       {manual ? (
         <>
           <Select

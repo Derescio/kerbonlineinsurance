@@ -101,7 +101,8 @@ test("annual: move up to Plus and pay the top-up", async ({ page }) => {
   }).toPass({ timeout: 45_000 });
 });
 
-// 6.3c: Change car by demo plate, and a home's security update (a monitored alarm costs less)
+// 6.3c: Change car by demo plate, and a home's security update (bought with no alarm; fitting one
+// costs less, since only having an alarm is rated)
 
 test("monthly car: change car by demo plate, see the price, confirm; the page title shows the new car", async ({
   page,

@@ -70,7 +70,7 @@ export async function buyCarPolicy(
 
 /**
  * A home policy bought the way home-buy.spec.ts buys one (5.7), without its page checks, for 6.3c's
- * home changes: E8 3RL's first demo address, alarm installed but not monitored. Returns the policy
+ * home changes: E8 3RL's first demo address, with no burglar alarm. Returns the policy
  * reference; the page is on You're covered, signed in.
  */
 export async function buyHomePolicy(page: Page, { email }: { email: string }): Promise<string> {
@@ -107,9 +107,8 @@ export async function buyHomePolicy(page: Page, { email }: { email: string }): P
     .getByLabel("Main external door lock")
     .selectOption({ label: "Five-lever mortice deadlock" });
   await page.getByLabel("Window locks").selectOption({ label: "Locks on all accessible windows" });
-  await page
-    .getByLabel("Burglar alarm")
-    .selectOption({ label: "Professionally installed, not monitored" });
+  // No alarm, so 6.3c's spec can fit one and see the price go down (only having one is rated)
+  await page.getByLabel("Burglar alarm").selectOption({ label: "No alarm" });
   await page.getByText("Smoke alarms are fitted and working").click();
   await page.getByRole("button", { name: "Continue to past claims" }).click();
 

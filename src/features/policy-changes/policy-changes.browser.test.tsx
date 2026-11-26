@@ -72,9 +72,9 @@ const CARS = [
   },
 ];
 
-async function show(detail: PolicyDetail = changeable()) {
+async function show(detail: PolicyDetail = changeable(), { catalogue = true } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(["catalogue"], { cars: CARS });
+  if (catalogue) client.setQueryData(["catalogue"], { cars: CARS });
   return renderWithRouter(
     <QueryClientProvider client={client}>
       <PolicyDetailPage policy={detail} today={today} />
@@ -548,5 +548,43 @@ describe("Home changes", () => {
     await expect
       .element(dialog().getByRole("combobox", { name: "Voluntary excess" }))
       .not.toBeInTheDocument();
+  });
+});
+
+describe("Change car, before the catalogue is in", () => {
+  it("says the cars are loading, not that a demo plate wasn't found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    try {
+      await show(changeable(), { catalogue: false });
+      await userEvent.click(page.getByRole("button", { name: /Change car/ }));
+      await userEvent.fill(
+        dialog().getByRole("textbox", {
+          name: "New car" + String.fromCharCode(39) + "s registration",
+        }),
+        "TS24 EIV",
+      );
+      await expect.element(dialog().getByText("Loading cars…")).toBeVisible();
+      await expect.element(dialog().getByText(/couldn.t find that car/)).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says the cars couldn't load, with a way to try again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response("", { status: 500 }))),
+    );
+    try {
+      await show(changeable(), { catalogue: false });
+      await userEvent.click(page.getByRole("button", { name: /Change car/ }));
+      await expect.element(dialog().getByText(/couldn.t load the list of cars/)).toBeVisible();
+      await expect.element(dialog().getByRole("button", { name: "Try again" })).toBeVisible();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
