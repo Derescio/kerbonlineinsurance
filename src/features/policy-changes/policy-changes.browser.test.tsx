@@ -46,8 +46,35 @@ const priced = (over: Record<string, unknown> = {}) => ({
   },
 });
 
+/** The catalogue the picker reads (GET /api/catalogue): the Golf insured, a demo plate's Tesla */
+const GOLF_ID = "0190f3a2-6c1e-7b1a-9d2e-4f5a6b7c8d9e";
+const TESLA_ID = "0190f3a2-6c1e-7b1a-9d2e-4f5a6b7c8d00";
+const CARS = [
+  {
+    id: GOLF_ID,
+    make: "Volkswagen",
+    model: "Golf",
+    year: 2021,
+    variant: "1.5 TSI Life",
+    fuelType: "petrol",
+    doors: 5,
+    transmission: "manual",
+  },
+  {
+    id: TESLA_ID,
+    make: "Tesla",
+    model: "Model 3",
+    year: 2024,
+    variant: "RWD",
+    fuelType: "electric",
+    doors: 4,
+    transmission: "automatic",
+  },
+];
+
 async function show(detail: PolicyDetail = changeable()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(["catalogue"], { cars: CARS });
   return renderWithRouter(
     <QueryClientProvider client={client}>
       <PolicyDetailPage policy={detail} today={today} />
@@ -379,5 +406,147 @@ describe("Confirming", () => {
         ),
       )
       .toBeVisible();
+  });
+});
+
+// 6.3c: Change car (Figma 183:3785, 282:3977, 282:4033) and a home's own changes (282:4089,
+// 282:4145, 282:4201, 282:4257)
+
+const changeableHome = (over: Partial<PolicyDetail> = {}) =>
+  homeDetail({ changes: { eligible: true, latest: null }, ...over });
+
+describe("Make a change, 6.3c", () => {
+  it("a car policy shows four cards", async () => {
+    await show();
+    const car = page.getByRole("region", { name: "Make a change" });
+    for (const name of [/Change car/, /Add a driver/, /Change address/, /Change cover/]) {
+      await expect.element(car.getByRole("button", { name })).toBeVisible();
+    }
+  });
+
+  it("a home policy shows three cards, and no renewal or cancel yet", async () => {
+    await show(changeableHome());
+    const home = page.getByRole("region", { name: "Make a change" });
+    for (const name of [/Change cover/, /Update contents/, /Update security/]) {
+      await expect.element(home.getByRole("button", { name })).toBeVisible();
+    }
+    await expect
+      .element(home.getByRole("button", { name: /Add a driver/ }))
+      .not.toBeInTheDocument();
+    await expect.element(page.getByText(/Review renewal|Cancel policy/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Change car", () => {
+  beforeEach(() => fns.priceMyPolicyChangeFn.mockResolvedValue(priced()));
+
+  it("a demo plate shows We found it and the mileage field; an unknown plate shows We couldn't find that car with Confirm disabled; Choose my car manually shows the four selects", async () => {
+    await show();
+    await userEvent.click(page.getByRole("button", { name: /Change car/ }));
+    const plate = dialog().getByRole("textbox", { name: "New car's registration" });
+    await userEvent.fill(plate, "ts24 eiv");
+    await expect.element(dialog().getByText("We found it: Tesla Model 3, 2024")).toBeVisible();
+    await userEvent.fill(dialog().getByRole("textbox", { name: "Current mileage" }), "9,000");
+    await expect.element(dialog().getByText("Your price goes up by £4.60 a month")).toBeVisible();
+    expect(fns.priceMyPolicyChangeFn).toHaveBeenLastCalledWith({
+      data: {
+        input: {
+          reference: "KRB-818784",
+          change: {
+            kind: "car_replaced",
+            catalogueVariantId: TESLA_ID,
+            registration: "TS24 EIV",
+            currentMileage: 9_000,
+          },
+        },
+      },
+    });
+
+    await userEvent.fill(plate, "AB12 CDE");
+    await expect.element(dialog().getByText("We couldn't find that car")).toBeVisible();
+    await expect.element(confirmButton()).toBeDisabled();
+
+    await userEvent.click(dialog().getByRole("button", { name: "Choose my car manually" }));
+    for (const name of ["Make", "Model", "Year", "Variant"]) {
+      await expect.element(dialog().getByRole("combobox", { name })).toBeVisible();
+    }
+    await expect
+      .element(dialog().getByRole("button", { name: "Look up by registration instead" }))
+      .toBeVisible();
+  });
+
+  it("Change car: the current car shows That's the car you're already insured for. and no Confirm", async () => {
+    await show();
+    await userEvent.click(page.getByRole("button", { name: /Change car/ }));
+    await userEvent.click(dialog().getByRole("button", { name: "Choose my car manually" }));
+    await userEvent.selectOptions(dialog().getByRole("combobox", { name: "Make" }), "Volkswagen");
+    await userEvent.selectOptions(dialog().getByRole("combobox", { name: "Model" }), "Golf");
+    await userEvent.selectOptions(dialog().getByRole("combobox", { name: "Year" }), "2021");
+    await userEvent.selectOptions(dialog().getByRole("combobox", { name: "Variant" }), GOLF_ID);
+    await userEvent.fill(dialog().getByRole("textbox", { name: "Current mileage" }), "20000");
+    await expect
+      .element(dialog().getByText("That's the car you're already insured for."))
+      .toBeVisible();
+    await expect.element(confirmButton()).toBeDisabled();
+    expect(fns.priceMyPolicyChangeFn).not.toHaveBeenCalled();
+  });
+});
+
+describe("Home changes", () => {
+  beforeEach(() => fns.priceMyPolicyChangeFn.mockResolvedValue(priced()));
+
+  it("Update contents: valuables over contents shows the journey's message and no price", async () => {
+    await show(changeableHome());
+    await userEvent.click(page.getByRole("button", { name: /Update contents/ }));
+    const contents = dialog().getByRole("textbox", { name: "Total contents value" });
+    await expect.element(contents).toHaveValue("50,000");
+    await userEvent.fill(dialog().getByRole("textbox", { name: "Valuables total" }), "60,000");
+    await expect.element(dialog().getByText(/more than the contents total/)).toBeVisible();
+    await expect.element(confirmButton()).toBeDisabled();
+    expect(fns.priceMyPolicyChangeFn).not.toHaveBeenCalled();
+  });
+
+  it("Update security: a null alarm type opens empty and the price waits for it", async () => {
+    await show(
+      changeableHome({ home: { ...homeDetail().home!, alarmType: null, windowLocks: null } }),
+    );
+    await userEvent.click(page.getByRole("button", { name: /Update security/ }));
+    const alarm = dialog().getByRole("combobox", { name: "Burglar alarm" });
+    await expect.element(alarm).toHaveValue("");
+    await userEvent.selectOptions(dialog().getByRole("combobox", { name: "Window locks" }), "some");
+    expect(fns.priceMyPolicyChangeFn).not.toHaveBeenCalled();
+    await userEvent.selectOptions(alarm, "monitored");
+    await expect.element(dialog().getByText("Your price goes up by £4.60 a month")).toBeVisible();
+    expect(fns.priceMyPolicyChangeFn).toHaveBeenLastCalledWith({
+      data: {
+        input: {
+          reference: expect.any(String),
+          change: {
+            kind: "home_security",
+            lockType: "five_lever",
+            windowLocks: "some",
+            alarmType: "monitored",
+            hasSmokeAlarm: true,
+          },
+        },
+      },
+    });
+  });
+
+  it("home Change cover: home's level names and add-ons, and no Voluntary excess select", async () => {
+    fns.priceMyPolicyChangeFn.mockResolvedValue({
+      ok: true,
+      data: {
+        status: "unchanged",
+        levels: [],
+        addons: [{ addon: "home_emergency", annualPricePence: 6_000 }],
+      },
+    });
+    await show(changeableHome());
+    await userEvent.click(page.getByRole("button", { name: /Change cover/ }));
+    await expect.element(dialog().getByText("Home emergency cover")).toBeVisible();
+    await expect
+      .element(dialog().getByRole("combobox", { name: "Voluntary excess" }))
+      .not.toBeInTheDocument();
   });
 });

@@ -190,7 +190,7 @@ export function PolicyDetailPage({
         <DatesStat policy={policy} today={today} />
       </div>
 
-      {canChange ? <MakeAChange onOpen={setDialog} /> : null}
+      {canChange ? <MakeAChange product={policy.product} onOpen={setDialog} /> : null}
 
       <div className="pd__details">
         {car ? <Drivers policy={policy} canChange={canChange} onOpen={setDialog} /> : null}
@@ -217,7 +217,8 @@ export function PolicyDetailPage({
   );
 }
 
-const CHANGE_CARDS = [
+const CAR_CHANGE_CARDS = [
+  { kind: "car_replaced", icon: "car", title: "Change car", line: "A new car on this policy" },
   {
     kind: "driver_added",
     icon: "user-plus",
@@ -233,15 +234,34 @@ const CHANGE_CARDS = [
   { kind: "cover", icon: "shield", title: "Change cover", line: "Your cover, extras and excess" },
 ] as const;
 
-/** Figma's "Make a change" grid, with the three changes this slice makes (6.3b, decision 1) */
-function MakeAChange({ onOpen }: { onOpen: (dialog: OpenDialog) => void }) {
+/** A home's own cards (6.3c, Figma 282:4089); Review renewal and Cancel policy wait for 6.3e and 6.3d */
+const HOME_CHANGE_CARDS = [
+  { kind: "cover", icon: "shield", title: "Change cover", line: "Cover level and add-ons" },
+  {
+    kind: "home_contents",
+    icon: "house",
+    title: "Update contents",
+    line: "What your belongings are worth",
+  },
+  { kind: "home_security", icon: "lock", title: "Update security", line: "Locks and alarms" },
+] as const;
+
+/** Figma's "Make a change" grid: a car's four changes (6.3b, 6.3c) or a home's three (6.3c) */
+function MakeAChange({
+  product,
+  onOpen,
+}: {
+  product: string;
+  onOpen: (dialog: OpenDialog) => void;
+}) {
+  const cards = product === "home" ? HOME_CHANGE_CARDS : CAR_CHANGE_CARDS;
   return (
     <section className="pd__changes" aria-labelledby="changes-title">
       <h2 id="changes-title" className="pd__section-title">
         Make a change
       </h2>
       <div className="pd__change-grid">
-        {CHANGE_CARDS.map((card) => (
+        {cards.map((card) => (
           <button
             key={card.kind}
             type="button"
