@@ -1,5 +1,5 @@
 import { annualSettlement, instalmentChange, priceLine } from "#/features/policy-changes/money";
-import type { HomeChange, PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { HomeChange } from "#/features/policy-changes/request";
 import {
   priceQuote,
   withSingleItemSaving,
@@ -12,6 +12,7 @@ import type { RatingTables } from "#/server/data/reference";
 import { coverLevels, type CoverLevel, type ReasonCode } from "#/server/db/schema/values";
 
 import { carInputsFromPolicy, homeInputsFromPolicy } from "./inputs";
+import type { ResolvedChange } from "./resolve";
 
 // What a change costs (6.3b, decisions 4 and 5). The policy is priced twice today on the rating
 // version it was bought on, as it stands and with the change, each with the policy's saving at the
@@ -58,7 +59,7 @@ function itemRequest(
   stored: StoredPolicy,
   tables: RatingTables,
   today: string,
-  change?: PolicyChangeRequest,
+  change?: ResolvedChange,
 ): { request: QuoteItemRequest; coverLevel: CoverLevel; addons: string[] } {
   if (stored.product === "car") {
     const { inputs, coverLevel, addons } = carInputsFromPolicy(stored, today, change);
@@ -88,7 +89,7 @@ function priceSide(
   stored: StoredPolicy,
   tables: RatingTables,
   today: string,
-  change?: PolicyChangeRequest,
+  change?: ResolvedChange,
 ): Side {
   const { request, coverLevel, addons } = itemRequest(stored, tables, today, change);
   const t = new Tables(tables);
@@ -124,15 +125,36 @@ function priceSide(
   };
 }
 
+/**
+ * The policy priced with the change. A new car the policy's rating version has no band for (a fuel
+ * or group its tables never priced) can't be changed online, rather than failing (6.3c, decision 3).
+ */
+function priceNewSide(
+  stored: StoredPolicy,
+  tables: RatingTables,
+  today: string,
+  change: ResolvedChange,
+): Side {
+  if (change.kind !== "car_replaced") return priceSide(stored, tables, today, change);
+  try {
+    return priceSide(stored, tables, today, change);
+  } catch (error) {
+    if (error instanceof Error && /has no band/.test(error.message)) {
+      return { outcome: "referred", reasonCode: null };
+    }
+    throw error;
+  }
+}
+
 export function priceChange(
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   tables: RatingTables,
   today: string,
 ): PricedChange {
   const before = priceSide(stored, tables, today);
   if (before.outcome !== "quoted") return before;
-  const after = priceSide(stored, tables, today, change);
+  const after = priceNewSide(stored, tables, today, change);
   if (after.outcome !== "quoted") return after;
 
   const { policy } = stored;
@@ -183,7 +205,7 @@ export function priceChange(
 /** Each cover level's price line with the same add-ons and excess (the Change cover dialog) */
 export function coverLevelLines(
   stored: StoredPolicy,
-  change: Extract<PolicyChangeRequest, { kind: "cover" }>,
+  change: Extract<ResolvedChange, { kind: "cover" }>,
   tables: RatingTables,
   today: string,
 ): { coverLevel: CoverLevel; available: boolean; priceLine: string | null }[] {

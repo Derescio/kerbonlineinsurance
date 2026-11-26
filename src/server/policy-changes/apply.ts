@@ -1,4 +1,3 @@
-import type { PolicyChangeRequest } from "#/features/policy-changes/request";
 import { todayIso, wholeYearsBetween } from "#/features/quote/schemas/dates";
 import { audit, type AuditEntry } from "#/server/audit/audit";
 import type { Actor } from "#/server/auth/actor";
@@ -23,6 +22,7 @@ import { tierName } from "#/features/quote/labels";
 import { formatPounds } from "#/features/rating/money";
 
 import type { PricedChange } from "./price";
+import type { ResolvedChange } from "./resolve";
 
 // Applying a priced change (6.3b, decisions 2, 8 and 9): the rows updated in place, the policy's
 // version moved on with a policy_versions snapshot of it as it now stands, an audit row with no
@@ -64,7 +64,7 @@ function moneyAfter(prev: SnapshotMoney, priced: Quoted, chosen: string[]): Snap
   };
 }
 
-function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: string) {
+function auditEntry(stored: StoredPolicy, change: ResolvedChange, today: string) {
   switch (change.kind) {
     case "address": {
       const car = carPolicy(stored);
@@ -116,7 +116,7 @@ function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: st
 }
 
 /** The email's lines on what changed: every part of it */
-function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
+function summaryOf(stored: StoredPolicy, change: ResolvedChange): string {
   switch (change.kind) {
     case "address":
       return `Your car is now kept at ${change.addressLine1}, ${change.postcode}.`;
@@ -151,7 +151,7 @@ function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
 }
 
 /** The email's subject line on what changed */
-function headlineOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
+function headlineOf(stored: StoredPolicy, change: ResolvedChange): string {
   switch (change.kind) {
     case "address":
       return "address changed";
@@ -175,7 +175,7 @@ export async function changePolicy(
   tx: Tx,
   input: {
     stored: StoredPolicy;
-    change: PolicyChangeRequest;
+    change: ResolvedChange;
     priced: Quoted;
     changeId: string;
     actor: Actor | null;

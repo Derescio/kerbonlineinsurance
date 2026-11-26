@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 
-import type { NewDriver, PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { NewDriver } from "#/features/policy-changes/request";
 import { wholeYearsBetween } from "#/features/quote/schemas/dates";
 import type { Db } from "#/server/db/client";
 import {
@@ -15,11 +15,13 @@ import {
   quoteItems,
   quotes,
   users,
+  vehicleCatalogue,
   vehicles,
 } from "#/server/db/schema";
 import type { CoverLevel } from "#/server/db/schema/values";
 import type { Tx } from "#/server/db/tx";
 import type { HomeRatingRows, PolicyRatingRows } from "#/server/policy-changes/inputs";
+import type { ResolvedChange } from "#/server/policy-changes/resolve";
 
 // The rows behind a policy change (6.3b): the policy locked with everything it's rated from, the
 // customer's other policies that change what's allowed, the policy_changes row, and the in-place
@@ -204,6 +206,10 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     product: "car",
     postcode: customer!.postcode,
     vehicle: {
+      catalogueVariantId: vehicle.catalogueVariantId,
+      make: vehicle.make,
+      model: vehicle.model,
+      registration: vehicle.registration,
       year: vehicle.year,
       insuranceGroup: vehicle.insuranceGroup,
       fuelType: vehicle.fuelType,
@@ -222,6 +228,50 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       pastClaims: d.pastClaims,
     })),
   };
+}
+
+/** A catalogue car as Change car prices and stores it (6.3c, decision 3) */
+export interface CatalogueCar {
+  id: string;
+  make: string;
+  model: string;
+  year: number;
+  variant: string;
+  fuelType: string;
+  doors: number;
+  insuranceGroup: number;
+  valuePence: number;
+}
+
+/** An active catalogue row, by id or by the four fields a demo plate names; null when there's none */
+export async function catalogueCar(
+  tx: Tx,
+  by: { id: string } | { make: string; model: string; year: number; variant: string },
+): Promise<CatalogueCar | null> {
+  const where =
+    "id" in by
+      ? eq(vehicleCatalogue.id, by.id)
+      : and(
+          eq(vehicleCatalogue.make, by.make),
+          eq(vehicleCatalogue.model, by.model),
+          eq(vehicleCatalogue.year, by.year),
+          eq(vehicleCatalogue.variant, by.variant),
+        );
+  const [row] = await tx
+    .select({
+      id: vehicleCatalogue.id,
+      make: vehicleCatalogue.make,
+      model: vehicleCatalogue.model,
+      year: vehicleCatalogue.year,
+      variant: vehicleCatalogue.variant,
+      fuelType: vehicleCatalogue.fuelType,
+      doors: vehicleCatalogue.doors,
+      insuranceGroup: vehicleCatalogue.insuranceGroup,
+      valuePence: vehicleCatalogue.valuePence,
+    })
+    .from(vehicleCatalogue)
+    .where(and(where, eq(vehicleCatalogue.isActive, true)));
+  return row ?? null;
 }
 
 /** Whether the customer has another car policy in force on `today` (decision 11) */
@@ -315,7 +365,7 @@ export interface PolicyAfter {
 export async function applyChangeRows(
   tx: Tx,
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   after: PolicyAfter,
   version: number,
   today: string,

@@ -9,6 +9,7 @@ import type { RatingTables } from "#/server/data/reference";
 import type { Tx } from "#/server/db/tx";
 
 import { offeredAddons } from "./price";
+import type { ResolvedChange } from "./resolve";
 
 // What can be changed online (6.3b, decisions 6, 11 to 13), checked when a change is priced, when
 // it's confirmed, and again when a top-up's payment lands.
@@ -42,7 +43,7 @@ export function kindFits(product: "car" | "home", kind: PolicyChangeRequest["kin
 export async function refusedChange(
   tx: Tx,
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   tables: RatingTables,
   today: string,
 ): Promise<string | null> {
@@ -57,8 +58,8 @@ export async function refusedChange(
         ? CANT_CHANGE_ONLINE
         : null;
     case "car_replaced":
-      // Not online until 6.3c builds it (Task 3)
-      return CANT_CHANGE_ONLINE;
+      // The car was checked against the catalogue and its plate when it was resolved
+      return null;
     case "home_contents":
     case "home_security":
       // Referrals come from pricing; nothing else stops these
@@ -75,7 +76,7 @@ export async function refusedChange(
 }
 
 /** A change that leaves the policy as it is: nothing to price or confirm */
-export function changesNothing(stored: StoredPolicy, change: PolicyChangeRequest): boolean {
+export function changesNothing(stored: StoredPolicy, change: ResolvedChange): boolean {
   switch (change.kind) {
     case "cover":
       return (
@@ -91,6 +92,9 @@ export function changesNothing(stored: StoredPolicy, change: PolicyChangeRequest
         change.overnightLocation === car.vehicle.overnightLocation
       );
     }
+    // The car already insured, whatever its plate or mileage: not a change of car (decision 3)
+    case "car_replaced":
+      return change.car.id === carPolicy(stored).vehicle.catalogueVariantId;
     // A stored null never equals an answer, so a blank answer filled in is a change (decision 6)
     case "home_contents": {
       if (stored.product !== "home") return false;

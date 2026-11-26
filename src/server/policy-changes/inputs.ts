@@ -1,7 +1,9 @@
-import type { HomeChange, PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { HomeChange } from "#/features/policy-changes/request";
 import { ageOn, wholeYearsBetween } from "#/features/quote/schemas/dates";
 import type { CarInputs, HomeInputs } from "#/features/rating/types";
 import type { CoverLevel } from "#/server/db/schema/values";
+
+import type { ResolvedChange } from "./resolve";
 
 // A car or home policy's rating inputs from its stored rows (6.3b, decision 4; home 6.3c), as carInputsFromJourney
 // builds them from the journey: ages on the day it's priced, licence years as stored (a new
@@ -20,6 +22,11 @@ export interface PolicyRatingRows extends CommonRatingRows {
   /** The customer's postcode: the car is kept at their address */
   postcode: string;
   vehicle: {
+    /** Null for a car entered by hand */
+    catalogueVariantId: string | null;
+    make: string;
+    model: string;
+    registration: string | null;
     year: number;
     insuranceGroup: number;
     fuelType: string;
@@ -46,7 +53,7 @@ const postcodeArea = (postcode: string): string =>
 export function carInputsFromPolicy(
   rows: PolicyRatingRows,
   today: string,
-  change?: PolicyChangeRequest,
+  change?: ResolvedChange,
 ): { inputs: CarInputs; coverLevel: CoverLevel; addons: string[] } {
   const main = rows.drivers.find((d) => d.isMain);
   if (!main) throw new Error("carInputsFromPolicy: no main driver");
@@ -63,6 +70,7 @@ export function carInputsFromPolicy(
   let coverLevel = rows.coverLevel;
   let addons = rows.addons;
   let voluntaryExcessPence = rows.voluntaryExcessPence;
+  let vehicle = rows.vehicle;
 
   switch (change?.kind) {
     case "address":
@@ -89,9 +97,18 @@ export function carInputsFromPolicy(
       addons = change.addons;
       voluntaryExcessPence = change.voluntaryExcessPence;
       break;
+    case "car_replaced":
+      // The new car's rated fields from its catalogue row; mileage, use and parking carry over
+      vehicle = {
+        ...vehicle,
+        year: change.car.year,
+        insuranceGroup: change.car.insuranceGroup,
+        fuelType: change.car.fuelType,
+        valuePence: change.car.valuePence,
+      };
+      break;
   }
 
-  const { vehicle } = rows;
   return {
     inputs: {
       vehicle: {

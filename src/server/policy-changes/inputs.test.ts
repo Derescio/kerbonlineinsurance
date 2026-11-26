@@ -41,7 +41,11 @@ function rowsFor(today = FIXTURE_TODAY): PolicyRatingRows {
     coverLevel: "comprehensive",
     addons: ["breakdown_uk"],
     voluntaryExcessPence: 25_000,
-    vehicle: details.vehicle,
+    vehicle: {
+      ...details.vehicle,
+      catalogueVariantId: details.vehicle.catalogueVariantId ?? null,
+      registration: details.vehicle.registration ?? null,
+    },
     drivers: details.drivers.map((d, i) => ({
       ...d,
       id: `driver-${i}`,

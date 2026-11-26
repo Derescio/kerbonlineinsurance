@@ -23,6 +23,7 @@ import type { StripeClient } from "#/server/payments/stripe";
 import { changePolicy, sendChangeEmail } from "./apply";
 import { ineligible, refusedChange } from "./eligibility";
 import { priceChange, type PricedChange } from "./price";
+import { resolveChange, type ResolvedChange } from "./resolve";
 
 // Settling a confirmed change's difference in Stripe (6.3b, decision 5):
 // - annual, dearer: an embedded Checkout for the top-up (startTopUp); the change is applied when
@@ -76,7 +77,7 @@ export async function startTopUp(
   tx: Tx,
   changeId: string,
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   priced: Quoted,
   deps: SettleDeps,
 ): Promise<{ clientSecret: string }> {
@@ -241,7 +242,10 @@ export async function completeTopUp(sessionId: string, deps: SettleDeps): Promis
     const stored = await loadPolicyForChange(tx, row.policyId);
     if (!stored || stored.policy.version !== row.fromVersion) return fail("version_moved");
     const today = todayIso(now);
-    const change = row.request as PolicyChangeRequest;
+    // Resolved again, as Confirm does: the catalogue row may be gone since it was priced
+    const resolved = await resolveChange(tx, row.request as PolicyChangeRequest);
+    if ("refused" in resolved) return fail("refused");
+    const change = resolved;
     const tables = await getRatingTables(tx, stored.ratingVersionId);
     if (ineligible(stored, today) || (await refusedChange(tx, stored, change, tables, today))) {
       return fail("refused");
