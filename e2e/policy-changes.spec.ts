@@ -108,7 +108,7 @@ test("monthly car: change car by demo plate, see the price, confirm; the page ti
   page,
 }) => {
   test.setTimeout(240_000);
-  const email = `delivered+e2e-car-${Date.now()}@resend.dev`;
+  const email = `delivered+e2e-change-${Date.now()}@resend.dev`;
   const reference = await buyCarPolicy(page, { email, plan: "monthly" });
   await page.goto(`/account/policies/${reference}`);
   await expect(page.getByRole("heading", { name: "Make a change" })).toBeVisible();
@@ -142,7 +142,7 @@ test("annual home: update security down, see the refund line, confirm; the toast
   page,
 }) => {
   test.setTimeout(300_000);
-  const email = `delivered+e2e-home-change-${Date.now()}@resend.dev`;
+  const email = `delivered+e2e-change-${Date.now()}@resend.dev`;
   const reference = await buyHomePolicy(page, { email });
   await page.goto(`/account/policies/${reference}`);
   await expect(page.getByRole("heading", { name: "Make a change" })).toBeVisible();
