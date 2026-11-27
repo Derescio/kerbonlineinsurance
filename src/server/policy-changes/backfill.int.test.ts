@@ -22,6 +22,13 @@ async function backfillSql(): Promise<string> {
   return match[1]!.replace(/--> statement-breakpoint/g, "");
 }
 
+/** A v2 read as 0027 would have written it: no car, home or plate (these are all car policies) */
+function asV1({ snapshot, personal }: Awaited<ReturnType<typeof readSnapshot>>) {
+  const { vehicle: _vehicle, property: _property, ...rest } = snapshot;
+  const { registration: _registration, ...people } = personal;
+  return { snapshot: { ...rest, snapshotVersion: 1 }, personal: people };
+}
+
 describe("policy_versions backfill (0027)", () => {
   beforeEach(truncateAll);
   afterAll(closeDb);
@@ -90,7 +97,8 @@ describe("policy_versions backfill (0027)", () => {
       expect(row!.version).toBe(1);
       expect(row!.policyChangeId).toBeNull();
       expect(row!.effectiveFrom).toEqual(policy.createdAt);
-      const expected = await readSnapshot(db, policy.id, policy.createdAt);
+      // 0027 writes snapshot v1; readSnapshot writes v2 since 6.3c, so compare v1's fields
+      const expected = asV1(await readSnapshot(db, policy.id, policy.createdAt));
       expect(row!.snapshot).toEqual(expected.snapshot);
       expect(row!.personal).toEqual(expected.personal);
     }

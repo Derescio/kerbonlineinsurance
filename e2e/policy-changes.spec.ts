@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { expectNoSeriousAxeViolations } from "./axe";
-import { buyCarPolicy } from "./buy-policy";
+import { buyCarPolicy, buyHomePolicy } from "./buy-policy";
 import { databaseUrl } from "./db";
 import { payWithTestCard } from "./stripe";
 
-// Changing a car policy (6.3b): a monthly customer adds a driver and sees the monthly price move;
+// Changing a policy (6.3b; Change car and a home's own changes from 6.3c): a monthly customer adds a driver and sees the monthly price move;
 // an annual customer moves up to Plus and pays the top-up in Stripe's embedded form. Like buy.spec
 // it needs E2E_DATABASE_URL and a Stripe test publishable key (and the webhook reaching the
 // deploy, for the top-up), and skips without them. axe on each dialog at 390, 768 and 1440 px.
@@ -99,4 +99,76 @@ test("annual: move up to Plus and pay the top-up", async ({ page }) => {
       timeout: 2_000,
     });
   }).toPass({ timeout: 45_000 });
+});
+
+// 6.3c: Change car by demo plate, and a home's security update (bought with no alarm; fitting one
+// costs less, since only having an alarm is rated)
+
+test("monthly car: change car by demo plate, see the price, confirm; the page title shows the new car", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const email = `delivered+e2e-change-${Date.now()}@resend.dev`;
+  const reference = await buyCarPolicy(page, { email, plan: "monthly" });
+  await page.goto(`/account/policies/${reference}`);
+  await expect(page.getByRole("heading", { name: "Make a change" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+
+  await page
+    .getByRole("region", { name: "Make a change" })
+    .getByRole("button", { name: /Change car/ })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Change car" });
+  await dialog.getByLabel("New car's registration").fill("TS24 EIV");
+  await expect(dialog.getByText("We found it: Tesla Model 3, 2024")).toBeVisible();
+  await axeAtEachWidth(page);
+  await dialog.getByRole("button", { name: "Choose my car manually" }).click();
+  await axeAtEachWidth(page);
+  await dialog.getByRole("button", { name: "Look up by registration instead" }).click();
+  await dialog.getByLabel("New car's registration").fill("AB12 CDE");
+  await expect(dialog.getByText("We couldn't find that car")).toBeVisible();
+  await axeAtEachWidth(page);
+  await dialog.getByLabel("New car's registration").fill("TS24 EIV");
+  await dialog.getByLabel("Current mileage").fill("9,000");
+  await expect(
+    dialog.getByText(/^Your price (goes (up|down) by £\d+\.\d\d a month|stays the same)$/),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Confirm change" }).click();
+  // Confirm settles in real Stripe (a new price, or a refund) before the toast
+  await expect(page.getByText("Your policy's been updated")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Tesla");
+});
+
+test("annual home: update security down, see the refund line, confirm; the toast shows", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  const email = `delivered+e2e-change-${Date.now()}@resend.dev`;
+  const reference = await buyHomePolicy(page, { email });
+  await page.goto(`/account/policies/${reference}`);
+  await expect(page.getByRole("heading", { name: "Make a change" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const changes = page.getByRole("region", { name: "Make a change" });
+
+  await changes.getByRole("button", { name: /Update contents/ }).click();
+  const contents = page.getByRole("dialog", { name: "Update contents" });
+  await expect(contents).toBeVisible();
+  await axeAtEachWidth(page);
+  await contents.getByRole("button", { name: "Back" }).click();
+
+  await changes.getByRole("button", { name: /Change cover/ }).click();
+  const cover = page.getByRole("dialog", { name: "Change cover" });
+  await expect(cover.getByLabel("Voluntary excess")).toHaveCount(0);
+  await axeAtEachWidth(page);
+  await cover.getByRole("button", { name: "Back" }).click();
+
+  await changes.getByRole("button", { name: /Update security/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Update security" });
+  await dialog
+    .getByLabel("Burglar alarm")
+    .selectOption({ label: "Professionally installed and monitored" });
+  await expect(dialog.getByText(/^We'll refund £[\d,]+\.\d\d to your card$/)).toBeVisible();
+  await axeAtEachWidth(page);
+  await dialog.getByRole("button", { name: "Confirm change" }).click();
+  await expect(page.getByText("Your policy's been updated")).toBeVisible({ timeout: 30_000 });
 });

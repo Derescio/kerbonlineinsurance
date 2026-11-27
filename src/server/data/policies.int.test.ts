@@ -309,7 +309,7 @@ describe("getMyPolicy (6.2)", () => {
     expect(detail.drivers.map((d) => d.firstName)).toEqual(["Alex"]);
   });
 
-  it("says whether a policy can be changed online (6.3b)", async () => {
+  it("says whether a policy can be changed online (6.3b; home from 6.3c)", async () => {
     const { customer, actor } = await signedInCustomer();
     const car = await makePolicy({
       customerId: customer.id,
@@ -324,7 +324,15 @@ describe("getMyPolicy (6.2)", () => {
     const carDetail = await getMyPolicy(actor, { reference: car.reference });
     expect(carDetail.changes).toEqual({ eligible: true, latest: null });
     expect(carDetail.drivers[0]!.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect((await getMyPolicy(actor, { reference: home.reference })).changes.eligible).toBe(false);
+    expect((await getMyPolicy(actor, { reference: home.reference })).changes.eligible).toBe(true);
+    const business = await makePolicy({
+      customerId: customer.id,
+      product: "business",
+      endsOn: "2099-12-31",
+    });
+    expect((await getMyPolicy(actor, { reference: business.reference })).changes.eligible).toBe(
+      false,
+    );
     await getDb()
       .update(policies)
       .set({ status: "lapsed", lapsedAt: new Date() })

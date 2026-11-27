@@ -12,6 +12,7 @@ import {
   boughtBundle,
   presetSubscription as presetOn,
   boughtCarPolicy,
+  boughtHomePolicy,
   resetPolicyWorld,
   setUpPolicyWorld,
 } from "#/test/bought-policy";
@@ -395,21 +396,25 @@ describe("monthly", () => {
     expect(new Set(scheduled.map((p) => p.amountPence))).toEqual(
       new Set([instalment + priced.amountPence]),
     );
+    // A new active price of its own: Checkout's inline product is inactive, and Stripe refuses a
+    // new price on it ("marked as inactive", found on the 6.3c E2E against real Stripe)
+    expect(stripe.calls["prices.create"]).toEqual([
+      [
+        {
+          currency: "gbp",
+          unit_amount: instalment + priced.amountPence,
+          recurring: { interval: "month" },
+          product_data: { name: `Kerb monthly instalment, ${policy.reference}` },
+        },
+        { idempotencyKey: `policy-change-price:${priced.changeId}` },
+      ],
+    ]);
+    const [price] = stripe.calls["prices.create"]!.map(() => "price_test_1");
     expect(stripe.calls["subscriptions.update"]).toEqual([
       [
         `sub_${policy.quoteId}`,
         {
-          items: [
-            {
-              id: "si_1",
-              price_data: {
-                currency: "gbp",
-                product: "prod_1",
-                unit_amount: instalment + priced.amountPence,
-                recurring: { interval: "month" },
-              },
-            },
-          ],
+          items: [{ id: "si_1", price }],
           proration_behavior: "none",
         },
         { idempotencyKey: `policy-change-instalments:${priced.changeId}` },
@@ -445,11 +450,9 @@ describe("monthly", () => {
       ctx,
       deps,
     );
-    const [, params] = stripe.calls["subscriptions.update"]![0]! as [
-      string,
-      { items: { price_data: { unit_amount: number } }[] },
-    ];
-    expect(params.items[0]!.price_data.unit_amount).toBe(instalment + priced.data.amountPence);
+    // The new price carries the database's instalment, not Stripe's price moved again
+    const [params] = stripe.calls["prices.create"]![0]! as [{ unit_amount: number }];
+    expect(params.unit_amount).toBe(instalment + priced.data.amountPence);
   });
 
   it("applies the change with no Stripe call when no instalment is left", async () => {
@@ -476,5 +479,80 @@ describe("monthly", () => {
     expect(scheduled[0]!.amountPence).toBe(instalment + priced.amountPence);
     const [after] = await getDb().select().from(policies).where(eq(policies.id, home.id));
     expect(after!.annualPremiumPence).toBe(home.annualPremiumPence);
+  });
+});
+
+// A home change settles the same way (6.3c, decisions 2 and 9)
+describe("home", () => {
+  const contents = (contentsValuePence: number): PolicyChangeRequest => ({
+    kind: "home_contents",
+    contentsValuePence,
+    valuablesPence: 0,
+  });
+
+  it("home annual increase: top-up checkout, applied on checkout.session.completed", async () => {
+    const { actor, policy } = await boughtHomePolicy();
+    const { priced, confirmed } = await priceAndConfirm(
+      actor,
+      policy.reference,
+      contents(9_000_000),
+    );
+    expect(priced.settlement).toBe("charge");
+    expect(confirmed).toMatchObject({ status: "pay" });
+    const [params] = stripe.calls["checkout.sessions.create"]![0]! as [Record<string, unknown>];
+    expect(JSON.stringify(params)).toContain(`Change to ${policy.reference}: contents update`);
+    const { stripeSessionId } = await changeRow(priced.changeId);
+    paySession(stripeSessionId!, priced.changeId, priced.amountPence);
+    await deliver(sessionEvent("checkout.session.completed", stripeSessionId!, priced.changeId));
+    expect(await changeRow(priced.changeId)).toMatchObject({ status: "applied", toVersion: 2 });
+  });
+
+  it("home annual decrease: refunded on the original payment intent", async () => {
+    const { actor, policy } = await boughtHomePolicy();
+    const pi = `pi_${policy.quoteId}`;
+    stripe.set("paymentIntents.retrieve", pi, {
+      amount: 100_000,
+      latest_charge: { amount_refunded: 0 },
+    });
+    const { priced, confirmed } = await priceAndConfirm(actor, policy.reference, {
+      kind: "home_security",
+      lockType: "multipoint",
+      windowLocks: "all_accessible",
+      alarmType: "monitored",
+      hasSmokeAlarm: true,
+    });
+    expect(priced.settlement).toBe("refund");
+    expect(confirmed).toEqual({ status: "applied" });
+    expect(stripe.calls["refunds.create"]![0]![0]).toMatchObject({
+      payment_intent: pi,
+      amount: priced.amountPence,
+    });
+  });
+
+  it("home monthly: the scheduled instalments and the subscription change", async () => {
+    const { actor, policy } = await boughtHomePolicy({ plan: "monthly" });
+    const instalment = await presetOn(stripe, policy.quoteId);
+    const { priced } = await priceAndConfirm(actor, policy.reference, contents(9_000_000));
+    expect(priced.settlement).toBe("instalments");
+    expect(stripe.calls["subscriptions.update"]).toHaveLength(1);
+    const scheduled = await getDb()
+      .select()
+      .from(payments)
+      .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.status, "scheduled")));
+    expect(scheduled.every((p) => p.amountPence === instalment + priced.amountPence)).toBe(true);
+  });
+
+  it("bundled home change: the shared subscription changes and the car's annual premium doesn't", async () => {
+    const { actor, car, home } = await boughtBundle("monthly");
+    const instalment = await presetOn(stripe, home.quoteId);
+    const { priced } = await priceAndConfirm(actor, home.reference, contents(9_000_000));
+    expect(stripe.calls["subscriptions.update"]).toHaveLength(1);
+    const [scheduled] = await getDb()
+      .select()
+      .from(payments)
+      .where(and(eq(payments.quoteId, home.quoteId), eq(payments.status, "scheduled")));
+    expect(scheduled!.amountPence).toBe(instalment + priced.amountPence);
+    const [after] = await getDb().select().from(policies).where(eq(policies.id, car.id));
+    expect(after!.annualPremiumPence).toBe(car.annualPremiumPence);
   });
 });

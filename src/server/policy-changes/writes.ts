@@ -38,6 +38,7 @@ import { getStripe, type StripeClient } from "#/server/payments/stripe";
 import { changePolicy, sendChangeEmail } from "./apply";
 import { changesNothing, ineligible, refusedChange } from "./eligibility";
 import { coverLevelLines, offeredAddons, priceChange, type PricedChange } from "./price";
+import { resolveChange } from "./resolve";
 import { completeTopUp, settleApplied, startTopUp } from "./settle";
 
 // A customer's policy changes (6.3b, decisions 6, 7, 14 and 15): price one (writing the priced
@@ -120,18 +121,21 @@ async function price(
       const stored = await loadPolicyForChange(tx, policyId);
       if (!stored) return { status: "refused", message: CANT_CHANGE_ONLINE };
       const tables = await getRatingTables(tx, stored.ratingVersionId);
-      const refusal =
-        ineligible(stored, today) ?? (await refusedChange(tx, stored, change, tables, today));
+      const notNow = ineligible(stored, today);
+      if (notNow) return { status: "refused", message: notNow };
+      const resolved = await resolveChange(tx, change);
+      if ("refused" in resolved) return { status: "refused", message: resolved.refused };
+      const refusal = await refusedChange(tx, stored, resolved, tables, today);
       if (refusal) return { status: "refused", message: refusal };
-      if (changesNothing(stored, change)) {
+      if (changesNothing(stored, resolved)) {
         return {
           status: "unchanged",
-          levels: change.kind === "cover" ? coverLevelLines(stored, change, tables, today) : [],
+          levels: resolved.kind === "cover" ? coverLevelLines(stored, resolved, tables, today) : [],
           addons: change.kind === "cover" ? offeredAddons(stored, tables, today) : [],
         };
       }
 
-      const priced = priceChange(stored, change, tables, today);
+      const priced = priceChange(stored, resolved, tables, today);
       if (priced.outcome !== "quoted") {
         await recordRefused(tx, stored, change, priced);
         return { status: "refused", message: CANT_CHANGE_ONLINE };
@@ -161,7 +165,7 @@ async function price(
         settlement: priced.settlement,
         amountPence: priced.amountPence,
         homeWarning: home ? homeWarning(home) : null,
-        levels: change.kind === "cover" ? coverLevelLines(stored, change, tables, today) : [],
+        levels: resolved.kind === "cover" ? coverLevelLines(stored, resolved, tables, today) : [],
         addons: change.kind === "cover" ? offeredAddons(stored, tables, today) : [],
       };
     },
@@ -189,13 +193,15 @@ async function confirm(
       if (row.status !== "priced") return { status: "refused", message: CHANGE_GONE };
 
       const stored = await loadPolicyForChange(tx, row.policyId);
-      const change = row.request as PolicyChangeRequest;
+      // The stored request is resolved again: a catalogue row can be withdrawn since it was priced
+      const resolved = await resolveChange(tx, row.request as PolicyChangeRequest);
+      const change = "refused" in resolved ? null : resolved;
       const tables = stored ? await getRatingTables(tx, stored.ratingVersionId) : null;
       const refusal =
-        stored && tables
+        stored && tables && change
           ? (ineligible(stored, today) ?? (await refusedChange(tx, stored, change, tables, today)))
           : CANT_CHANGE_ONLINE;
-      if (!stored || !tables || refusal) {
+      if (!stored || !tables || !change || refusal) {
         await updatePolicyChange(tx, changeId, { status: "abandoned", failureReason: "refused" });
         return { status: "refused", message: refusal ?? CANT_CHANGE_ONLINE };
       }

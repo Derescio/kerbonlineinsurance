@@ -1,10 +1,15 @@
 import { CANT_CHANGE_ONLINE } from "#/features/policy-changes/copy";
 import type { PolicyChangeRequest } from "#/features/policy-changes/request";
-import { hasOtherActiveCarPolicy, type StoredPolicy } from "#/server/data/policy-change-rows";
+import {
+  carPolicy,
+  hasOtherActiveCarPolicy,
+  type StoredPolicy,
+} from "#/server/data/policy-change-rows";
 import type { RatingTables } from "#/server/data/reference";
 import type { Tx } from "#/server/db/tx";
 
 import { offeredAddons } from "./price";
+import type { ResolvedChange } from "./resolve";
 
 // What can be changed online (6.3b, decisions 6, 11 to 13), checked when a change is priced, when
 // it's confirmed, and again when a top-up's payment lands.
@@ -21,14 +26,28 @@ export function ineligible(stored: StoredPolicy, today: string): string | null {
   return null;
 }
 
+/** Whether a change of this kind can be made to a policy of this product (6.3c, decision 2) */
+export function kindFits(product: "car" | "home", kind: PolicyChangeRequest["kind"]): boolean {
+  switch (kind) {
+    case "cover":
+      return true;
+    case "home_contents":
+    case "home_security":
+      return product === "home";
+    default:
+      return product === "car";
+  }
+}
+
 /** Why this change can't be made online, or null */
 export async function refusedChange(
   tx: Tx,
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   tables: RatingTables,
   today: string,
 ): Promise<string | null> {
+  if (!kindFits(stored.product, change.kind)) return CANT_CHANGE_ONLINE;
   switch (change.kind) {
     case "driver_added":
       return stored.driverRelationships.size >= NAMED_DRIVER_LIMIT ? CANT_CHANGE_ONLINE : null;
@@ -38,15 +57,26 @@ export async function refusedChange(
       return (await hasOtherActiveCarPolicy(tx, stored.policy.customerId, stored.policy.id, today))
         ? CANT_CHANGE_ONLINE
         : null;
+    case "car_replaced":
+      // The car was checked against the catalogue and its plate when it was resolved
+      return null;
+    case "home_contents":
+    case "home_security":
+      // Referrals come from pricing; nothing else stops these
+      return null;
     case "cover": {
+      // A home has no voluntary excess (6.3c, decision 7)
+      if (stored.product === "home" && change.voluntaryExcessPence !== 0) {
+        return CANT_CHANGE_ONLINE;
+      }
       const offered = new Set(offeredAddons(stored, tables, today).map((a) => a.addon));
       return change.addons.every((addon) => offered.has(addon)) ? null : CANT_CHANGE_ONLINE;
     }
   }
 }
 
-/** A cover or address change that leaves the policy as it is: nothing to price or confirm */
-export function changesNothing(stored: StoredPolicy, change: PolicyChangeRequest): boolean {
+/** A change that leaves the policy as it is: nothing to price or confirm */
+export function changesNothing(stored: StoredPolicy, change: ResolvedChange): boolean {
   switch (change.kind) {
     case "cover":
       return (
@@ -54,12 +84,36 @@ export function changesNothing(stored: StoredPolicy, change: PolicyChangeRequest
         change.voluntaryExcessPence === stored.voluntaryExcessPence &&
         [...change.addons].sort().join() === [...stored.addons].sort().join()
       );
-    case "address":
+    case "address": {
+      const car = carPolicy(stored);
       return (
-        change.postcode === stored.postcode &&
-        change.addressLine1 === stored.customer.addressLine1 &&
-        change.overnightLocation === stored.vehicle.overnightLocation
+        change.postcode === car.postcode &&
+        change.addressLine1 === car.customer.addressLine1 &&
+        change.overnightLocation === car.vehicle.overnightLocation
       );
+    }
+    // The car already insured, whatever its plate or mileage: not a change of car (decision 3)
+    case "car_replaced":
+      return change.car.id === carPolicy(stored).vehicle.catalogueVariantId;
+    // A stored null never equals an answer, so a blank answer filled in is a change (decision 6)
+    case "home_contents": {
+      if (stored.product !== "home") return false;
+      const { property } = stored;
+      return (
+        change.contentsValuePence === property.contentsValuePence &&
+        change.valuablesPence === property.valuablesPence
+      );
+    }
+    case "home_security": {
+      if (stored.product !== "home") return false;
+      const { property } = stored;
+      return (
+        change.lockType === property.lockType &&
+        change.windowLocks === property.windowLocks &&
+        change.alarmType === property.alarmType &&
+        change.hasSmokeAlarm === property.hasSmokeAlarm
+      );
+    }
     default:
       return false;
   }

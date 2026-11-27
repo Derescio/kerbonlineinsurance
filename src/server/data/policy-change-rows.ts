@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 
-import type { NewDriver, PolicyChangeRequest } from "#/features/policy-changes/request";
+import type { NewDriver } from "#/features/policy-changes/request";
 import { wholeYearsBetween } from "#/features/quote/schemas/dates";
 import type { Db } from "#/server/db/client";
 import {
@@ -15,18 +15,21 @@ import {
   quoteItems,
   quotes,
   users,
+  vehicleCatalogue,
   vehicles,
 } from "#/server/db/schema";
 import type { CoverLevel } from "#/server/db/schema/values";
 import type { Tx } from "#/server/db/tx";
-import type { PolicyRatingRows } from "#/server/policy-changes/inputs";
+import type { HomeRatingRows, PolicyRatingRows } from "#/server/policy-changes/inputs";
+import type { ResolvedChange } from "#/server/policy-changes/resolve";
 
 // The rows behind a policy change (6.3b): the policy locked with everything it's rated from, the
 // customer's other policies that change what's allowed, the policy_changes row, and the in-place
 // updates a change makes (decision 2). The protected writes in src/server/policy-changes/ call
 // these; nothing here checks who is asking.
 
-export interface StoredPolicy extends PolicyRatingRows {
+/** What every stored policy carries, whatever it insures */
+interface StoredBase {
   policy: {
     id: string;
     reference: string;
@@ -51,8 +54,27 @@ export interface StoredPolicy extends PolicyRatingRows {
   driverRelationships: Map<string, string | null>;
   /** Every driver's name, for the email */
   driverNames: Map<string, string>;
+  /** Instalments owed: failed and not voided, since a month voided after a lapse is never owed */
   failedInstalments: number;
   scheduledInstalments: number;
+}
+
+export type StoredCarPolicy = StoredBase & { product: "car" } & PolicyRatingRows;
+/** A home policy (6.3c): no drivers, so its driver maps are empty */
+export type StoredHomePolicy = StoredBase & { product: "home" } & HomeRatingRows;
+export type StoredPolicy = StoredCarPolicy | StoredHomePolicy;
+
+/** The car policy a car-only change was checked against; a home here is a bug */
+export function carPolicy(stored: StoredPolicy): StoredCarPolicy {
+  if (stored.product !== "car") throw new Error(`policy-changes: ${stored.policy.id} isn't a car`);
+  return stored;
+}
+
+/** The home policy a home-only change was checked against; a car here is a bug */
+export function homePolicy(stored: StoredPolicy): StoredHomePolicy {
+  if (stored.product !== "home")
+    throw new Error(`policy-changes: ${stored.policy.id} isn't a home`);
+  return stored;
 }
 
 /** The customer's policy id by reference; null when it isn't theirs */
@@ -74,7 +96,7 @@ export async function myPolicyId(
  */
 export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<StoredPolicy | null> {
   const [policy] = await tx.select().from(policies).where(eq(policies.id, policyId)).for("update");
-  if (!policy || policy.product !== "car") return null;
+  if (!policy || (policy.product !== "car" && policy.product !== "home")) return null;
 
   const [item] = await tx
     .select({ ratingVersionId: quoteItems.ratingVersionId })
@@ -94,11 +116,6 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     .from(customers)
     .innerJoin(users, eq(users.id, customers.userId))
     .where(eq(customers.id, policy.customerId));
-  const [vehicle] = await tx
-    .select()
-    .from(vehicles)
-    .where(eq(vehicles.quoteItemId, policy.quoteItemId));
-  if (!vehicle) return null;
   const driverRows = await tx
     .select()
     .from(drivers)
@@ -112,11 +129,11 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
     )
     .orderBy(asc(quoteItemAddons.addon));
   const instalments = await tx
-    .select({ status: payments.status })
+    .select({ status: payments.status, voidedAt: payments.voidedAt })
     .from(payments)
     .where(eq(payments.quoteId, policy.quoteId));
 
-  return {
+  const base = {
     policy: {
       id: policy.id,
       reference: policy.reference,
@@ -144,11 +161,63 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       email: customer!.email,
       addressLine1: customer!.addressLine1,
     },
-    postcode: customer!.postcode,
+    driverRelationships: new Map(
+      driverRows.filter((d) => !d.isMain).map((d) => [d.id, d.relationship]),
+    ),
+    driverNames: new Map(driverRows.map((d) => [d.id, `${d.firstName} ${d.lastName}`])),
+    failedInstalments: instalments.filter((p) => p.status === "failed" && !p.voidedAt).length,
+    scheduledInstalments: instalments.filter((p) => p.status === "scheduled").length,
+  };
+  const common = {
     coverLevel: policy.coverLevel as CoverLevel,
     addons: addons.map((a) => a.addon),
     voluntaryExcessPence: policy.voluntaryExcessPence,
+  };
+
+  if (policy.product === "home") {
+    const [home] = await tx
+      .select()
+      .from(properties)
+      .where(eq(properties.quoteItemId, policy.quoteItemId));
+    if (!home) return null;
+    return {
+      ...base,
+      ...common,
+      product: "home",
+      property: {
+        postcode: home.postcode,
+        propertyType: home.propertyType,
+        yearBuilt: home.yearBuilt,
+        bedrooms: home.bedrooms,
+        rebuildCostPence: home.rebuildCostPence,
+        contentsValuePence: home.contentsValuePence,
+        valuablesPence: home.valuablesPence,
+        hasAlarm: home.hasAlarm,
+        alarmType: home.alarmType,
+        windowLocks: home.windowLocks,
+        hasSmokeAlarm: home.hasSmokeAlarm,
+        lockType: home.lockType,
+        pastClaims: home.pastClaims,
+        occupation: home.occupation,
+      },
+    };
+  }
+
+  const [vehicle] = await tx
+    .select()
+    .from(vehicles)
+    .where(eq(vehicles.quoteItemId, policy.quoteItemId));
+  if (!vehicle) return null;
+  return {
+    ...base,
+    ...common,
+    product: "car",
+    postcode: customer!.postcode,
     vehicle: {
+      catalogueVariantId: vehicle.catalogueVariantId,
+      make: vehicle.make,
+      model: vehicle.model,
+      registration: vehicle.registration,
       year: vehicle.year,
       insuranceGroup: vehicle.insuranceGroup,
       fuelType: vehicle.fuelType,
@@ -166,13 +235,51 @@ export async function loadPolicyForChange(tx: Tx, policyId: string): Promise<Sto
       noClaimsYears: d.noClaimsYears,
       pastClaims: d.pastClaims,
     })),
-    driverRelationships: new Map(
-      driverRows.filter((d) => !d.isMain).map((d) => [d.id, d.relationship]),
-    ),
-    driverNames: new Map(driverRows.map((d) => [d.id, `${d.firstName} ${d.lastName}`])),
-    failedInstalments: instalments.filter((p) => p.status === "failed").length,
-    scheduledInstalments: instalments.filter((p) => p.status === "scheduled").length,
   };
+}
+
+/** A catalogue car as Change car prices and stores it (6.3c, decision 3) */
+export interface CatalogueCar {
+  id: string;
+  make: string;
+  model: string;
+  year: number;
+  variant: string;
+  fuelType: string;
+  doors: number;
+  insuranceGroup: number;
+  valuePence: number;
+}
+
+/** An active catalogue row, by id or by the four fields a demo plate names; null when there's none */
+export async function catalogueCar(
+  tx: Tx,
+  by: { id: string } | { make: string; model: string; year: number; variant: string },
+): Promise<CatalogueCar | null> {
+  const where =
+    "id" in by
+      ? eq(vehicleCatalogue.id, by.id)
+      : and(
+          eq(vehicleCatalogue.make, by.make),
+          eq(vehicleCatalogue.model, by.model),
+          eq(vehicleCatalogue.year, by.year),
+          eq(vehicleCatalogue.variant, by.variant),
+        );
+  const [row] = await tx
+    .select({
+      id: vehicleCatalogue.id,
+      make: vehicleCatalogue.make,
+      model: vehicleCatalogue.model,
+      year: vehicleCatalogue.year,
+      variant: vehicleCatalogue.variant,
+      fuelType: vehicleCatalogue.fuelType,
+      doors: vehicleCatalogue.doors,
+      insuranceGroup: vehicleCatalogue.insuranceGroup,
+      valuePence: vehicleCatalogue.valuePence,
+    })
+    .from(vehicleCatalogue)
+    .where(and(where, eq(vehicleCatalogue.isActive, true)));
+  return row ?? null;
 }
 
 /** Whether the customer has another car policy in force on `today` (decision 11) */
@@ -266,7 +373,7 @@ export interface PolicyAfter {
 export async function applyChangeRows(
   tx: Tx,
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   after: PolicyAfter,
   version: number,
   today: string,
@@ -342,6 +449,48 @@ export async function applyChangeRows(
       }
       break;
     }
+    case "car_replaced": {
+      // The new car from its catalogue row; how it's used, parked and driven a year carry over
+      const { car } = change;
+      await tx
+        .update(vehicles)
+        .set({
+          make: car.make,
+          model: car.model,
+          year: car.year,
+          variant: car.variant,
+          fuelType: car.fuelType,
+          doors: car.doors,
+          insuranceGroup: car.insuranceGroup,
+          valuePence: car.valuePence,
+          catalogueVariantId: car.id,
+          registration: change.registration,
+          currentMileage: change.currentMileage,
+        })
+        .where(eq(vehicles.quoteItemId, policy.quoteItemId));
+      break;
+    }
+    case "home_contents":
+      await tx
+        .update(properties)
+        .set({
+          contentsValuePence: change.contentsValuePence,
+          valuablesPence: change.valuablesPence,
+        })
+        .where(eq(properties.quoteItemId, policy.quoteItemId));
+      break;
+    case "home_security":
+      await tx
+        .update(properties)
+        .set({
+          lockType: change.lockType,
+          windowLocks: change.windowLocks,
+          alarmType: change.alarmType,
+          hasAlarm: change.alarmType !== "none",
+          hasSmokeAlarm: change.hasSmokeAlarm,
+        })
+        .where(eq(properties.quoteItemId, policy.quoteItemId));
+      break;
   }
   await tx
     .update(policies)

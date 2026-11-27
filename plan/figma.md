@@ -115,7 +115,7 @@ Drawn by Damion on 12 Nov 2026 after the 5.4 manual check, and built in 5.4b. Th
 | Account · Web (two-factor) | `205:4701` | 09 code, 09b wrong code, 10 backup code, 11a–11c setup (password, scan, backup codes), 12 staff 2FA required, 13 staff "confirm it's you" dialog. Added in 4.6: 09b too many tries `213:6338`, 11a (Google) confirm with Google `213:6290`, 11b (mobile, 390) scan with "Open in authenticator app" first `213:6410` | 4.3, 4.6 |
 | Account · Mobile (auth) | `207:5249` | Every screen above at 390 px except 13; 08b `209:6142` and the Connect Google panel `209:6260` added in 4.4 | 4.3, 4.4 |
 | Account · Settings | `182:3249` | Personal details (view, editing), notifications, payment methods, communication preferences; 06 Security `276:3822`, 07 Turn off two-factor `276:3885`, 08 Sign out everywhere `276:3900` (added 22 Nov 2026) | 6.3 |
-| Account · Policy | `183:3502` | Policy overview, plus the six "Make a change" dialogs | 6.x |
+| Account · Policy | `183:3502` | Policy overview, plus the six "Make a change" dialogs. 02 Change car `183:3785` has Current mileage in place of the date (25 Nov 2026). Added by Damion on 25 Nov 2026 for 6.3c: 02b Change car, not found `282:3977`; 02c Change car, choose manually `282:4033`; 08 Home policy, Make a change `282:4089`; 09 Update contents `282:4145`; 10 Update security `282:4201`; 11 Change cover (home) `282:4257` | 6.3b, 6.3c |
 | Account · Overview | `258:3602` | 01 Overview `258:3608`, 02 one lapsed policy `258:3635`, 03 no policies yet `258:3659`, 04 avatar menu `258:3683`. Drawn 18 Nov 2026. The bell and Open claims wait for 6.6; the add-product card is 6.1b | 6.1, 6.1b |
 | Ops · Admin | `184:3886` | Overview, customers, policies, payments, customer panel, refund dialog | 6.8 |
 

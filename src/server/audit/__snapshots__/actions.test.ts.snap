@@ -46,6 +46,14 @@ exports[`AUDIT_ACTIONS > pins the list 1`] = `
     "description": "A policy was cancelled because its payments couldn't be taken",
     "entityType": "policy",
   },
+  "policy.car_changed": {
+    "description": "A customer changed the car their policy insures",
+    "entityType": "policy",
+  },
+  "policy.contents_changed": {
+    "description": "A customer changed their home's contents value or valuables",
+    "entityType": "policy",
+  },
   "policy.cover_changed": {
     "description": "A customer changed their cover level, add-ons or voluntary excess",
     "entityType": "policy",
@@ -68,6 +76,10 @@ exports[`AUDIT_ACTIONS > pins the list 1`] = `
   },
   "policy.resumed": {
     "description": "A lapsed policy's cover resumed once the payment owed went through",
+    "entityType": "policy",
+  },
+  "policy.security_changed": {
+    "description": "A customer changed their home's locks or alarms",
     "entityType": "policy",
   },
   "referral.viewed": {

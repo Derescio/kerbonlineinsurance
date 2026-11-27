@@ -1,9 +1,11 @@
-import type { PolicyChangeRequest } from "#/features/policy-changes/request";
 import { todayIso, wholeYearsBetween } from "#/features/quote/schemas/dates";
 import { audit, type AuditEntry } from "#/server/audit/audit";
 import type { Actor } from "#/server/auth/actor";
 import {
   applyChangeRows,
+  carPolicy,
+  homePolicy,
+  type StoredHomePolicy,
   updatePolicyChange,
   type StoredPolicy,
 } from "#/server/data/policy-change-rows";
@@ -18,10 +20,16 @@ import { queueEmail, runSoon } from "#/server/jobs/email";
 import type { JobDeps } from "#/server/jobs/types";
 import { emailPriceLine } from "#/features/policy-changes/money";
 import { addonCopy } from "#/features/quote/cover";
+import {
+  alarmOptions,
+  lockTypeOptions,
+  windowLockOptions,
+} from "#/features/quote/schemas/home-steps";
 import { tierName } from "#/features/quote/labels";
 import { formatPounds } from "#/features/rating/money";
 
 import type { PricedChange } from "./price";
+import type { ResolvedChange } from "./resolve";
 
 // Applying a priced change (6.3b, decisions 2, 8 and 9): the rows updated in place, the policy's
 // version moved on with a policy_versions snapshot of it as it now stands, an audit row with no
@@ -63,19 +71,66 @@ function moneyAfter(prev: SnapshotMoney, priced: Quoted, chosen: string[]): Snap
   };
 }
 
-function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: string) {
+/** Whole pounds, as the email words a contents value: £45,000 */
+const pounds = (pence: number) => formatPounds(pence).replace(".00", "");
+
+const optionLabel = (options: { value: string; label: string }[], value: string) => {
+  const label = options.find((o) => o.value === value)?.label ?? value;
+  return label.charAt(0).toLowerCase() + label.slice(1);
+};
+
+/** The security answers a change moves, for the audit and the email (decision 6) */
+function securityMoves(
+  stored: StoredHomePolicy,
+  change: Extract<ResolvedChange, { kind: "home_security" }>,
+): { field: string; from: string | boolean | null; to: string | boolean; sentence: string }[] {
+  const { property } = stored;
+  const moves = [
+    {
+      field: "lock_type",
+      from: property.lockType,
+      to: change.lockType,
+      sentence: `Main door lock: ${optionLabel(lockTypeOptions, change.lockType)}.`,
+    },
+    {
+      field: "window_locks",
+      from: property.windowLocks,
+      to: change.windowLocks,
+      sentence: `Window locks: ${optionLabel(windowLockOptions, change.windowLocks)}.`,
+    },
+    {
+      field: "alarm_type",
+      from: property.alarmType,
+      to: change.alarmType,
+      sentence: `Burglar alarm: ${optionLabel(alarmOptions, change.alarmType)}.`,
+    },
+    {
+      field: "has_smoke_alarm",
+      from: property.hasSmokeAlarm,
+      to: change.hasSmokeAlarm,
+      sentence: change.hasSmokeAlarm
+        ? "Smoke alarms: fitted and working."
+        : "Smoke alarms: not fitted.",
+    },
+  ];
+  return moves.filter((m) => m.from !== m.to);
+}
+
+function auditEntry(stored: StoredPolicy, change: ResolvedChange, today: string) {
   switch (change.kind) {
-    case "address":
+    case "address": {
+      const car = carPolicy(stored);
       return {
         action: "policy.address_changed",
         changes: {
-          postcode_area: { from: postcodeArea(stored.postcode), to: postcodeArea(change.postcode) },
+          postcode_area: { from: postcodeArea(car.postcode), to: postcodeArea(change.postcode) },
           overnight_location: {
-            from: stored.vehicle.overnightLocation,
+            from: car.vehicle.overnightLocation,
             to: change.overnightLocation,
           },
         },
       } as const;
+    }
     case "driver_added":
       return {
         action: "policy.driver_added",
@@ -104,11 +159,49 @@ function auditEntry(stored: StoredPolicy, change: PolicyChangeRequest, today: st
           },
         },
       } as const;
+    case "car_replaced": {
+      // Make, model, year and group, never the plate (decision 3)
+      const { vehicle } = carPolicy(stored);
+      const { car } = change;
+      return {
+        action: "policy.car_changed",
+        changes: {
+          make: { from: vehicle.make, to: car.make },
+          model: { from: vehicle.model, to: car.model },
+          year: { from: vehicle.year, to: car.year },
+          insurance_group: { from: vehicle.insuranceGroup, to: car.insuranceGroup },
+        },
+      } as const;
+    }
+    case "home_contents": {
+      const { property } = homePolicy(stored);
+      return {
+        action: "policy.contents_changed",
+        changes: {
+          contents_value_pence: {
+            from: property.contentsValuePence,
+            to: change.contentsValuePence,
+          },
+          valuables_pence: { from: property.valuablesPence, to: change.valuablesPence },
+        },
+      } as const;
+    }
+    case "home_security": {
+      return {
+        action: "policy.security_changed",
+        changes: Object.fromEntries(
+          securityMoves(homePolicy(stored), change).map(({ field, from, to }) => [
+            field,
+            { from, to },
+          ]),
+        ),
+      } as const;
+    }
   }
 }
 
 /** The email's lines on what changed: every part of it */
-function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
+function summaryOf(stored: StoredPolicy, change: ResolvedChange): string {
   switch (change.kind) {
     case "address":
       return `Your car is now kept at ${change.addressLine1}, ${change.postcode}.`;
@@ -134,11 +227,20 @@ function summaryOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
       }
       return parts.join(" ");
     }
+    case "car_replaced":
+      return `Your car is now a ${change.car.make} ${change.car.model} (${change.car.year}).`;
+    case "home_contents":
+      return `Your contents are now covered for ${pounds(change.contentsValuePence)}, with valuables of ${pounds(change.valuablesPence)}.`;
+    case "home_security":
+      return [
+        "Your home's security details are updated.",
+        ...securityMoves(homePolicy(stored), change).map((m) => m.sentence),
+      ].join(" ");
   }
 }
 
 /** The email's subject line on what changed */
-function headlineOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
+function headlineOf(stored: StoredPolicy, change: ResolvedChange): string {
   switch (change.kind) {
     case "address":
       return "address changed";
@@ -150,6 +252,12 @@ function headlineOf(stored: StoredPolicy, change: PolicyChangeRequest): string {
       return change.coverLevel !== stored.coverLevel
         ? `cover changed to ${tierName(change.coverLevel)}`
         : "cover changed";
+    case "car_replaced":
+      return "car changed";
+    case "home_contents":
+      return "contents updated";
+    case "home_security":
+      return "security updated";
   }
 }
 
@@ -157,7 +265,7 @@ export async function changePolicy(
   tx: Tx,
   input: {
     stored: StoredPolicy;
-    change: PolicyChangeRequest;
+    change: ResolvedChange;
     priced: Quoted;
     changeId: string;
     actor: Actor | null;

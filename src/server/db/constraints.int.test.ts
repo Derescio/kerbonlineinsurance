@@ -137,6 +137,27 @@ describe("Postgres integrity rules", () => {
       );
     });
 
+    it("policy_changes accepts the 6.3c kinds", async () => {
+      const policy = await makePolicy();
+      for (const kind of ["car_replaced", "home_contents", "home_security"] as const) {
+        await db().insert(policyChanges).values({
+          policyId: policy.id,
+          customerId: policy.customerId,
+          kind,
+          request: {},
+          fromVersion: 1,
+          oldAnnualPence: 50_000,
+          newAnnualPence: 50_000,
+          priceBeforePence: 50_000,
+          priceAfterPence: 50_000,
+          outcome: "quoted",
+          settlement: "none",
+          amountPence: 0,
+          status: "priced",
+        });
+      }
+    });
+
     it("refuses a duplicate policy version (6.3b)", async () => {
       const policy = await makePolicy();
       await expectRefused(

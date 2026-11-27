@@ -23,6 +23,7 @@ import type { StripeClient } from "#/server/payments/stripe";
 import { changePolicy, sendChangeEmail } from "./apply";
 import { ineligible, refusedChange } from "./eligibility";
 import { priceChange, type PricedChange } from "./price";
+import { resolveChange, type ResolvedChange } from "./resolve";
 
 // Settling a confirmed change's difference in Stripe (6.3b, decision 5):
 // - annual, dearer: an embedded Checkout for the top-up (startTopUp); the change is applied when
@@ -48,6 +49,9 @@ const KIND_LABEL: Record<PolicyChangeRequest["kind"], string> = {
   driver_added: "added driver",
   driver_removed: "removed driver",
   cover: "cover change",
+  car_replaced: "new car",
+  home_contents: "contents update",
+  home_security: "security update",
 };
 
 const idOf = (value: string | { id: string } | null | undefined): string | null =>
@@ -73,7 +77,7 @@ export async function startTopUp(
   tx: Tx,
   changeId: string,
   stored: StoredPolicy,
-  change: PolicyChangeRequest,
+  change: ResolvedChange,
   priced: Quoted,
   deps: SettleDeps,
 ): Promise<{ clientSecret: string }> {
@@ -164,24 +168,22 @@ async function moveInstalments(
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const item = subscription.items.data[0];
   if (!item) throw new Error("Stripe returned a subscription without an item");
+  // A price of its own, on a new active product: the subscription's product came from
+  // Checkout's inline price_data, which Stripe makes inactive, and Stripe refuses any new price
+  // on an inactive product (6.3c's E2E against real Stripe)
+  const price = await stripe.prices.create(
+    {
+      currency: "gbp",
+      // The instalment the rows now hold, not Stripe's price moved again
+      unit_amount: instalmentPence,
+      recurring: { interval: "month" },
+      product_data: { name: `Kerb monthly instalment, ${stored.policy.reference}` },
+    },
+    { idempotencyKey: `policy-change-price:${changeId}` },
+  );
   await stripe.subscriptions.update(
     subscriptionId,
-    {
-      items: [
-        {
-          id: item.id,
-          price_data: {
-            currency: "gbp",
-            // A subscription item takes a product id, not product_data
-            product: idOf(item.price.product as string | { id: string })!,
-            // The instalment the rows now hold, not Stripe's price moved again
-            unit_amount: instalmentPence,
-            recurring: { interval: "month" },
-          },
-        },
-      ],
-      proration_behavior: "none",
-    },
+    { items: [{ id: item.id, price: price.id }], proration_behavior: "none" },
     { idempotencyKey: `policy-change-instalments:${changeId}` },
   );
 }
@@ -238,7 +240,10 @@ export async function completeTopUp(sessionId: string, deps: SettleDeps): Promis
     const stored = await loadPolicyForChange(tx, row.policyId);
     if (!stored || stored.policy.version !== row.fromVersion) return fail("version_moved");
     const today = todayIso(now);
-    const change = row.request as PolicyChangeRequest;
+    // Resolved again, as Confirm does: the catalogue row may be gone since it was priced
+    const resolved = await resolveChange(tx, row.request as PolicyChangeRequest);
+    if ("refused" in resolved) return fail("refused");
+    const change = resolved;
     const tables = await getRatingTables(tx, stored.ratingVersionId);
     if (ineligible(stored, today) || (await refusedChange(tx, stored, change, tables, today))) {
       return fail("refused");

@@ -30,6 +30,7 @@ export type StripeMethod =
   | "subscriptions.retrieve"
   | "subscriptions.update"
   | "subscriptions.cancel"
+  | "prices.create"
   | "invoices.retrieve"
   | "invoices.list"
   | "invoices.pay"
@@ -53,6 +54,7 @@ const PREFIX: Partial<Record<StripeMethod, string>> = {
   "checkout.sessions.create": "cs_test_",
   "customers.create": "cus_test_",
   "refunds.create": "re_test_",
+  "prices.create": "price_test_",
   "billingPortal.sessions.create": "bps_test_",
   "testHelpers.testClocks.create": "clock_test_",
 };
@@ -180,6 +182,7 @@ export function fakeStripe(): StripeClient & FakeStripeControls {
       update: change("subscriptions.update"),
       cancel: change("subscriptions.cancel", () => ({ status: "canceled" })),
     },
+    prices: { create: create("prices.create", () => ({ active: true })) },
     invoices: {
       retrieve: retrieve("invoices.retrieve"),
       list: listInvoices,

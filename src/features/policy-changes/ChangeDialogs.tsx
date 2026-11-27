@@ -21,10 +21,12 @@ import { formatPounds } from "#/features/rating/money";
 import type { PolicyDetail } from "#/server/data/policies";
 import { coverLevels, type CoverLevel } from "#/server/db/schema/values";
 
+import { ChangeCarDialog } from "./ChangeCarDialog";
 import { ChangeDialog } from "./ChangeDialog";
+import { UpdateContentsDialog, UpdateSecurityDialog } from "./HomeDialogs";
 import type { OvernightLocation } from "./request";
 
-// The "Make a change" dialogs (6.3b; Figma 183:3955 Add a driver, 183:4072 Change address,
+// The "Make a change" dialogs (6.3b, with Change car and the home dialogs from 6.3c; Figma 183:3955 Add a driver, 183:4072 Change address,
 // 183:4168 Change cover) and Remove driver, which isn't drawn and follows Add a driver's frame.
 // Each builds its change once the form is whole; ChangeDialog prices and confirms it.
 
@@ -34,7 +36,10 @@ export type OpenDialog =
   | { kind: "driver_added" }
   | { kind: "driver_removed"; driverId: string; name: string }
   | { kind: "address" }
-  | { kind: "cover" };
+  | { kind: "cover" }
+  | { kind: "car_replaced" }
+  | { kind: "home_contents" }
+  | { kind: "home_security" };
 
 interface DialogProps {
   policy: PolicyDetail;
@@ -53,6 +58,12 @@ export function ChangeDialogs({ dialog, ...props }: DialogProps & { dialog: Open
       return <ChangeAddressDialog {...props} />;
     case "cover":
       return <ChangeCoverDialog {...props} />;
+    case "car_replaced":
+      return <ChangeCarDialog {...props} />;
+    case "home_contents":
+      return <UpdateContentsDialog {...props} />;
+    case "home_security":
+      return <UpdateSecurityDialog {...props} />;
     default:
       return null;
   }
@@ -313,12 +324,15 @@ function ChangeCoverDialog({ policy, onClose, onApplied }: DialogProps) {
                 />
               );
             })}
-            <Select
-              label="Voluntary excess"
-              options={excessOptions}
-              value={String(excess)}
-              onChange={(e) => setExcess(Number(e.target.value))}
-            />
+            {/* A home has no voluntary excess (6.3c, decision 7) */}
+            {policy.product === "car" ? (
+              <Select
+                label="Voluntary excess"
+                options={excessOptions}
+                value={String(excess)}
+                onChange={(e) => setExcess(Number(e.target.value))}
+              />
+            ) : null}
           </>
         );
       }}

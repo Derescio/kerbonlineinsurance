@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { completeJourney, FIXTURE_TODAY, golf } from "#/features/quote/journey-fixtures";
+import {
+  completeHomeJourney,
+  completeJourney,
+  FIXTURE_TODAY,
+  golf,
+} from "#/features/quote/journey-fixtures";
 import { carDetailsFromJourney, type DetailedCar } from "#/features/rating/car-details";
 import { carInputsFromJourney } from "#/features/rating/car-journey";
+import { homeInputsFromJourney } from "#/features/rating/home-journey";
 
-import { carInputsFromPolicy, type PolicyRatingRows } from "./inputs";
+import {
+  carInputsFromPolicy,
+  homeInputsFromPolicy,
+  type HomeRatingRows,
+  type PolicyRatingRows,
+} from "./inputs";
 
 // A policy's rating inputs rebuilt from its stored rows (6.3b, decision 4). The rows here are
 // what the quote save writes for the frames' journey (carDetailsFromJourney), so a policy that
@@ -30,7 +41,11 @@ function rowsFor(today = FIXTURE_TODAY): PolicyRatingRows {
     coverLevel: "comprehensive",
     addons: ["breakdown_uk"],
     voluntaryExcessPence: 25_000,
-    vehicle: details.vehicle,
+    vehicle: {
+      ...details.vehicle,
+      catalogueVariantId: details.vehicle.catalogueVariantId ?? null,
+      registration: details.vehicle.registration ?? null,
+    },
     drivers: details.drivers.map((d, i) => ({
       ...d,
       id: `driver-${i}`,
@@ -115,5 +130,70 @@ describe("carInputsFromPolicy", () => {
     expect(result.coverLevel).toBe("plus");
     expect(result.addons).toEqual(["courtesy_car"]);
     expect(result.inputs.voluntaryExcessPence).toBe(50_000);
+  });
+});
+
+// A home policy's inputs from its properties row (6.3c, decision 4): the same answers the home
+// journey rated, from the row the quote save wrote for them
+
+const homeRows = (): HomeRatingRows => ({
+  coverLevel: "comprehensive",
+  addons: [],
+  voluntaryExcessPence: 0,
+  property: {
+    postcode: "E8 3RL",
+    propertyType: "terraced",
+    yearBuilt: 1985,
+    bedrooms: 3,
+    rebuildCostPence: 25_000_000,
+    contentsValuePence: 5_000_000,
+    valuablesPence: 500_000,
+    hasAlarm: true,
+    alarmType: "installed_unmonitored",
+    windowLocks: "all_accessible",
+    hasSmokeAlarm: true,
+    lockType: "five_lever",
+    pastClaims: 1,
+    occupation: "teacher",
+  },
+});
+
+describe("homeInputsFromPolicy", () => {
+  it("homeInputsFromPolicy matches homeInputsFromJourney for the same answers", () => {
+    expect(homeInputsFromPolicy(homeRows())).toEqual(homeInputsFromJourney(completeHomeJourney()));
+  });
+
+  it("a security change sets hasAlarm from the alarm type", () => {
+    const change = {
+      kind: "home_security",
+      lockType: "multipoint",
+      windowLocks: "some",
+      alarmType: "none",
+      hasSmokeAlarm: false,
+    } as const;
+    expect(homeInputsFromPolicy(homeRows(), change)).toMatchObject({
+      hasAlarm: false,
+      hasSmokeAlarm: false,
+      lockType: "multipoint",
+    });
+    expect(homeInputsFromPolicy(homeRows(), { ...change, alarmType: "monitored" }).hasAlarm).toBe(
+      true,
+    );
+  });
+
+  it("a contents change moves only contentsValuePence", () => {
+    const before = homeInputsFromPolicy(homeRows());
+    const after = homeInputsFromPolicy(homeRows(), {
+      kind: "home_contents",
+      contentsValuePence: 6_000_000,
+      valuablesPence: 900_000,
+    });
+    expect(after).toEqual({ ...before, contentsValuePence: 6_000_000 });
+  });
+
+  it("a null occupation becomes an empty string", () => {
+    const rows = homeRows();
+    rows.property.occupation = null;
+    expect(homeInputsFromPolicy(rows).occupation).toBe("");
   });
 });

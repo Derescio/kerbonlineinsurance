@@ -56,6 +56,8 @@ export type PolicyListItem = PolicySummary & {
 
 /** The insured car, as policy detail and the documents show it (6.2) */
 export interface PolicyCar {
+  /** Null for a car entered by hand; Change car compares against it (6.3c) */
+  catalogueVariantId: string | null;
   make: string;
   model: string;
   variant: string;
@@ -87,6 +89,11 @@ export interface PolicyHome {
   rebuildCostPence: number;
   contentsValuePence: number;
   valuablesPence: number | null;
+  /** The security answers, which Update security opens on (6.3c); null where never asked */
+  lockType: string;
+  windowLocks: string | null;
+  alarmType: string | null;
+  hasSmokeAlarm: boolean;
 }
 
 /**
@@ -131,7 +138,7 @@ export type PolicyDetail = PolicySummary & {
 
 /** Whether the policy can be changed online, and its latest change that went past pricing */
 export interface PolicyChanges {
-  /** A car policy in force, with no failed instalment (decision 6) */
+  /** A car or home policy in force, with no failed instalment (decision 6; home from 6.3c) */
   eligible: boolean;
   latest: { id: string; status: string; failureReason: string | null } | null;
 }
@@ -360,6 +367,7 @@ export const getMyPolicy = defineRead(
           with: {
             vehicle: {
               columns: {
+                catalogueVariantId: true,
                 make: true,
                 model: true,
                 variant: true,
@@ -392,6 +400,10 @@ export const getMyPolicy = defineRead(
                 rebuildCostPence: true,
                 contentsValuePence: true,
                 valuablesPence: true,
+                lockType: true,
+                windowLocks: true,
+                alarmType: true,
+                hasSmokeAlarm: true,
               },
             },
           },
@@ -454,7 +466,14 @@ async function changesOf(
       ? await db
           .select({ id: payments.id })
           .from(payments)
-          .where(and(eq(payments.quoteId, policy.quoteId), eq(payments.status, "failed")))
+          .where(
+            and(
+              eq(payments.quoteId, policy.quoteId),
+              eq(payments.status, "failed"),
+              // A month voided after a lapse is never owed (isOwed, 5.6b)
+              isNull(payments.voidedAt),
+            ),
+          )
           .limit(1)
       : [];
   const [latest] = await db
@@ -474,7 +493,7 @@ async function changesOf(
     .limit(1);
   return {
     eligible:
-      policy.product === "car" &&
+      (policy.product === "car" || policy.product === "home") &&
       policy.status === "active" &&
       today < policy.endsOn &&
       failed.length === 0,

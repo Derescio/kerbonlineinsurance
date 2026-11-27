@@ -6,7 +6,7 @@ import { quoteItems, quotes } from "#/server/db/schema";
 import { makePayment, makePolicy, makeQuote } from "./factories";
 
 /**
- * An accepted car quote with its policy and payments, as Task 5's pay will leave it (5.6). The
+ * An accepted car (or home) quote with its policy and payments, as Task 5's pay will leave it (5.6). The
  * factory's quote is re-pointed at `ratingVersionId` (a real version, so its credit charge loads),
  * and a monthly plan gets its 12 instalments.
  */
@@ -14,13 +14,15 @@ export async function makePurchase({
   customerId,
   ratingVersionId,
   plan = "annual",
+  product = "car",
 }: {
   customerId: string;
   ratingVersionId: string;
   plan?: "annual" | "monthly";
+  product?: "car" | "home";
 }) {
   const db = getDb();
-  const { quote, items } = await makeQuote({ customerId });
+  const { quote, items } = await makeQuote({ customerId, products: [product] });
   await db.update(quoteItems).set({ ratingVersionId }).where(eq(quoteItems.id, items[0]!.item.id));
   const now = new Date();
   const [accepted] = await db
@@ -37,6 +39,7 @@ export async function makePurchase({
     customerId,
     quoteId: quote.id,
     quoteItemId: items[0]!.item.id,
+    product,
   });
   const instalments = plan === "monthly" ? 12 : 1;
   for (let n = 1; n <= instalments; n++) {
